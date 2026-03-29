@@ -193,6 +193,38 @@ def get_accessible_sps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict
     )
 
 
+def get_accessible_sps_with_nameid_for_user(tenant_id: TenantArg, user_id: str) -> list[dict]:
+    """Get accessible SPs for a user with their NameID format.
+
+    Used by compute_email_change_impact() to determine which SPs will
+    see a different NameID when the user's primary email changes.
+
+    Returns:
+        List of dicts with sp id, name, entity_id, nameid_format.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select distinct sp.id, sp.name, sp.entity_id, sp.nameid_format
+        from service_providers sp
+        join sp_group_assignments sga on sga.sp_id = sp.id
+        join group_lineage gl on gl.ancestor_id = sga.group_id
+        join group_memberships gm on gm.group_id = gl.descendant_id
+        where gm.user_id = :user_id
+          and sp.enabled = true
+          and sp.trust_established = true
+        union
+        select sp.id, sp.name, sp.entity_id, sp.nameid_format
+        from service_providers sp
+        where sp.available_to_all = true
+          and sp.enabled = true
+          and sp.trust_established = true
+        order by name
+        """,
+        {"user_id": user_id},
+    )
+
+
 def get_accessible_sps_with_attribution(tenant_id: TenantArg, user_id: str) -> list[dict]:
     """Get accessible SPs for a user with granting group attribution.
 

@@ -378,6 +378,10 @@
                     class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
                     Manage Secondary Emails
                 </button>
+                <button type="button" id="bulk-primary-emails-btn"
+                    class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+                    Change Primary Email
+                </button>
             </div>
         </div>
         <input type="hidden" id="selection-mode" value="ids">
@@ -387,6 +391,12 @@
             <input type="hidden" name="selection_mode" id="bulk-se-selection-mode" value="ids">
             <input type="hidden" name="filter_criteria" id="bulk-se-filter-criteria" value="">
             <input type="hidden" name="search" id="bulk-se-search" value="">
+        </form>
+        <form id="bulk-primary-emails-form" method="post" action="/users/bulk-ops/primary-emails/prepare" class="hidden">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="selection_mode" id="bulk-pe-selection-mode" value="ids">
+            <input type="hidden" name="filter_criteria" id="bulk-pe-filter-criteria" value="">
+            <input type="hidden" name="search" id="bulk-pe-search" value="">
         </form>
 
         <!-- Pagination Controls - Bottom -->
@@ -472,6 +482,28 @@ WeftUtils.listManager({
                     form.querySelector('#bulk-se-filter-criteria').value =
                         document.getElementById('filter-criteria').value;
                     if (search) form.querySelector('#bulk-se-search').value = search;
+                } else {
+                    form.querySelectorAll('input[name="user_ids"]').forEach(el => el.remove());
+                    document.querySelectorAll('.user-checkbox:checked').forEach(cb => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'user_ids';
+                        input.value = cb.value;
+                        form.appendChild(input);
+                    });
+                }
+                form.submit();
+            },
+        }, {
+            selector: '#bulk-primary-emails-btn',
+            callback: () => {
+                const form = document.getElementById('bulk-primary-emails-form');
+                const mode = document.getElementById('selection-mode').value;
+                form.querySelector('#bulk-pe-selection-mode').value = mode;
+                if (mode === 'filter') {
+                    form.querySelector('#bulk-pe-filter-criteria').value =
+                        document.getElementById('filter-criteria').value;
+                    if (search) form.querySelector('#bulk-pe-search').value = search;
                 } else {
                     form.querySelectorAll('input[name="user_ids"]').forEach(el => el.remove());
                     document.querySelectorAll('.user-checkbox:checked').forEach(cb => {

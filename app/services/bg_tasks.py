@@ -139,6 +139,103 @@ def create_bulk_add_emails_task(
     return result
 
 
+def create_bulk_primary_email_preview_task(
+    requesting_user: RequestingUser,
+    items: list[dict],
+) -> dict | None:
+    """Create a dry-run background task to preview bulk primary email changes.
+
+    Authorization: Requires admin or super_admin role.
+
+    Args:
+        requesting_user: The user making the request
+        items: List of dicts with user_id and new_primary_email keys
+
+    Returns:
+        Dict with task id and created_at, or None if creation failed
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    if not items:
+        raise ValidationError(
+            message="At least one user-email pair is required",
+            code="empty_items",
+        )
+
+    result = database.bg_tasks.create_task(
+        tenant_id=requesting_user["tenant_id"],
+        job_type="bulk_primary_email_preview",
+        created_by=requesting_user["id"],
+        payload={"items": items},
+    )
+
+    if result:
+        log_event(
+            tenant_id=requesting_user["tenant_id"],
+            actor_user_id=requesting_user["id"],
+            artifact_type="bg_task",
+            artifact_id=str(result["id"]),
+            event_type="bulk_primary_email_preview_task_created",
+            metadata={
+                "job_type": "bulk_primary_email_preview",
+                "item_count": len(items),
+            },
+        )
+
+    return result
+
+
+def create_bulk_primary_email_apply_task(
+    requesting_user: RequestingUser,
+    items: list[dict],
+    preview_job_id: str,
+) -> dict | None:
+    """Create a background task to execute bulk primary email changes.
+
+    Authorization: Requires admin or super_admin role.
+
+    Args:
+        requesting_user: The user making the request
+        items: List of dicts with user_id, new_primary_email, and idp_disposition keys
+        preview_job_id: ID of the completed preview job
+
+    Returns:
+        Dict with task id and created_at, or None if creation failed
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    if not items:
+        raise ValidationError(
+            message="At least one user-email pair is required",
+            code="empty_items",
+        )
+
+    result = database.bg_tasks.create_task(
+        tenant_id=requesting_user["tenant_id"],
+        job_type="bulk_primary_email_apply",
+        created_by=requesting_user["id"],
+        payload={"items": items, "preview_job_id": preview_job_id},
+    )
+
+    if result:
+        log_event(
+            tenant_id=requesting_user["tenant_id"],
+            actor_user_id=requesting_user["id"],
+            artifact_type="bg_task",
+            artifact_id=str(result["id"]),
+            event_type="bulk_primary_email_apply_task_created",
+            metadata={
+                "job_type": "bulk_primary_email_apply",
+                "item_count": len(items),
+                "preview_job_id": preview_job_id,
+            },
+        )
+
+    return result
+
+
 def list_user_jobs(requesting_user: RequestingUser) -> JobListResponse:
     """
     List background jobs created by the requesting user.

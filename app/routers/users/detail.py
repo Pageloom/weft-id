@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import has_page_access
 from schemas.api import UserUpdate
+from services import emails as emails_service
 from services import groups as groups_service
 from services import saml as saml_service
 from services import service_providers as sp_service
@@ -124,6 +125,17 @@ def user_detail_profile(
         except ServiceError:
             pass
 
+    # Compute email change impact when warning=email_impact is present
+    email_impact = None
+    warning = request.query_params.get("warning")
+    if warning == "email_impact":
+        email_id = request.query_params.get("email_id", "")
+        email_address = emails_service.get_email_address_by_id(tenant_id, user_id, email_id)
+        if email_address:
+            email_impact = emails_service.compute_email_change_impact(
+                tenant_id, user_id, email_address
+            )
+
     return templates.TemplateResponse(
         request,
         "user_detail_tab_profile.html",
@@ -134,6 +146,7 @@ def user_detail_profile(
             emails=user_detail_data.emails,
             privileged_domains=privileged_domains,
             idps=idps,
+            email_impact=email_impact,
             active_tab="profile",
             group_count=common["group_count"],
             app_count=common["app_count"],

@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk Change Primary Emails - {{ site_title }}{% endblock %}
+
+{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
+
+{% block content %}
+<div class="w-full">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <!-- Header -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-1">
+                <a href="/users/list" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">&larr; Back to User List</a>
+            </div>
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                Bulk Change Primary Emails
+            </h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Select a secondary email to promote to primary for each user, or leave as "No change" to skip.
+            </p>
+        </div>
+
+        <!-- Phase 1: Selection -->
+        <div id="phase-selection">
+            <div class="mb-4 text-sm text-gray-700 dark:text-gray-300">
+                {{ user_count }} user{{ 's' if user_count != 1 else '' }} selected
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Current Primary Email</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">New Primary Email</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for u in users %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                    {{ u.first_name }} {{ u.last_name }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                {{ u.email or 'N/A' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% set secondaries = secondary_emails_by_user.get(u.id | string, []) %}
+                                {% if secondaries %}
+                                <select data-user-id="{{ u.id }}" class="email-select w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">No change</option>
+                                    {% for sec in secondaries %}
+                                    <option value="{{ sec }}">{{ sec }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% else %}
+                                <span class="text-sm text-gray-400 dark:text-gray-500">No secondary emails</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-6 flex items-center gap-4">
+                <button type="button" id="btn-preview"
+                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Preview Changes
+                </button>
+                <a href="/users/list"
+                    class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </a>
+            </div>
+        </div>
+
+        <!-- Phase 2: Preview Results -->
+        <div id="phase-preview" class="hidden">
+            <div id="preview-loading" class="flex items-center gap-3 py-8">
+                <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Computing impact analysis...</span>
+            </div>
+            <div id="preview-results" class="hidden"></div>
+        </div>
+
+        <!-- Phase 3: Apply Results -->
+        <div id="phase-apply" class="hidden">
+            <div id="apply-loading" class="flex items-center gap-3 py-8">
+                <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                <span class="text-sm text-gray-600 dark:text-gray-400">Applying changes...</span>
+            </div>
+            <div id="apply-results" class="hidden"></div>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="page-data">
+{ "csrfToken": "{{ csrf_token() }}" }
+</script>
+<script nonce="{{ csp_nonce }}">
+(() => {
+    const { csrfToken } = JSON.parse(document.getElementById('page-data').textContent);
+    let flowActive = false;
+    let previewJobId = null;
+    let previewData = null;
+
+    // beforeunload guard
+    window.addEventListener('beforeunload', (e) => {
+        if (flowActive) { e.preventDefault(); }
+    });
+
+    const phaseSelection = document.getElementById('phase-selection');
+    const phasePreview = document.getElementById('phase-preview');
+    const phaseApply = document.getElementById('phase-apply');
+    const previewLoading = document.getElementById('preview-loading');
+    const previewResults = document.getElementById('preview-results');
+    const applyLoading = document.getElementById('apply-loading');
+    const applyResults = document.getElementById('apply-results');
+
+    // Poll a job until completion
+    const pollJob = (taskId, onComplete) => {
+        const interval = setInterval(async () => {
+            try {
+                const resp = await WeftUtils.apiFetch(`/api/v1/jobs/${taskId}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(interval);
+                    onComplete(data);
+                }
+            } catch (err) {
+                // Keep polling on network errors
+            }
+        }, 5000);
+    };
+
+    // Phase 1 -> Phase 2: Preview
+    document.getElementById('btn-preview')?.addEventListener('click', async () => {
+        const selects = document.querySelectorAll('.email-select');
+        const userIds = [];
+        const newEmails = [];
+
+        selects.forEach(sel => {
+            userIds.push(sel.dataset.userId);
+            newEmails.push(sel.value);
+        });
+
+        // Check at least one email selected
+        if (!newEmails.some(e => e.trim())) {
+            alert('Please select at least one email to change.');
+            return;
+        }
+
+        flowActive = true;
+        phaseSelection.classList.add('hidden');
+        phasePreview.classList.remove('hidden');
+        previewLoading.classList.remove('hidden');
+        previewResults.classList.add('hidden');
+
+        // Build form data for the web route
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+        userIds.forEach(id => formData.append('user_ids', id));
+        newEmails.forEach(email => formData.append('new_emails', email));
+
+        try {
+            const resp = await fetch('/users/bulk-ops/primary-emails/preview', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: { 'X-CSRF-Token': csrfToken },
+            });
+            const data = await resp.json();
+
+            if (data.error) {
+                previewLoading.classList.add('hidden');
+                previewResults.innerHTML = `<p class="text-red-600 dark:text-red-400">${data.error}</p>`;
+                previewResults.classList.remove('hidden');
+                return;
+            }
+
+            previewJobId = data.task_id;
+            pollJob(data.task_id, renderPreviewResults);
+        } catch (err) {
+            previewLoading.classList.add('hidden');
+            previewResults.innerHTML = '<p class="text-red-600 dark:text-red-400">Failed to create preview job.</p>';
+            previewResults.classList.remove('hidden');
+        }
+    });
+
+    // Render preview results
+    const renderPreviewResults = (job) => {
+        previewLoading.classList.add('hidden');
+        previewResults.classList.remove('hidden');
+
+        if (job.status === 'failed') {
+            previewResults.innerHTML = `<div class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md">
+                <p class="text-red-800 dark:text-red-300">Preview failed: ${job.error || 'Unknown error'}</p>
+            </div>`;
+            return;
+        }
+
+        const result = job.result;
+        previewData = result;
+        const totals = result.totals;
+        const users = result.user_results;
+
+        let html = `<div class="mb-4 p-3 rounded-md ${totals.users_with_sp_impact > 0 || totals.users_with_routing_change > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700'}">
+            <p class="text-sm font-medium ${totals.users_with_sp_impact > 0 || totals.users_with_routing_change > 0 ? 'text-amber-800 dark:text-amber-300' : 'text-green-800 dark:text-green-300'}">
+                ${totals.users_previewed} user(s) previewed,
+                ${totals.users_with_sp_impact} with SP assertion impact,
+                ${totals.users_with_routing_change} with IdP routing change${totals.errors > 0 ? `, ${totals.errors} error(s)` : ''}
+            </p>
+        </div>`;
+
+        const thClass = 'px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase';
+        html += '<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">';
+        html += `<thead class="bg-gray-50 dark:bg-gray-700"><tr>
+            <th class="${thClass}">Name</th>
+            <th class="${thClass}">Current Email</th>
+            <th class="${thClass}">New Email</th>
+            <th class="${thClass}">
+                <span title="How many of this user's accessible service providers use email-based NameID and will see a different identity in future SAML assertions. SPs using persistent or transient NameIDs are not affected." class="cursor-help border-b border-dotted border-gray-400">Assertion Impact</span>
+            </th>
+            <th class="${thClass}">
+                <span title="Whether the new email's domain is bound to a different identity provider than the user's current one. A change means the user may authenticate differently." class="cursor-help border-b border-dotted border-gray-400">IdP Routing</span>
+            </th>
+            <th class="${thClass}">
+                <span title="When IdP routing changes, choose what happens to this user's IdP assignment. 'Keep current' leaves authentication unchanged. 'Switch' moves them to the new domain's IdP. 'Remove' falls back to password sign-in." class="cursor-help border-b border-dotted border-gray-400">IdP Action</span>
+            </th>
+        </tr></thead><tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">`;
+
+        users.forEach((u, i) => {
+            if (u.status === 'error') {
+                html += `<tr class="bg-red-50 dark:bg-red-900/10">
+                    <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${u.user_name || u.user_id}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">${u.current_email || ''}</td>
+                    <td class="px-4 py-2 text-sm">${u.new_email}</td>
+                    <td colspan="3" class="px-4 py-2 text-sm text-red-600 dark:text-red-400">${u.error_reason}</td>
+                </tr>`;
+                return;
+            }
+
+            const affected = u.summary?.affected_sp_count || 0;
+            const total = u.summary?.total_sp_count || 0;
+            const unaffected = u.summary?.unaffected_sp_count || 0;
+            const hasRouting = !!u.routing_change;
+
+            let spLabel, spClass, spTitle;
+            if (total === 0) {
+                spLabel = 'No apps';
+                spClass = 'text-gray-400 dark:text-gray-500';
+                spTitle = 'This user has no accessible service providers.';
+            } else if (affected === 0) {
+                spLabel = 'None affected';
+                spClass = 'text-green-700 dark:text-green-400';
+                spTitle = `All ${total} app(s) use persistent or transient NameIDs and will not be affected.`;
+            } else if (unaffected === 0) {
+                spLabel = `All ${affected} app(s) affected`;
+                spClass = 'text-amber-700 dark:text-amber-400';
+                spTitle = `All ${affected} app(s) use email-based NameIDs and will see the new email in future assertions.`;
+            } else {
+                spLabel = `${affected} of ${total} affected`;
+                spClass = 'text-amber-700 dark:text-amber-400';
+                spTitle = `${affected} app(s) use email-based NameIDs (affected). ${unaffected} use persistent/transient IDs (not affected).`;
+            }
+
+            let routingLabel, routingClass, routingTitle;
+            if (hasRouting) {
+                routingLabel = `${u.routing_change.current_idp_name} \u2192 ${u.routing_change.new_idp_name}`;
+                routingClass = 'text-amber-700 dark:text-amber-400';
+                routingTitle = `This user's sign-in method will change from "${u.routing_change.current_idp_name}" to "${u.routing_change.new_idp_name}" based on the new email domain.`;
+            } else {
+                routingLabel = 'No change';
+                routingClass = 'text-green-700 dark:text-green-400';
+                routingTitle = 'The new email domain does not change this user\'s identity provider assignment.';
+            }
+
+            let dispositionHtml;
+            if (hasRouting) {
+                dispositionHtml = `<select data-idx="${i}" class="disposition-select text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                    <option value="keep" selected>Keep current IdP</option>
+                    <option value="switch">Switch to new IdP</option>
+                    <option value="remove">Remove IdP (password)</option>
+                </select>`;
+            } else {
+                dispositionHtml = '<span class="text-gray-400 dark:text-gray-500 text-sm" title="No IdP routing change, so no action is needed.">N/A</span>';
+            }
+
+            html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700" data-user-id="${u.user_id}">
+                <td class="px-4 py-2 text-sm font-medium text-gray-900 dark:text-gray-100">${u.user_name}</td>
+                <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">${u.current_email}</td>
+                <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${u.new_email}</td>
+                <td class="px-4 py-2 text-sm ${spClass}" title="${spTitle}">${spLabel}</td>
+                <td class="px-4 py-2 text-sm ${routingClass}" title="${routingTitle}">${routingLabel}</td>
+                <td class="px-4 py-2">${dispositionHtml}</td>
+            </tr>`;
+        });
+
+        html += '</tbody></table></div>';
+
+        // Apply button
+        const hasValidUsers = users.some(u => u.status === 'ok');
+        if (hasValidUsers) {
+            html += `<div class="mt-6 flex items-center gap-4">
+                <button type="button" id="btn-apply"
+                    class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                    Apply Changes
+                </button>
+                <button type="button" id="btn-cancel-preview"
+                    class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+            </div>`;
+        }
+
+        previewResults.innerHTML = html;
+
+        // Wire up Apply button
+        document.getElementById('btn-apply')?.addEventListener('click', handleApply);
+        document.getElementById('btn-cancel-preview')?.addEventListener('click', () => {
+            flowActive = false;
+            window.location.href = '/users/list';
+        });
+    };
+
+    // Phase 2 -> Phase 3: Apply
+    const handleApply = async () => {
+        if (!previewData) return;
+
+        // Build items with dispositions
+        const items = previewData.user_results
+            .filter(u => u.status === 'ok')
+            .map((u, i) => {
+                const sel = document.querySelector(`.disposition-select[data-idx="${previewData.user_results.indexOf(u)}"]`);
+                return {
+                    user_id: u.user_id,
+                    new_primary_email: u.new_email,
+                    idp_disposition: sel?.value || 'keep',
+                };
+            });
+
+        phasePreview.classList.add('hidden');
+        phaseApply.classList.remove('hidden');
+        applyLoading.classList.remove('hidden');
+        applyResults.classList.add('hidden');
+
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+        formData.append('items_json', JSON.stringify(items));
+        formData.append('preview_job_id', previewJobId);
+
+        try {
+            const resp = await fetch('/users/bulk-ops/primary-emails/apply', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: { 'X-CSRF-Token': csrfToken },
+            });
+            const data = await resp.json();
+
+            if (data.error) {
+                applyLoading.classList.add('hidden');
+                applyResults.innerHTML = `<p class="text-red-600 dark:text-red-400">${data.error}</p>`;
+                applyResults.classList.remove('hidden');
+                return;
+            }
+
+            pollJob(data.task_id, renderApplyResults);
+        } catch (err) {
+            applyLoading.classList.add('hidden');
+            applyResults.innerHTML = '<p class="text-red-600 dark:text-red-400">Failed to create apply job.</p>';
+            applyResults.classList.remove('hidden');
+        }
+    };
+
+    // Render apply results
+    const renderApplyResults = (job) => {
+        applyLoading.classList.add('hidden');
+        applyResults.classList.remove('hidden');
+        flowActive = false;
+
+        if (job.status === 'failed') {
+            applyResults.innerHTML = `<div class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md">
+                <p class="text-red-800 dark:text-red-300">Apply failed: ${job.error || 'Unknown error'}</p>
+            </div>`;
+            return;
+        }
+
+        const result = job.result;
+        let html = `<div class="mb-4 p-3 rounded-md ${result.errors > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700'}">
+            <p class="text-sm font-medium ${result.errors > 0 ? 'text-amber-800 dark:text-amber-300' : 'text-green-800 dark:text-green-300'}">
+                ${result.output}
+            </p>
+        </div>`;
+
+        if (result.details?.length > 0) {
+            html += '<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">';
+            html += `<thead class="bg-gray-50 dark:bg-gray-700"><tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Details</th>
+            </tr></thead><tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">`;
+
+            result.details.forEach(d => {
+                const statusClass = d.status === 'promoted' ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
+                    : d.status === 'skipped' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300'
+                    : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300';
+
+                html += `<tr>
+                    <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${d.email}</td>
+                    <td class="px-4 py-2"><span class="px-2 py-0.5 text-xs font-medium rounded-full ${statusClass}">${d.status}</span></td>
+                    <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">${d.reason || ''}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+        }
+
+        html += `<div class="mt-6">
+            <a href="/users/list" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md">
+                Back to User List
+            </a>
+        </div>`;
+
+        applyResults.innerHTML = html;
+    };
+})();
+</script>
+{% endblock %}

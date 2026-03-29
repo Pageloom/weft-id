@@ -1,5 +1,6 @@
 """Tests for bulk operations web routes."""
 
+from datetime import UTC
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -198,3 +199,150 @@ def test_submit_redirects_when_all_emails_blank(test_admin_user, override_auth):
 
     assert response.status_code == 303
     assert "no_emails_provided" in response.headers["location"]
+
+
+# =============================================================================
+# POST /users/bulk-ops/primary-emails/prepare
+# =============================================================================
+
+
+def test_prepare_primary_emails_renders_page(test_admin_user, override_auth):
+    """Prepare endpoint renders the primary email action page."""
+    override_auth(test_admin_user, level="admin")
+
+    user1_id = str(uuid4())
+
+    with (
+        patch("routers.users.bulk_ops.emails_service.list_users_by_ids_with_emails") as mock_fetch,
+        patch("routers.users.bulk_ops.templates.TemplateResponse") as mock_template,
+    ):
+        mock_fetch.return_value = (
+            [
+                {
+                    "id": user1_id,
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                    "email": "alice@example.com",
+                }
+            ],
+            {user1_id: ["alice2@example.com"]},
+        )
+        mock_template.return_value = HTMLResponse(content="<html>Bulk Primary</html>")
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/primary-emails/prepare",
+            data={"selection_mode": "ids", "user_ids": [user1_id]},
+        )
+
+    assert response.status_code == 200
+    mock_template.assert_called_once()
+    template_name = mock_template.call_args.args[1]
+    assert template_name == "users_bulk_primary_emails.html"
+
+
+def test_prepare_primary_emails_redirects_no_users(test_admin_user, override_auth):
+    """Prepare redirects when no users are selected."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/primary-emails/prepare",
+        data={"selection_mode": "ids"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "no_users_selected" in response.headers["location"]
+
+
+# =============================================================================
+# POST /users/bulk-ops/primary-emails/preview
+# =============================================================================
+
+
+def test_preview_creates_background_job(test_admin_user, override_auth):
+    """Preview endpoint creates a dry-run background job."""
+    override_auth(test_admin_user, level="admin")
+
+    from datetime import datetime
+
+    task_id = str(uuid4())
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_primary_email_preview_task"
+    ) as mock_create:
+        mock_create.return_value = {"id": task_id, "created_at": datetime(2026, 1, 1, tzinfo=UTC)}
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/primary-emails/preview",
+            data={
+                "user_ids": [str(uuid4())],
+                "new_emails": ["new@example.com"],
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["task_id"] == task_id
+    mock_create.assert_called_once()
+
+
+def test_preview_returns_error_when_no_emails_selected(test_admin_user, override_auth):
+    """Preview returns 400 when all emails are blank."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/primary-emails/preview",
+        data={
+            "user_ids": [str(uuid4())],
+            "new_emails": [""],
+        },
+    )
+
+    assert response.status_code == 400
+
+
+# =============================================================================
+# POST /users/bulk-ops/primary-emails/apply
+# =============================================================================
+
+
+def test_apply_creates_background_job(test_admin_user, override_auth):
+    """Apply endpoint creates an execution background job."""
+    override_auth(test_admin_user, level="admin")
+
+    import json
+    from datetime import datetime
+
+    task_id = str(uuid4())
+    preview_id = str(uuid4())
+
+    items = [
+        {
+            "user_id": str(uuid4()),
+            "new_primary_email": "new@example.com",
+            "idp_disposition": "keep",
+        },
+    ]
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_primary_email_apply_task"
+    ) as mock_create:
+        mock_create.return_value = {"id": task_id, "created_at": datetime(2026, 1, 1, tzinfo=UTC)}
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/primary-emails/apply",
+            data={
+                "items_json": json.dumps(items),
+                "preview_job_id": preview_id,
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["task_id"] == task_id
+    mock_create.assert_called_once()

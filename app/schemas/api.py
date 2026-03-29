@@ -133,6 +133,42 @@ class BulkAddSecondaryEmailsRequest(BaseModel):
     items: list[BulkAddSecondaryEmailItem] = Field(..., min_length=1, max_length=10000)
 
 
+class BulkChangePrimaryEmailItem(BaseModel):
+    """Single user-email pair for bulk primary email change."""
+
+    user_id: str = Field(..., max_length=50)
+    new_primary_email: EmailStr = Field(..., max_length=320)
+
+
+class BulkChangePrimaryEmailPreviewRequest(BaseModel):
+    """Request to preview bulk primary email changes (dry-run)."""
+
+    items: list[BulkChangePrimaryEmailItem] = Field(..., min_length=1, max_length=10000)
+
+
+class BulkChangePrimaryEmailApplyItem(BaseModel):
+    """Single user item with IdP disposition for bulk primary email change."""
+
+    user_id: str = Field(..., max_length=50)
+    new_primary_email: EmailStr = Field(..., max_length=320)
+    idp_disposition: str = Field(
+        "keep",
+        max_length=10,
+        pattern=r"^(keep|switch|remove)$",
+        description=(
+            "IdP routing disposition: keep (current),"
+            " switch (new domain's IdP), remove (password only)"
+        ),
+    )
+
+
+class BulkChangePrimaryEmailApplyRequest(BaseModel):
+    """Request to apply bulk primary email changes with IdP dispositions."""
+
+    items: list[BulkChangePrimaryEmailApplyItem] = Field(..., min_length=1, max_length=10000)
+    preview_job_id: str = Field(..., max_length=50)
+
+
 # ============================================================================
 # MFA Management Schemas
 # ============================================================================

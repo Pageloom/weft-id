@@ -198,3 +198,130 @@ def submit_bulk_secondary_emails(
         url="/account/background-jobs?success=bulk_emails_started",
         status_code=303,
     )
+
+
+# =============================================================================
+# Bulk Change Primary Email
+# =============================================================================
+
+
+@router.post("/bulk-ops/primary-emails/prepare", response_class=HTMLResponse)
+def prepare_bulk_primary_emails(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin)],
+    selection_mode: Annotated[str, Form()],
+    user_ids: Annotated[list[str] | None, Form()] = None,
+    filter_criteria: Annotated[str | None, Form()] = None,
+    search: Annotated[str | None, Form()] = None,
+):
+    """Receive selection from user list and render the bulk primary email page."""
+    resolved_ids = _resolve_user_ids(tenant_id, selection_mode, user_ids, filter_criteria, search)
+
+    if not resolved_ids:
+        return RedirectResponse(
+            url="/users/list?error=no_users_selected",
+            status_code=303,
+        )
+
+    # Fetch user records with primary and secondary emails
+    users, secondary_emails_by_user = emails_service.list_users_by_ids_with_emails(
+        tenant_id, resolved_ids
+    )
+
+    if not users:
+        return RedirectResponse(
+            url="/users/list?error=no_users_found",
+            status_code=303,
+        )
+
+    context = get_template_context(request, tenant_id)
+    context["users"] = users
+    context["secondary_emails_by_user"] = secondary_emails_by_user
+    context["user_count"] = len(users)
+
+    return templates.TemplateResponse(
+        request,
+        "users_bulk_primary_emails.html",
+        context,
+    )
+
+
+@router.post("/bulk-ops/primary-emails/preview")
+def preview_bulk_primary_emails(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin)],
+    user_ids: Annotated[list[str], Form()],
+    new_emails: Annotated[list[str], Form()],
+):
+    """Enqueue a dry-run background job for bulk primary email changes.
+
+    Returns JSON with task_id (page stays in place and polls).
+    """
+    from fastapi.responses import JSONResponse
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    # Build items from parallel arrays, filtering out "No change" entries
+    items = []
+    for uid, email in zip(user_ids, new_emails):
+        email = email.strip()
+        if email:
+            items.append({"user_id": uid, "new_primary_email": email})
+
+    if not items:
+        return JSONResponse({"error": "No email changes specified"}, status_code=400)
+
+    try:
+        result = bg_tasks_service.create_bulk_primary_email_preview_task(requesting_user, items)
+        if result:
+            return JSONResponse(
+                {
+                    "task_id": str(result["id"]),
+                    "created_at": result["created_at"].isoformat(),
+                }
+            )
+        return JSONResponse({"error": "Failed to create task"}, status_code=500)
+    except ServiceError as exc:
+        return JSONResponse({"error": exc.message}, status_code=400)
+
+
+@router.post("/bulk-ops/primary-emails/apply")
+def apply_bulk_primary_emails(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin)],
+    items_json: Annotated[str, Form()],
+    preview_job_id: Annotated[str, Form()],
+):
+    """Enqueue execution background job for bulk primary email changes.
+
+    Returns JSON with task_id (page stays in place and polls).
+    """
+    from fastapi.responses import JSONResponse
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        items = json.loads(items_json)
+    except (json.JSONDecodeError, TypeError):
+        return JSONResponse({"error": "Invalid items data"}, status_code=400)
+
+    if not items:
+        return JSONResponse({"error": "No items specified"}, status_code=400)
+
+    try:
+        result = bg_tasks_service.create_bulk_primary_email_apply_task(
+            requesting_user, items, preview_job_id
+        )
+        if result:
+            return JSONResponse(
+                {
+                    "task_id": str(result["id"]),
+                    "created_at": result["created_at"].isoformat(),
+                }
+            )
+        return JSONResponse({"error": "Failed to create task"}, status_code=500)
+    except ServiceError as exc:
+        return JSONResponse({"error": exc.message}, status_code=400)

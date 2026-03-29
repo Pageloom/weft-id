@@ -148,19 +148,13 @@ def promote_user_email_route(
     # Get the new primary email address (for notification)
     new_primary_email = emails_service.get_email_address_by_id(tenant_id, user_id, email_id)
 
-    # Check for IdP routing change before proceeding
+    # Check for downstream impact (SP assertions + IdP routing) before proceeding
     if new_primary_email and not confirm_routing_change:
-        routing_info = emails_service.check_routing_change(tenant_id, user_id, new_primary_email)
-        if routing_info:
-            from urllib.parse import quote
-
+        impact = emails_service.compute_email_change_impact(tenant_id, user_id, new_primary_email)
+        has_impact = impact["summary"]["affected_sp_count"] > 0 or impact["routing_change"]
+        if has_impact:
             return RedirectResponse(
-                url=(
-                    f"/users/{user_id}/profile?warning=routing_change"
-                    f"&email_id={email_id}"
-                    f"&current_idp={quote(routing_info['current_idp_name'])}"
-                    f"&new_idp={quote(routing_info['new_idp_name'])}"
-                ),
+                url=(f"/users/{user_id}/profile?warning=email_impact&email_id={email_id}"),
                 status_code=303,
             )
 

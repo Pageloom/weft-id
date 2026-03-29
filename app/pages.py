@@ -106,6 +106,13 @@ PAGES = [
                 show_in_nav=False,
                 creates_nav_level=False,
             ),
+            Page(
+                path="/users/bulk-ops/primary-emails",
+                title="Bulk Change Primary Emails",
+                permission=PagePermission.ADMIN,
+                show_in_nav=False,
+                creates_nav_level=False,
+            ),
         ],
     ),
     Page(

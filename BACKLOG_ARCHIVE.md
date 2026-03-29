@@ -4,6 +4,32 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Bulk Add Secondary Emails (Browser-Native)
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] "Manage Secondary Emails" button appears in user list action bar when users are selected
+- [x] Action page at `/users/bulk-ops/secondary-emails` shows selected users in a grid
+- [x] Grid columns: name, primary email, current secondary emails (read-only), new secondary email (text input)
+- [x] Admin enters a new secondary address per user (or leaves blank to skip)
+- [x] On submit, creates a deferred background job to process additions
+- [x] Each addition: add as verified secondary email (admin-added), skip if address already exists in tenant
+- [x] Job result: N emails added, N skipped, N errors (with per-user error details)
+- [x] Results displayed on the page when job completes (poll job status)
+- [x] Each addition emits `email_added` audit event
+- [x] API: `POST /api/v1/users/bulk-ops/secondary-emails` accepts list of `{user_id, email}` pairs
+- [x] Selected users passed via session state (not lost on navigation)
+
+**Resolution:** Full implementation across web routes (prepare + submit), API endpoint (HTTP 202), service layer with authorization, background job handler with per-item error tracking, and HTML template. 27+ tests covering all layers.
+
+**Effort:** M
+**Value:** High
+**Version impact:** Minor (new feature)
+
+---
+
 ## Remove Bulk Update Spreadsheet Feature
 
 **Status:** Complete

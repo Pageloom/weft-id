@@ -143,40 +143,7 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
-## Bulk Add Secondary Emails (Browser-Native)
-
-**User Story:**
-As an admin,
-I want to select users from the filtered user list and add secondary email addresses in the browser,
-So that I can prepare for domain migrations without downloading and re-uploading spreadsheets.
-
-**Context:**
-
-The flow: filter users on the user list (e.g. by domain), select them, click "Manage Secondary
-Emails (N)". This navigates to an action page showing a grid of the selected users with their
-current emails and an input field for a new secondary address per user. On submit, the additions
-are processed as a deferred background job.
-
-Current secondary addresses are shown as read-only reference so the admin can see the full
-picture before adding.
-
-**Acceptance Criteria:**
-
-- [ ] "Manage Secondary Emails" button appears in user list action bar when users are selected
-- [ ] Action page at `/users/bulk-ops/secondary-emails` shows selected users in a grid
-- [ ] Grid columns: name, primary email, current secondary emails (read-only), new secondary email (text input)
-- [ ] Admin enters a new secondary address per user (or leaves blank to skip)
-- [ ] On submit, creates a deferred background job to process additions
-- [ ] Each addition: add as verified secondary email (admin-added), skip if address already exists in tenant
-- [ ] Job result: N emails added, N skipped, N errors (with per-user error details)
-- [ ] Results displayed on the page when job completes (poll job status)
-- [ ] Each addition emits `email_added` audit event
-- [ ] API: `POST /api/v1/users/bulk-ops/secondary-emails` accepts list of `{user_id, email}` pairs or filter + email rule
-- [ ] Selected users passed via session or URL state (not lost on navigation)
-
-**Effort:** M
-**Value:** High
-**Version impact:** Minor (new feature)
+## ~~Bulk Add Secondary Emails (Browser-Native)~~ (Complete)
 
 ---
 

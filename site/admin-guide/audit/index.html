@@ -488,6 +488,8 @@
       
         
       
+        
+      
     
     
     
@@ -552,6 +554,34 @@
     
   
     Creating Users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../users/email-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Email Management
   
 
     
@@ -2185,8 +2215,10 @@
 <h3 id="event-detail">Event detail<a class="headerlink" href="#event-detail" title="Permanent link">&para;</a></h3>
 <p>Click any event to see its full details, including metadata and request information (IP address, user agent).</p>
 <h3 id="export">Export<a class="headerlink" href="#export" title="Permanent link">&para;</a></h3>
-<p>Click <strong>Export All Events</strong> to generate a compressed JSON export of the entire event log. The export runs as a background job. You are redirected to <a href="../../user-guide/background-jobs/">Background Jobs</a> where you can track progress and download the file when ready.</p>
-<p>The export file is a gzipped JSON archive containing all events, event type descriptions, and export metadata. Files are retained for 24 hours, after which they are automatically deleted. Admin role is required to export.</p>
+<p>Export events as a password-encrypted XLSX spreadsheet. Optionally filter by date range using the <strong>From</strong> and <strong>To</strong> fields before clicking <strong>Export</strong>.</p>
+<p>The export runs as a background job. Check progress at <a href="../../user-guide/background-jobs/">Background Jobs</a>. When complete, the job shows a <strong>Download</strong> link and the file password (copy it before downloading).</p>
+<p>The XLSX file resolves IDs to human-readable names: user names, group names, SP names, and IdP names appear alongside their UUIDs. Cells are locked to prevent accidental modification.</p>
+<p>Files are retained for 24 hours, then automatically deleted. Admin role required.</p>
 <h2 id="event-types">Event types<a class="headerlink" href="#event-types" title="Permanent link">&para;</a></h2>
 <p>Events cover all areas of the platform:</p>
 <table>

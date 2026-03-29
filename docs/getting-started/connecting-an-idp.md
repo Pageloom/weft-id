@@ -1,6 +1,6 @@
 # Connecting an Identity Provider
 
-Connect a SAML identity provider (Okta, Entra ID, Google Workspace, or any SAML 2.0 IdP) to allow users to sign in with their existing credentials.
+WeftID can stand alone as your identity provider, or federate with an external SAML identity provider (Okta, Entra ID, Google Workspace, or any SAML 2.0 IdP) so users sign in with their existing credentials. This page covers the federation setup. Skip it if WeftID is your only IdP.
 
 ## Create the connection
 

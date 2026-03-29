@@ -1,8 +1,6 @@
 # Background Jobs
 
-Some operations in WeftID run in the background, such as exporting the event log. You can check the status of these jobs and download their output from the Background Jobs page.
-
-Navigate to your account menu and select **Background Jobs**.
+Some operations run in the background: event log exports, bulk email operations, and other long-running tasks. Check their status from your account menu at **Background Jobs**.
 
 ## Job list
 
@@ -24,6 +22,10 @@ Click **View Output** on a completed or failed job to see its details: when it w
 ## Downloading files
 
 Jobs that produce a file (such as event exports) show a **Download** link. Export files are retained for 24 hours. After that, the link shows "File expired" and a new export must be created.
+
+### File passwords
+
+Exported XLSX files are password-encrypted. The password appears in the **Password** column next to the download link. Copy the password before downloading. The password is only available on the Background Jobs page.
 
 ## Deleting jobs
 

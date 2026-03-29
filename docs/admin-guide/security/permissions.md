@@ -8,10 +8,6 @@ Navigate to **Settings > Security > Permissions**.
 
 When enabled, users can change their own name on the profile page. When disabled, only admins can update user names.
 
-## Allow users to add email addresses
-
-When enabled, users can add and verify additional email addresses on their account. When disabled, only admins can manage user email addresses.
-
 ## Group assertion scope
 
 Controls which group memberships are shared with service providers during SAML sign-in. This setting is the tenant-wide default. Each SP can override it on its **Attributes** tab.

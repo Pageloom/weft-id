@@ -490,6 +490,8 @@
       
         
       
+        
+      
     
     
     
@@ -554,6 +556,34 @@
     
   
     Creating Users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./email-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Email Management
   
 
     
@@ -2083,6 +2113,75 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#user-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User list
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="User list">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#searching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Searching
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sorting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sorting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bulk-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk selection
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -2100,9 +2199,54 @@
 <p>Manage the users in your WeftID tenant. Create users manually or let them self-register through an identity provider. Control their lifecycle from active to inactive and back.</p>
 <ul>
 <li><a href="creating-users/">Creating Users</a></li>
+<li><a href="email-management/">Email Management</a> — Add, remove, promote emails; bulk operations</li>
 <li><a href="user-lifecycle/">User Lifecycle</a> — Active, inactive, reactivation workflows</li>
 <li><a href="roles-and-permissions/">Roles and Permissions</a> — Super admin, admin, and user roles</li>
 </ul>
+<h2 id="user-list">User list<a class="headerlink" href="#user-list" title="Permanent link">&para;</a></h2>
+<p>Navigate to <strong>Users &gt; User List</strong> to see all users in your tenant. The list shows name, email, role, status, last activity, creation date, authentication method, and group count.</p>
+<h3 id="searching">Searching<a class="headerlink" href="#searching" title="Permanent link">&para;</a></h3>
+<p>Use the search bar to find users by name or email address.</p>
+<h3 id="sorting">Sorting<a class="headerlink" href="#sorting" title="Permanent link">&para;</a></h3>
+<p>Click any column header to sort by that field. Click again to reverse the order. Sortable columns: name, email, role, status, last activity, and created date.</p>
+<h3 id="filtering">Filtering<a class="headerlink" href="#filtering" title="Permanent link">&para;</a></h3>
+<p>Click <strong>Filters</strong> to open the filter panel. Combine multiple filters to narrow results.</p>
+<table>
+<thead>
+<tr>
+<th>Filter</th>
+<th>Options</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Role</strong></td>
+<td>Member, Admin, Super Admin</td>
+</tr>
+<tr>
+<td><strong>Status</strong></td>
+<td>Active, Inactivated, Anonymized</td>
+</tr>
+<tr>
+<td><strong>Auth Method</strong></td>
+<td>Lists all authentication methods in use (Password, specific IdPs)</td>
+</tr>
+<tr>
+<td><strong>Domain</strong></td>
+<td>Email domains in use. Privileged domains are marked with a star.</td>
+</tr>
+<tr>
+<td><strong>Group</strong></td>
+<td>Select a group. Optionally check <strong>Include child groups</strong> to include members of descendant groups in the hierarchy.</td>
+</tr>
+</tbody>
+</table>
+<p>Each filter has an <strong>is/is not</strong> toggle. Click it to negate the filter. For example, set Role to "Admin" with "is not" to see everyone who is <em>not</em> an admin.</p>
+<p>Active filters are indicated by a <strong>Filtered results</strong> label next to the Filters button. Click <strong>Clear filters</strong> to reset.</p>
+<p>Filter state and page size preferences are saved in your browser and persist across sessions.</p>
+<h3 id="bulk-selection">Bulk selection<a class="headerlink" href="#bulk-selection" title="Permanent link">&para;</a></h3>
+<p>Use checkboxes to select users for <a href="email-management/#bulk-email-operations">bulk email operations</a>. After checking users on the current page, you can click <strong>Select all N matching users</strong> to extend the selection to every user matching the current search and filters, even across pages.</p>
+<p>The bulk action bar appears at the bottom when users are selected, with options to manage secondary emails or change primary emails.</p>
 
 
 

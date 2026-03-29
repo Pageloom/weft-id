@@ -15,6 +15,8 @@ Choose between two modes:
 - **Auto-generated mandala** -- A unique geometric pattern derived from your tenant ID. Click **Randomize** to pick a different design.
 - **Custom logo** -- Upload your own logo. Requires at least a light-mode logo.
 
+Your logo and organization name also appear in the header of all emails sent to users (invitations, verification codes, notifications).
+
 ### Logo upload
 
 Upload logos for light and dark backgrounds separately. Supported formats:

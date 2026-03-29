@@ -41,15 +41,15 @@
         <!-- Success/Error Messages -->
         {% if success == 'updated' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">B2B client updated successfully.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">B2B client updated.</p>
         </div>
         {% elif success == 'role_changed' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">Service role updated successfully.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">Service role updated.</p>
         </div>
         {% elif success == 'secret_regenerated' and not pending_credentials %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">Client secret regenerated successfully.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">Client secret regenerated.</p>
         </div>
         {% elif success == 'deactivated' %}
         <div class="mb-6 p-4 border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
@@ -57,7 +57,7 @@
         </div>
         {% elif success == 'reactivated' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">B2B client reactivated successfully.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">B2B client reactivated.</p>
         </div>
         {% endif %}
 
@@ -69,11 +69,11 @@
                 {% elif error == 'invalid_role' %}
                 Invalid role selected.
                 {% elif error == 'update_failed' %}
-                Failed to update the B2B client. Please try again.
+                Failed to update the B2B client. Try again.
                 {% elif error == 'role_change_failed' %}
-                Failed to change the service role. Please try again.
+                Failed to change the service role. Try again.
                 {% else %}
-                An error occurred. Please try again.
+                An error occurred. Try again.
                 {% endif %}
             </p>
         </div>

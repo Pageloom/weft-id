@@ -18,13 +18,13 @@
                 {% if success == 'domain_bound' %}
                 Domain bound. Existing users with this domain assigned to the IdP.
                 {% elif success == 'domain_unbound' %}
-                Domain unbound from IdP successfully.
+                Domain unbound from IdP.
                 {% elif success == 'group_linked' %}
                 Group linked. Existing users with this domain added to the group.
                 {% elif success == 'group_unlinked' %}
-                Group unlinked from domain successfully. Existing memberships are preserved.
+                Group unlinked from domain. Existing memberships preserved.
                 {% else %}
-                Operation completed successfully.
+                Operation completed.
                 {% endif %}
             </p>
         </div>
@@ -34,11 +34,11 @@
         <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
             <p class="text-sm text-red-800 dark:text-red-300">
                 {% if error == 'invalid_domain' %}
-                Invalid domain format. Please enter a valid domain name (e.g., company.com).
+                Invalid domain format. Enter a valid domain name (e.g., company.com).
                 {% elif error == 'domain_exists' %}
                 This domain is already registered as a privileged domain for your tenant.
                 {% else %}
-                An error occurred. Please try again.
+                An error occurred. Try again.
                 {% endif %}
             </p>
         </div>

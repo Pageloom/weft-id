@@ -59,7 +59,7 @@
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Invitation</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                This user has not completed onboarding. Resending the invitation will generate a fresh link and invalidate any previous one.
+                User has not completed onboarding. Resending generates a fresh link and invalidates any previous one.
             </p>
             <form method="post" action="/users/{{ target_user.id }}/resend-invitation" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -103,7 +103,7 @@
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Edit Role</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Only super admins can change user roles.
+                Super admin only.
             </p>
             <form method="post" action="/users/{{ target_user.id }}/update-role" class="space-y-4">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -177,7 +177,7 @@
                 {% if not target_user.has_password %}
                 <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
                     <p class="text-xs text-amber-800 dark:text-amber-300">
-                        <strong>Note:</strong> This user has no password. If disconnected from IdP, they will need a password set or new IdP assigned after reactivation.
+                        <strong>Note:</strong> No password set. If disconnected from IdP, add a password or new IdP before reactivation.
                     </p>
                 </div>
                 {% endif %}
@@ -254,7 +254,7 @@
             <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
                 <h3 class="text-md font-medium mb-4 text-gray-900 dark:text-gray-100">Add Secondary Email</h3>
                 <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Only email addresses from privileged domains can be added. The email will be automatically verified.
+                    Privileged domains only. Auto-verified.
                 </p>
                 {% if privileged_domains %}
                 <form method="post" action="/users/{{ target_user.id }}/add-email" class="space-y-4">
@@ -279,7 +279,7 @@
                 {% else %}
                 <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md p-4">
                     <p class="text-sm text-yellow-800 dark:text-yellow-300">
-                        No privileged domains configured. Please configure privileged domains in
+                        No privileged domains configured. Configure privileged domains in
                         <a href="/admin/settings/privileged-domains" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline">Settings</a>
                         before adding secondary emails.
                     </p>

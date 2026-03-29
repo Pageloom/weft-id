@@ -8,11 +8,11 @@
 
         {% if target_user.is_anonymized %}
         <p class="text-sm text-gray-600 dark:text-gray-400">
-            This account has been anonymized and cannot be modified or reactivated.
+            Account anonymized. Cannot be modified or reactivated.
         </p>
         {% elif target_user.is_inactivated %}
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            This user is currently inactivated and cannot sign in.
+            User inactivated. Cannot sign in.
         </p>
         <form method="post" action="/users/{{ target_user.id }}/reactivate" class="inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -23,7 +23,7 @@
         </form>
         {% else %}
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            This user is active and can sign in.
+            Active. Can sign in.
         </p>
 
         {% if target_user.id != user.id and not target_user.is_service_user %}
@@ -64,11 +64,11 @@
 
         {% if target_user.password_reset_required %}
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            This user has a pending forced password reset. They will be required to change their password on next sign-in.
+            Forced password reset pending. User must change password on next sign-in.
         </p>
         {% else %}
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Force this user to change their password on their next sign-in. Use this if you suspect their credentials may have been compromised.
+            Force password change on next sign-in. Use if credentials may be compromised.
         </p>
         <form method="post" action="/users/{{ target_user.id }}/force-password-reset" class="inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -90,7 +90,7 @@
         {% if target_user.mfa_method == 'totp' %}
             {% set show_reset = not target_user.saml_idp_id or idp_requires_mfa %}
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            This user has an authenticator app (TOTP) configured.
+            Authenticator app (TOTP) configured.
             {% if target_user.saml_idp_id and not idp_requires_mfa %}
             However, their IdP does not require platform two-step verification, so the authenticator is not used during SSO sign-in.
             {% endif %}

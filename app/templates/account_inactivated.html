@@ -18,18 +18,18 @@
             <div class="text-gray-600 dark:text-gray-400 text-center mb-6">
                 {% if status == 'inactivated' %}
                 <p class="mb-4">
-                    Your account was inactivated due to inactivity.
-                    You can request reactivation from an administrator.
+                    Account inactivated due to inactivity.
+                    You can request reactivation below.
                 </p>
                 {% elif status == 'pending' %}
                 <p class="mb-4">
-                    Your reactivation request is pending review by an administrator.
-                    You'll be notified once a decision has been made.
+                    Reactivation request pending admin review.
+                    You'll receive an email when decided.
                 </p>
                 {% elif status == 'denied' %}
                 <p class="mb-4">
-                    Your reactivation request was denied by an administrator.
-                    Please contact your organization's administrator for more information.
+                    Reactivation request denied.
+                    Contact your organization's administrator for more information.
                 </p>
                 {% endif %}
             </div>
@@ -37,8 +37,8 @@
             {% if can_request %}
             <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    We'll send a verification code to your email.
-                    After verification, an administrator must approve your request.
+                    Verification code sent to your email.
+                    An administrator must approve your request after verification.
                 </p>
                 <form method="post" action="/request-reactivation">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

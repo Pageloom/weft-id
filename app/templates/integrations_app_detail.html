@@ -33,11 +33,11 @@
         <!-- Success/Error Messages -->
         {% if success == 'updated' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">App updated successfully.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">App updated.</p>
         </div>
         {% elif success == 'secret_regenerated' and not pending_credentials %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">Client secret regenerated successfully.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">Client secret regenerated.</p>
         </div>
         {% elif success == 'deactivated' %}
         <div class="mb-6 p-4 border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
@@ -45,7 +45,7 @@
         </div>
         {% elif success == 'reactivated' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">App reactivated successfully.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">App reactivated.</p>
         </div>
         {% endif %}
 
@@ -57,9 +57,9 @@
                 {% elif error == 'redirect_uris_required' %}
                 At least one redirect URI is required.
                 {% elif error == 'update_failed' %}
-                Failed to update the app. Please try again.
+                Failed to update the app. Try again.
                 {% else %}
-                An error occurred. Please try again.
+                An error occurred. Try again.
                 {% endif %}
             </p>
         </div>

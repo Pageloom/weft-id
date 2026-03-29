@@ -36,7 +36,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Appearance</h1>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Choose your theme or use your system setting.
+            Choose a theme or follow your device setting.
         </p>
 
         <form method="post" action="/account/profile/update-theme" class="space-y-4">
@@ -73,17 +73,17 @@
 
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Regional Settings</h1>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Auto-detected on sign-in. Used to format dates and times locally.</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Auto-detected on sign-in. Formats dates and times.</p>
 
         <div class="mb-4 space-y-3">
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                <dt class="font-medium text-gray-700 dark:text-gray-300">Current Timezone</dt>
+                <dt class="font-medium text-gray-700 dark:text-gray-300">Timezone</dt>
                 <dd class="sm:col-span-3">
                     <code class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-sm text-gray-900 dark:text-gray-100">{{ user.tz or 'Not set' }}</code>
                 </dd>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                <dt class="font-medium text-gray-700 dark:text-gray-300">Current Locale</dt>
+                <dt class="font-medium text-gray-700 dark:text-gray-300">Locale</dt>
                 <dd class="sm:col-span-3">
                     <code class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-sm text-gray-900 dark:text-gray-100">{{ user.locale or 'Not set' }}</code>
                 </dd>
@@ -95,7 +95,7 @@
             <input type="hidden" id="timezone" name="timezone" value="">
             <input type="hidden" id="locale" name="locale" value="">
             <button type="submit" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-4 rounded-md transition duration-150">
-                Re-detect Regional Settings
+                Update Regional Settings
             </button>
         </form>
     </div>

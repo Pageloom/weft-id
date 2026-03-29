@@ -150,7 +150,7 @@
 
         // Check at least one email selected
         if (!newEmails.some(e => e.trim())) {
-            alert('Please select at least one email to change.');
+            alert('Select at least one email to change.');
             return;
         }
 
@@ -210,9 +210,9 @@
 
         let html = `<div class="mb-4 p-3 rounded-md ${totals.users_with_sp_impact > 0 || totals.users_with_routing_change > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700'}">
             <p class="text-sm font-medium ${totals.users_with_sp_impact > 0 || totals.users_with_routing_change > 0 ? 'text-amber-800 dark:text-amber-300' : 'text-green-800 dark:text-green-300'}">
-                ${totals.users_previewed} user(s) previewed,
+                ${totals.users_previewed} users previewed,
                 ${totals.users_with_sp_impact} with SP assertion impact,
-                ${totals.users_with_routing_change} with IdP routing change${totals.errors > 0 ? `, ${totals.errors} error(s)` : ''}
+                ${totals.users_with_routing_change} with IdP routing change${totals.errors > 0 ? `, ${totals.errors} error${totals.errors !== 1 ? 's' : ''}` : ''}
             </p>
         </div>`;
 
@@ -257,15 +257,15 @@
             } else if (affected === 0) {
                 spLabel = 'None affected';
                 spClass = 'text-green-700 dark:text-green-400';
-                spTitle = `All ${total} app(s) use persistent or transient NameIDs and will not be affected.`;
+                spTitle = `All ${total} apps use persistent or transient NameIDs and will not be affected.`;
             } else if (unaffected === 0) {
-                spLabel = `All ${affected} app(s) affected`;
+                spLabel = `All ${affected} apps affected`;
                 spClass = 'text-amber-700 dark:text-amber-400';
-                spTitle = `All ${affected} app(s) use email-based NameIDs and will see the new email in future assertions.`;
+                spTitle = `All ${affected} apps use email-based NameIDs and will see the new email in future assertions.`;
             } else {
                 spLabel = `${affected} of ${total} affected`;
                 spClass = 'text-amber-700 dark:text-amber-400';
-                spTitle = `${affected} app(s) use email-based NameIDs (affected). ${unaffected} use persistent/transient IDs (not affected).`;
+                spTitle = `${affected} apps use email-based NameIDs (affected). ${unaffected} use persistent/transient IDs (not affected).`;
             }
 
             let routingLabel, routingClass, routingTitle;

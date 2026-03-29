@@ -34,26 +34,21 @@
 
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
                 {% if error_type == 'unknown_sp' %}
-                    The application that requested sign-in is not registered with this identity provider.
-                    Please contact your administrator.
+                    Application not registered with this identity provider. Contact your administrator.
                 {% elif error_type == 'no_certificate' %}
-                    The identity provider signing certificate is not configured.
-                    Please contact your administrator.
+                    IdP signing certificate not configured. Contact your administrator.
                 {% elif error_type == 'invalid_request' %}
-                    The sign-in request from the application was invalid or could not be processed.
+                    Invalid sign-in request from the application.
                 {% elif error_type == 'no_session' %}
-                    Your session has expired. Please try signing in again from the application.
+                    Session expired. Try signing in again from the application.
                 {% elif error_type == 'no_pending_sso' %}
-                    There is no pending sign-in request. Please try again from the application.
+                    No pending sign-in request. Try again from the application.
                 {% elif error_type == 'sp_pending_trust' %}
-                    This application has not completed its setup with the identity provider.
-                    Please contact your administrator to finish configuring the integration.
+                    Application setup incomplete. Contact your administrator.
                 {% elif error_type == 'sp_disabled' %}
-                    This application has been temporarily disabled by your administrator.
-                    Please contact your administrator for more information.
+                    Application disabled by your administrator. Contact your administrator for more information.
                 {% elif error_type == 'unauthorized_user' %}
-                    You do not have access to this application. Access is controlled by group membership.
-                    Please contact your administrator if you believe you should have access.
+                    Access denied. Group membership required. Contact your administrator if you believe you should have access.
                 {% else %}
                     An error occurred during the sign-in process.
                 {% endif %}

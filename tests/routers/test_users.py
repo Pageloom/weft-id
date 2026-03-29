@@ -518,7 +518,14 @@ def test_promote_user_email_success(test_admin_user, mocker, override_auth):
     mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
     mock_set = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
     mock_send = mocker.patch(f"{USERS_EMAILS}.send_primary_email_changed_notification")
-    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
+    mocker.patch(
+        f"{SERVICES_EMAILS}.compute_email_change_impact",
+        return_value={
+            "sp_impacts": [],
+            "routing_change": None,
+            "summary": {"affected_sp_count": 0, "unaffected_sp_count": 0, "total_sp_count": 0},
+        },
+    )
 
     mock_old_primary.return_value = "old@example.com"
     mock_get_addr.return_value = "new@example.com"
@@ -550,7 +557,14 @@ def test_promote_user_email_already_primary(test_admin_user, mocker, override_au
     mock_old_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
     mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
     mock_set = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
-    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
+    mocker.patch(
+        f"{SERVICES_EMAILS}.compute_email_change_impact",
+        return_value={
+            "sp_impacts": [],
+            "routing_change": None,
+            "summary": {"affected_sp_count": 0, "unaffected_sp_count": 0, "total_sp_count": 0},
+        },
+    )
 
     # Same email - already primary
     mock_old_primary.return_value = "already@primary.com"
@@ -757,6 +771,37 @@ def test_remove_user_email_must_keep_one(test_admin_user, mocker, override_auth)
 
     assert response.status_code == 303
     assert "error=must_keep_one_email" in response.headers["location"]
+
+
+def test_promote_user_email_impact_redirects(test_admin_user, mocker, override_auth):
+    """Test promote redirects with warning when downstream impact detected."""
+    override_auth(test_admin_user)
+
+    mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
+    mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@other.com")
+    mocker.patch(
+        f"{SERVICES_EMAILS}.compute_email_change_impact",
+        return_value={
+            "sp_impacts": [
+                {
+                    "sp_id": "sp-1",
+                    "sp_name": "Slack",
+                    "sp_entity_id": "e1",
+                    "nameid_format_label": "emailAddress",
+                    "impact": "will_change",
+                },
+            ],
+            "routing_change": {"current_idp_name": "Okta", "new_idp_name": "Google"},
+            "summary": {"affected_sp_count": 1, "unaffected_sp_count": 0, "total_sp_count": 1},
+        },
+    )
+
+    client = TestClient(app)
+    response = client.post("/users/user-123/promote-email/email-id", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert "warning=email_impact" in response.headers["location"]
+    assert "email_id=email-id" in response.headers["location"]
 
 
 def test_promote_user_email_not_found(test_admin_user, mocker, override_auth):
@@ -2874,7 +2919,14 @@ def test_promote_user_email_not_verified(test_admin_user, mocker, override_auth)
 
     mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
     mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
-    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
+    mocker.patch(
+        f"{SERVICES_EMAILS}.compute_email_change_impact",
+        return_value={
+            "sp_impacts": [],
+            "routing_change": None,
+            "summary": {"affected_sp_count": 0, "unaffected_sp_count": 0, "total_sp_count": 0},
+        },
+    )
     mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
     mock_promote.side_effect = ValidationError(
         message="Email not verified", code="email_not_verified"
@@ -2899,7 +2951,14 @@ def test_promote_user_email_validation_error(test_admin_user, mocker, override_a
 
     mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
     mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
-    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
+    mocker.patch(
+        f"{SERVICES_EMAILS}.compute_email_change_impact",
+        return_value={
+            "sp_impacts": [],
+            "routing_change": None,
+            "summary": {"affected_sp_count": 0, "unaffected_sp_count": 0, "total_sp_count": 0},
+        },
+    )
     mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
     mock_error_page = mocker.patch(f"{USERS_EMAILS}.render_error_page")
 
@@ -2925,7 +2984,14 @@ def test_promote_user_email_service_error(test_admin_user, mocker, override_auth
 
     mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
     mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
-    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
+    mocker.patch(
+        f"{SERVICES_EMAILS}.compute_email_change_impact",
+        return_value={
+            "sp_impacts": [],
+            "routing_change": None,
+            "summary": {"affected_sp_count": 0, "unaffected_sp_count": 0, "total_sp_count": 0},
+        },
+    )
     mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
     mock_error_page = mocker.patch(f"{USERS_EMAILS}.render_error_page")
 

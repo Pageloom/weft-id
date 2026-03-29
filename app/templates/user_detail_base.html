@@ -118,23 +118,68 @@
     {% endif %}
 
     {% set warning = request.query_params.get('warning') %}
-    {% if warning == 'routing_change' %}
+    {% if warning == 'email_impact' and email_impact %}
     <div class="mb-6 p-4 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-md">
-        <p class="text-sm text-amber-800 dark:text-amber-300 mb-3">
-            <strong>IdP routing change:</strong> Promoting this email will change the user's sign-in route
-            from <strong>{{ request.query_params.get('current_idp', 'Unknown') }}</strong>
-            to <strong>{{ request.query_params.get('new_idp', 'Unknown') }}</strong>.
-            This may affect how the user authenticates.
+        <p class="text-sm font-medium text-amber-800 dark:text-amber-300 mb-3">
+            {{ icon("exclamation-triangle", class="w-4 h-4 inline -mt-0.5 mr-1") }}
+            Promoting this email has downstream impact. Please review before confirming.
         </p>
-        <form method="post" action="/users/{{ target_user.id }}/promote-email/{{ request.query_params.get('email_id', '') }}" class="inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="confirm_routing_change" value="true">
-            <button type="submit"
-                    class="bg-amber-600 text-white hover:bg-amber-700 font-medium py-1.5 px-4 rounded-md text-sm transition duration-150 mr-2">
-                Confirm &amp; Promote
-            </button>
-        </form>
-        <a href="/users/{{ target_user.id }}/profile" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Cancel</a>
+
+        {% if email_impact.summary.affected_sp_count > 0 %}
+        <div class="mb-3">
+            <p class="text-sm text-amber-800 dark:text-amber-300 mb-2">
+                <strong>{{ email_impact.summary.affected_sp_count }}</strong> service provider{{ 's' if email_impact.summary.affected_sp_count != 1 else '' }}
+                will receive a different NameID in future SAML assertions.
+                {% if email_impact.summary.unaffected_sp_count > 0 %}
+                {{ email_impact.summary.unaffected_sp_count }} use persistent or transient identifiers and are not affected.
+                {% endif %}
+            </p>
+            <table class="w-full text-sm border border-amber-200 dark:border-amber-800 rounded">
+                <thead>
+                    <tr class="bg-amber-100 dark:bg-amber-900/30">
+                        <th class="px-3 py-1.5 text-left text-xs font-medium text-amber-700 dark:text-amber-400 uppercase">Service Provider</th>
+                        <th class="px-3 py-1.5 text-left text-xs font-medium text-amber-700 dark:text-amber-400 uppercase">NameID Format</th>
+                        <th class="px-3 py-1.5 text-left text-xs font-medium text-amber-700 dark:text-amber-400 uppercase">Impact</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sp in email_impact.sp_impacts %}
+                    <tr class="border-t border-amber-200 dark:border-amber-800">
+                        <td class="px-3 py-1.5 text-amber-900 dark:text-amber-200">{{ sp.sp_name }}</td>
+                        <td class="px-3 py-1.5 text-amber-700 dark:text-amber-400">{{ sp.nameid_format_label }}</td>
+                        <td class="px-3 py-1.5">
+                            {% if sp.impact == 'will_change' %}
+                            <span class="text-red-700 dark:text-red-400 font-medium">NameID will change</span>
+                            {% else %}
+                            <span class="text-green-700 dark:text-green-400">Not affected</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if email_impact.routing_change %}
+        <p class="text-sm text-amber-800 dark:text-amber-300 mb-3">
+            <strong>IdP routing change:</strong> The user's sign-in route will change
+            from <strong>{{ email_impact.routing_change.current_idp_name }}</strong>
+            to <strong>{{ email_impact.routing_change.new_idp_name }}</strong>.
+        </p>
+        {% endif %}
+
+        <div class="mt-3">
+            <form method="post" action="/users/{{ target_user.id }}/promote-email/{{ request.query_params.get('email_id', '') }}" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="confirm_routing_change" value="true">
+                <button type="submit"
+                        class="bg-amber-600 text-white hover:bg-amber-700 font-medium py-1.5 px-4 rounded-md text-sm transition duration-150 mr-2">
+                    Confirm &amp; Promote
+                </button>
+            </form>
+            <a href="/users/{{ target_user.id }}/profile" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Cancel</a>
+        </div>
     </div>
     {% endif %}
 

@@ -210,6 +210,7 @@ def main() -> None:
     try:
         from jobs import (
             bulk_add_secondary_emails,  # noqa: F401
+            bulk_change_primary_email,  # noqa: F401
             cleanup_exports,  # noqa: F401
             export_events,  # noqa: F401
         )

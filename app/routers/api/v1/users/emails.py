@@ -11,7 +11,7 @@ from schemas.api import (
     EmailInfo,
     EmailList,
 )
-from services.exceptions import ConflictError, ServiceError
+from services.exceptions import ConflictError, NotFoundError, ServiceError
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter()
@@ -173,13 +173,14 @@ def delete_user_email(
         raise translate_to_http_exception(e)
 
 
-@router.post("/{user_id}/emails/{email_id}/set-primary", response_model=EmailInfo)
+@router.post("/{user_id}/emails/{email_id}/set-primary")
 def set_user_primary_email(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_admin_api)],
     user_id: str,
     email_id: str,
     confirm_routing_change: bool = False,
+    preview: bool = False,
 ):
     """
     Set an email address as the primary email for a user (admin operation).
@@ -192,16 +193,19 @@ def set_user_primary_email(
 
     Query Parameters:
         confirm_routing_change: Set to true to acknowledge and proceed with an
-            IdP routing change. Required when promoting an email whose domain
-            routes to a different IdP than the user's current assignment.
+            IdP routing change or SP assertion impact. Required when promoting
+            an email that has downstream impact.
+        preview: Set to true to return the full impact analysis without
+            performing the promotion. Returns SP assertion impacts and IdP
+            routing change details.
 
     Returns:
-        Updated email info
+        Updated email info (normal mode), or impact analysis dict (preview mode)
 
     Errors:
-        409 Conflict (routing_change): Returned when the promotion would change
-            the user's IdP routing and confirm_routing_change is not set. The
-            response body includes current_idp_name and new_idp_name.
+        409 Conflict (email_impact): Returned when the promotion would affect
+            downstream SPs or IdP routing and confirm_routing_change is not set.
+            The response body includes sp_impacts, routing_change, and summary.
 
     Note:
         Email must be verified before it can be set as primary.
@@ -210,20 +214,39 @@ def set_user_primary_email(
     try:
         requesting_user = build_requesting_user(admin, tenant_id, None)
 
-        # Check for IdP routing change before proceeding
+        # Preview mode: return impact analysis without promoting
+        if preview:
+            email_address = _pkg.emails_service.get_email_address_by_id(
+                tenant_id, user_id, email_id
+            )
+            if not email_address:
+                raise NotFoundError(
+                    message="Email not found",
+                    code="email_not_found",
+                    details={"email_id": email_id},
+                )
+            return _pkg.emails_service.compute_email_change_impact(
+                tenant_id, user_id, email_address
+            )
+
+        # Check for downstream impact (SP assertions + IdP routing)
         if not confirm_routing_change:
             email_address = _pkg.emails_service.get_email_address_by_id(
                 tenant_id, user_id, email_id
             )
             if email_address:
-                routing_info = _pkg.emails_service.check_routing_change(
+                impact = _pkg.emails_service.compute_email_change_impact(
                     tenant_id, user_id, email_address
                 )
-                if routing_info:
+                has_impact = impact["summary"]["affected_sp_count"] > 0 or impact["routing_change"]
+                if has_impact:
                     raise ConflictError(
-                        message=("Promoting this email will change the user's IdP routing"),
-                        code="routing_change",
-                        details=routing_info,
+                        message=(
+                            "Promoting this email has downstream impact"
+                            " on SP assertions or IdP routing"
+                        ),
+                        code="email_impact",
+                        details=impact,
                     )
 
         # Get current primary email for notification before change

@@ -109,3 +109,120 @@ def test_bulk_add_secondary_emails_missing_body(
     )
 
     assert response.status_code == 422
+
+
+# =============================================================================
+# POST /api/v1/users/bulk-ops/primary-emails/preview
+# =============================================================================
+
+
+def test_bulk_primary_email_preview_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Admin can create a bulk primary email preview task."""
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.create_bulk_primary_email_preview_task"
+    ) as mock_create:
+        mock_create.return_value = {
+            "id": str(uuid4()),
+            "created_at": datetime(2026, 3, 28, 10, 0, 0, tzinfo=UTC),
+        }
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/primary-emails/preview",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={
+                "items": [
+                    {"user_id": str(uuid4()), "new_primary_email": "new@example.com"},
+                ]
+            },
+        )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert "task_id" in data
+
+
+def test_bulk_primary_email_preview_unauthorized(
+    client, test_tenant_host, oauth2_authorization_header
+):
+    """Regular member cannot create preview tasks."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/primary-emails/preview",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"items": [{"user_id": str(uuid4()), "new_primary_email": "new@example.com"}]},
+    )
+
+    assert response.status_code == 403
+
+
+def test_bulk_primary_email_preview_empty_items(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Empty items returns 422."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/primary-emails/preview",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"items": []},
+    )
+
+    assert response.status_code == 422
+
+
+# =============================================================================
+# POST /api/v1/users/bulk-ops/primary-emails/apply
+# =============================================================================
+
+
+def test_bulk_primary_email_apply_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Admin can create a bulk primary email apply task."""
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.create_bulk_primary_email_apply_task"
+    ) as mock_create:
+        mock_create.return_value = {
+            "id": str(uuid4()),
+            "created_at": datetime(2026, 3, 28, 10, 0, 0, tzinfo=UTC),
+        }
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/primary-emails/apply",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={
+                "items": [
+                    {
+                        "user_id": str(uuid4()),
+                        "new_primary_email": "new@example.com",
+                        "idp_disposition": "keep",
+                    },
+                ],
+                "preview_job_id": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert "task_id" in data
+
+
+def test_bulk_primary_email_apply_invalid_disposition(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Invalid idp_disposition value returns 422."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/primary-emails/apply",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "items": [
+                {
+                    "user_id": str(uuid4()),
+                    "new_primary_email": "new@example.com",
+                    "idp_disposition": "invalid_value",
+                },
+            ],
+            "preview_job_id": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == 422

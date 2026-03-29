@@ -111,6 +111,12 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "bulk_secondary_emails_task_created": (
         "Background job created to add secondary emails in bulk"
     ),
+    "bulk_primary_email_preview_task_created": (
+        "Background job created to preview bulk primary email changes"
+    ),
+    "bulk_primary_email_apply_task_created": (
+        "Background job created to apply bulk primary email changes"
+    ),
     # Groups & Group Management
     "group_created": "Group created",
     "group_updated": "Group updated",

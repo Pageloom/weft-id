@@ -554,6 +554,79 @@ def check_routing_change(tenant_id: str, user_id: str, email: str) -> dict | Non
     }
 
 
+def compute_email_change_impact(
+    tenant_id: str,
+    user_id: str,
+    new_email: str,
+) -> dict:
+    """Compute the full downstream impact of changing a user's primary email.
+
+    Determines which SPs will see a different NameID in assertions and
+    whether IdP routing will change. Used by the single-user promote
+    confirmation dialog and the bulk change primary email dry-run.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User ID
+        new_email: The email address that would become primary
+
+    Returns:
+        Dict with:
+            sp_impacts: list of dicts with sp_name, sp_entity_id,
+                nameid_format_label, impact ("will_change" | "not_affected")
+            routing_change: dict from check_routing_change() or None
+            summary: dict with affected_sp_count, unaffected_sp_count, total_sp_count
+    """
+    from constants.nameid_formats import (
+        NAMEID_FORMAT_PERSISTENT,
+        NAMEID_FORMAT_TRANSIENT,
+        NAMEID_FORMAT_URI_TO_LABEL,
+    )
+
+    # Get all SPs this user can access, with their NameID format
+    accessible_sps = database.sp_group_assignments.get_accessible_sps_with_nameid_for_user(
+        tenant_id, user_id
+    )
+
+    # Classify each SP's impact
+    sp_impacts = []
+    affected_count = 0
+    for sp in accessible_sps:
+        nameid_format = sp.get("nameid_format", "")
+        label = NAMEID_FORMAT_URI_TO_LABEL.get(nameid_format, "unknown")
+
+        if nameid_format in (NAMEID_FORMAT_PERSISTENT, NAMEID_FORMAT_TRANSIENT):
+            impact = "not_affected"
+        else:
+            # emailAddress and unspecified both use the primary email
+            impact = "will_change"
+            affected_count += 1
+
+        sp_impacts.append(
+            {
+                "sp_id": str(sp["id"]),
+                "sp_name": sp["name"],
+                "sp_entity_id": sp.get("entity_id", ""),
+                "nameid_format_label": label,
+                "impact": impact,
+            }
+        )
+
+    # Check IdP routing change
+    routing_change = check_routing_change(tenant_id, user_id, new_email)
+
+    total = len(sp_impacts)
+    return {
+        "sp_impacts": sp_impacts,
+        "routing_change": routing_change,
+        "summary": {
+            "affected_sp_count": affected_count,
+            "unaffected_sp_count": total - affected_count,
+            "total_sp_count": total,
+        },
+    }
+
+
 def get_primary_email(tenant_id: str, user_id: str) -> str | None:
     """
     Get the primary email address for a user.

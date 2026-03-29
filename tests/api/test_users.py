@@ -673,9 +673,15 @@ def test_admin_set_user_primary_email(make_user_dict, override_api_auth):
 
     override_api_auth(admin)
 
+    no_impact = {
+        "sp_impacts": [],
+        "routing_change": None,
+        "summary": {"affected_sp_count": 0, "unaffected_sp_count": 0, "total_sp_count": 0},
+    }
+
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.get_email_address_by_id.return_value = "adminprimary@test.example.com"
-        mock_svc.check_routing_change.return_value = None
+        mock_svc.compute_email_change_impact.return_value = no_impact
         mock_svc.set_primary_email.return_value = mock_email
 
         client = TestClient(app)
@@ -686,29 +692,43 @@ def test_admin_set_user_primary_email(make_user_dict, override_api_auth):
         assert data["is_primary"] is True
 
 
-def test_admin_set_primary_email_routing_change_blocked(make_user_dict, override_api_auth):
-    """Test admin promote returns 409 when IdP routing would change."""
+def test_admin_set_primary_email_impact_blocked(make_user_dict, override_api_auth):
+    """Test admin promote returns 409 when downstream impact detected."""
     admin = make_user_dict(role="admin")
     user_id = str(uuid4())
     email_id = str(uuid4())
 
     override_api_auth(admin)
 
-    with patch("routers.api.v1.users.emails_service") as mock_svc:
-        mock_svc.get_email_address_by_id.return_value = "user@other-idp.com"
-        mock_svc.check_routing_change.return_value = {
+    impact = {
+        "sp_impacts": [
+            {
+                "sp_id": "sp-1",
+                "sp_name": "Slack",
+                "sp_entity_id": "e1",
+                "nameid_format_label": "emailAddress",
+                "impact": "will_change",
+            },
+        ],
+        "routing_change": {
             "current_idp_name": "Okta Corporate",
             "new_idp_name": "Google Workspace",
-        }
+        },
+        "summary": {"affected_sp_count": 1, "unaffected_sp_count": 0, "total_sp_count": 1},
+    }
+
+    with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.get_email_address_by_id.return_value = "user@other-idp.com"
+        mock_svc.compute_email_change_impact.return_value = impact
 
         client = TestClient(app, raise_server_exceptions=False)
         response = client.post(f"/api/v1/users/{user_id}/emails/{email_id}/set-primary")
 
         assert response.status_code == 409
         data = response.json()["detail"]
-        assert data["error_code"] == "routing_change"
-        assert data["details"]["current_idp_name"] == "Okta Corporate"
-        assert data["details"]["new_idp_name"] == "Google Workspace"
+        assert data["error_code"] == "email_impact"
+        assert data["details"]["routing_change"]["current_idp_name"] == "Okta Corporate"
+        assert len(data["details"]["sp_impacts"]) == 1
 
 
 def test_admin_set_primary_email_routing_change_confirmed(make_user_dict, override_api_auth):
@@ -736,8 +756,81 @@ def test_admin_set_primary_email_routing_change_confirmed(make_user_dict, overri
         )
 
         assert response.status_code == 200
-        # Should not check routing when confirm_routing_change=true
-        mock_svc.check_routing_change.assert_not_called()
+        # Should not check impact when confirm_routing_change=true
+        mock_svc.compute_email_change_impact.assert_not_called()
+
+
+def test_admin_set_primary_email_preview_mode(make_user_dict, override_api_auth):
+    """Test preview mode returns impact analysis without promoting."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    email_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    impact = {
+        "sp_impacts": [
+            {
+                "sp_id": "sp-1",
+                "sp_name": "Slack",
+                "sp_entity_id": "e1",
+                "nameid_format_label": "emailAddress",
+                "impact": "will_change",
+            },
+        ],
+        "routing_change": None,
+        "summary": {"affected_sp_count": 1, "unaffected_sp_count": 0, "total_sp_count": 1},
+    }
+
+    with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.get_email_address_by_id.return_value = "user@example.com"
+        mock_svc.compute_email_change_impact.return_value = impact
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/users/{user_id}/emails/{email_id}/set-primary?preview=true"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["sp_impacts"]) == 1
+        assert data["summary"]["affected_sp_count"] == 1
+        mock_svc.set_primary_email.assert_not_called()
+
+
+def test_admin_set_primary_email_no_impact_proceeds(make_user_dict, override_api_auth):
+    """Test promote proceeds without 409 when no downstream impact."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    email_id = str(uuid4())
+
+    mock_email = EmailInfo(
+        id=email_id,
+        email="user@same-domain.com",
+        is_primary=True,
+        verified_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
+    )
+
+    override_api_auth(admin)
+
+    no_impact = {
+        "sp_impacts": [],
+        "routing_change": None,
+        "summary": {"affected_sp_count": 0, "unaffected_sp_count": 0, "total_sp_count": 0},
+    }
+
+    with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.get_email_address_by_id.return_value = "user@same-domain.com"
+        mock_svc.compute_email_change_impact.return_value = no_impact
+        mock_svc.get_primary_email.return_value = "old@same-domain.com"
+        mock_svc.set_primary_email.return_value = mock_email
+
+        client = TestClient(app)
+        response = client.post(f"/api/v1/users/{user_id}/emails/{email_id}/set-primary")
+
+        assert response.status_code == 200
+        mock_svc.set_primary_email.assert_called_once()
 
 
 # =============================================================================

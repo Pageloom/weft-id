@@ -2,6 +2,8 @@ authorization_denied
 branding_logo_deleted
 branding_logo_uploaded
 branding_settings_updated
+bulk_primary_email_apply_task_created
+bulk_primary_email_preview_task_created
 bulk_secondary_emails_task_created
 domain_group_auto_assigned
 domain_group_link_created

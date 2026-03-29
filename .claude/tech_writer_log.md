@@ -606,3 +606,177 @@ All pending areas from previous sessions are now covered:
 - API error response messages (app/routers/api/) — reviewed, consistent
 - Service layer error messages (app/services/) — reviewed, consistent
 - Self-hosting documentation — restructured for first-setup flow
+
+---
+
+## 2026-03-29 - Copy Review (Systematic Tightening Pass)
+
+**Starting commit:** c410bfa
+**Mode:** Copy review
+
+### Pass 1: Remove "Please" Filler (25+ instances across 20 files)
+
+Stripped "Please" from all error, help, and guidance messages across every template. "Please" is filler that adds no information in UI copy. The imperative form ("Try again", "Contact your administrator") is direct and clear.
+
+**Files edited:** login.html, email_verification.html, saml_error.html, saml_idp_sso_error.html, set_password.html, forgot_password.html, mfa_downgrade_verify.html, account_inactivated.html, admin_events.html, account_background_jobs.html, user_detail_base.html, user_detail_tab_profile.html, settings_security_base.html, forced_password_reset.html, settings_password.html, reset_password.html, integrations_apps.html, integrations_b2b.html, integrations_app_detail.html, integrations_b2b_detail.html, settings_privileged_domains.html, settings_branding_base.html, users_new.html, users_bulk_primary_emails.html
+
+### Pass 2: Remove "successfully" from Success Messages (24 instances across 18 files)
+
+Dropped "successfully" from all success banners. The green banner already signals success. "Group deleted." is just as clear as "Group deleted successfully." and respects the user's time.
+
+**Files edited:** login.html, set_password.html, settings_security_base.html, settings_password.html, settings_branding_base.html, settings_privileged_domains.html, saml_idp_base.html, saml_idp_list.html, saml_idp_tab_details.html, saml_idp_sp_base.html, saml_idp_sp_list.html, user_detail_base.html, users_new.html, groups_detail_base.html, groups_list.html, groups_members.html, groups_members_add.html, admin_reactivation_requests.html, reactivation_requested.html, account_background_jobs.html, integrations_apps.html, integrations_b2b.html, integrations_app_detail.html, integrations_b2b_detail.html
+
+### Pass 3: Fix Parenthetical Plurals "(s)" (15 instances across 10 files)
+
+Replaced lazy `user(s)` / `member(s)` / `job(s)` / `domain(s)` notation with proper pluralization. Jinja templates use `{{ 's' if count != 1 else '' }}` conditional. Dynamic JS action bars use the plural form directly ("users selected") since the bar is hidden at count 0.
+
+**Files edited:** saml_idp_tab_danger.html, users_list.html, account_background_jobs.html, groups_members.html, groups_detail_tab_membership.html, groups_members_add.html, users_bulk_primary_emails.html, saml_idp_sp_tab_danger.html
+
+### Additional Tightening
+
+- "Your password has been set successfully." -> "Password set."
+- "Your password has been changed successfully." -> "Password changed."
+- "The user has been reactivated successfully." -> "User reactivated."
+- "User created successfully. An invitation email has been sent." -> "User created. Invitation sent."
+- "Invitation email resent successfully." -> "Invitation resent."
+- "Security settings have been updated successfully." -> "Security settings updated."
+- "An error occurred while updating settings. Please try again." -> "Failed to update settings. Try again."
+- "Trust established successfully. The identity provider is now ready to be enabled." -> "Trust established. Identity provider is ready to enable."
+
+### Issues Logged
+
+None. All findings were directly fixable copy changes.
+
+### Screenshots Requested
+
+None.
+
+### Areas Fully Reviewed
+
+- All 89 HTML templates (full scan via Explore agent plus manual review)
+- All success messages, error messages, help text, and action bar labels
+- app/pages.py navigation labels (consistent)
+
+### Observations (Not Actioned)
+
+- **"N/A" in table cells** (background jobs, debug logs, event log) — standard for fields that don't apply. Not a clarity issue.
+- **"Value(s)" column header** in saml_test_result.html — genuinely describes a field that can hold one or many values. Left as-is.
+- **"Operation completed" fallback messages** — these are catch-all fallbacks for unrecognized success codes. Left as "Operation completed." (was "Operation completed successfully.").
+
+---
+
+## 2026-03-29 - Copy Review (Deep Editorial Pass)
+
+**Starting commit:** (same session, continued from systematic pass above)
+**Mode:** Copy review (editorial depth)
+
+### Approach
+
+Dispatched four parallel Explore agents to read every template line-by-line, each covering a quarter of the codebase (auth, settings, user/group/admin, SAML). Focused on subtler issues: passive voice, "Your" overuse, redundant help text, wordiness, front-loading, and tone inconsistency. Reference standard: settings_security_tab_sessions.html.
+
+### Auth Flow Tightening (10 files)
+
+- **login.html**: "Your account has been reactivated" -> "Account reactivated"; "Your identity provider is currently disabled" -> "Identity provider disabled"; "This account has been inactivated" -> "Account inactivated"
+- **email_verification.html**: "A new code has been sent to your email" -> "New code sent to your email"
+- **mfa_verify.html**: Same passive fix; "Having trouble?" -> "Didn't receive the code?" (matches email_verification pattern)
+- **mfa_downgrade_verify.html**: "We've sent a verification code to your primary email address" -> "Verification code sent to your email"
+- **mfa_backup_codes.html**: "Save these backup codes in a secure location" -> "Save these backup codes securely"; "Each backup code can only be used once" -> "Each code is single-use"
+- **account_inactivated.html**: "Your account was inactivated" -> "Account inactivated"; "Your reactivation request is pending review by an administrator" -> "Reactivation request pending admin review"
+- **reactivation_requested.html**: "Your reactivation request has been submitted" -> "Reactivation request submitted"; "once a decision has been made" -> "when decided"
+- **super_admin_reactivate.html**: "Your super admin account has been inactivated. As a super admin, you can reactivate..." -> "Your super admin account was inactivated. Verify your email to reactivate."; removed "Click the button below" filler
+- **forgot_password.html**: Fixed title inconsistency ("Reset Your Password" on the forgot route -> "Forgot Password"); updated test assertion
+- **4 password templates**: "This password has been found in a public data breach" -> "This password appears in known data breaches" (consistent across set_password, reset_password, forced_password_reset, settings_password)
+
+### Settings Page Tightening (6 files)
+
+- **settings_profile.html**: "Choose your theme or use your system setting" -> "Choose a theme or follow your device setting"; "Used to format dates and times locally" -> "Formats dates and times"; "Current Timezone/Locale" -> "Timezone/Locale"; "Re-detect" -> "Update"
+- **settings_emails.html**: "Your email addresses are managed by your administrator" -> "Email addresses are managed by your administrator"
+- **settings_security_tab_permissions.html**: "Controls which group memberships are shared..." -> "Which groups to include in SAML assertions..."; scope descriptions shortened ("Only share groups that grant the user access to the service provider" -> "Share only access-granting groups")
+- **settings_security_tab_passwords.html**: "The shortest password users can set. Super admins always require at least 14 characters regardless of this setting." -> "Shortest password users can set. Super admins always require 14+ characters."; breach detection description trimmed (removed unsolicited password manager advice)
+- **settings_branding_global.html**: "Your organization name. Displayed in the browser tab and navigation bar." -> "Displayed in browser tabs and navigation."; dark logo help text tightened; mandala help text tightened
+
+### SAML Copy Tightening (6 files)
+
+- **saml_error.html**: All error messages tightened ("The SSO response from your identity provider was invalid or could not be processed" -> "Invalid SSO response from your identity provider"; "The identity provider could not be found. It may have been removed." -> "Identity provider not found. It may have been removed.")
+- **saml_idp_sso_error.html**: All error messages tightened ("The application that requested sign-in is not registered with this identity provider" -> "Application not registered with this identity provider"; "You do not have access to this application. Access is controlled by group membership." -> "Access denied. Group membership required.")
+- **saml_idp_tab_details.html**: 11 edits tightening help text, removing redundant descriptions ("Share with the external IdP administrator to configure trust with WeftID" -> "Share with your IdP administrator to configure trust"; "The URL where your IdP publishes its SAML metadata" -> "Your IdP's SAML metadata URL"; "Opens in a new window. Authenticate with the IdP and view parsed assertion details." -> "Opens in a new window.")
+- **saml_idp_list.html**: "Configure SAML SSO providers" -> "Manage SAML identity providers"
+- **saml_idp_sp_base.html**: "Complete setup by sharing the IdP metadata URL below" -> "Share the IdP metadata URL below"
+- **saml_idp_sp_list.html**: "Downstream applications that authenticate" -> "Applications that authenticate"
+- **saml_idp_sp_tab_danger.html**: "Removes all configuration" -> "Removes configuration"
+- **saml_idp_tab_danger.html**: Same pattern
+
+### User/Group Admin Tightening (7 files)
+
+- **user_detail_base.html**: "User has been inactivated and can no longer sign in" -> "User inactivated. Can no longer sign in."; "User has been anonymized. Personal data has been permanently removed." -> "User anonymized. Personal data permanently removed."
+- **user_detail_tab_profile.html**: "Only super admins can change user roles." -> "Super admin only."; "This user has no password. If disconnected from IdP, they will need a password set..." -> "No password set. If disconnected from IdP, add a password or new IdP before reactivation."; "Only email addresses from privileged domains can be added. The email will be automatically verified." -> "Privileged domains only. Auto-verified."
+- **user_detail_tab_danger.html**: 6 edits converting passive to active ("This account has been anonymized" -> "Account anonymized"; "This user is currently inactivated" -> "User inactivated"; "Force this user to change their password on their next sign-in. Use this if you suspect their credentials may have been compromised." -> "Force password change on next sign-in. Use if credentials may be compromised.")
+- **users_new.html**: "The user will receive an email to set their password and activate their account." -> "They'll receive an email to set their password."
+- **admin_reactivation_requests.html**: "Inactivated users can request reactivation. Approve or deny below." -> "Pending reactivation requests from inactivated users."; "The reactivation request has been denied. The user will not be able to submit another request." -> "Reactivation denied. User cannot resubmit."
+- **groups_detail_tab_delete.html**: "Relationships must be removed first" -> "Remove relationships first"; "Members themselves are not affected. This cannot be undone." -> "Members are not affected. Cannot be undone."
+
+### Test Fix
+
+- **tests/routers/test_password_reset.py**: Updated assertion from "Reset Your Password" to "Forgot Password" to match renamed page title.
+
+### Issues Logged
+
+None. All findings directly fixable.
+
+### Screenshots Requested
+
+None.
+
+---
+
+## 2026-03-29 - Documentation Update (Email Management, Filtering, Audit Export)
+
+**Starting commit:** c410bfa
+**Mode:** Documentation
+
+### Gap Analysis
+
+Compared ~40 feature commits since last documentation session (ea01468..HEAD) against all documentation pages. Dispatched Explore agent to read source code (routers, services, jobs, templates) and compare against current docs. Found 9 undocumented features and 3 features needing doc updates. 3 features (weftid management script, email deliverability CLI, self-hosting restructure) were already well-documented.
+
+### New Pages Created (1)
+
+1. **`docs/admin-guide/users/email-management.md`** -- Comprehensive page covering: admin-only email management model, viewing/adding/promoting/removing emails, IdP routing change warnings, SP assertion impact detection, resending invitations, one-time invitation links. Bulk operations section covers: user selection (individual, page, all matching), bulk add secondary emails workflow (statuses: added/skipped/error, no domain restriction), bulk change primary emails with 4-step preview flow (select, preview impact, choose IdP disposition, apply).
+
+### Pages Updated (10)
+
+1. **`docs/admin-guide/users/index.md`** -- Expanded from 4-line overview to full user list documentation: search, sorting, filtering (role, status, auth method, domain, group with hierarchy, is/is not negation), bulk selection, cross-references to email management.
+2. **`docs/admin-guide/users/roles-and-permissions.md`** -- Added "Manage user email addresses" to admin capabilities. Changed user role from "Add email addresses to their account, if permitted" to "View their email addresses (managed by admins)".
+3. **`docs/admin-guide/users/creating-users.md`** -- Added one-time invitation link note and cross-reference to resending invitations.
+4. **`docs/admin-guide/audit/index.md`** -- Rewrote export section: "compressed JSON export" replaced with password-encrypted XLSX description. Added date range filtering, artifact name resolution, cell locking, file retention details.
+5. **`docs/admin-guide/security/permissions.md`** -- Removed "Allow users to add email addresses" section (feature no longer exists since emails are admin-only).
+6. **`docs/user-guide/profile.md`** -- Replaced self-service email management section with read-only view note ("managed by your administrator").
+7. **`docs/user-guide/background-jobs.md`** -- Updated intro to mention bulk email operations. Added "File passwords" subsection for encrypted XLSX exports.
+8. **`docs/getting-started/first-login.md`** -- Added one-time invitation link note and resend guidance.
+9. **`docs/admin-guide/branding/index.md`** -- Added note that logo and organization name appear in all outbound email headers.
+10. **`mkdocs.yml`** -- Added Email Management page to Users navigation section.
+
+### Features Documented
+
+| Feature | Where Documented |
+|---------|-----------------|
+| Admin-only email management | email-management.md (new), roles-and-permissions.md, profile.md, permissions.md |
+| Bulk add secondary emails | email-management.md (new section) |
+| Bulk change primary emails with impact preview | email-management.md (new section) |
+| SP assertion impact and IdP routing warnings | email-management.md (impact warnings subsection) |
+| Resend invitation | email-management.md, creating-users.md (cross-ref) |
+| One-time invitation links | email-management.md, creating-users.md, first-login.md |
+| Enhanced user list filtering (5 dimensions + negation) | users/index.md (expanded) |
+| Bulk selection (page + all matching) | users/index.md (new section) |
+| Audit XLSX export (password-encrypted) | audit/index.md (rewritten) |
+| XLSX file passwords | background-jobs.md (new subsection) |
+| Branded email headers | branding/index.md (note) |
+
+### Already Documented (No Changes Needed)
+
+- WeftID management script (self-hosting/index.md)
+- Email deliverability CLI (self-hosting/index.md)
+- Self-hosting docs restructure (previous session)
+
+### Screenshots Requested
+
+None.

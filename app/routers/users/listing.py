@@ -65,37 +65,64 @@ def users_list(
     sort_field = request.query_params.get("sort", "created_at")
     sort_order = request.query_params.get("order", "desc")
 
-    # Parse role filter (comma-separated)
+    # Parse role filter (with optional ! negation prefix)
     role_param = request.query_params.get("role", "").strip()
+    role_negate = role_param.startswith("!")
+    if role_negate:
+        role_param = role_param[1:]
     roles: list[str] | None = None
     if role_param:
         allowed_roles = {"member", "admin", "super_admin"}
         roles = [r.strip() for r in role_param.split(",") if r.strip() in allowed_roles]
         if not roles:
             roles = None
+            role_negate = False
 
-    # Parse status filter (comma-separated)
+    # Parse status filter (with optional ! negation prefix)
     status_param = request.query_params.get("status", "").strip()
+    status_negate = status_param.startswith("!")
+    if status_negate:
+        status_param = status_param[1:]
     statuses: list[str] | None = None
     if status_param:
         allowed_statuses = {"active", "inactivated", "anonymized"}
         statuses = [s.strip() for s in status_param.split(",") if s.strip() in allowed_statuses]
         if not statuses:
             statuses = None
+            status_negate = False
 
-    # Parse auth method filter (comma-separated)
+    # Parse auth method filter (with optional ! negation prefix)
     auth_method_param = request.query_params.get("auth_method", "").strip()
+    auth_method_negate = auth_method_param.startswith("!")
+    if auth_method_negate:
+        auth_method_param = auth_method_param[1:]
     auth_methods: list[str] | None = None
     if auth_method_param:
         auth_methods = [m.strip() for m in auth_method_param.split(",") if m.strip()]
         if not auth_methods:
             auth_methods = None
+            auth_method_negate = False
 
-    # Parse domain filter
-    domain = request.query_params.get("domain", "").strip() or None
+    # Parse domain filter (with optional ! negation prefix)
+    domain_raw = request.query_params.get("domain", "").strip()
+    domain_negate = domain_raw.startswith("!")
+    if domain_negate:
+        domain_raw = domain_raw[1:]
+    domain = domain_raw or None
+    if not domain:
+        domain_negate = False
 
-    # Parse group filter
-    group_id = request.query_params.get("group_id", "").strip() or None
+    # Parse group filter (with optional ! negation prefix)
+    group_raw = request.query_params.get("group_id", "").strip()
+    group_negate = group_raw.startswith("!")
+    if group_negate:
+        group_raw = group_raw[1:]
+    group_id = group_raw or None
+    if not group_id:
+        group_negate = False
+
+    # Parse group hierarchy flag (default: include children)
+    group_include_children = request.query_params.get("group_children", "1") != "0"
 
     # Parse secondary email filter (yes/no or domain:X)
     secondary_param = request.query_params.get("has_secondary_email", "").strip()
@@ -161,6 +188,12 @@ def users_list(
         has_secondary_email=has_secondary_email,
         activity_start=activity_start,
         activity_end=activity_end,
+        role_negate=role_negate,
+        status_negate=status_negate,
+        auth_method_negate=auth_method_negate,
+        domain_negate=domain_negate,
+        group_negate=group_negate,
+        group_include_children=group_include_children,
     )
     total_pages = max(1, (total_count + page_size - 1) // page_size)
 
@@ -184,6 +217,12 @@ def users_list(
         has_secondary_email=has_secondary_email,
         activity_start=activity_start,
         activity_end=activity_end,
+        role_negate=role_negate,
+        status_negate=status_negate,
+        auth_method_negate=auth_method_negate,
+        domain_negate=domain_negate,
+        group_negate=group_negate,
+        group_include_children=group_include_children,
     )
 
     # Calculate offset for pagination metadata
@@ -206,15 +245,20 @@ def users_list(
     if search:
         filter_criteria["search"] = search
     if roles:
-        filter_criteria["roles"] = ",".join(roles)
+        val = ",".join(roles)
+        filter_criteria["roles"] = f"!{val}" if role_negate else val
     if statuses:
-        filter_criteria["statuses"] = ",".join(statuses)
+        val = ",".join(statuses)
+        filter_criteria["statuses"] = f"!{val}" if status_negate else val
     if auth_methods:
-        filter_criteria["auth_methods"] = ",".join(auth_methods)
+        val = ",".join(auth_methods)
+        filter_criteria["auth_methods"] = f"!{val}" if auth_method_negate else val
     if domain:
-        filter_criteria["domain"] = domain
+        filter_criteria["domain"] = f"!{domain}" if domain_negate else domain
     if group_id:
-        filter_criteria["group_id"] = group_id
+        filter_criteria["group_id"] = f"!{group_id}" if group_negate else group_id
+        if not group_include_children:
+            filter_criteria["group_children"] = "0"
     if has_secondary_email is not None:
         if isinstance(has_secondary_email, str):
             filter_criteria["has_secondary_email"] = has_secondary_email
@@ -244,9 +288,15 @@ def users_list(
             domain_options=domain_options,
             group_id=group_id,
             group_options=group_options,
+            group_include_children=group_include_children,
             has_secondary_email=has_secondary_email,
             activity_start=activity_start.isoformat() if activity_start else "",
             activity_end=activity_end.isoformat() if activity_end else "",
+            role_negate=role_negate,
+            status_negate=status_negate,
+            auth_method_negate=auth_method_negate,
+            domain_negate=domain_negate,
+            group_negate=group_negate,
             filter_criteria=filter_criteria,
         ),
     )

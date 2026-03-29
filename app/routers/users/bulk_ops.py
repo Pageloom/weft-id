@@ -41,17 +41,49 @@ def _parse_filter_criteria(criteria_json: str) -> dict:
     result: dict = {}
 
     if raw.get("roles"):
+        val = raw["roles"]
+        negate = isinstance(val, str) and val.startswith("!")
+        if negate:
+            val = val[1:]
         allowed = {"member", "admin", "super_admin"}
-        result["roles"] = [r for r in raw["roles"] if r in allowed] or None
+        roles = [r for r in val.split(",") if r in allowed] if isinstance(val, str) else val
+        result["roles"] = roles or None
+        if negate and result["roles"]:
+            result["role_negate"] = True
     if raw.get("statuses"):
+        val = raw["statuses"]
+        negate = isinstance(val, str) and val.startswith("!")
+        if negate:
+            val = val[1:]
         allowed_s = {"active", "inactivated", "anonymized"}
-        result["statuses"] = [s for s in raw["statuses"] if s in allowed_s] or None
+        statuses = [s for s in val.split(",") if s in allowed_s] if isinstance(val, str) else val
+        result["statuses"] = statuses or None
+        if negate and result["statuses"]:
+            result["status_negate"] = True
     if raw.get("auth_methods"):
-        result["auth_methods"] = raw["auth_methods"] or None
+        val = raw["auth_methods"]
+        negate = isinstance(val, str) and val.startswith("!")
+        if negate:
+            val = val[1:]
+        result["auth_methods"] = val.split(",") if isinstance(val, str) else val
+        if negate and result["auth_methods"]:
+            result["auth_method_negate"] = True
     if raw.get("domain"):
-        result["domain"] = raw["domain"]
+        val = raw["domain"]
+        if val.startswith("!"):
+            result["domain"] = val[1:]
+            result["domain_negate"] = True
+        else:
+            result["domain"] = val
     if raw.get("group_id"):
-        result["group_id"] = raw["group_id"]
+        val = raw["group_id"]
+        if val.startswith("!"):
+            result["group_id"] = val[1:]
+            result["group_negate"] = True
+        else:
+            result["group_id"] = val
+    if raw.get("group_children") == "0":
+        result["group_include_children"] = False
     if raw.get("has_secondary_email"):
         val = raw["has_secondary_email"]
         if val == "yes":

@@ -132,74 +132,81 @@
             <!-- Filter Panel (collapsible) -->
             <div id="filter-panel" class="hidden mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div class="flex flex-wrap gap-6 items-end">
-                    {% set select_base = "border rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" %}
-                    {% set select_idle = select_base ~ " border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500" %}
-                    {% set select_active = select_base ~ " border-blue-500 dark:border-blue-400 ring-2 ring-blue-500 dark:ring-blue-400" %}
+                    {% set sel_base = "border rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" %}
+                    {% set sel_idle = sel_base ~ " border-gray-300 dark:border-gray-600" %}
+                    {% set sel_inc = sel_base ~ " border-blue-500 dark:border-blue-400 ring-2 ring-blue-500 dark:ring-blue-400" %}
+                    {% set sel_exc = sel_base ~ " border-red-500 dark:border-red-400 ring-2 ring-red-500 dark:ring-red-400" %}
+
+                    {% macro filter_select(id, label, active, negated) %}
+                    {% if active and negated %}{% set cls = sel_exc %}
+                    {% elif active %}{% set cls = sel_inc %}
+                    {% else %}{% set cls = sel_idle %}{% endif %}
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ label }}</span>
+                            <button type="button" class="negate-toggle text-xs font-medium px-1.5 py-0.5 rounded
+                                    {% if negated %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300
+                                    {% else %}bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-500{% endif %}"
+                                    data-filter="{{ id }}" data-active="{{ '1' if negated else '0' }}">
+                                {{ 'is not' if negated else 'is' }}
+                            </button>
+                        </div>
+                        <select id="{{ id }}" class="{{ cls }}">
+                            {{ caller() }}
+                        </select>
+                    </div>
+                    {% endmacro %}
 
                     <!-- Role Filter -->
-                    <div>
-                        <label for="filter-role" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
-                        <select id="filter-role"
-                                class="{{ select_active if roles else select_idle }}">
+                    {% call filter_select("filter-role", "Role", roles, role_negate) %}
                             <option value="">All roles</option>
                             <option value="member" {% if 'member' in roles %}selected{% endif %}>Member</option>
                             <option value="admin" {% if 'admin' in roles %}selected{% endif %}>Admin</option>
                             <option value="super_admin" {% if 'super_admin' in roles %}selected{% endif %}>Super Admin</option>
-                        </select>
-                    </div>
+                    {% endcall %}
 
                     <!-- Status Filter -->
-                    <div>
-                        <label for="filter-status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
-                        <select id="filter-status"
-                                class="{{ select_active if statuses else select_idle }}">
+                    {% call filter_select("filter-status", "Status", statuses, status_negate) %}
                             <option value="">All statuses</option>
                             <option value="active" {% if 'active' in statuses %}selected{% endif %}>Active</option>
                             <option value="inactivated" {% if 'inactivated' in statuses %}selected{% endif %}>Inactivated</option>
                             <option value="anonymized" {% if 'anonymized' in statuses %}selected{% endif %}>Anonymized</option>
-                        </select>
-                    </div>
+                    {% endcall %}
 
                     <!-- Auth Method Filter -->
                     {% if auth_method_options %}
-                    <div>
-                        <label for="filter-auth-method" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Auth Method</label>
-                        <select id="filter-auth-method"
-                                class="{{ select_active if auth_methods else select_idle }}">
+                    {% call filter_select("filter-auth-method", "Auth Method", auth_methods, auth_method_negate) %}
                             <option value="">All methods</option>
                             {% for opt in auth_method_options %}
                             <option value="{{ opt.auth_method_key }}" {% if opt.auth_method_key in auth_methods %}selected{% endif %}>{{ opt.auth_method_label }}</option>
                             {% endfor %}
-                        </select>
-                    </div>
+                    {% endcall %}
                     {% endif %}
 
                     <!-- Domain Filter -->
                     {% if domain_options %}
-                    <div>
-                        <label for="filter-domain" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Domain</label>
-                        <select id="filter-domain"
-                                class="{{ select_active if domain else select_idle }}">
+                    {% call filter_select("filter-domain", "Domain", domain, domain_negate) %}
                             <option value="">All domains</option>
                             {% for d in domain_options %}
                             <option value="{{ d.domain }}" {% if domain == d.domain %}selected{% endif %}>{{ d.domain }}{% if d.privileged %} ★{% endif %}</option>
                             {% endfor %}
-                        </select>
-                    </div>
+                    {% endcall %}
                     {% endif %}
 
                     <!-- Group Filter -->
                     {% if group_options %}
-                    <div>
-                        <label for="filter-group" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Group</label>
-                        <select id="filter-group"
-                                class="{{ select_active if group_id else select_idle }}">
+                    {% call filter_select("filter-group", "Group", group_id, group_negate) %}
                             <option value="">All groups</option>
                             {% for g in group_options %}
                             <option value="{{ g.id }}" {% if group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
                             {% endfor %}
-                        </select>
-                    </div>
+                    {% endcall %}
+                    <label class="flex items-center gap-1.5 -mt-4">
+                        <input type="checkbox" id="group-children"
+                               {% if group_include_children %}checked{% endif %}
+                               class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Include child groups</span>
+                    </label>
                     {% endif %}
 
                 </div>
@@ -423,26 +430,30 @@ WeftUtils.listManager({
         clearSelectors: '#clear-filters-link',
         getState: () => {
             const state = {};
+            const neg = id => document.querySelector(`.negate-toggle[data-filter="${id}"]`)?.dataset.active === '1';
             const role = document.getElementById('filter-role')?.value;
-            if (role) state.role = role;
+            if (role) state.role = neg('filter-role') ? `!${role}` : role;
             const status = document.getElementById('filter-status')?.value;
-            if (status) state.status = status;
+            if (status) state.status = neg('filter-status') ? `!${status}` : status;
             const authMethod = document.getElementById('filter-auth-method')?.value;
-            if (authMethod) state.auth_method = authMethod;
+            if (authMethod) state.auth_method = neg('filter-auth-method') ? `!${authMethod}` : authMethod;
             const domain = document.getElementById('filter-domain')?.value;
-            if (domain) state.domain = domain;
+            if (domain) state.domain = neg('filter-domain') ? `!${domain}` : domain;
             const group = document.getElementById('filter-group')?.value;
-            if (group) state.group_id = group;
+            if (group) state.group_id = neg('filter-group') ? `!${group}` : group;
+            const gc = document.getElementById('group-children');
+            if (gc && !gc.checked) state.group_children = '0';
             return state;
         },
         buildUrl: (state, size) => {
             let url = `/users/list?page=1&size=${size}&sort=${sortField}&order=${sortOrder}`;
             if (search) url += `&search=${encodeURIComponent(search)}`;
-            if (state.role) url += `&role=${state.role}`;
-            if (state.status) url += `&status=${state.status}`;
-            if (state.auth_method) url += `&auth_method=${state.auth_method}`;
+            if (state.role) url += `&role=${encodeURIComponent(state.role)}`;
+            if (state.status) url += `&status=${encodeURIComponent(state.status)}`;
+            if (state.auth_method) url += `&auth_method=${encodeURIComponent(state.auth_method)}`;
             if (state.domain) url += `&domain=${encodeURIComponent(state.domain)}`;
-            if (state.group_id) url += `&group_id=${state.group_id}`;
+            if (state.group_id) url += `&group_id=${encodeURIComponent(state.group_id)}`;
+            if (state.group_children === '0') url += '&group_children=0';
             return url;
         },
     },
@@ -487,24 +498,28 @@ WeftUtils.listManager({
     },
 });
 const applyFilters = () => {
+    const neg = id => document.querySelector(`.negate-toggle[data-filter="${id}"]`)?.dataset.active === '1';
     const state = {};
     const role = document.getElementById('filter-role')?.value;
-    if (role) state.role = role;
+    if (role) state.role = neg('filter-role') ? `!${role}` : role;
     const status = document.getElementById('filter-status')?.value;
-    if (status) state.status = status;
+    if (status) state.status = neg('filter-status') ? `!${status}` : status;
     const authMethod = document.getElementById('filter-auth-method')?.value;
-    if (authMethod) state.auth_method = authMethod;
+    if (authMethod) state.auth_method = neg('filter-auth-method') ? `!${authMethod}` : authMethod;
     const dom = document.getElementById('filter-domain')?.value;
-    if (dom) state.domain = dom;
+    if (dom) state.domain = neg('filter-domain') ? `!${dom}` : dom;
     const group = document.getElementById('filter-group')?.value;
-    if (group) state.group_id = group;
+    if (group) state.group_id = neg('filter-group') ? `!${group}` : group;
+    const gc = document.getElementById('group-children');
+    if (gc && !gc.checked) state.group_children = '0';
     let url = `/users/list?page=1&size=${pageSize}&sort=${sortField}&order=${sortOrder}`;
     if (search) url += `&search=${encodeURIComponent(search)}`;
-    if (state.role) url += `&role=${state.role}`;
-    if (state.status) url += `&status=${state.status}`;
-    if (state.auth_method) url += `&auth_method=${state.auth_method}`;
+    if (state.role) url += `&role=${encodeURIComponent(state.role)}`;
+    if (state.status) url += `&status=${encodeURIComponent(state.status)}`;
+    if (state.auth_method) url += `&auth_method=${encodeURIComponent(state.auth_method)}`;
     if (state.domain) url += `&domain=${encodeURIComponent(state.domain)}`;
-    if (state.group_id) url += `&group_id=${state.group_id}`;
+    if (state.group_id) url += `&group_id=${encodeURIComponent(state.group_id)}`;
+    if (state.group_children === '0') url += '&group_children=0';
     try { localStorage.setItem(`weftid_filters_${tenantId}`, JSON.stringify(state)); } catch(e) {}
     window.location.href = url;
 };
@@ -512,6 +527,18 @@ const applyFilters = () => {
  'filter-group'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', applyFilters);
+});
+const gcEl = document.getElementById('group-children');
+if (gcEl) gcEl.addEventListener('change', applyFilters);
+document.querySelectorAll('.negate-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const select = document.getElementById(btn.dataset.filter);
+        if (!select?.value) return;
+        const nowActive = btn.dataset.active !== '1';
+        btn.dataset.active = nowActive ? '1' : '0';
+        btn.textContent = nowActive ? 'is not' : 'is';
+        applyFilters();
+    });
 });
 </script>
 {% endblock %}

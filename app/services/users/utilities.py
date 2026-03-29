@@ -37,27 +37,17 @@ def count_users(
     has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
+    role_negate: bool = False,
+    status_negate: bool = False,
+    auth_method_negate: bool = False,
+    domain_negate: bool = False,
+    group_negate: bool = False,
+    group_include_children: bool = True,
 ) -> int:
     """
-    Count users in a tenant, optionally filtered by search term, roles,
-    statuses, auth methods, domain, group, secondary email, and activity dates.
+    Count users in a tenant, optionally filtered.
 
     This is a utility function without authorization.
-
-    Args:
-        tenant_id: Tenant ID
-        search: Optional search term
-        roles: Optional list of roles to filter by (member, admin, super_admin)
-        statuses: Optional list of statuses to filter by (active, inactivated, anonymized)
-        auth_methods: Optional list of auth method keys to filter by
-        domain: Optional email domain to filter by
-        group_id: Optional group UUID to filter by membership
-        has_secondary_email: Optional filter by presence of secondary email addresses
-        activity_start: Optional filter by activity on or after this date
-        activity_end: Optional filter by activity on or before this date
-
-    Returns:
-        Total count of matching users
     """
     return database.users.count_users(
         tenant_id,
@@ -70,6 +60,12 @@ def count_users(
         has_secondary_email=has_secondary_email,
         activity_start=activity_start,
         activity_end=activity_end,
+        role_negate=role_negate,
+        status_negate=status_negate,
+        auth_method_negate=auth_method_negate,
+        domain_negate=domain_negate,
+        group_negate=group_negate,
+        group_include_children=group_include_children,
     )
 
 
@@ -89,32 +85,18 @@ def list_users_raw(
     has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
+    role_negate: bool = False,
+    status_negate: bool = False,
+    auth_method_negate: bool = False,
+    domain_negate: bool = False,
+    group_negate: bool = False,
+    group_include_children: bool = True,
 ) -> list[dict]:
     """
     List users with pagination - returns raw dicts for HTML templates.
 
     This is a utility function without authorization - caller must
     have already verified admin access.
-
-    Args:
-        tenant_id: Tenant ID
-        search: Optional search term
-        sort_field: Field to sort by (name, email, role, status, last_login, created_at)
-        sort_order: Sort order (asc or desc)
-        page: Page number (1-indexed)
-        page_size: Results per page
-        collation: Optional collation for locale-aware sorting
-        roles: Optional list of roles to filter by (member, admin, super_admin)
-        statuses: Optional list of statuses to filter by (active, inactivated, anonymized)
-        auth_methods: Optional list of auth method keys to filter by
-        domain: Optional email domain to filter by
-        group_id: Optional group UUID to filter by membership
-        has_secondary_email: Optional filter by presence of secondary email addresses
-        activity_start: Optional filter by activity on or after this date
-        activity_end: Optional filter by activity on or before this date
-
-    Returns:
-        List of user dicts
     """
     return database.users.list_users(
         tenant_id=tenant_id,
@@ -132,6 +114,12 @@ def list_users_raw(
         has_secondary_email=has_secondary_email,
         activity_start=activity_start,
         activity_end=activity_end,
+        role_negate=role_negate,
+        status_negate=status_negate,
+        auth_method_negate=auth_method_negate,
+        domain_negate=domain_negate,
+        group_negate=group_negate,
+        group_include_children=group_include_children,
     )
 
 

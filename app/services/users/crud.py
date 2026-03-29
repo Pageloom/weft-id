@@ -57,6 +57,12 @@ def list_users(
     has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
+    role_negate: bool = False,
+    status_negate: bool = False,
+    auth_method_negate: bool = False,
+    domain_negate: bool = False,
+    group_negate: bool = False,
+    group_include_children: bool = True,
 ) -> UserListResponse:
     """
     List all users in the tenant with pagination and search.
@@ -106,6 +112,12 @@ def list_users(
         has_secondary_email=has_secondary_email,
         activity_start=activity_start,
         activity_end=activity_end,
+        role_negate=role_negate,
+        status_negate=status_negate,
+        auth_method_negate=auth_method_negate,
+        domain_negate=domain_negate,
+        group_negate=group_negate,
+        group_include_children=group_include_children,
     )
 
     # Get total count
@@ -120,6 +132,12 @@ def list_users(
         has_secondary_email=has_secondary_email,
         activity_start=activity_start,
         activity_end=activity_end,
+        role_negate=role_negate,
+        status_negate=status_negate,
+        auth_method_negate=auth_method_negate,
+        domain_negate=domain_negate,
+        group_negate=group_negate,
+        group_include_children=group_include_children,
     )
 
     return UserListResponse(

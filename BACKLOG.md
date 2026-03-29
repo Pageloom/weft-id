@@ -547,6 +547,87 @@ formatting, stable JSON key ordering for metadata, and a defined null representa
 
 ---
 
+## User List Filter Panel Redesign
+
+**User Story:**
+As an admin browsing the user list,
+I want a compact, floating filter panel triggered by a funnel icon,
+So that I can build multi-criteria filters without the panel pushing page content around,
+and clearly see when filters are active.
+
+**Context:**
+
+The current filter panel is a collapsible inline section that pushes content down when expanded.
+Filters auto-apply on every dropdown change, which causes a page reload and closes the panel,
+making it tedious to set multiple filters at once.
+
+This redesign replaces the inline panel with a floating popover anchored to a funnel icon button.
+The admin can set multiple filter values, then apply them all at once by clicking "Apply Filters"
+or clicking outside the panel (both are the same action). The panel always starts closed on
+page load.
+
+All backend filter parameters already exist. This is a frontend-only change (template + JS).
+
+**Design:**
+
+1. **Funnel icon button** replaces the current "Filters" text button. Tooltip: "Filter results".
+2. **Floating popover** appears below the funnel icon, overlaying page content (no layout shift).
+   Panel always starts closed on page load (no localStorage persistence of open/closed state).
+3. **Vertical filter rows**, each clearly separated (dividers or generous spacing). Each row
+   follows the pattern: `Label  IS  [Dropdown]` where "IS" is a clickable toggle that switches
+   to "IS NOT" (same negation behavior as today, but inline on the row).
+4. **Filters exposed:**
+   * Role (IS/IS NOT dropdown)
+   * Status (IS/IS NOT dropdown)
+   * Auth Method (IS/IS NOT dropdown)
+   * Domain (IS/IS NOT dropdown). Tooltip: "Matches users who have any email (primary or
+     secondary) at this domain."
+   * Group (IS/IS NOT dropdown) with "Include child groups" checkbox beneath it
+   * Has Secondary Email (Yes/No dropdown, no IS/IS NOT needed since it is inherently binary)
+   * Last Activity date range (start date, end date inputs)
+5. **Apply behavior:** explicit "Apply Filters" button at the bottom of the panel. Clicking
+   outside the panel is equivalent to clicking Apply. No auto-apply on individual changes.
+6. **Active filter indicator:** when any filter is active, the funnel icon gets a visually
+   distinct active style (color fill or highlight). The page displays "Filtered results" text
+   with a "Clear filter" link, same as today but retained in the new design.
+
+**Acceptance Criteria:**
+
+*Funnel button:*
+- [ ] Funnel icon replaces the current "Filters" text button
+- [ ] Tooltip on hover: "Filter results"
+- [ ] Visually distinct active state when any filter is applied (color/fill change)
+
+*Floating panel:*
+- [ ] Panel floats over page content (absolute/fixed positioning), no layout shift
+- [ ] Panel always starts closed on page load
+- [ ] Click outside panel applies current filter state and closes
+- [ ] "Apply Filters" button at bottom applies and closes
+- [ ] Panel contains all filter rows in a vertical layout with clear separation
+
+*Filter rows:*
+- [ ] Each row: `Label  IS  [Dropdown]` with IS clickable to toggle IS NOT
+- [ ] Role, Status, Auth Method, Domain, Group filters retain current behavior
+- [ ] Domain filter has a tooltip explaining it matches any email (primary or secondary)
+- [ ] Group filter has "Include child groups" checkbox beneath it
+- [ ] Has Secondary Email exposed as Yes/No dropdown
+- [ ] Last Activity exposed as date range (start and end date inputs)
+
+*Page indicators:*
+- [ ] "Filtered results" text shown when filters are active
+- [ ] "Clear filter" link removes all filters
+
+*Behavior:*
+- [ ] No auto-apply on individual dropdown changes (filters batch until applied)
+- [ ] Filter state passed as query parameters on apply (same URL scheme as today)
+- [ ] Multiselect and bulk action bar continue to work with the new filter panel
+
+**Effort:** M
+**Value:** High
+**Version impact:** Patch (UI enhancement, no API or schema changes)
+
+---
+
 ## Audit Event Visibility Tiers
 
 **User Story:**

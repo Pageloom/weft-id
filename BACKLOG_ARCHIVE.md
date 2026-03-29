@@ -4590,3 +4590,25 @@ So that I can unambiguously identify groups and avoid confusion between locally-
 **Value:** High
 
 ---
+
+## User List Filter Improvements
+
+**Status:** Complete
+
+**Resolution:** Converted Role, Status, and Auth Method filters from checkbox groups to single-select dropdowns. Added `domain` column to `user_emails` (migration 0025) for efficient domain queries. Domain filter now shows all observed domains (primary + secondary) with privileged domains marked. Removed Secondary Email and Last Activity filters as redundant. Filters apply immediately on selection (no Apply button). Active filters highlighted with blue ring. Fixed pre-existing Jinja2 autoescape bug that broke JSON.parse in the page-data block.
+
+**Effort:** M
+**Value:** Medium
+
+---
+
+## User List Filter: Negation and Group Hierarchy
+
+**Status:** Complete
+
+**Resolution:** Added "is" / "is not" toggle chip next to each filter dropdown. Clicking toggles to exclude mode (red styling, URL carries `!` prefix). Works across all filters and composes with bulk selection. Group filter gets "Include child groups" checkbox (checked by default) using the `group_lineage` closure table. Negation and hierarchy flags flow through router, service, and database layers.
+
+**Effort:** M
+**Value:** High
+
+---

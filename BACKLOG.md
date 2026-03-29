@@ -147,34 +147,153 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
+## Primary Email Change: SP Assertion Impact Warnings
+
+**User Story:**
+As an admin promoting a user's secondary email to primary,
+I want to see which downstream SPs will be affected by the email change,
+So that I understand the federation impact before confirming a potentially breaking change.
+
+**Context:**
+
+The existing single-user promote-to-primary flow (`/users/{id}/emails/{email_id}/promote`)
+already warns about IdP routing changes via `check_routing_change()`. However, it does not
+warn about the impact on SAML assertions to downstream SPs.
+
+When a user's primary email changes, SPs configured with `emailAddress` or `unspecified`
+NameID format will receive a different NameID in the next assertion. This can cause the SP
+to create a duplicate JIT user or reject the assertion entirely. SPs using `persistent` or
+`transient` NameID formats are unaffected (they use stable or random identifiers).
+
+This item adds a reusable `compute_email_change_impact()` service function that computes
+the full downstream impact for a given user + new email, and surfaces it in the single-user
+promote confirmation dialog. The bulk change primary email feature will reuse this function
+for its dry-run report.
+
+**Acceptance Criteria:**
+
+- [ ] New service function `compute_email_change_impact(tenant_id, user_id, new_email)` returns:
+  * List of accessible SPs with their NameID format and impact level ("will change" vs "not affected")
+  * IdP routing change (current IdP vs new domain's IdP, if different). Reuses existing `check_routing_change()`.
+  * Count summaries (N SPs affected, N not affected)
+- [ ] Single-user promote confirmation dialog shows SP assertion impact alongside the existing IdP routing warning
+- [ ] SPs using `persistent`/`transient` shown as "Not affected"
+- [ ] SPs using `emailAddress`/`unspecified` shown as "NameID will change" with SP name
+- [ ] If no SPs are affected, the warning section is omitted (no noise)
+- [ ] API: promote endpoint response includes impact data when called with `?preview=true` (or similar)
+
+**Effort:** S
+**Value:** High
+**Version impact:** Patch (enhancement to existing feature)
+
+---
+
 ## Bulk Change Primary Email (Browser-Native)
 
 **User Story:**
 As an admin,
-I want to select users and promote one of their secondary emails to primary in the browser,
-So that I can complete domain migrations without spreadsheet round-trips.
+I want to select users and promote one of their secondary emails to primary in the browser with
+a clear preview of downstream consequences,
+So that I can complete domain migrations confidently, understanding the impact on SP assertions
+and IdP routing before committing.
 
 **Context:**
 
-The flow: filter users who have secondary emails, select them, click "Change Primary Email (N)".
-Action page shows each user with their primary and secondary addresses. A dropdown per user lets
-the admin pick which secondary to promote. The old primary becomes a secondary.
+Changing a user's primary email is a high-impact operation. The primary email is the default
+NameID in SAML assertions for SPs using `emailAddress` or `unspecified` format. Changing it
+means downstream SPs may see a "new" user (especially if they do JIT provisioning), or reject
+the assertion entirely if they validate the NameID against their user store.
 
-Only users with at least one secondary email should be selectable for this action (the filter
-"has secondary email: yes" supports this).
+Additionally, the new email's domain may be bound to a different IdP (or no IdP at all), which
+affects how the user authenticates going forward. The user's current `saml_idp_id` is not
+automatically changed by an email promotion, but the admin may want to change it as part of
+the migration.
+
+This feature adds a **two-phase flow**: first a dry-run impact report, then a confirmed
+execution. Both phases are deferred to the worker as background jobs, with the UI polling
+for completion. For large tenants the impact computation may need to query SP access and
+NameID formats for hundreds of user-SP pairs, which can exceed API request timeouts.
+
+The page uses a `beforeunload` guard (same pattern as the group graph edit-layout mode) to
+warn the admin if they try to navigate away mid-flow, since the selections and dry-run
+results would be lost.
+
+**Flow:**
+
+1. Filter users with secondary emails, select them, click "Change Primary Email (N)"
+2. Action page shows each user with their primary and secondary emails. Admin picks which
+   secondary to promote per user (or leaves as "No change").
+3. On "Preview Changes", a dry-run background job is enqueued. UI polls for completion,
+   showing a progress indicator. No data is modified.
+4. When the dry-run completes, the report renders inline: per-user impact (affected SPs,
+   NameID format risk level, IdP routing changes) with per-user IdP disposition selectors.
+5. Admin reviews, adjusts per-user IdP choices, and clicks "Apply Changes".
+6. Execution background job is enqueued. UI polls for completion. Results rendered inline
+   when done.
+
+**Dry-run report (per user):**
+
+For each user where a new primary email is selected:
+
+* **SP assertion impact**: List each SP the user can access (via groups or "all users" mode).
+  For each SP, show:
+  * SP name
+  * Current NameID format (`emailAddress`, `persistent`, `transient`, `unspecified`)
+  * Impact level:
+    * `persistent`/`transient`: "Not affected" (NameID is independent of email)
+    * `emailAddress`/`unspecified`: "Will change" (next assertion carries new email)
+
+* **IdP routing impact**: Compare the user's current `saml_idp_id` with the IdP bound to
+  the new email's domain (if any). Show one of:
+  * "No change" (same IdP, or domain not bound)
+  * "IdP will change: [Current IdP] -> [New IdP]" (new domain bound to different IdP)
+  * "IdP will be removed: [Current IdP] -> password only" (new domain not bound to any IdP)
+
+* **Per-user IdP disposition** (only shown when IdP routing changes):
+  * **Keep current IdP** (default): Leave `saml_idp_id` unchanged. User continues
+    authenticating via their current IdP despite the new email domain.
+  * **Switch to new IdP**: Update `saml_idp_id` to the IdP bound to the new domain.
+  * **Remove IdP (password only)**: Set `saml_idp_id` to NULL. User falls back to
+    password authentication.
 
 **Acceptance Criteria:**
 
-- [ ] "Change Primary Email" button in user list action bar (only enabled when all selected users have secondaries)
+*Selection and preparation:*
+- [ ] "Change Primary Email" button in user list action bar (only when selected users have secondaries)
 - [ ] Action page at `/users/bulk-ops/primary-emails` shows selected users in a grid
-- [ ] Grid columns: name, current primary email, dropdown of secondary emails (select one to promote, or leave as "No change")
-- [ ] On submit, creates a deferred background job
-- [ ] Each promotion: secondary becomes primary, old primary becomes secondary
-- [ ] Job result: N promoted, N skipped, N errors
-- [ ] Each promotion emits `email_promoted_to_primary` audit event with old and new primary
-- [ ] API: `POST /api/v1/users/bulk-ops/primary-emails` accepts list of `{user_id, new_primary_email}` pairs
+- [ ] Grid columns: name, current primary email, dropdown of secondary emails (or "No change")
 
-**Effort:** M
+*Navigation guard:*
+- [ ] `beforeunload` listener warns admin before navigating away mid-flow (same pattern as group graph edit-layout mode)
+
+*Dry-run report:*
+- [ ] "Preview Changes" enqueues a dry-run background job (no data modified)
+- [ ] UI polls job status and shows progress indicator while computing
+- [ ] When complete, report renders inline with per-user SP assertion impact and NameID format
+- [ ] Report shows per-user IdP routing change (if any) with disposition selector
+- [ ] Default IdP disposition is "Keep current IdP" (least disruptive)
+- [ ] Admin can change disposition per user (keep, switch, remove)
+- [ ] Summary banner: "N users affected, N SPs will see new email, N IdP changes"
+
+*Execution:*
+- [ ] "Apply Changes" enqueues execution background job with the admin's chosen dispositions
+- [ ] UI polls job status and shows progress indicator while executing
+- [ ] Each promotion: secondary becomes primary, old primary becomes secondary
+- [ ] IdP dispositions applied per user (keep/switch/remove per dry-run selections)
+- [ ] Job result: N promoted, N skipped, N errors (with per-user details)
+- [ ] Each promotion emits `primary_email_changed` audit event (old email, new email)
+- [ ] IdP changes emit `user_saml_idp_assigned` audit event (old IdP, new IdP or null)
+- [ ] Notification email sent to old primary address for each affected user
+
+*API:*
+- [ ] `POST /api/v1/users/bulk-ops/primary-emails/preview` accepts list of `{user_id, new_primary_email}` pairs, returns dry-run report
+- [ ] `POST /api/v1/users/bulk-ops/primary-emails/apply` accepts list of `{user_id, new_primary_email, idp_disposition}` pairs
+
+**Prerequisite:** "Primary Email Change: SP Assertion Impact Warnings" (below) must land first.
+The `compute_email_change_impact()` service function it introduces is reused by the dry-run
+report in this feature.
+
+**Effort:** L
 **Value:** High
 **Version impact:** Minor (new feature)
 

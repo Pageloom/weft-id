@@ -32,10 +32,53 @@ def _build_search_clauses(
         params[param_name] = f"%{escape_like(token)}%"
 
 
+def _build_role_clause(
+    roles: list[str] | None,
+    where_clauses: list[str],
+    params: dict[str, Any],
+    negate: bool = False,
+) -> None:
+    """Filter by user role, optionally negated."""
+    if not roles:
+        return
+    allowed_roles = {"member", "admin", "super_admin"}
+    valid_roles = [r for r in roles if r in allowed_roles]
+    if valid_roles:
+        if negate:
+            where_clauses.append("u.role != ALL(:roles)")
+        else:
+            where_clauses.append("u.role = ANY(:roles)")
+        params["roles"] = valid_roles
+
+
+def _build_status_clause(
+    statuses: list[str] | None,
+    where_clauses: list[str],
+    negate: bool = False,
+) -> None:
+    """Filter by user status, optionally negated."""
+    if not statuses:
+        return
+    status_conditions: list[str] = []
+    if "active" in statuses:
+        status_conditions.append("(u.is_inactivated = false and u.is_anonymized = false)")
+    if "inactivated" in statuses:
+        status_conditions.append("(u.is_inactivated = true and u.is_anonymized = false)")
+    if "anonymized" in statuses:
+        status_conditions.append("u.is_anonymized = true")
+    if status_conditions:
+        clause = f"({' or '.join(status_conditions)})"
+        if negate:
+            where_clauses.append(f"not {clause}")
+        else:
+            where_clauses.append(clause)
+
+
 def _build_auth_method_clauses(
     auth_methods: list[str] | None,
     where_clauses: list[str],
     params: dict[str, Any],
+    negate: bool = False,
 ) -> None:
     """Build auth method filter WHERE clauses.
 
@@ -89,19 +132,25 @@ def _build_auth_method_clauses(
         )
 
     if conditions:
-        where_clauses.append(f"({' or '.join(conditions)})")
+        clause = f"({' or '.join(conditions)})"
+        if negate:
+            where_clauses.append(f"not {clause}")
+        else:
+            where_clauses.append(clause)
 
 
 def _build_domain_clause(
     domain: str | None,
     where_clauses: list[str],
     params: dict[str, Any],
+    negate: bool = False,
 ) -> None:
     """Filter by email domain (matches any email, primary or secondary)."""
     if not domain:
         return
+    existence = "not exists" if negate else "exists"
     where_clauses.append(
-        "exists (select 1 from user_emails ue_d"
+        f"{existence} (select 1 from user_emails ue_d"
         " where ue_d.user_id = u.id and ue_d.domain = lower(:domain))"
     )
     params["domain"] = domain
@@ -111,14 +160,26 @@ def _build_group_clause(
     group_id: str | None,
     where_clauses: list[str],
     params: dict[str, Any],
+    negate: bool = False,
+    include_children: bool = True,
 ) -> None:
-    """Filter by group membership."""
+    """Filter by group membership, optionally including child groups."""
     if not group_id:
         return
-    where_clauses.append(
-        "exists (select 1 from group_memberships gm_f"
-        " where gm_f.user_id = u.id and gm_f.group_id = :filter_group_id)"
-    )
+    existence = "not exists" if negate else "exists"
+    if include_children:
+        where_clauses.append(
+            f"{existence} (select 1 from group_memberships gm_f"
+            " join group_lineage gl on gm_f.group_id = gl.descendant_id"
+            " where gm_f.user_id = u.id"
+            " and gl.ancestor_id = :filter_group_id)"
+        )
+    else:
+        where_clauses.append(
+            f"{existence} (select 1 from group_memberships gm_f"
+            " where gm_f.user_id = u.id"
+            " and gm_f.group_id = :filter_group_id)"
+        )
     params["filter_group_id"] = group_id
 
 
@@ -181,6 +242,12 @@ def count_users(
     has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
+    role_negate: bool = False,
+    status_negate: bool = False,
+    auth_method_negate: bool = False,
+    domain_negate: bool = False,
+    group_negate: bool = False,
+    group_include_children: bool = True,
 ) -> int:
     """
     Count users, optionally filtered by search term, roles, statuses,
@@ -207,28 +274,17 @@ def count_users(
     params: dict[str, Any] = {}
 
     _build_search_clauses(search, where_clauses, params)
-
-    if roles:
-        allowed_roles = {"member", "admin", "super_admin"}
-        valid_roles = [r for r in roles if r in allowed_roles]
-        if valid_roles:
-            where_clauses.append("u.role = ANY(:roles)")
-            params["roles"] = valid_roles
-
-    if statuses:
-        status_conditions: list[str] = []
-        if "active" in statuses:
-            status_conditions.append("(u.is_inactivated = false and u.is_anonymized = false)")
-        if "inactivated" in statuses:
-            status_conditions.append("(u.is_inactivated = true and u.is_anonymized = false)")
-        if "anonymized" in statuses:
-            status_conditions.append("u.is_anonymized = true")
-        if status_conditions:
-            where_clauses.append(f"({' or '.join(status_conditions)})")
-
-    _build_auth_method_clauses(auth_methods, where_clauses, params)
-    _build_domain_clause(domain, where_clauses, params)
-    _build_group_clause(group_id, where_clauses, params)
+    _build_role_clause(roles, where_clauses, params, negate=role_negate)
+    _build_status_clause(statuses, where_clauses, negate=status_negate)
+    _build_auth_method_clauses(auth_methods, where_clauses, params, negate=auth_method_negate)
+    _build_domain_clause(domain, where_clauses, params, negate=domain_negate)
+    _build_group_clause(
+        group_id,
+        where_clauses,
+        params,
+        negate=group_negate,
+        include_children=group_include_children,
+    )
     _build_secondary_email_clause(has_secondary_email, where_clauses, params)
     _build_activity_date_clauses(activity_start, activity_end, where_clauses, params)
 
@@ -273,6 +329,12 @@ def list_users(
     has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
+    role_negate: bool = False,
+    status_negate: bool = False,
+    auth_method_negate: bool = False,
+    domain_negate: bool = False,
+    group_negate: bool = False,
+    group_include_children: bool = True,
 ) -> list[dict]:
     """
     List users with pagination, sorting, search, and filtering.
@@ -310,28 +372,17 @@ def list_users(
     params: dict[str, Any] = {}
 
     _build_search_clauses(search, where_clauses, params)
-
-    if roles:
-        allowed_roles = {"member", "admin", "super_admin"}
-        valid_roles = [r for r in roles if r in allowed_roles]
-        if valid_roles:
-            where_clauses.append("u.role = ANY(:roles)")
-            params["roles"] = valid_roles
-
-    if statuses:
-        status_conditions: list[str] = []
-        if "active" in statuses:
-            status_conditions.append("(u.is_inactivated = false and u.is_anonymized = false)")
-        if "inactivated" in statuses:
-            status_conditions.append("(u.is_inactivated = true and u.is_anonymized = false)")
-        if "anonymized" in statuses:
-            status_conditions.append("u.is_anonymized = true")
-        if status_conditions:
-            where_clauses.append(f"({' or '.join(status_conditions)})")
-
-    _build_auth_method_clauses(auth_methods, where_clauses, params)
-    _build_domain_clause(domain, where_clauses, params)
-    _build_group_clause(group_id, where_clauses, params)
+    _build_role_clause(roles, where_clauses, params, negate=role_negate)
+    _build_status_clause(statuses, where_clauses, negate=status_negate)
+    _build_auth_method_clauses(auth_methods, where_clauses, params, negate=auth_method_negate)
+    _build_domain_clause(domain, where_clauses, params, negate=domain_negate)
+    _build_group_clause(
+        group_id,
+        where_clauses,
+        params,
+        negate=group_negate,
+        include_children=group_include_children,
+    )
     _build_secondary_email_clause(has_secondary_email, where_clauses, params)
     _build_activity_date_clauses(activity_start, activity_end, where_clauses, params)
 

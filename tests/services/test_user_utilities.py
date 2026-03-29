@@ -57,6 +57,12 @@ def test_count_users_delegates_to_database():
             has_secondary_email=None,
             activity_start=None,
             activity_end=None,
+            role_negate=False,
+            status_negate=False,
+            auth_method_negate=False,
+            domain_negate=False,
+            group_negate=False,
+            group_include_children=True,
         )
 
 
@@ -102,6 +108,12 @@ def test_list_users_raw_delegates_to_database():
             has_secondary_email=None,
             activity_start=None,
             activity_end=None,
+            role_negate=False,
+            status_negate=False,
+            auth_method_negate=False,
+            domain_negate=False,
+            group_negate=False,
+            group_include_children=True,
         )
 
 

@@ -99,6 +99,7 @@ def handle_bulk_add_secondary_emails(task: dict) -> dict[str, Any]:
                         "user_id": user_id,
                         "email": email,
                         "status": "added",
+                        "reason": "Added as verified secondary email",
                     }
                 )
 

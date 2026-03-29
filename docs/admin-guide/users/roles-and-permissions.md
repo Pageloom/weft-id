@@ -23,6 +23,7 @@ There must always be at least one super admin. The last super admin cannot be in
 Management access for day-to-day operations. Admins can:
 
 - Create and manage users (but cannot create super admin accounts)
+- Manage user [email addresses](email-management.md) (add, remove, promote, bulk operations)
 - Manage groups and group membership
 - Configure branding
 - Manage privileged domains
@@ -37,7 +38,7 @@ Standard access for end users. Users can:
 
 - View their dashboard and launch applications
 - Edit their profile (name, theme, timezone), if permitted by admin settings
-- Add email addresses to their account, if permitted by admin settings
+- View their email addresses (managed by admins)
 - Set up and manage their own two-step verification method
 
 Users cannot access any administrative pages.

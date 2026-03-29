@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://docs.weftid.com/admin-guide/identity-providers/privileged-domains/">
+        <link rel="canonical" href="https://docs.weftid.com/admin-guide/users/email-management/">
       
       
-        <link rel="prev" href="../saml-setup/">
+        <link rel="prev" href="../creating-users/">
       
       
-        <link rel="next" href="../../service-providers/">
+        <link rel="next" href="../user-lifecycle/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Privileged Domains - WeftID Documentation</title>
+        <title>Email Management - WeftID Documentation</title>
       
     
     
@@ -77,7 +77,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#privileged-domains" class="md-skip">
+        <a href="#email-management" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Privileged Domains
+              Email Management
             
           </span>
         </div>
@@ -473,6 +473,8 @@
                 
   
   
+    
+  
   
   
     
@@ -494,15 +496,15 @@
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../users/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -526,7 +528,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -546,7 +548,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../users/creating-users/" class="md-nav__link">
+      <a href="../creating-users/" class="md-nav__link">
         
   
   
@@ -571,10 +573,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../users/email-management/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Email Management
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -590,6 +619,149 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-a-users-emails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing a user's emails
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-secondary-email" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a secondary email
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#promoting-to-primary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Promoting to primary
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Promoting to primary">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#impact-warnings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact warnings
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#removing-an-email" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removing an email
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resending-invitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resending invitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bulk-email-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk email operations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bulk email operations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#selecting-users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selecting users
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bulk-add-secondary-emails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk add secondary emails
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bulk-change-primary-emails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk change primary emails
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -602,7 +774,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../users/user-lifecycle/" class="md-nav__link">
+      <a href="../user-lifecycle/" class="md-nav__link">
         
   
   
@@ -630,7 +802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../users/roles-and-permissions/" class="md-nav__link">
+      <a href="../roles-and-permissions/" class="md-nav__link">
         
   
   
@@ -853,8 +1025,6 @@
                 
   
   
-    
-  
   
   
     
@@ -872,15 +1042,15 @@
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../identity-providers/" class="md-nav__link ">
               
   
   
@@ -904,7 +1074,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -924,7 +1094,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../saml-setup/" class="md-nav__link">
+      <a href="../../identity-providers/saml-setup/" class="md-nav__link">
         
   
   
@@ -949,37 +1119,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Privileged Domains
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="././" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../identity-providers/privileged-domains/" class="md-nav__link">
         
   
   
@@ -995,88 +1138,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#adding-a-domain" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Adding a domain
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#binding-an-idp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Binding an IdP
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#linking-groups" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Linking groups
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Linking groups">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Example
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#removing-a-domain" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Removing a domain
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2229,10 +2290,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#adding-a-domain" class="md-nav__link">
+  <a href="#viewing-a-users-emails" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Adding a domain
+        Viewing a user's emails
       
     </span>
   </a>
@@ -2240,10 +2301,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#binding-an-idp" class="md-nav__link">
+  <a href="#adding-a-secondary-email" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Binding an IdP
+        Adding a secondary email
       
     </span>
   </a>
@@ -2251,22 +2312,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#linking-groups" class="md-nav__link">
+  <a href="#promoting-to-primary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Linking groups
+        Promoting to primary
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Linking groups">
+    <nav class="md-nav" aria-label="Promoting to primary">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#impact-warnings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        Impact warnings
       
     </span>
   </a>
@@ -2279,13 +2340,74 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#removing-a-domain" class="md-nav__link">
+  <a href="#removing-an-email" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Removing a domain
+        Removing an email
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resending-invitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resending invitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bulk-email-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk email operations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bulk email operations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#selecting-users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selecting users
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bulk-add-secondary-emails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk add secondary emails
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bulk-change-primary-emails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk change primary emails
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2304,29 +2426,132 @@
                 
                   
 
-<h1 id="privileged-domains">Privileged Domains<a class="headerlink" href="#privileged-domains" title="Permanent link">&para;</a></h1>
-<p>Privileged domains let you route users to a specific identity provider and auto-assign them to groups based on their email domain.</p>
-<h2 id="adding-a-domain">Adding a domain<a class="headerlink" href="#adding-a-domain" title="Permanent link">&para;</a></h2>
+<h1 id="email-management">Email Management<a class="headerlink" href="#email-management" title="Permanent link">&para;</a></h1>
+<p>Email addresses in WeftID are managed by administrators. Users can view their emails at <strong>Account &gt; Emails</strong> but cannot add, remove, or promote them.</p>
+<h2 id="viewing-a-users-emails">Viewing a user's emails<a class="headerlink" href="#viewing-a-users-emails" title="Permanent link">&para;</a></h2>
+<p>Open the user's detail page (<strong>Users &gt; click a user &gt; Profile tab</strong>). The <strong>Email Addresses</strong> section shows all emails with their status (primary, verified, unverified) and creation date.</p>
+<h2 id="adding-a-secondary-email">Adding a secondary email<a class="headerlink" href="#adding-a-secondary-email" title="Permanent link">&para;</a></h2>
+<p>On the user's profile tab, scroll to <strong>Add Secondary Email</strong>. Enter an email address from a <a href="../../identity-providers/privileged-domains/">privileged domain</a> and click <strong>Add Email</strong>. The email is auto-verified and immediately usable.</p>
+<p>Only emails from privileged domains can be added individually. For bulk additions without this restriction, see <a href="#bulk-add-secondary-emails">Bulk add secondary emails</a> below.</p>
+<h2 id="promoting-to-primary">Promoting to primary<a class="headerlink" href="#promoting-to-primary" title="Permanent link">&para;</a></h2>
+<p>Click <strong>Make Primary</strong> next to any verified secondary email. The primary email is the one used for sign-in and included in SAML assertions as the NameID (for email-format assertions).</p>
+<h3 id="impact-warnings">Impact warnings<a class="headerlink" href="#impact-warnings" title="Permanent link">&para;</a></h3>
+<p>When a primary email change affects downstream systems, WeftID shows a warning before proceeding:</p>
+<p><strong>SP assertion impact.</strong> If service providers use the user's email as their NameID, those SPs will receive a different identity in future SAML assertions. The warning lists each affected SP and its NameID format. SPs using persistent or transient NameIDs are not affected.</p>
+<p><strong>IdP routing change.</strong> If the new email's domain is bound to a different identity provider than the user's current one, the warning shows the routing change (e.g., "Okta to Azure AD"). This means the user may authenticate differently after the change.</p>
+<p>Review the impact, then click <strong>Confirm &amp; Promote</strong> to proceed.</p>
+<h2 id="removing-an-email">Removing an email<a class="headerlink" href="#removing-an-email" title="Permanent link">&para;</a></h2>
+<p>Click <strong>Remove</strong> next to any secondary email. The primary email cannot be removed. A user must always have at least one email address.</p>
+<h2 id="resending-invitations">Resending invitations<a class="headerlink" href="#resending-invitations" title="Permanent link">&para;</a></h2>
+<p>If a user hasn't completed onboarding (no password set), a <strong>Resend Invitation</strong> button appears on their profile tab. Clicking it sends a fresh invitation email and invalidates any previous invitation link.</p>
+<p>WeftID automatically detects the right email type:</p>
+<ul>
+<li>If the user's email is already verified, they receive a set-password link</li>
+<li>If not yet verified, they receive a verification link first</li>
+</ul>
+<p>Invitation links are one-time use. Once a user sets their password, the link expires.</p>
+<hr />
+<h2 id="bulk-email-operations">Bulk email operations<a class="headerlink" href="#bulk-email-operations" title="Permanent link">&para;</a></h2>
+<p>For changes across many users at once, WeftID provides two bulk operations. Both are accessible from the user list page.</p>
+<h3 id="selecting-users">Selecting users<a class="headerlink" href="#selecting-users" title="Permanent link">&para;</a></h3>
 <ol>
-<li>Navigate to <strong>Settings &gt; Privileged Domains</strong></li>
-<li>Click <strong>Add Domain</strong></li>
-<li>Enter the email domain (e.g., <code>acme.com</code>)</li>
-<li>Click <strong>Add</strong></li>
+<li>Navigate to <strong>Users &gt; User List</strong></li>
+<li>Use checkboxes to select individual users, or use the header checkbox to select all on the current page</li>
+<li>For large result sets: after selecting all on the page, click <strong>Select all N matching users</strong> to include every user matching the current search and filters (across all pages)</li>
 </ol>
-<h2 id="binding-an-idp">Binding an IdP<a class="headerlink" href="#binding-an-idp" title="Permanent link">&para;</a></h2>
-<p>Each domain can be bound to one identity provider. When a user with a matching email domain signs in, they are automatically directed to that IdP instead of seeing the IdP selection page.</p>
-<p>To bind an IdP, select it from the domain's configuration panel.</p>
-<h2 id="linking-groups">Linking groups<a class="headerlink" href="#linking-groups" title="Permanent link">&para;</a></h2>
-<p>Link one or more groups to a domain. When a user is created with an email address matching that domain, they are automatically added to the linked groups.</p>
-<p>This applies to both manually created users and JIT-provisioned users.</p>
-<h3 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h3>
+<p>Once users are selected, the bulk action bar appears at the bottom with available operations.</p>
+<h3 id="bulk-add-secondary-emails">Bulk add secondary emails<a class="headerlink" href="#bulk-add-secondary-emails" title="Permanent link">&para;</a></h3>
+<p>Add a secondary email address to multiple users at once.</p>
 <ol>
-<li>Add the domain <code>engineering.acme.com</code></li>
-<li>Link it to the "Engineering" group</li>
-<li>When <code>alice@engineering.acme.com</code> is created, she is automatically added to the Engineering group</li>
+<li>Select users from the user list</li>
+<li>Click <strong>Manage Secondary Emails</strong></li>
+<li>For each user, enter a new secondary email address or leave blank to skip</li>
+<li>Click <strong>Add Secondary Emails</strong> to submit</li>
 </ol>
-<h2 id="removing-a-domain">Removing a domain<a class="headerlink" href="#removing-a-domain" title="Permanent link">&para;</a></h2>
-<p>Unlink all groups and unbind the IdP before deleting a domain.</p>
+<p>A background job processes the additions. Check progress at <strong>Account &gt; Background Jobs</strong>.</p>
+<p>Each email in the results has one of three statuses:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Added</td>
+<td>Email added and auto-verified</td>
+</tr>
+<tr>
+<td>Skipped</td>
+<td>Email already exists in the tenant</td>
+</tr>
+<tr>
+<td>Error</td>
+<td>User not found or another issue</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Unlike single-user email additions, bulk operations do not restrict emails to privileged domains. Any valid email address is accepted.</p>
+</div>
+<h3 id="bulk-change-primary-emails">Bulk change primary emails<a class="headerlink" href="#bulk-change-primary-emails" title="Permanent link">&para;</a></h3>
+<p>Change the primary email for multiple users at once, with a preview of downstream impact before applying.</p>
+<p><strong>Step 1: Select new emails.</strong> After selecting users and clicking <strong>Change Primary Email</strong>, choose a secondary email to promote for each user. Users without secondary emails show "No secondary emails." Leave a user on "No change" to skip them.</p>
+<p><strong>Step 2: Preview impact.</strong> Click <strong>Preview Changes</strong> to run a dry-run analysis. WeftID checks each user for:</p>
+<ul>
+<li><strong>SP assertion impact</strong> -- how many service providers use email-based NameIDs and will see a different identity in future assertions. SPs using persistent or transient NameIDs are unaffected.</li>
+<li><strong>IdP routing change</strong> -- whether the new email's domain routes to a different identity provider. This could change how the user authenticates.</li>
+</ul>
+<p>The preview table shows each user's impact with color indicators:</p>
+<table>
+<thead>
+<tr>
+<th>Color</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Green</td>
+<td>No impact. All SPs use persistent/transient NameIDs and no IdP change.</td>
+</tr>
+<tr>
+<td>Amber</td>
+<td>SP assertions will change, or IdP routing will change. Review before applying.</td>
+</tr>
+<tr>
+<td>Red</td>
+<td>Error during preview (e.g., user not found).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Step 3: Choose IdP disposition.</strong> For users with an IdP routing change, a dropdown lets you choose what happens to their IdP assignment:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keep current IdP</td>
+<td>Primary email changes, but authentication method stays the same</td>
+</tr>
+<tr>
+<td>Switch to new IdP</td>
+<td>User moves to the IdP bound to the new email's domain</td>
+</tr>
+<tr>
+<td>Remove IdP (password)</td>
+<td>User reverts to password authentication</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Step 4: Apply changes.</strong> Click <strong>Apply Changes</strong> to execute. A background job processes each user and reports results.</p>
+<p>The old primary email address receives a notification about the change.</p>
 
 
 

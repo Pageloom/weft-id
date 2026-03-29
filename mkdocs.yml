@@ -48,6 +48,7 @@ nav:
     - Users:
       - admin-guide/users/index.md
       - Creating Users: admin-guide/users/creating-users.md
+      - Email Management: admin-guide/users/email-management.md
       - User Lifecycle: admin-guide/users/user-lifecycle.md
       - Roles and Permissions: admin-guide/users/roles-and-permissions.md
     - Groups:

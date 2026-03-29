@@ -4,7 +4,7 @@ When your WeftID instance is first set up, you receive an invitation email with 
 
 ## Verify your email
 
-Click the link in the invitation email. This confirms your email address and takes you to the password setup page.
+Click the link in the invitation email. This confirms your email address and takes you to the password setup page. The link is one-time use. If you need a new one, ask your administrator to resend the invitation.
 
 ## Set your password
 

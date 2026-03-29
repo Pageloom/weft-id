@@ -5,7 +5,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 ## Federation & Single Sign-On
 
 **Federation**
-:   A trust arrangement where separate organizations accept each other's authentication decisions. WeftID acts as a federation broker, sitting between upstream identity providers and downstream applications. Users authenticate once and gain access to multiple services without separate credentials.
+:   A trust arrangement where separate organizations accept each other's authentication decisions. WeftID can federate with external identity providers (Okta, Entra ID, Google Workspace) so users sign in with their existing credentials while WeftID manages access control. Users authenticate once and gain access to multiple services without separate credentials.
 
 **Single Sign-On (SSO)**
 :   The ability for a user to authenticate once and access multiple applications without signing in again. WeftID supports SSO via SAML 2.0. There are two initiation patterns: SP-initiated (the user starts at the application) and IdP-initiated (the user starts at WeftID). See [SSO Flow](admin-guide/service-providers/sso-flow.md).
@@ -14,7 +14,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   A SAML protocol for propagating sign-out across federated services. When a user signs out of WeftID, logout requests are sent to each application they accessed during the session. SLO is best-effort because downstream applications may not respond. See [Single Logout](admin-guide/service-providers/slo.md).
 
 **Identity Provider (IdP)**
-:   A system that authenticates users and issues identity assertions. In WeftID, "upstream IdP" refers to external providers like Okta, Entra ID, or Google Workspace that your users sign in through. WeftID itself also acts as an IdP to downstream applications.
+:   A system that authenticates users and issues identity assertions. WeftID is an IdP: it manages user accounts, authenticates them (via password, two-step verification, or federated sign-in), and issues SAML assertions to applications. "Upstream IdP" refers to external providers like Okta, Entra ID, or Google Workspace that WeftID can optionally federate with.
 
 **Service Provider (SP)**
 :   An application that relies on an identity provider for authentication. In WeftID, SPs are the downstream applications you register for single sign-on. WeftID issues SAML assertions to SPs so users can access them without separate credentials.

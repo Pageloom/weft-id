@@ -1,6 +1,6 @@
 # WeftID Documentation
 
-WeftID is a multi-tenant identity federation platform. It connects your applications to identity providers like Okta, Entra ID, and Google Workspace through SAML 2.0 and OAuth2.
+WeftID is an identity provider and access management platform. It authenticates users, manages their lifecycle, and provides single sign-on to your applications via SAML 2.0. Organizations that already use Okta, Entra ID, or other identity management systems can be federated into WeftID for seamless, unified sign-in.
 
 ## For administrators
 

@@ -8,7 +8,9 @@
 4. Select a role: super admin, admin, or user
 5. Click **Create**
 
-The user receives an invitation email with a verification link. After verifying their email, they set a password and can sign in.
+The user receives an invitation email with a verification link. After verifying their email, they set a password and can sign in. Invitation links are one-time use.
+
+If a user hasn't completed onboarding, you can resend the invitation from their profile page. See [Resending invitations](email-management.md#resending-invitations).
 
 ## Just-in-time provisioning
 

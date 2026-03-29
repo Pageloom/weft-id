@@ -16,13 +16,7 @@ Your timezone and locale are detected automatically from your browser. Click **U
 
 ## Email addresses
 
-Manage your email addresses at **Account > Emails**. You can:
-
-- **Add an email** -- Enter a new address and verify it via a link sent to that email
-- **Set a primary email** -- Your primary email is used for sign-in and SAML assertions
-- **Remove an email** -- Delete a secondary email address (you cannot delete your primary email)
-
-Adding emails may be disabled by your administrator.
+View your email addresses at **Account > Emails**. Your primary email is used for sign-in and SAML assertions. Email changes (adding, removing, or promoting) are managed by your administrator.
 
 ## Account information
 

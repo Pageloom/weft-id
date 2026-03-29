@@ -16,9 +16,13 @@ Click any event to see its full details, including metadata and request informat
 
 ### Export
 
-Click **Export All Events** to generate a compressed JSON export of the entire event log. The export runs as a background job. You are redirected to [Background Jobs](../../user-guide/background-jobs.md) where you can track progress and download the file when ready.
+Export events as a password-encrypted XLSX spreadsheet. Optionally filter by date range using the **From** and **To** fields before clicking **Export**.
 
-The export file is a gzipped JSON archive containing all events, event type descriptions, and export metadata. Files are retained for 24 hours, after which they are automatically deleted. Admin role is required to export.
+The export runs as a background job. Check progress at [Background Jobs](../../user-guide/background-jobs.md). When complete, the job shows a **Download** link and the file password (copy it before downloading).
+
+The XLSX file resolves IDs to human-readable names: user names, group names, SP names, and IdP names appear alongside their UUIDs. Cells are locked to prevent accidental modification.
+
+Files are retained for 24 hours, then automatically deleted. Admin role required.
 
 ## Event types
 

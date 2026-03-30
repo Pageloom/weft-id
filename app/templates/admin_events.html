@@ -5,7 +5,11 @@
 {% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
 
 {% block content %}
+<!-- Page data for JS -->
+<script type="application/json" id="page-data">{{ {"active_tiers": active_tiers, "all_tiers": all_tiers | list, "page_size": pagination.page_size} | tojson }}</script>
+
 <!-- Pagination Controls Macro -->
+{% set tiers_param = active_tiers | join(",") %}
 {% macro pagination_controls(border_class="border-t") %}
 {% if pagination.total_count > 0 %}
 <div class="flex items-center justify-between {{ border_class }} border-gray-200 dark:border-gray-700 py-4">
@@ -34,7 +38,7 @@
     <!-- Page navigation -->
     <div class="flex items-center gap-2">
         <a
-            href="{% if pagination.has_previous %}?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}{% else %}#{% endif %}"
+            href="{% if pagination.has_previous %}?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&tiers={{ tiers_param }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600{% else %}text-gray-400 bg-gray-100 dark:bg-gray-800 cursor-not-allowed{% endif %}"
             {% if not pagination.has_previous %}aria-disabled="true"{% endif %}
         >
@@ -46,7 +50,7 @@
         </span>
 
         <a
-            href="{% if pagination.has_next %}?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}{% else %}#{% endif %}"
+            href="{% if pagination.has_next %}?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&tiers={{ tiers_param }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600{% else %}text-gray-400 bg-gray-100 dark:bg-gray-800 cursor-not-allowed{% endif %}"
             {% if not pagination.has_next %}aria-disabled="true"{% endif %}
         >
@@ -81,6 +85,25 @@
             </form>
         </div>
 
+        <!-- Tier filter toggles -->
+        <div class="flex items-center gap-2 mb-6">
+            <span class="text-sm font-medium text-gray-500 dark:text-gray-400 mr-1">Show:</span>
+            {% for tier in all_tiers %}
+            <button type="button" data-tier="{{ tier }}"
+                class="tier-toggle px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                {% if tier in active_tiers %}
+                    {% if tier == 'security' %}bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-300 dark:border-red-700
+                    {% elif tier == 'admin' %}bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700
+                    {% elif tier == 'operational' %}bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700
+                    {% elif tier == 'system' %}bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 border-gray-300 dark:border-gray-600
+                    {% endif %}
+                {% else %}
+                    bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600
+                {% endif %}"
+            >{{ tier | capitalize }}</button>
+            {% endfor %}
+        </div>
+
         {% if success == 'export_started' %}
         <div class="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-md">
             <p class="text-green-800 dark:text-green-300">
@@ -110,6 +133,9 @@
                             Event Type
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Tier
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Timestamp
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -134,6 +160,17 @@
                                 {{ event.event_type }}
                             </a>
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if event.event_tier == 'security' %}
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">security</span>
+                            {% elif event.event_tier == 'admin' %}
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">admin</span>
+                            {% elif event.event_tier == 'operational' %}
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">operational</span>
+                            {% elif event.event_tier == 'system' %}
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">system</span>
+                            {% endif %}
+                        </td>
                         {% set rel_ts = fmt_relative(event.created_at) %}
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" title="{{ rel_ts[1] }}">
                             {{ rel_ts[0] }}
@@ -153,7 +190,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                        <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                             No events found
                         </td>
                     </tr>
@@ -170,9 +207,38 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-WeftUtils.listManager({ pageSizeSelector: '#page-size' });
-const today = new Date().toISOString().split('T')[0];
-document.getElementById('start_date').max = today;
-document.getElementById('end_date').max = today;
+{
+    const pageData = JSON.parse(document.getElementById('page-data').textContent);
+    const activeTiers = new Set(pageData.active_tiers);
+    const allTiers = pageData.all_tiers;
+
+    // Tier toggle buttons
+    document.querySelectorAll('.tier-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tier = btn.dataset.tier;
+            if (activeTiers.has(tier)) {
+                activeTiers.delete(tier);
+            } else {
+                activeTiers.add(tier);
+            }
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', '1');
+            const tiers = allTiers.filter(t => activeTiers.has(t)).join(',');
+            if (tiers) {
+                url.searchParams.set('tiers', tiers);
+            } else {
+                url.searchParams.delete('tiers');
+            }
+            window.location.href = url.toString();
+        });
+    });
+
+    // Page size selector (preserves tiers via current URL)
+    WeftUtils.listManager({ pageSizeSelector: '#page-size' });
+
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('start_date').max = today;
+    document.getElementById('end_date').max = today;
+}
 </script>
 {% endblock %}

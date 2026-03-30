@@ -28,7 +28,12 @@ import logging
 from typing import Any
 
 import database
-from constants.event_types import EVENT_TYPE_DESCRIPTIONS, get_event_description
+from constants.event_types import (
+    EVENT_TYPE_DESCRIPTIONS,
+    get_event_description,
+    get_event_tier,
+    get_event_types_for_tiers,
+)
 from schemas.event_log import EventLogItem, EventLogListResponse
 from services.activity import track_activity
 from services.exceptions import ForbiddenError, NotFoundError
@@ -204,9 +209,10 @@ def list_events(
     requesting_user: RequestingUser,
     page: int = 1,
     limit: int = 50,
+    tiers: list[str] | None = None,
 ) -> EventLogListResponse:
     """
-    List event logs with pagination.
+    List event logs with pagination and optional tier filtering.
 
     Authorization: Requires admin or super_admin role.
 
@@ -214,6 +220,9 @@ def list_events(
         requesting_user: The user making the request
         page: Page number (1-indexed)
         limit: Number of items per page
+        tiers: Optional list of visibility tiers to include (e.g., ["security", "admin"]).
+            When provided, only events belonging to those tiers are returned.
+            When None, all events are returned (no tier filtering).
 
     Returns:
         EventLogListResponse with paginated items
@@ -224,8 +233,13 @@ def list_events(
     tenant_id = requesting_user["tenant_id"]
     offset = (page - 1) * limit
 
-    events = database.event_log.list_events(tenant_id, limit=limit, offset=offset)
-    total = database.event_log.count_events(tenant_id)
+    # Resolve tiers to event type list for database filtering
+    event_types = get_event_types_for_tiers(tiers) if tiers else None
+
+    events = database.event_log.list_events(
+        tenant_id, limit=limit, offset=offset, event_types=event_types
+    )
+    total = database.event_log.count_events(tenant_id, event_types=event_types)
 
     # Enrich with actor names and artifact names
     items = []
@@ -260,6 +274,7 @@ def list_events(
                 artifact_email=e.get("artifact_email"),
                 event_type=e["event_type"],
                 event_description=get_event_description(e["event_type"]),
+                event_tier=get_event_tier(e["event_type"]),
                 metadata=metadata_dict,
                 created_at=e["created_at"],
                 remote_address=remote_address,
@@ -341,6 +356,7 @@ def get_event(
         artifact_email=event.get("artifact_email"),
         event_type=event["event_type"],
         event_description=get_event_description(event["event_type"]),
+        event_tier=get_event_tier(event["event_type"]),
         metadata=metadata_dict,
         created_at=event["created_at"],
         remote_address=remote_address,

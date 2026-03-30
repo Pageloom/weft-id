@@ -240,6 +240,131 @@ def test_get_event_forbidden_for_member(make_requesting_user):
     assert exc_info.value.code == "admin_required"
 
 
+def test_list_events_with_tier_filter(make_requesting_user, make_event_log_dict, make_user_dict):
+    """Test that tier filtering resolves to event types and passes to database."""
+    from services import event_log
+
+    tenant_id = str(uuid4())
+    admin = make_user_dict(tenant_id=tenant_id, role="admin")
+    requesting_user = make_requesting_user(
+        user_id=admin["id"],
+        tenant_id=tenant_id,
+        role="admin",
+    )
+
+    event = make_event_log_dict(tenant_id=tenant_id, event_type="user_created")
+
+    with (
+        patch("services.event_log.database") as mock_db,
+        patch("services.event_log.track_activity"),
+    ):
+        mock_db.event_log.list_events.return_value = [event]
+        mock_db.event_log.count_events.return_value = 1
+        mock_db.users.get_user_by_id.return_value = admin
+
+        result = event_log.list_events(requesting_user, page=1, limit=50, tiers=["security"])
+
+        assert result.total == 1
+        # Verify event_types was passed to database
+        call_kwargs = mock_db.event_log.list_events.call_args.kwargs
+        assert "event_types" in call_kwargs
+        assert call_kwargs["event_types"] is not None
+        assert "user_created" in call_kwargs["event_types"]
+        # Admin types should not be in the list
+        assert "group_created" not in call_kwargs["event_types"]
+
+        # count_events should also get event_types
+        count_kwargs = mock_db.event_log.count_events.call_args.kwargs
+        assert "event_types" in count_kwargs
+        assert count_kwargs["event_types"] is not None
+
+
+def test_list_events_without_tiers(make_requesting_user, make_event_log_dict, make_user_dict):
+    """Test that omitting tiers passes None to database (no filtering)."""
+    from services import event_log
+
+    tenant_id = str(uuid4())
+    admin = make_user_dict(tenant_id=tenant_id, role="admin")
+    requesting_user = make_requesting_user(
+        user_id=admin["id"],
+        tenant_id=tenant_id,
+        role="admin",
+    )
+
+    with (
+        patch("services.event_log.database") as mock_db,
+        patch("services.event_log.track_activity"),
+    ):
+        mock_db.event_log.list_events.return_value = []
+        mock_db.event_log.count_events.return_value = 0
+
+        event_log.list_events(requesting_user, page=1, limit=50)
+
+        # event_types should be None (no filtering)
+        call_kwargs = mock_db.event_log.list_events.call_args.kwargs
+        assert call_kwargs["event_types"] is None
+
+
+def test_list_events_includes_event_tier(make_requesting_user, make_event_log_dict, make_user_dict):
+    """Test that events include event_tier field."""
+    from services import event_log
+
+    tenant_id = str(uuid4())
+    admin = make_user_dict(tenant_id=tenant_id, role="admin")
+    requesting_user = make_requesting_user(
+        user_id=admin["id"],
+        tenant_id=tenant_id,
+        role="admin",
+    )
+
+    event = make_event_log_dict(tenant_id=tenant_id, event_type="user_created")
+
+    with (
+        patch("services.event_log.database") as mock_db,
+        patch("services.event_log.track_activity"),
+    ):
+        mock_db.event_log.list_events.return_value = [event]
+        mock_db.event_log.count_events.return_value = 1
+        mock_db.users.get_user_by_id.return_value = admin
+
+        result = event_log.list_events(requesting_user, page=1, limit=50)
+
+        assert len(result.items) == 1
+        assert result.items[0].event_tier == "security"
+
+
+def test_get_event_includes_event_tier(make_requesting_user, make_event_log_dict, make_user_dict):
+    """Test that single event detail includes event_tier field."""
+    from services import event_log
+
+    tenant_id = str(uuid4())
+    admin = make_user_dict(tenant_id=tenant_id, role="admin")
+    requesting_user = make_requesting_user(
+        user_id=admin["id"],
+        tenant_id=tenant_id,
+        role="admin",
+    )
+
+    event_id = str(uuid4())
+    event = make_event_log_dict(
+        event_id=event_id,
+        tenant_id=tenant_id,
+        actor_user_id=admin["id"],
+        event_type="group_created",
+    )
+
+    with (
+        patch("services.event_log.database") as mock_db,
+        patch("services.event_log.track_activity"),
+    ):
+        mock_db.event_log.get_event_by_id.return_value = event
+        mock_db.users.get_user_by_id.return_value = admin
+
+        result = event_log.get_event(requesting_user, event_id)
+
+        assert result.event_tier == "admin"
+
+
 def test_get_event_not_found(make_requesting_user):
     """Test that getting a non-existent event raises NotFoundError."""
     from services import event_log

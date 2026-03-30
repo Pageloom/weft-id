@@ -26,6 +26,9 @@ class EventLogItem(BaseModel):
     event_description: str | None = Field(
         None, description="Human-readable description of the event type"
     )
+    event_tier: str | None = Field(
+        None, description="Visibility tier: security, admin, operational, or system"
+    )
     metadata: dict[str, Any] | None = Field(
         None, description="Full metadata (request fields + custom event data)"
     )

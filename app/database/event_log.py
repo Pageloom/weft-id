@@ -83,6 +83,7 @@ def list_events(
     artifact_id: str | None = None,
     actor_user_id: str | None = None,
     event_type: str | None = None,
+    event_types: list[str] | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> list[dict]:
@@ -96,7 +97,8 @@ def list_events(
         artifact_type: Filter by artifact type
         artifact_id: Filter by artifact ID
         actor_user_id: Filter by actor
-        event_type: Filter by event type
+        event_type: Filter by single event type
+        event_types: Filter by multiple event types (e.g., all types for given tiers)
         start_date: Filter events on or after this date (inclusive)
         end_date: Filter events on or before this date (inclusive)
 
@@ -118,6 +120,9 @@ def list_events(
     if event_type:
         where_clauses.append("event_type = :event_type")
         params["event_type"] = event_type
+    if event_types is not None:
+        where_clauses.append("e.event_type = ANY(:event_types)")
+        params["event_types"] = event_types
     if start_date:
         where_clauses.append("e.created_at >= :start_date")
         params["start_date"] = datetime.combine(start_date, time.min, tzinfo=UTC)
@@ -160,6 +165,7 @@ def count_events(
     tenant_id: TenantArg,
     artifact_type: str | None = None,
     artifact_id: str | None = None,
+    event_types: list[str] | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> int:
@@ -170,6 +176,7 @@ def count_events(
         tenant_id: Tenant ID for RLS scoping
         artifact_type: Filter by artifact type
         artifact_id: Filter by artifact ID
+        event_types: Filter by multiple event types (e.g., all types for given tiers)
         start_date: Filter events on or after this date (inclusive)
         end_date: Filter events on or before this date (inclusive)
 
@@ -185,6 +192,9 @@ def count_events(
     if artifact_id:
         where_clauses.append("artifact_id = :artifact_id")
         params["artifact_id"] = artifact_id
+    if event_types is not None:
+        where_clauses.append("event_type = ANY(:event_types)")
+        params["event_types"] = event_types
     if start_date:
         where_clauses.append("created_at >= :start_date")
         params["start_date"] = datetime.combine(start_date, time.min, tzinfo=UTC)

@@ -4,13 +4,21 @@ These tests ensure:
 1. All event types in the lockfile exist in EVENT_TYPE_DESCRIPTIONS (no deletions)
 2. All EVENT_TYPE_DESCRIPTIONS keys exist in the lockfile (explicit acknowledgment)
 3. The log_event function rejects unknown event types
+4. Every event type has a valid visibility tier annotation
 """
 
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from constants.event_types import EVENT_TYPE_DESCRIPTIONS, get_event_description
+from constants.event_types import (
+    EVENT_TYPE_DESCRIPTIONS,
+    EVENT_TYPE_TIERS,
+    VALID_TIERS,
+    get_event_description,
+    get_event_tier,
+    get_event_types_for_tiers,
+)
 from services.event_log import log_event
 
 # Path to the lockfile
@@ -94,6 +102,81 @@ class TestLockfileValidation:
             "Lockfile should be sorted alphabetically. "
             f"First unsorted line: {next(a for a, b in zip(lines, sorted_lines) if a != b)}"
         )
+
+
+class TestEventTypeTiers:
+    """Tests that ensure every event type has a valid visibility tier."""
+
+    def test_all_descriptions_have_tiers(self):
+        """Every event type in EVENT_TYPE_DESCRIPTIONS must have a tier."""
+        description_types = set(EVENT_TYPE_DESCRIPTIONS.keys())
+        tier_types = set(EVENT_TYPE_TIERS.keys())
+
+        missing_tiers = description_types - tier_types
+        assert not missing_tiers, (
+            f"Event types in EVENT_TYPE_DESCRIPTIONS but missing from EVENT_TYPE_TIERS "
+            f"(add these to EVENT_TYPE_TIERS): {sorted(missing_tiers)}"
+        )
+
+    def test_all_tiers_have_descriptions(self):
+        """Every event type in EVENT_TYPE_TIERS must have a description."""
+        description_types = set(EVENT_TYPE_DESCRIPTIONS.keys())
+        tier_types = set(EVENT_TYPE_TIERS.keys())
+
+        extra_tiers = tier_types - description_types
+        assert not extra_tiers, (
+            f"Event types in EVENT_TYPE_TIERS but missing from EVENT_TYPE_DESCRIPTIONS: "
+            f"{sorted(extra_tiers)}"
+        )
+
+    def test_all_tier_values_are_valid(self):
+        """Every tier value must be one of the valid tier names."""
+        for event_type, tier in EVENT_TYPE_TIERS.items():
+            assert tier in VALID_TIERS, (
+                f"Event type '{event_type}' has invalid tier '{tier}'. Valid tiers: {VALID_TIERS}"
+            )
+
+    def test_get_event_tier_returns_tier(self):
+        """get_event_tier should return the tier for known event types."""
+        assert get_event_tier("user_created") == "security"
+        assert get_event_tier("group_created") == "admin"
+        assert get_event_tier("sso_assertion_issued") == "operational"
+        assert get_event_tier("export_task_created") == "system"
+
+    def test_get_event_tier_returns_none_for_unknown(self):
+        """get_event_tier should return None for unknown event types."""
+        assert get_event_tier("nonexistent_event") is None
+
+    def test_get_event_types_for_tiers_single(self):
+        """get_event_types_for_tiers should return matching event types."""
+        security_types = get_event_types_for_tiers(["security"])
+        assert "user_created" in security_types
+        assert "login_failed" in security_types
+        # Admin types should not be included
+        assert "group_created" not in security_types
+
+    def test_get_event_types_for_tiers_multiple(self):
+        """get_event_types_for_tiers should handle multiple tiers."""
+        types = get_event_types_for_tiers(["security", "admin"])
+        assert "user_created" in types
+        assert "group_created" in types
+        assert "sso_assertion_issued" not in types
+
+    def test_get_event_types_for_tiers_empty(self):
+        """get_event_types_for_tiers with empty list returns nothing."""
+        types = get_event_types_for_tiers([])
+        assert types == []
+
+    def test_all_tiers_cover_all_event_types(self):
+        """Getting all tiers should return every event type."""
+        all_types = get_event_types_for_tiers(list(VALID_TIERS))
+        assert set(all_types) == set(EVENT_TYPE_TIERS.keys())
+
+    def test_each_tier_has_at_least_one_event(self):
+        """Every valid tier should have at least one event type assigned."""
+        for tier in VALID_TIERS:
+            types = get_event_types_for_tiers([tier])
+            assert len(types) > 0, f"Tier '{tier}' has no event types assigned"
 
 
 class TestLogEventValidation:

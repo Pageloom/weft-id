@@ -318,6 +318,79 @@ def test_count_events_filter_by_artifact_type(test_tenant, test_user):
     assert count_b == 1
 
 
+def test_list_events_filter_by_event_types(test_tenant, test_user):
+    """Test filtering events by multiple event types (tier filtering support)."""
+    import database
+
+    unique_suffix = uuid4().hex[:8]
+    type_a = f"type_a_{unique_suffix}"
+    type_b = f"type_b_{unique_suffix}"
+    type_c = f"type_c_{unique_suffix}"
+
+    # Create events with different types
+    for event_type in [type_a, type_b, type_c]:
+        combined_metadata, metadata_hash = _prepare_event_metadata()
+        database.event_log.create_event(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            actor_user_id=str(test_user["id"]),
+            artifact_type="user",
+            artifact_id=str(test_user["id"]),
+            event_type=event_type,
+            combined_metadata=combined_metadata,
+            metadata_hash=metadata_hash,
+        )
+
+    # Filter by subset of types
+    events = database.event_log.list_events(test_tenant["id"], event_types=[type_a, type_b])
+
+    event_types_found = {e["event_type"] for e in events}
+    assert type_a in event_types_found
+    assert type_b in event_types_found
+    assert type_c not in event_types_found
+
+
+def test_count_events_filter_by_event_types(test_tenant, test_user):
+    """Test counting events filtered by multiple event types."""
+    import database
+
+    unique_suffix = uuid4().hex[:8]
+    type_a = f"count_type_a_{unique_suffix}"
+    type_b = f"count_type_b_{unique_suffix}"
+    type_c = f"count_type_c_{unique_suffix}"
+
+    for event_type in [type_a, type_b, type_c]:
+        combined_metadata, metadata_hash = _prepare_event_metadata()
+        database.event_log.create_event(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            actor_user_id=str(test_user["id"]),
+            artifact_type="user",
+            artifact_id=str(test_user["id"]),
+            event_type=event_type,
+            combined_metadata=combined_metadata,
+            metadata_hash=metadata_hash,
+        )
+
+    # Count only type_a and type_b
+    count = database.event_log.count_events(test_tenant["id"], event_types=[type_a, type_b])
+    assert count == 2
+
+    # Count all three
+    count_all = database.event_log.count_events(
+        test_tenant["id"], event_types=[type_a, type_b, type_c]
+    )
+    assert count_all == 3
+
+
+def test_list_events_empty_event_types_returns_nothing(test_tenant, test_user):
+    """Test that filtering with empty event_types list returns no events."""
+    import database
+
+    events = database.event_log.list_events(test_tenant["id"], event_types=[])
+    assert len(events) == 0
+
+
 def test_event_metadata_stored_correctly(test_tenant, test_user):
     """Test that metadata is stored and retrieved correctly."""
     import database

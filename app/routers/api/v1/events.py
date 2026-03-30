@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from api_dependencies import require_admin_api
+from constants.event_types import VALID_TIERS
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Query
 from schemas.event_log import EventLogItem, EventLogListResponse
@@ -19,6 +20,16 @@ def list_events(
     admin: Annotated[dict, Depends(require_admin_api)],
     page: Annotated[int, Query(ge=1, description="Page number (1-indexed)")] = 1,
     limit: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 50,
+    tiers: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Comma-separated visibility tiers to include "
+                "(security, admin, operational, system). "
+                "Omit to return all events."
+            )
+        ),
+    ] = None,
 ):
     """
     List audit log events with pagination.
@@ -28,12 +39,25 @@ def list_events(
     Query Parameters:
     - page: Page number (1-indexed, default: 1)
     - limit: Items per page (1-100, default: 50)
+    - tiers: Comma-separated visibility tiers (security, admin, operational, system).
+             Omit to return all events with no tier filtering.
 
     Returns paginated list of events, ordered by most recent first.
+    Each event includes an event_tier field indicating its visibility tier.
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
+
+    # Parse tier filter
+    parsed_tiers = None
+    if tiers:
+        parsed_tiers = [t for t in tiers.split(",") if t in VALID_TIERS]
+        if not parsed_tiers:
+            parsed_tiers = None
+
     try:
-        return event_log_service.list_events(requesting_user, page=page, limit=limit)
+        return event_log_service.list_events(
+            requesting_user, page=page, limit=limit, tiers=parsed_tiers
+        )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

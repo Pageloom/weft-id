@@ -4,6 +4,27 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Audit Event Visibility Tiers
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Each event type in `EVENT_TYPE_DESCRIPTIONS` has a tier annotation (security/admin/operational/system)
+- [x] Audit log UI defaults to showing security + admin tiers
+- [x] Filter/toggle in the audit log UI to include operational and/or system tiers
+- [x] Audit log XLSX export includes all tiers (with a tier column) regardless of UI filter
+- [x] Tier classification is stored in `event_types.py` alongside the description (e.g. a dict or a second mapping)
+- [x] No changes to what gets logged. All events still written to the database.
+
+**Resolution:** Added `EVENT_TYPE_TIERS` dict in `event_types.py` mapping all 130 event types to four tiers. Database layer accepts `event_types` list filter via PostgreSQL `ANY()`. Service resolves tier names to event type lists. UI shows color-coded toggle buttons (security=red, admin=blue, operational=amber, system=gray) and a Tier column in both the list and detail views. XLSX export includes a Tier column with all tiers (unfiltered). Backstop tests ensure every event type has a valid tier. API supports optional `tiers` query param.
+
+**Effort:** M
+**Value:** High
+**Version impact:** Patch (UI filtering, no schema changes)
+
+---
+
 ## User Audit Export
 
 **Status:** Complete

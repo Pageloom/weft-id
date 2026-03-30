@@ -103,6 +103,13 @@
 <script nonce="{{ csp_nonce }}">
 (() => {
     const { csrfToken } = JSON.parse(document.getElementById('page-data').textContent);
+
+    // Escape HTML to prevent XSS when interpolating dynamic values into innerHTML
+    const escapeHtml = (s) => {
+        if (s == null) return '';
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    };
+
     let flowActive = false;
     let previewJobId = null;
     let previewData = null;
@@ -177,7 +184,7 @@
 
             if (data.error) {
                 previewLoading.classList.add('hidden');
-                previewResults.innerHTML = `<p class="text-red-600 dark:text-red-400">${data.error}</p>`;
+                previewResults.innerHTML = `<p class="text-red-600 dark:text-red-400">${escapeHtml(data.error)}</p>`;
                 previewResults.classList.remove('hidden');
                 return;
             }
@@ -198,7 +205,7 @@
 
         if (job.status === 'failed') {
             previewResults.innerHTML = `<div class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md">
-                <p class="text-red-800 dark:text-red-300">Preview failed: ${job.error || 'Unknown error'}</p>
+                <p class="text-red-800 dark:text-red-300">Preview failed: ${escapeHtml(job.error) || 'Unknown error'}</p>
             </div>`;
             return;
         }
@@ -236,10 +243,10 @@
         users.forEach((u, i) => {
             if (u.status === 'error') {
                 html += `<tr class="bg-red-50 dark:bg-red-900/10">
-                    <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${u.user_name || u.user_id}</td>
-                    <td class="px-4 py-2 text-sm text-gray-500">${u.current_email || ''}</td>
-                    <td class="px-4 py-2 text-sm">${u.new_email}</td>
-                    <td colspan="3" class="px-4 py-2 text-sm text-red-600 dark:text-red-400">${u.error_reason}</td>
+                    <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${escapeHtml(u.user_name || u.user_id)}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">${escapeHtml(u.current_email)}</td>
+                    <td class="px-4 py-2 text-sm">${escapeHtml(u.new_email)}</td>
+                    <td colspan="3" class="px-4 py-2 text-sm text-red-600 dark:text-red-400">${escapeHtml(u.error_reason)}</td>
                 </tr>`;
                 return;
             }
@@ -268,11 +275,15 @@
                 spTitle = `${affected} apps use email-based NameIDs (affected). ${unaffected} use persistent/transient IDs (not affected).`;
             }
 
+            // SP labels are derived from numeric counts and static text, so no escaping needed.
+            // Routing labels contain IdP names (admin-controlled) — escape for defense-in-depth.
+            }
+
             let routingLabel, routingClass, routingTitle;
             if (hasRouting) {
-                routingLabel = `${u.routing_change.current_idp_name} \u2192 ${u.routing_change.new_idp_name}`;
+                routingLabel = `${escapeHtml(u.routing_change.current_idp_name)} \u2192 ${escapeHtml(u.routing_change.new_idp_name)}`;
                 routingClass = 'text-amber-700 dark:text-amber-400';
-                routingTitle = `This user's sign-in method will change from "${u.routing_change.current_idp_name}" to "${u.routing_change.new_idp_name}" based on the new email domain.`;
+                routingTitle = `This user's sign-in method will change from &quot;${escapeHtml(u.routing_change.current_idp_name)}&quot; to &quot;${escapeHtml(u.routing_change.new_idp_name)}&quot; based on the new email domain.`;
             } else {
                 routingLabel = 'No change';
                 routingClass = 'text-green-700 dark:text-green-400';
@@ -290,10 +301,10 @@
                 dispositionHtml = '<span class="text-gray-400 dark:text-gray-500 text-sm" title="No IdP routing change, so no action is needed.">N/A</span>';
             }
 
-            html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700" data-user-id="${u.user_id}">
-                <td class="px-4 py-2 text-sm font-medium text-gray-900 dark:text-gray-100">${u.user_name}</td>
-                <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">${u.current_email}</td>
-                <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${u.new_email}</td>
+            html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700" data-user-id="${escapeHtml(u.user_id)}">
+                <td class="px-4 py-2 text-sm font-medium text-gray-900 dark:text-gray-100">${escapeHtml(u.user_name)}</td>
+                <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">${escapeHtml(u.current_email)}</td>
+                <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${escapeHtml(u.new_email)}</td>
                 <td class="px-4 py-2 text-sm ${spClass}" title="${spTitle}">${spLabel}</td>
                 <td class="px-4 py-2 text-sm ${routingClass}" title="${routingTitle}">${routingLabel}</td>
                 <td class="px-4 py-2">${dispositionHtml}</td>
@@ -364,7 +375,7 @@
 
             if (data.error) {
                 applyLoading.classList.add('hidden');
-                applyResults.innerHTML = `<p class="text-red-600 dark:text-red-400">${data.error}</p>`;
+                applyResults.innerHTML = `<p class="text-red-600 dark:text-red-400">${escapeHtml(data.error)}</p>`;
                 applyResults.classList.remove('hidden');
                 return;
             }
@@ -385,7 +396,7 @@
 
         if (job.status === 'failed') {
             applyResults.innerHTML = `<div class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md">
-                <p class="text-red-800 dark:text-red-300">Apply failed: ${job.error || 'Unknown error'}</p>
+                <p class="text-red-800 dark:text-red-300">Apply failed: ${escapeHtml(job.error) || 'Unknown error'}</p>
             </div>`;
             return;
         }
@@ -393,7 +404,7 @@
         const result = job.result;
         let html = `<div class="mb-4 p-3 rounded-md ${result.errors > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700'}">
             <p class="text-sm font-medium ${result.errors > 0 ? 'text-amber-800 dark:text-amber-300' : 'text-green-800 dark:text-green-300'}">
-                ${result.output}
+                ${escapeHtml(result.output)}
             </p>
         </div>`;
 
@@ -411,9 +422,9 @@
                     : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300';
 
                 html += `<tr>
-                    <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${d.email}</td>
-                    <td class="px-4 py-2"><span class="px-2 py-0.5 text-xs font-medium rounded-full ${statusClass}">${d.status}</span></td>
-                    <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">${d.reason || ''}</td>
+                    <td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">${escapeHtml(d.email)}</td>
+                    <td class="px-4 py-2"><span class="px-2 py-0.5 text-xs font-medium rounded-full ${statusClass}">${escapeHtml(d.status)}</span></td>
+                    <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">${escapeHtml(d.reason)}</td>
                 </tr>`;
             });
 

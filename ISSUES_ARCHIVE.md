@@ -5,6 +5,33 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] XSS: innerHTML with user-controlled names in bulk primary emails template
+
+**Status:** Resolved (2026-03-30)
+**Found in:** `app/templates/users_bulk_primary_emails.html:239, 294`
+**Severity:** Medium
+**OWASP Category:** A03:2021 - Injection (XSS)
+**Fix:** Added `escapeHtml()` utility function at the top of the inline script. All dynamic values
+interpolated into template literals that are assigned via `innerHTML` are now escaped: user names,
+emails, error messages, IdP names, job results. This prevents stored XSS where a malicious user
+name (e.g., `<img src=x onerror=alert(1)>`) could execute in another admin's browser during bulk
+email preview.
+
+---
+
+### [SECURITY] Unbounded Input: Bulk operation list fields missing max_length
+
+**Status:** Resolved (2026-03-30)
+**Found in:** `app/schemas/groups.py:312, 320, 328` and `app/schemas/service_providers.py:250`
+**Severity:** Medium
+**OWASP Category:** Unbounded Input / Resource Exhaustion
+**Fix:** Added `max_length=1000` to four Pydantic list fields: `BulkMemberRemove.user_ids`,
+`BulkMemberAdd.user_ids`, `UserGroupsAdd.group_ids`, `SPGroupBulkAssign.group_ids`. Pydantic now
+rejects requests with more than 1000 items before they reach service or database layers. Added
+4 tests confirming the constraint.
+
+---
+
 ### [SECURITY] Set-password link lacks one-time nonce and expiry
 
 **Status:** Resolved (2026-03-26)

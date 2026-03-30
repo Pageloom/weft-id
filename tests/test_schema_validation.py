@@ -412,6 +412,10 @@ class TestSPGroupBulkAssign:
         with pytest.raises(ValidationError):
             SPGroupBulkAssign(group_ids=["x" * 37])
 
+    def test_list_max_length(self):
+        with pytest.raises(ValidationError):
+            SPGroupBulkAssign(group_ids=["a" * 36] * 5001)
+
 
 class TestSPMetadataReimport:
     def test_metadata_xml_max_length(self):
@@ -447,14 +451,26 @@ class TestBulkMemberRemove:
         with pytest.raises(ValidationError):
             BulkMemberRemove(user_ids=["x" * 37])
 
+    def test_list_max_length(self):
+        with pytest.raises(ValidationError):
+            BulkMemberRemove(user_ids=["a" * 36] * 5001)
+
 
 class TestBulkMemberAdd:
     def test_user_id_max_length(self):
         with pytest.raises(ValidationError):
             BulkMemberAdd(user_ids=["x" * 37])
 
+    def test_list_max_length(self):
+        with pytest.raises(ValidationError):
+            BulkMemberAdd(user_ids=["a" * 36] * 5001)
+
 
 class TestUserGroupsAdd:
     def test_group_id_max_length(self):
         with pytest.raises(ValidationError):
             UserGroupsAdd(group_ids=["x" * 37])
+
+    def test_list_max_length(self):
+        with pytest.raises(ValidationError):
+            UserGroupsAdd(group_ids=["a" * 36] * 5001)

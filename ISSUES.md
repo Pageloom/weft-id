@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 3 | XSS, Unbounded Input, File Structure |
+| Medium | 1 | File Structure |
 | Low | 2 | Logging, Duplication |
 
 **Last security scan:** 2026-03-29 (deep: full codebase, all OWASP categories; 2 medium, 1 low)
@@ -21,41 +21,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
 **Last copy review:** 2026-03-21 (password templates, API/service errors, self-hosting docs)
-
----
-
-## [SECURITY] XSS: innerHTML with user-controlled names in bulk primary emails template
-
-**Found in:** `app/templates/users_bulk_primary_emails.html:239, 294`
-**Severity:** Medium
-**OWASP Category:** A03:2021 - Injection (XSS)
-**Description:** The bulk primary email change preview builds HTML via template literals using `${u.user_name}` and sets it via `innerHTML` (line 320: `previewResults.innerHTML = html`). User names come from `first_name`/`last_name` database fields which are user-controlled (max_length=255 but no HTML sanitization).
-**Attack Scenario:** An admin creates a user with `first_name = '<img src=x onerror=alert(1)>'`. When another admin runs a bulk primary email preview that includes this user, the script executes in their browser (stored XSS, admin-to-admin).
-**Evidence:**
-```javascript
-// Line 239 (error row) and 294 (success row):
-<td ...>${u.user_name || u.user_id}</td>
-// Line 320:
-previewResults.innerHTML = html;
-```
-**Impact:** Stored XSS in admin context. Could steal session tokens or perform admin actions.
-**Remediation:** Use DOM APIs with `textContent` instead of string interpolation with `innerHTML`. The groups_list.html graph tooltips already use the correct pattern (line 1038: `nameEl.textContent = node.data('label')`).
-
----
-
-## [SECURITY] Unbounded Input: Bulk operation list fields missing max_length
-
-**Found in:** `app/schemas/groups.py:312, 320, 328` and `app/schemas/service_providers.py:250`
-**Severity:** Medium
-**OWASP Category:** Unbounded Input / Resource Exhaustion
-**Description:** Four Pydantic list fields accept unbounded arrays of UUIDs. Individual items have `max_length=36`, but the lists themselves have only `min_length=1` with no upper bound:
-- `BulkMemberRemove.user_ids` (groups.py:312)
-- `BulkMemberAdd.user_ids` (groups.py:320)
-- `UserGroupsAdd.group_ids` (groups.py:328)
-- `SPGroupBulkAssign.group_ids` (service_providers.py:250)
-**Attack Scenario:** An authenticated admin sends a request with millions of UUIDs, causing memory/CPU exhaustion during Pydantic validation, service processing, and database queries.
-**Impact:** Denial of service. Mitigated by requiring admin authentication, but still exploitable by any admin account.
-**Remediation:** Add `max_length=1000` (or appropriate limit) to each list field. Example: `Field(..., min_length=1, max_length=1000)`.
 
 ---
 

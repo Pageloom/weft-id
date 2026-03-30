@@ -48,7 +48,7 @@ def inactivate_user(
         NotFoundError: If user does not exist
         ValidationError: If inactivation would violate constraints
     """
-    require_admin(requesting_user, log_failure=True, service_name="users")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -132,7 +132,7 @@ def reactivate_user(
         NotFoundError: If user does not exist
         ValidationError: If user is anonymized or not inactivated
     """
-    require_admin(requesting_user, log_failure=True, service_name="users")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -270,7 +270,7 @@ def anonymize_user(
         NotFoundError: If user does not exist
         ValidationError: If anonymization would violate constraints
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="users")
+    require_super_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 

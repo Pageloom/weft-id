@@ -75,7 +75,7 @@ def list_identity_providers(
 
     Authorization: Requires super_admin role.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     rows = database.saml.list_identity_providers(requesting_user["tenant_id"])
@@ -93,7 +93,7 @@ def get_identity_provider(
 
     Authorization: Requires super_admin role.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     row = database.saml.get_identity_provider(requesting_user["tenant_id"], idp_id)
@@ -135,7 +135,7 @@ def create_identity_provider(
     Authorization: Requires super_admin role.
     Logs: saml_idp_created event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -244,7 +244,7 @@ def update_identity_provider(
     Authorization: Requires super_admin role.
     Logs: saml_idp_updated event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -309,7 +309,7 @@ def delete_identity_provider(
     Security: Cannot delete if users are assigned or domains are bound.
     Must explicitly migrate users/unbind domains first.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -394,7 +394,7 @@ def establish_idp_trust(
     Authorization: Requires super_admin role.
     Logs: saml_idp_trust_established event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -446,7 +446,7 @@ def set_idp_enabled(
     Authorization: Requires super_admin role.
     Logs: saml_idp_enabled or saml_idp_disabled event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -550,7 +550,7 @@ def set_idp_default(
     Authorization: Requires super_admin role.
     Logs: saml_idp_set_default event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]

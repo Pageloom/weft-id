@@ -104,7 +104,7 @@ def establish_trust_from_metadata_url(
     """
     from utils.saml_idp import fetch_sp_metadata, parse_sp_metadata_xml
 
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
 
     try:
@@ -156,7 +156,7 @@ def establish_trust_from_metadata_xml(
     """
     from utils.saml_idp import parse_sp_metadata_xml
 
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
 
     try:
@@ -202,7 +202,7 @@ def establish_trust_manually(
     Authorization: Requires super_admin role.
     Logs: service_provider_trust_established event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
 
     return _do_establish_trust(

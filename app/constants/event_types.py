@@ -27,8 +27,6 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "user_signed_in": "User signed in successfully",
     "user_signed_in_saml": "User signed in via SAML SSO",
     "user_signed_out": "User signed out",
-    # Authorization
-    "authorization_denied": "Access denied due to insufficient permissions",
     # User Management
     "user_created": "User account created",
     "user_created_jit": "User created via SAML just-in-time provisioning",

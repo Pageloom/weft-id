@@ -41,7 +41,7 @@ def list_domain_bindings(
     Returns:
         DomainBindingList with bound domains
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -91,7 +91,7 @@ def bind_domain_to_idp(
     Returns:
         Created DomainBinding
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -209,7 +209,7 @@ def unbind_domain_from_idp(
         requesting_user: The authenticated user
         domain_id: Domain UUID to unbind
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -268,7 +268,7 @@ def rebind_domain_to_idp(
     Returns:
         Updated DomainBinding
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -402,7 +402,7 @@ def get_unbound_domains(
     Returns:
         List of UnboundDomain
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     rows = database.saml.get_unbound_domains(requesting_user["tenant_id"])
@@ -445,7 +445,7 @@ def assign_user_idp(
         user_id: User UUID to update
         saml_idp_id: IdP UUID to assign, or None for password-only
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]

@@ -80,7 +80,7 @@ def import_idp_from_metadata_url(
     Returns:
         Created or updated IdPConfig
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     # Fetch and parse metadata
@@ -175,7 +175,7 @@ def import_idp_from_metadata_xml(
     Returns:
         Created or updated IdPConfig
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     metadata = parse_idp_metadata_xml_to_schema(metadata_xml)
@@ -228,7 +228,7 @@ def refresh_idp_from_metadata(
     Raises:
         ValidationError if IdP has no metadata URL or refresh fails
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]

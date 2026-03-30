@@ -86,7 +86,7 @@ def list_saml_debug_entries(
     Returns:
         List of debug entry dicts
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     return database.saml.get_debug_entries(requesting_user["tenant_id"], limit)
@@ -111,7 +111,7 @@ def get_saml_debug_entry(
     Raises:
         NotFoundError if entry doesn't exist
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     entry = database.saml.get_debug_entry(requesting_user["tenant_id"], entry_id)

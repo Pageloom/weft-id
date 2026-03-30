@@ -164,7 +164,7 @@ def list_service_providers(
 
     Authorization: Requires super_admin role.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -209,7 +209,7 @@ def get_service_provider(
 
     Authorization: Requires super_admin role.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -243,7 +243,7 @@ def create_service_provider(
     Authorization: Requires super_admin role.
     Logs: service_provider_created event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -316,7 +316,7 @@ def import_sp_from_metadata_xml(
     """
     from utils.saml_idp import parse_sp_metadata_xml
 
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
 
     # Parse metadata
     try:
@@ -349,7 +349,7 @@ def import_sp_from_metadata_url(
     """
     from utils.saml_idp import fetch_sp_metadata, parse_sp_metadata_xml
 
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
 
     # Fetch metadata
     try:
@@ -391,7 +391,7 @@ def update_service_provider(
     Authorization: Requires super_admin role.
     Logs: service_provider_updated event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -502,7 +502,7 @@ def enable_service_provider(
     Authorization: Requires super_admin role.
     Logs: service_provider_enabled event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -560,7 +560,7 @@ def disable_service_provider(
     Authorization: Requires super_admin role.
     Logs: service_provider_disabled event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -611,7 +611,7 @@ def delete_service_provider(
     Authorization: Requires super_admin role.
     Logs: service_provider_deleted event.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 

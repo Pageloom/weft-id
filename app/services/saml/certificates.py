@@ -34,7 +34,7 @@ def get_or_create_sp_certificate(
     Returns:
         SPCertificate with certificate_pem (no private key exposed)
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]

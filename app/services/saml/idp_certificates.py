@@ -51,7 +51,7 @@ def list_idp_certificates(requesting_user: RequestingUser, idp_id: str) -> list[
 
     Authorization: Requires super_admin role.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="idp_certificates")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]

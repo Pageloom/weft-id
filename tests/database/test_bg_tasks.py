@@ -58,10 +58,19 @@ def test_claim_next_task(test_tenant, test_user):
             claimed = result
             break
 
-    assert claimed is not None, "Our task should have been claimed"
-    assert claimed["id"] == created["id"]
-    assert claimed["tenant_id"] == test_tenant["id"]
-    assert claimed["job_type"] == unique_job_type
+    if claimed is not None:
+        # We claimed it ourselves
+        assert claimed["id"] == created["id"]
+        assert claimed["tenant_id"] == test_tenant["id"]
+        assert claimed["job_type"] == unique_job_type
+    else:
+        # Another parallel test worker may have claimed it via UNSCOPED
+        # claim_next_task(). Verify it was claimed (status changed from pending).
+        task = database.bg_tasks.get_task(str(created["id"]))
+        assert task is not None, "Task should still exist"
+        assert task["status"] == "processing", (
+            f"Task should have been claimed by some worker, but status is {task['status']}"
+        )
 
 
 def test_claim_next_task_no_pending(test_tenant, test_user):

@@ -310,7 +310,7 @@ class BulkMemberRemove(BaseModel):
     """Request to remove multiple members from a group."""
 
     user_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(
-        ..., min_length=1, description="List of user UUIDs to remove"
+        ..., min_length=1, max_length=5000, description="List of user UUIDs to remove"
     )
 
 
@@ -318,7 +318,7 @@ class BulkMemberAdd(BaseModel):
     """Request to add multiple members to a group."""
 
     user_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(
-        ..., min_length=1, description="List of user UUIDs to add"
+        ..., min_length=1, max_length=5000, description="List of user UUIDs to add"
     )
 
 
@@ -326,7 +326,7 @@ class UserGroupsAdd(BaseModel):
     """Request to add a user to one or more groups."""
 
     group_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(
-        ..., min_length=1, description="List of group UUIDs to add user to"
+        ..., min_length=1, max_length=5000, description="List of group UUIDs to add user to"
     )
 
 

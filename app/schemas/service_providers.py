@@ -247,7 +247,9 @@ class SPGroupAssignAdd(BaseModel):
 class SPGroupBulkAssign(BaseModel):
     """Request to bulk-assign groups to an SP."""
 
-    group_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(..., min_length=1)
+    group_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(
+        ..., min_length=1, max_length=5000
+    )
 
 
 class UserApp(BaseModel):

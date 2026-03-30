@@ -269,43 +269,37 @@ informed without requiring them to monitor logs.
 
 ---
 
-## Self-Updating Management Script and Env Var Diffing
+## ~~Self-Updating Management Script and Env Var Diffing~~ (Removed)
+
+---
+
+## Remove `weftid` Management Script
 
 **User Story:**
-As a self-hosting operator upgrading to a new version
-I want the management script to update itself and tell me about new configuration variables
-So that I don't miss required settings or run stale management tooling
+As a self-hosting operator,
+I want the self-hosting setup to rely on `install.sh` for bootstrapping and standard Docker Compose commands for ongoing management,
+So that the operational model is simple, well-documented by Docker itself, and doesn't require maintaining a separate shell tool.
 
 **Context:**
 
-The `weftid` management script is downloaded once during install and never updated. New versions
-may add subcommands, change upgrade behavior, or introduce new `.env` variables. Today the
-operator has no way to discover this except reading the changelog.
-
-Two related problems to solve:
-
-1. **Self-updating `weftid`:** During `./weftid upgrade`, after pulling the new image but before
-   restarting, download the matching `weftid` script from GitHub (same tag as the target version)
-   and overwrite the local copy. The current version's upgrade flow runs to completion using the
-   old script. The next command uses the new one. No mid-execution weirdness.
-
-2. **Env var diffing:** After pulling the new image, extract `.env.production.example` from it
-   (`docker compose run --rm app cat /app/.env.production.example`), diff the keys against the
-   current `.env`, and show any new variables with their descriptions and defaults. Per
-   `VERSIONING.md`, minor versions add vars with sensible defaults (informational). Major versions
-   may add required vars without defaults (blocking).
+The `weftid` management script (~630 lines) wraps Docker Compose with backup, upgrade, rollback,
+and tenant provisioning subcommands. In practice it adds a layer of complexity that is hard to
+maintain alongside the release process and is effectively a separate product. The underlying
+operations (`docker compose up`, `docker compose exec`, `pg_dump`, etc.) are simple enough to
+document directly. `install.sh` handles the one-time bootstrap and is easy to maintain.
 
 **Acceptance Criteria:**
 
-- [ ] `./weftid upgrade` downloads the new `weftid` script from GitHub after pulling the image
-- [ ] The old script completes the upgrade before being overwritten
-- [ ] `./weftid upgrade` extracts `.env.production.example` from the new image
-- [ ] New env vars are shown to the operator with descriptions and default values
-- [ ] Required vars without defaults block the upgrade until the operator adds them to `.env`
-- [ ] Optional vars with defaults are informational (operator can accept defaults or customize)
+- [ ] Delete the `weftid` script from the repo
+- [ ] Update `install.sh` to stop generating/referencing the `weftid` script
+- [ ] Update `docs/self-hosting/index.md` to replace all `./weftid` commands with direct Docker Compose equivalents and plain shell commands
+- [ ] Update CLAUDE.md if it references the `weftid` script
+- [ ] Remove any `weftid`-related entries from ISSUES.md or ISSUES_ARCHIVE.md
+- [ ] Rebuild the documentation site (`make docs`)
 
-**Effort:** M
+**Effort:** S
 **Value:** High
+**Version impact:** Patch (operational tooling change, no application changes)
 
 ---
 

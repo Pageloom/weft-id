@@ -201,6 +201,47 @@ def trigger_export(
 
 
 # =============================================================================
+# User Audit Export
+# =============================================================================
+
+
+@router.get("/audit/user-export", response_class=HTMLResponse)
+def user_export_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    success: str | None = None,
+):
+    """Display user audit export page."""
+    return templates.TemplateResponse(
+        request,
+        "admin_user_export.html",
+        get_template_context(
+            request,
+            tenant_id,
+            success=success,
+        ),
+    )
+
+
+@router.post("/audit/user-export")
+def trigger_user_export(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Trigger user audit XLSX export job."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        bg_tasks_service.create_user_export_task(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(url="/account/background-jobs?success=export_started", status_code=303)
+
+
+# =============================================================================
 # Reactivation Requests
 # =============================================================================
 

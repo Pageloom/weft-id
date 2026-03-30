@@ -115,6 +115,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "bulk_primary_email_apply_task_created": (
         "Background job created to apply bulk primary email changes"
     ),
+    "user_export_task_created": "Background job created to export user audit data",
     # Groups & Group Management
     "group_created": "Group created",
     "group_updated": "Group updated",

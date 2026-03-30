@@ -117,6 +117,7 @@ user_auto_inactivated
 user_created
 user_created_jit
 user_deleted
+user_export_task_created
 user_groups_bulk_added
 user_inactivated
 user_profile_updated

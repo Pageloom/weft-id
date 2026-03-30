@@ -133,6 +133,47 @@ def test_create_export_no_auth(client, test_tenant_host):
 
 
 # =============================================================================
+# Create User Export
+# =============================================================================
+
+
+def test_create_user_export_as_admin(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Admin can create user audit export task."""
+    response = client.post(
+        "/api/v1/exports/users",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert "id" in data
+    assert data["job_type"] == "export_users"
+    assert data["status"] == "pending"
+
+
+def test_create_user_export_unauthorized_member(
+    client, test_tenant_host, oauth2_authorization_header
+):
+    """Regular member cannot create user audit exports."""
+    response = client.post(
+        "/api/v1/exports/users",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+def test_create_user_export_no_auth(client, test_tenant_host):
+    """Unauthenticated request is rejected."""
+    response = client.post(
+        "/api/v1/exports/users",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 401
+
+
+# =============================================================================
 # Download Export
 # =============================================================================
 

@@ -83,6 +83,42 @@ def create_export(
         raise translate_to_http_exception(exc)
 
 
+@router.post("/users", response_model=JobListItem, status_code=status.HTTP_201_CREATED)
+def create_user_export(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+):
+    """
+    Create a new user audit export task.
+
+    Requires admin role.
+
+    Creates a background task to export all users, group memberships,
+    and app access as a password-encrypted multi-sheet XLSX workbook.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        result = bg_tasks_service.create_user_export_task(requesting_user)
+        if not result:
+            raise ServiceError(
+                message="Failed to create user export task",
+                code="export_creation_failed",
+            )
+        return JobListItem(
+            id=str(result["id"]),
+            job_type="export_users",
+            status=JobStatus.PENDING,
+            created_at=result["created_at"],
+            started_at=None,
+            completed_at=None,
+            error=None,
+            result=None,
+            created_by=requesting_user["id"],
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
 @router.get("/{export_id}/download")
 def download_export(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],

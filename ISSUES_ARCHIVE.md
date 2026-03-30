@@ -25,7 +25,7 @@ email preview.
 **Found in:** `app/schemas/groups.py:312, 320, 328` and `app/schemas/service_providers.py:250`
 **Severity:** Medium
 **OWASP Category:** Unbounded Input / Resource Exhaustion
-**Fix:** Added `max_length=1000` to four Pydantic list fields: `BulkMemberRemove.user_ids`,
+**Fix:** Added `max_length=5000` to four Pydantic list fields: `BulkMemberRemove.user_ids`,
 `BulkMemberAdd.user_ids`, `UserGroupsAdd.group_ids`, `SPGroupBulkAssign.group_ids`. Pydantic now
 rejects requests with more than 1000 items before they reach service or database layers. Added
 4 tests confirming the constraint.

@@ -3,10 +3,13 @@
 These private helpers enforce business rules for user operations.
 """
 
+import logging
+
 import database
-from services.event_log import log_event
 from services.exceptions import ForbiddenError, ValidationError
 from services.types import RequestingUser
+
+logger = logging.getLogger(__name__)
 
 
 def _validate_role_change(
@@ -29,20 +32,13 @@ def _validate_role_change(
     if (new_role in ("admin", "super_admin") or current_role == "super_admin") and requesting_user[
         "role"
     ] != "super_admin":
-        log_event(
-            tenant_id=tenant_id,
-            actor_user_id=requesting_user["id"],
-            artifact_type="user",
-            artifact_id=str(user["id"]),
-            event_type="authorization_denied",
-            metadata={
-                "required_role": "super_admin",
-                "actual_role": requesting_user["role"],
-                "action": "role_change",
-                "target_user_id": str(user["id"]),
-                "current_role": current_role,
-                "attempted_role": new_role,
-            },
+        logger.warning(
+            "Authorization denied: user %s (role=%s) attempted role change %s -> %s on user %s",
+            requesting_user["id"],
+            requesting_user["role"],
+            current_role,
+            new_role,
+            user["id"],
         )
         raise ForbiddenError(
             message="Only super_admin can change admin or super_admin roles",

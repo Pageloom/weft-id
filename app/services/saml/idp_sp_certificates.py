@@ -87,7 +87,7 @@ def get_idp_sp_certificate_for_display(
 
     Authorization: Requires super_admin role.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -117,7 +117,7 @@ def rotate_idp_sp_certificate(
     """
     from datetime import timedelta
 
-    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
 
     # Verify IdP exists

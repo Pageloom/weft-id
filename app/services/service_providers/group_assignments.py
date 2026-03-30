@@ -35,7 +35,7 @@ def count_sp_group_assignments(
 
     Authorization: Requires admin role.
     """
-    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -50,7 +50,7 @@ def list_sp_group_assignments(
 
     Authorization: Requires admin role.
     """
-    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -87,7 +87,7 @@ def assign_sp_to_group(
     Authorization: Requires admin role.
     Logs: sp_group_assigned event.
     """
-    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -150,7 +150,7 @@ def remove_sp_group_assignment(
     Authorization: Requires admin role.
     Logs: sp_group_unassigned event.
     """
-    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -192,7 +192,7 @@ def bulk_assign_sp_to_groups(
     Returns:
         Number of new assignments created.
     """
-    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -234,7 +234,7 @@ def list_group_sp_assignments(
 
     Authorization: Requires admin role.
     """
-    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -272,7 +272,7 @@ def list_available_groups_for_sp(
     Returns:
         List of dicts with id, name, group_type for unassigned groups.
     """
-    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -303,7 +303,7 @@ def list_available_sps_for_group(
     Returns:
         List of dicts with id, name for unassigned SPs.
     """
-    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -339,7 +339,7 @@ def get_user_accessible_apps_admin(
 
     Authorization: Requires admin role.
     """
-    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]

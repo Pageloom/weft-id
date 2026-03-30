@@ -382,7 +382,7 @@ def check_activity_logging_violations(report: ComplianceReport) -> None:
         return
 
     # Skip these files (they're infrastructure, not business logic)
-    skip_files = {"__init__.py", "activity.py", "event_log.py", "exceptions.py", "types.py"}
+    skip_files = {"__init__.py", "activity.py", "auth.py", "event_log.py", "exceptions.py", "types.py"}
 
     for py_file in services_path.rglob("*.py"):
         if py_file.name in skip_files:

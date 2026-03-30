@@ -541,7 +541,7 @@ def reset_user_mfa(
         ForbiddenError: If requesting user is not admin
         NotFoundError: If target user does not exist
     """
-    require_admin(requesting_user, log_failure=True, service_name="mfa")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 

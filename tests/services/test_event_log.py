@@ -405,60 +405,8 @@ def test_log_event_does_not_raise_on_failure(make_requesting_user):
 # --- Authorization Failure Logging Tests ---
 
 
-def test_require_admin_logs_authorization_denied(make_requesting_user):
-    """Test that require_admin logs authorization denied events when log_failure=True."""
-    import pytest
-    from services.auth import require_admin
-    from services.exceptions import ForbiddenError
-
-    tenant_id = str(uuid4())
-    member_user = make_requesting_user(
-        tenant_id=tenant_id,
-        role="member",  # Not an admin
-    )
-
-    with patch("services.auth.log_event") as mock_log:
-        with pytest.raises(ForbiddenError) as exc_info:
-            require_admin(member_user, log_failure=True, service_name="test_service")
-
-        assert exc_info.value.code == "admin_required"
-        # Verify authorization_denied was logged
-        mock_log.assert_called_once()
-        call_kwargs = mock_log.call_args.kwargs
-        assert call_kwargs["event_type"] == "authorization_denied"
-        assert call_kwargs["metadata"]["required_role"] == "admin"
-        assert call_kwargs["metadata"]["actual_role"] == "member"
-        assert call_kwargs["metadata"]["service"] == "test_service"
-
-
-def test_require_super_admin_logs_authorization_denied(make_requesting_user):
-    """Test that require_super_admin logs authorization denied events when log_failure=True."""
-    import pytest
-    from services.auth import require_super_admin
-    from services.exceptions import ForbiddenError
-
-    tenant_id = str(uuid4())
-    admin_user = make_requesting_user(
-        tenant_id=tenant_id,
-        role="admin",  # Admin but not super_admin
-    )
-
-    with patch("services.auth.log_event") as mock_log:
-        with pytest.raises(ForbiddenError) as exc_info:
-            require_super_admin(admin_user, log_failure=True, service_name="test_service")
-
-        assert exc_info.value.code == "super_admin_required"
-        # Verify authorization_denied was logged
-        mock_log.assert_called_once()
-        call_kwargs = mock_log.call_args.kwargs
-        assert call_kwargs["event_type"] == "authorization_denied"
-        assert call_kwargs["metadata"]["required_role"] == "super_admin"
-        assert call_kwargs["metadata"]["actual_role"] == "admin"
-        assert call_kwargs["metadata"]["service"] == "test_service"
-
-
-def test_require_admin_no_log_when_disabled(make_requesting_user):
-    """Test that require_admin does not log when log_failure=False (default)."""
+def test_require_admin_logs_warning(make_requesting_user):
+    """Test that require_admin logs a warning on authorization failure."""
     import pytest
     from services.auth import require_admin
     from services.exceptions import ForbiddenError
@@ -469,16 +417,18 @@ def test_require_admin_no_log_when_disabled(make_requesting_user):
         role="member",
     )
 
-    with patch("services.auth.log_event") as mock_log:
+    with patch("services.auth.logger") as mock_logger:
         with pytest.raises(ForbiddenError) as exc_info:
-            require_admin(member_user)  # log_failure defaults to False
+            require_admin(member_user)
 
         assert exc_info.value.code == "admin_required"
-        mock_log.assert_not_called()
+        mock_logger.warning.assert_called_once()
+        args = mock_logger.warning.call_args[0]
+        assert "admin" in args[0].lower()
 
 
-def test_require_super_admin_no_log_when_disabled(make_requesting_user):
-    """Test that require_super_admin does not log when log_failure=False (default)."""
+def test_require_super_admin_logs_warning(make_requesting_user):
+    """Test that require_super_admin logs a warning on authorization failure."""
     import pytest
     from services.auth import require_super_admin
     from services.exceptions import ForbiddenError
@@ -489,15 +439,17 @@ def test_require_super_admin_no_log_when_disabled(make_requesting_user):
         role="admin",
     )
 
-    with patch("services.auth.log_event") as mock_log:
+    with patch("services.auth.logger") as mock_logger:
         with pytest.raises(ForbiddenError) as exc_info:
-            require_super_admin(admin_user)  # log_failure defaults to False
+            require_super_admin(admin_user)
 
         assert exc_info.value.code == "super_admin_required"
-        mock_log.assert_not_called()
+        mock_logger.warning.assert_called_once()
+        args = mock_logger.warning.call_args[0]
+        assert "super_admin" in args[0].lower()
 
 
-def test_users_role_change_logs_authorization_denied(make_requesting_user, make_user_dict):
+def test_users_role_change_logs_warning(make_requesting_user, make_user_dict):
     """Test that unauthorized role change attempts are logged."""
     import pytest
     from schemas.api import UserUpdate
@@ -507,16 +459,15 @@ def test_users_role_change_logs_authorization_denied(make_requesting_user, make_
     tenant_id = str(uuid4())
     admin_user = make_requesting_user(
         tenant_id=tenant_id,
-        role="admin",  # Admin, not super_admin
+        role="admin",
     )
     target_user = make_user_dict(tenant_id=tenant_id, role="member")
 
-    # Try to promote to admin (requires super_admin)
     user_update = UserUpdate(role="admin")
 
     with (
         patch("services.users.crud.database") as mock_db,
-        patch("services.users._validation.log_event") as mock_log,
+        patch("services.users._validation.logger") as mock_logger,
     ):
         mock_db.users.get_user_by_id.return_value = target_user
 
@@ -524,13 +475,9 @@ def test_users_role_change_logs_authorization_denied(make_requesting_user, make_
             users.update_user(admin_user, target_user["id"], user_update)
 
         assert exc_info.value.code == "super_admin_role_change_denied"
-        # Verify authorization_denied was logged with role change details
-        mock_log.assert_called_once()
-        call_kwargs = mock_log.call_args.kwargs
-        assert call_kwargs["event_type"] == "authorization_denied"
-        assert call_kwargs["metadata"]["action"] == "role_change"
-        assert call_kwargs["metadata"]["current_role"] == "member"
-        assert call_kwargs["metadata"]["attempted_role"] == "admin"
+        mock_logger.warning.assert_called_once()
+        args = mock_logger.warning.call_args[0]
+        assert "role change" in args[0].lower()
 
 
 # =============================================================================

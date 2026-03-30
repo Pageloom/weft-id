@@ -12,39 +12,23 @@ Usage:
         # ... rest of function
 """
 
-from services.event_log import log_event
+import logging
+
 from services.exceptions import ForbiddenError
 from services.types import RequestingUser
 
+logger = logging.getLogger(__name__)
 
-def require_admin(
-    user: RequestingUser,
-    *,
-    log_failure: bool = False,
-    service_name: str | None = None,
-) -> None:
-    """
-    Raise ForbiddenError if user is not admin or super_admin.
 
-    Args:
-        user: The requesting user to check
-        log_failure: If True, log an authorization_denied event before raising
-        service_name: Optional service name for logging context
-    """
+def require_admin(user: RequestingUser) -> None:
+    """Raise ForbiddenError if user is not admin or super_admin."""
     if user["role"] not in ("admin", "super_admin"):
-        if log_failure:
-            log_event(
-                tenant_id=user["tenant_id"],
-                actor_user_id=user["id"],
-                artifact_type="user",
-                artifact_id=user["id"],
-                event_type="authorization_denied",
-                metadata={
-                    "required_role": "admin",
-                    "actual_role": user["role"],
-                    "service": service_name or "unknown",
-                },
-            )
+        logger.warning(
+            "Authorization denied: user %s (role=%s, tenant=%s) requires admin",
+            user["id"],
+            user["role"],
+            user["tenant_id"],
+        )
         raise ForbiddenError(
             message="Admin access required",
             code="admin_required",
@@ -52,34 +36,15 @@ def require_admin(
         )
 
 
-def require_super_admin(
-    user: RequestingUser,
-    *,
-    log_failure: bool = False,
-    service_name: str | None = None,
-) -> None:
-    """
-    Raise ForbiddenError if user is not super_admin.
-
-    Args:
-        user: The requesting user to check
-        log_failure: If True, log an authorization_denied event before raising
-        service_name: Optional service name for logging context
-    """
+def require_super_admin(user: RequestingUser) -> None:
+    """Raise ForbiddenError if user is not super_admin."""
     if user["role"] != "super_admin":
-        if log_failure:
-            log_event(
-                tenant_id=user["tenant_id"],
-                actor_user_id=user["id"],
-                artifact_type="user",
-                artifact_id=user["id"],
-                event_type="authorization_denied",
-                metadata={
-                    "required_role": "super_admin",
-                    "actual_role": user["role"],
-                    "service": service_name or "unknown",
-                },
-            )
+        logger.warning(
+            "Authorization denied: user %s (role=%s, tenant=%s) requires super_admin",
+            user["id"],
+            user["role"],
+            user["tenant_id"],
+        )
         raise ForbiddenError(
             message="Super admin access required",
             code="super_admin_required",

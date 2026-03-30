@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure |
-| Low | 2 | Logging, Duplication |
+| Low | 1 | Duplication |
 
 **Last security scan:** 2026-03-29 (deep: full codebase, all OWASP categories; 2 medium, 1 low)
 **Last compliance scan:** 2026-03-19 (1 low: SendGrid client missing timeout)
@@ -21,17 +21,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
 **Last copy review:** 2026-03-21 (password templates, API/service errors, self-hosting docs)
-
----
-
-## [SECURITY] Logging: Inconsistent authorization failure audit logging
-
-**Found in:** `app/services/auth.py` (callers across services)
-**Severity:** Low
-**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
-**Description:** `require_admin()` and `require_super_admin()` accept an opt-in `log_failure=True` parameter that logs `authorization_denied` events. About half of the call sites pass this flag (SAML, service providers, users/crud, users/state, MFA), while the other half omit it (branding, groups, settings, exports, reactivation, bg_tasks). Authorization failures in the second group are silently raised without audit trail.
-**Impact:** Incomplete visibility into unauthorized access attempts. The most security-sensitive operations (SAML, SPs, user management) are already logged, so the gap affects supporting services. Router-level auth dependencies catch most unauthorized access before reaching the service layer, further reducing risk.
-**Remediation:** Either make `log_failure=True` the default in `require_admin()`/`require_super_admin()`, or add `log_failure=True, service_name="..."` to all remaining call sites.
 
 ---
 

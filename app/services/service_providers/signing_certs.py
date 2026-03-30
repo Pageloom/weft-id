@@ -29,7 +29,7 @@ def get_sp_signing_certificate(
 
     Authorization: Requires super_admin role.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -74,7 +74,7 @@ def rotate_sp_signing_certificate(
 
     from utils.saml import encrypt_private_key, generate_sp_certificate, get_certificate_expiry
 
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -162,7 +162,7 @@ def get_sp_metadata_url_info(
 
     Authorization: Requires super_admin role.
     """
-    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]

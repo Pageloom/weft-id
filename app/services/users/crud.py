@@ -91,7 +91,7 @@ def list_users(
     Raises:
         ForbiddenError: If user lacks admin permissions
     """
-    require_admin(requesting_user, log_failure=True, service_name="users")
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -168,7 +168,7 @@ def get_user(
         ForbiddenError: If user lacks admin permissions
         NotFoundError: If user does not exist
     """
-    require_admin(requesting_user, log_failure=True, service_name="users")
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     return _fetch_user_detail(requesting_user["tenant_id"], user_id)
@@ -199,7 +199,7 @@ def create_user(
         ConflictError: If email already exists
         ValidationError: If creation fails
     """
-    require_admin(requesting_user, log_failure=True, service_name="users")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -306,7 +306,7 @@ def resend_invitation(
         NotFoundError: If target user not found or has no primary email
         ValidationError: If user has already set a password
     """
-    require_admin(requesting_user, log_failure=True, service_name="users")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -402,7 +402,7 @@ def update_user(
         NotFoundError: If user does not exist
         ValidationError: If update would leave no super_admins
     """
-    require_admin(requesting_user, log_failure=True, service_name="users")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -471,7 +471,7 @@ def delete_user(
         NotFoundError: If user does not exist
         ValidationError: If user is a service user or self-deletion attempted
     """
-    require_admin(requesting_user, log_failure=True, service_name="users")
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 

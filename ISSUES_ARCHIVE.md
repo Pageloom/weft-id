@@ -5,6 +5,21 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Logging: Inconsistent authorization failure audit logging
+
+**Status:** Resolved (2026-03-30)
+**Found in:** `app/services/auth.py` (callers across services)
+**Severity:** Low
+**Fix:** Replaced opt-in `log_event()` audit trail with unconditional `logger.warning()` in
+`require_admin()` and `require_super_admin()`. Authorization denials are operational events, not
+business events, so they belong in application logs rather than the tenant audit trail. Removed
+`log_failure` and `service_name` parameters from both functions and all 61 call sites across 15
+service files. Removed `authorization_denied` event type from the registry. Same change applied to
+`_validate_role_change()` in users/_validation.py. Added `auth.py` to the compliance checker's
+skip list (authorization helpers, not business operations).
+
+---
+
 ### [SECURITY] XSS: innerHTML with user-controlled names in bulk primary emails template
 
 **Status:** Resolved (2026-03-30)

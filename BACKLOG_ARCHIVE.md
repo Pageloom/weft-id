@@ -4,6 +4,52 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Primary Email Change: SP Assertion Impact Warnings
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Service function `compute_email_change_impact()` in `app/services/emails.py` returns SP impacts, routing change, and summary
+- [x] Single-user promote confirmation dialog shows SP assertion impact alongside IdP routing warning
+- [x] SPs using `persistent`/`transient` shown as "Not affected"
+- [x] SPs using `emailAddress`/`unspecified` shown as "NameID will change"
+- [x] If no SPs are affected, the warning section is omitted
+- [x] API: promote endpoint supports `?preview=true` to return impact data without promoting
+
+**Resolution:** `compute_email_change_impact()` queries accessible SPs with NameID formats, classifies impact, and reuses `check_routing_change()` for IdP routing. Single-user promote shows impact in confirmation dialog. API returns 409 with impact details when unconfirmed. Comprehensive test suite in `tests/services/test_email_impact.py`.
+
+**Effort:** S
+**Value:** High
+**Version impact:** Patch
+
+---
+
+## Bulk Change Primary Email (Browser-Native)
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] "Change Primary Email" button in user list action bar
+- [x] Action page at `/users/bulk-ops/primary-emails` with three-phase UI
+- [x] `beforeunload` guard warns before navigating away mid-flow
+- [x] Preview enqueues dry-run background job with per-user SP assertion impact and IdP routing
+- [x] Per-user IdP disposition selectors (keep/switch/remove) shown when routing changes
+- [x] Apply enqueues execution job with chosen dispositions
+- [x] Each promotion emits `primary_email_changed` audit event
+- [x] IdP changes emit `user_saml_idp_assigned` audit event
+- [x] Notification email sent to old primary address
+- [x] API endpoints: POST preview and apply at `/api/v1/users/bulk-ops/primary-emails/`
+
+**Resolution:** Full three-phase workflow (selection, preview, apply) with background jobs for both phases. Web routes in `bulk_ops.py`, API endpoints in `api/v1/users/bulk_ops.py`, job handler in `jobs/bulk_change_primary_email.py`. Reuses `compute_email_change_impact()` for dry-run report.
+
+**Effort:** L
+**Value:** High
+**Version impact:** Minor
+
+---
+
 ## Bulk Add Secondary Emails (Browser-Native)
 
 **Status:** Complete

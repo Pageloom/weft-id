@@ -117,8 +117,9 @@ def test_export_produces_encrypted_xlsx(test_tenant, test_admin_user):
     assert headers[0] == "Timestamp"
     assert headers[1] == "Event Type"
     assert headers[2] == "Description"
-    assert headers[3] == "Actor Email"
-    assert headers[11] == "Metadata"
+    assert headers[3] == "Tier"
+    assert headers[4] == "Actor Email"
+    assert headers[12] == "Metadata"
 
     # Verify data rows
     assert ws.max_row == 4  # 1 header + 3 data rows

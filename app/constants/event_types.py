@@ -175,6 +175,155 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
 }
 
 
+# Valid visibility tiers, ordered from most to least security-relevant
+VALID_TIERS = ("security", "admin", "operational", "system")
+
+# Default tiers shown in the audit log UI
+DEFAULT_TIERS = ("security", "admin")
+
+# Visibility tier for each event type.
+# security: authentication, authorization, credential changes, account lifecycle
+# admin: configuration changes made by admins (IdP/SP setup, settings, groups, emails, branding)
+# operational: high-volume automated activity useful for debugging (SSO, sync, auto-rotation)
+# system: internal bookkeeping with no audit value (task creation, job cleanup, setup steps)
+EVENT_TYPE_TIERS: dict[str, str] = {
+    # Security tier
+    "login_failed": "security",
+    "password_set": "security",
+    "password_changed": "security",
+    "password_reset_forced": "security",
+    "password_reset_completed": "security",
+    "password_reset_requested": "security",
+    "password_self_reset_completed": "security",
+    "password_breach_detected": "security",
+    "password_policy_compliance_enforced": "security",
+    "user_signed_in": "security",
+    "user_signed_in_saml": "security",
+    "user_signed_out": "security",
+    "user_created": "security",
+    "user_created_jit": "security",
+    "user_deleted": "security",
+    "user_inactivated": "security",
+    "user_reactivated": "security",
+    "user_auto_inactivated": "security",
+    "user_anonymized": "security",
+    "super_admin_self_reactivated": "security",
+    "mfa_totp_enabled": "security",
+    "mfa_email_enabled": "security",
+    "mfa_downgraded_to_email": "security",
+    "mfa_disabled": "security",
+    "mfa_backup_codes_regenerated": "security",
+    "mfa_reset_by_admin": "security",
+    "oauth2_user_tokens_revoked": "security",
+    "oauth2_client_secret_regenerated": "security",
+    "reactivation_requested": "security",
+    "reactivation_approved": "security",
+    "reactivation_denied": "security",
+    # Admin tier
+    "user_updated": "admin",
+    "user_profile_updated": "admin",
+    "invitation_resent": "admin",
+    "email_added": "admin",
+    "email_deleted": "admin",
+    "email_verified": "admin",
+    "primary_email_changed": "admin",
+    "group_created": "admin",
+    "group_updated": "admin",
+    "group_deleted": "admin",
+    "group_member_added": "admin",
+    "group_member_removed": "admin",
+    "group_members_bulk_added": "admin",
+    "group_members_bulk_removed": "admin",
+    "user_groups_bulk_added": "admin",
+    "group_relationship_created": "admin",
+    "group_relationship_deleted": "admin",
+    "saml_idp_created": "admin",
+    "saml_idp_updated": "admin",
+    "saml_idp_deleted": "admin",
+    "saml_idp_enabled": "admin",
+    "saml_idp_disabled": "admin",
+    "saml_idp_set_default": "admin",
+    "saml_idp_metadata_refreshed": "admin",
+    "saml_idp_trust_established": "admin",
+    "saml_idp_sp_certificate_created": "admin",
+    "saml_idp_sp_certificate_rotated": "admin",
+    "saml_sp_certificate_created": "admin",
+    "saml_sp_certificate_rotated": "admin",
+    "saml_domain_bound": "admin",
+    "saml_domain_unbound": "admin",
+    "saml_domain_rebound": "admin",
+    "user_saml_idp_assigned": "admin",
+    "service_provider_created": "admin",
+    "service_provider_updated": "admin",
+    "service_provider_deleted": "admin",
+    "service_provider_enabled": "admin",
+    "service_provider_disabled": "admin",
+    "service_provider_trust_established": "admin",
+    "sp_nameid_format_updated": "admin",
+    "sp_access_mode_updated": "admin",
+    "sp_metadata_refreshed": "admin",
+    "sp_metadata_reimported": "admin",
+    "sp_signing_certificate_created": "admin",
+    "sp_signing_certificate_rotated": "admin",
+    "sp_group_assigned": "admin",
+    "sp_group_unassigned": "admin",
+    "sp_groups_bulk_assigned": "admin",
+    "oauth2_client_created": "admin",
+    "oauth2_client_updated": "admin",
+    "oauth2_client_deleted": "admin",
+    "oauth2_client_role_changed": "admin",
+    "oauth2_client_deactivated": "admin",
+    "oauth2_client_reactivated": "admin",
+    "privileged_domain_added": "admin",
+    "privileged_domain_deleted": "admin",
+    "tenant_certificate_lifetime_updated": "admin",
+    "tenant_certificate_rotation_window_updated": "admin",
+    "password_policy_updated": "admin",
+    "tenant_settings_updated": "admin",
+    "group_assertion_scope_updated": "admin",
+    "domain_group_link_created": "admin",
+    "domain_group_link_deleted": "admin",
+    "branding_logo_uploaded": "admin",
+    "branding_logo_deleted": "admin",
+    "branding_settings_updated": "admin",
+    "group_logo_uploaded": "admin",
+    "group_logo_removed": "admin",
+    "group_avatar_style_updated": "admin",
+    "sp_logo_uploaded": "admin",
+    "sp_logo_removed": "admin",
+    "sso_consent_denied": "admin",
+    # Operational tier
+    "sso_assertion_issued": "operational",
+    "slo_sp_initiated": "operational",
+    "slo_idp_propagated": "operational",
+    "idp_group_created": "operational",
+    "idp_group_discovered": "operational",
+    "idp_group_invalidated": "operational",
+    "idp_group_member_added": "operational",
+    "idp_group_member_removed": "operational",
+    "idp_group_relationship_created": "operational",
+    "domain_group_auto_assigned": "operational",
+    "saml_idp_sp_certificate_auto_rotated": "operational",
+    "saml_idp_sp_certificate_cleanup_completed": "operational",
+    "sp_signing_certificate_auto_rotated": "operational",
+    "sp_signing_certificate_cleanup_completed": "operational",
+    # System tier
+    "export_task_created": "system",
+    "export_downloaded": "system",
+    "jobs_deleted": "system",
+    "bulk_secondary_emails_task_created": "system",
+    "bulk_primary_email_preview_task_created": "system",
+    "bulk_primary_email_apply_task_created": "system",
+    "user_export_task_created": "system",
+    "totp_setup_initiated": "system",
+    # Deprecated events (system tier)
+    "idp_certificate_added": "system",
+    "idp_certificate_activated": "system",
+    "idp_certificate_deactivated": "system",
+    "idp_certificate_removed": "system",
+}
+
+
 def get_event_description(event_type: str) -> str | None:
     """Get the human-readable description for an event type.
 
@@ -185,3 +334,29 @@ def get_event_description(event_type: str) -> str | None:
         The description string, or None if the event type is unknown.
     """
     return EVENT_TYPE_DESCRIPTIONS.get(event_type)
+
+
+def get_event_tier(event_type: str) -> str | None:
+    """Get the visibility tier for an event type.
+
+    Args:
+        event_type: The event type string (e.g., "user_created")
+
+    Returns:
+        The tier string ("security", "admin", "operational", "system"),
+        or None if the event type is unknown.
+    """
+    return EVENT_TYPE_TIERS.get(event_type)
+
+
+def get_event_types_for_tiers(tiers: list[str]) -> list[str]:
+    """Get all event type strings that belong to any of the given tiers.
+
+    Args:
+        tiers: List of tier names (e.g., ["security", "admin"])
+
+    Returns:
+        List of event type strings matching those tiers.
+    """
+    tier_set = set(tiers)
+    return [et for et, tier in EVENT_TYPE_TIERS.items() if tier in tier_set]

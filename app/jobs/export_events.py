@@ -12,7 +12,7 @@ from uuid import uuid4
 
 import database
 import settings
-from constants.event_types import get_event_description
+from constants.event_types import get_event_description, get_event_tier
 from jobs.registry import register_handler
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -191,6 +191,7 @@ def handle_export_events(task: dict) -> dict[str, Any]:
         "Timestamp",
         "Event Type",
         "Description",
+        "Tier",
         "Actor Email",
         "Artifact Type",
         "Artifact ID",
@@ -217,6 +218,7 @@ def handle_export_events(task: dict) -> dict[str, Any]:
             event["created_at"].strftime("%Y-%m-%d %H:%M:%S UTC"),
             event["event_type"],
             get_event_description(event["event_type"]) or event["event_type"],
+            get_event_tier(event["event_type"]) or "",
             _get_actor_email(event, actor_emails),
             event["artifact_type"],
             str(event["artifact_id"]),
@@ -231,13 +233,6 @@ def handle_export_events(task: dict) -> dict[str, Any]:
 
     # Enable auto-filter on the header row
     ws.auto_filter.ref = ws.dimensions
-
-    # Protect sheet to prevent accidental edits (allows sorting/filtering/resizing)
-    ws.protection.sheet = True
-    ws.protection.autoFilter = False
-    ws.protection.sort = False
-    ws.protection.formatColumns = False
-    ws.protection.formatRows = False
 
     # Encrypt
     encrypted = encrypt_workbook(wb)

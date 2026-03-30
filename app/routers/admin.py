@@ -3,6 +3,7 @@
 from datetime import date
 from typing import Annotated
 
+from constants.event_types import DEFAULT_TIERS, VALID_TIERS
 from dependencies import (
     build_requesting_user,
     get_current_user,
@@ -101,11 +102,19 @@ def event_log_list(
     except ValueError:
         page_size = 50
 
+    # Parse tier filter (comma-separated, defaults to security+admin)
+    tiers_param = request.query_params.get("tiers", "")
+    if tiers_param:
+        active_tiers = [t for t in tiers_param.split(",") if t in VALID_TIERS]
+    else:
+        active_tiers = list(DEFAULT_TIERS)
+
     try:
         result = event_log_service.list_events(
             requesting_user,
             page=page,
             limit=page_size,
+            tiers=active_tiers if active_tiers else None,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
@@ -137,6 +146,8 @@ def event_log_list(
             tenant_id,
             events=result.items,
             pagination=pagination,
+            active_tiers=active_tiers,
+            all_tiers=VALID_TIERS,
             success=success,
             error=error,
         ),

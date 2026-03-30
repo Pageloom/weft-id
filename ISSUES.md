@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 1 | File Structure |
+| Medium | 2 | File Structure, Security |
 | Low | 1 | Duplication |
 
 **Last security scan:** 2026-03-29 (deep: full codebase, all OWASP categories; 2 medium, 1 low)
@@ -21,6 +21,18 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
 **Last copy review:** 2026-03-21 (password templates, API/service errors, self-hosting docs)
+
+---
+
+## [SECURITY] Export file passwords displayed indefinitely in background jobs UI
+
+**Found in:** Background jobs page (export file password display)
+**Impact:** Medium
+**Category:** Security
+**Description:** When an admin generates an encrypted XLSX export, the file password is displayed on the background jobs page alongside the download link. The password remains visible as long as the job record exists, even after the export file itself has expired and been cleaned up. This means the password is continuously exposed in the UI beyond the useful lifetime of the export.
+**Why It Matters:** Passwords for sensitive export files (audit logs, user data) should have limited exposure. Displaying them indefinitely increases the window for shoulder-surfing or screenshot capture. Once the file expires, the password serves no purpose but remains visible.
+**Suggested Fix:** Clear or redact the password from the job record when the associated export file expires or is cleaned up. Alternatively, only show the password for a limited time after generation (e.g., until first download or within a time window).
+**Files Affected:** Background job cleanup logic, export download UI
 
 ---
 

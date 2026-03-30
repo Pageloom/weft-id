@@ -224,56 +224,7 @@ IdP-synced groups reject bulk changes with a clear error.
 
 ---
 
-## User Audit Export
-
-**User Story:**
-As an admin,
-I want to download a comprehensive spreadsheet of all users with their authentication history, group memberships, and app access,
-So that I can produce audit evidence, review access patterns, and answer compliance questions without writing API queries.
-
-**Context:**
-
-This is a read-only XLSX export (no upload/re-import). It produces a multi-sheet workbook
-covering three dimensions of user data: the users themselves, their group memberships, and
-their app (SP) access. Each sheet is designed so that an auditor can filter on any column
-in Excel to answer common questions ("which users haven't logged in for 90 days?", "who
-has access to app X?", "which users were provisioned via JIT?").
-
-All users are included (active, inactive, anonymized). The status column allows filtering.
-Event-log-derived fields (last login, creation method, etc.) are computed at export time.
-
-Accessible from the admin section (not under Bulk Ops, since it's a read-only export).
-
-**Acceptance Criteria:**
-
-- [ ] Page at `/admin/exports/users` (or similar admin export location)
-- [ ] Download-only (no upload flow). Single "Export Users" button that enqueues a background job.
-- [ ] Produces a multi-sheet XLSX workbook with three sheets:
-
-**Sheet 1: Users** (one row per user)
-- [ ] Columns: `user_id`, `first_name`, `last_name`, `primary_email`, `domain`, `secondary_emails` (comma-separated), `role`, `status` (active/inactive/anonymized), `created_at`, `creation_method` (invited, jit, cli), `auth_method` (password, IdP name), `last_login_at`, `last_login_ip`, `last_activity_at`, `password_last_changed_at`, `mfa_enabled` (yes/no), `app_count` (number of SPs accessible)
-- [ ] Auto-filter enabled on header row
-
-**Sheet 2: Group Memberships** (one row per user-group pair)
-- [ ] Columns: `user_id`, `email`, `group_name`, `group_type` (weftid/idp), `membership_since`
-- [ ] A user with 3 group memberships appears in 3 rows
-- [ ] Auto-filter enabled on header row
-
-**Sheet 3: App Access** (one row per user-SP pair)
-- [ ] Columns: `user_id`, `email`, `app_name`, `last_auth_at` (last SAML assertion for this user+SP), `access_via` (comma-separated group names, or "All users" if SP is not group-restricted)
-- [ ] A user with access to 5 SPs appears in 5 rows
-- [ ] Auto-filter enabled on header row
-
-**General:**
-- [ ] Download is password-encrypted (uses shared encrypted XLSX capability)
-- [ ] Background job fetches event log data in batches to control memory
-- [ ] API endpoint: `POST /api/v1/exports/users`, `GET /api/v1/exports/users/download/{job_id}`
-- [ ] Audit event logged: `user_export_task_created`
-- [ ] Admin page shows password alongside download link when ready
-
-**Effort:** L
-**Value:** High
-**Version impact:** Minor (new feature)
+## ~~User Audit Export~~ (Complete)
 
 ---
 

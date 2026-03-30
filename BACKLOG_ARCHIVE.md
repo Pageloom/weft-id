@@ -4,6 +4,30 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## User Audit Export
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Admin page at `/admin/audit/user-export` with single "Export Users" button
+- [x] 3-sheet password-encrypted XLSX: Users, Group Memberships, App Access
+- [x] Users sheet: user_id, name, email, domain, secondary emails, role, status, created_at, creation method, auth method, last login, last login IP, last activity, password changed, MFA, app count
+- [x] Group Memberships sheet: user_id, email, group name, group type, member since
+- [x] App Access sheet: user_id, email, app name, last auth, access via (group names or "All users")
+- [x] Auto-filter on all sheet headers
+- [x] Background job with encrypted XLSX (reuses existing export infrastructure)
+- [x] API: `POST /api/v1/exports/users`; download reuses `GET /api/v1/exports/{id}/download`
+- [x] Audit event: `user_export_task_created`
+
+**Resolution:** 8 batch SQL queries (no N+1) fetch all data in `database/users/audit_export.py`. Job handler in `jobs/export_users.py` builds the 3-sheet workbook. Creation method derived from event log (`user_created` vs `user_created_jit`), last login IP from event log metadata, app counts from group lineage + available_to_all SPs. 28 tests covering all sheets, data mappings, and edge cases.
+
+**Effort:** L
+**Value:** High
+**Version impact:** Minor (new feature)
+
+---
+
 ## Primary Email Change: SP Assertion Impact Warnings
 
 **Status:** Complete

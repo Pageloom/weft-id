@@ -529,6 +529,12 @@ PAGES = [
                             ),
                         ],
                     ),
+                    Page(
+                        path="/admin/audit/user-export",
+                        title="User Export",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
                 ],
             ),
             # Integrations section: Apps, B2B

@@ -88,6 +88,39 @@ def create_export_task(
     return result
 
 
+def create_user_export_task(
+    requesting_user: RequestingUser,
+) -> dict | None:
+    """
+    Create a background task to export user audit data as encrypted XLSX.
+
+    Authorization: Requires admin or super_admin role.
+
+    Returns:
+        Dict with task id and created_at, or None if creation failed.
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    result = database.bg_tasks.create_task(
+        tenant_id=requesting_user["tenant_id"],
+        job_type="export_users",
+        created_by=requesting_user["id"],
+    )
+
+    if result:
+        log_event(
+            tenant_id=requesting_user["tenant_id"],
+            actor_user_id=requesting_user["id"],
+            artifact_type="bg_task",
+            artifact_id=str(result["id"]),
+            event_type="user_export_task_created",
+            metadata={"job_type": "export_users"},
+        )
+
+    return result
+
+
 def create_bulk_add_emails_task(
     requesting_user: RequestingUser,
     items: list[dict],

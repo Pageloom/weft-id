@@ -213,6 +213,7 @@ def main() -> None:
             bulk_change_primary_email,  # noqa: F401
             cleanup_exports,  # noqa: F401
             export_events,  # noqa: F401
+            export_users,  # noqa: F401
         )
     except ImportError as e:
         logger.warning("Could not import job handlers: %s", e)

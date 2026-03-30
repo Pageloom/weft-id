@@ -7,6 +7,17 @@ from database.users.activity import (
     update_timezone_and_last_login,
     update_timezone_locale_and_last_login,
 )
+from database.users.audit_export import (
+    get_all_group_memberships,
+    get_all_secondary_emails,
+    get_all_user_sp_access,
+    get_all_users_for_audit,
+    get_app_counts,
+    get_available_to_all_sp_count,
+    get_creation_methods,
+    get_last_login_ips,
+    get_last_sso_assertions,
+)
 from database.users.authentication import (
     bulk_set_password_reset_required,
     clear_hibp_data,
@@ -92,6 +103,16 @@ __all__ = [
     "set_reactivation_denied",
     "clear_reactivation_denied",
     "get_idle_users_for_tenant",
+    # audit_export
+    "get_all_users_for_audit",
+    "get_all_secondary_emails",
+    "get_creation_methods",
+    "get_last_login_ips",
+    "get_app_counts",
+    "get_available_to_all_sp_count",
+    "get_all_group_memberships",
+    "get_all_user_sp_access",
+    "get_last_sso_assertions",
     # listing
     "count_users",
     "list_all_users_for_export",

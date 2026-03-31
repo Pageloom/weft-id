@@ -5,9 +5,9 @@
 {% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
 
 {% block content %}
-<!-- Filter Params Macro - generates query string for all active filters -->
-{% macro filter_params() %}{% if roles %}&role={% if role_negate %}!{% endif %}{{ roles|join(',') }}{% endif %}{% if statuses %}&status={% if status_negate %}!{% endif %}{{ statuses|join(',') }}{% endif %}{% if auth_methods %}&auth_method={% if auth_method_negate %}!{% endif %}{{ auth_methods|join(',') }}{% endif %}{% if domain %}&domain={% if domain_negate %}!{% endif %}{{ domain }}{% endif %}{% if group_id %}&group_id={% if group_negate %}!{% endif %}{{ group_id }}{% endif %}{% if group_id and not group_include_children %}&group_children=0{% endif %}{% if has_secondary_email is not none %}&has_secondary_email={{ 'yes' if has_secondary_email else 'no' }}{% endif %}{% if activity_start %}&activity_start={{ activity_start }}{% endif %}{% if activity_end %}&activity_end={{ activity_end }}{% endif %}{% endmacro %}
-{% set has_any_filter = roles or statuses or auth_methods or domain or group_id or has_secondary_email is not none or activity_start or activity_end %}
+<!-- Filter Params Macro - generates query string for all active filters (including search) -->
+{% macro filter_params() %}{% if search %}&search={{ search | urlencode }}{% endif %}{% if roles %}&role={% if role_negate %}!{% endif %}{{ roles|join(',') }}{% endif %}{% if statuses %}&status={% if status_negate %}!{% endif %}{{ statuses|join(',') }}{% endif %}{% if auth_methods %}&auth_method={% if auth_method_negate %}!{% endif %}{{ auth_methods|join(',') }}{% endif %}{% if domain %}&domain={% if domain_negate %}!{% endif %}{{ domain }}{% endif %}{% if group_id %}&group_id={% if group_negate %}!{% endif %}{{ group_id }}{% endif %}{% if group_id and not group_include_children %}&group_children=0{% endif %}{% if has_secondary_email is not none %}&has_secondary_email={{ 'yes' if has_secondary_email else 'no' }}{% endif %}{% if activity_start %}&activity_start={{ activity_start }}{% endif %}{% if activity_end %}&activity_end={{ activity_end }}{% endif %}{% endmacro %}
+{% set has_any_filter = search or roles or statuses or auth_methods or domain or group_id or has_secondary_email is not none or activity_start or activity_end %}
 
 <!-- Pagination Controls Macro -->
 {% macro pagination_controls(border_class="border-t") %}
@@ -39,7 +39,7 @@
     <!-- Page navigation -->
     <div class="flex items-center gap-2">
         <a
-            href="{% if pagination.has_previous %}?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
+            href="{% if pagination.has_previous %}?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{{ filter_params() }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
             {% if not pagination.has_previous %}aria-disabled="true"{% endif %}
         >
@@ -51,7 +51,7 @@
         </span>
 
         <a
-            href="{% if pagination.has_next %}?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
+            href="{% if pagination.has_next %}?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{{ filter_params() }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
             {% if not pagination.has_next %}aria-disabled="true"{% endif %}
         >
@@ -64,51 +64,10 @@
 
 <div class="w-full">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-        <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Users</h1>
-
-        <!-- Search Form -->
+        <!-- Header Row: Title + Funnel + Filter Indicators + Apply -->
         <div class="mb-6">
-            <form method="get" action="/users/list" class="flex gap-2">
-                <input type="hidden" name="sort" value="{{ sort_field }}">
-                <input type="hidden" name="order" value="{{ sort_order }}">
-                <input type="hidden" name="size" value="{{ pagination.page_size }}">
-                {% if roles %}<input type="hidden" name="role" value="{{ roles|join(',') }}">{% endif %}
-                {% if statuses %}<input type="hidden" name="status" value="{{ statuses|join(',') }}">{% endif %}
-                {% if auth_methods %}<input type="hidden" name="auth_method" value="{{ auth_methods|join(',') }}">{% endif %}
-                {% if domain %}<input type="hidden" name="domain" value="{{ domain }}">{% endif %}
-                {% if group_id %}<input type="hidden" name="group_id" value="{{ group_id }}">{% endif %}
-                {% if has_secondary_email is not none %}<input type="hidden" name="has_secondary_email" value="{{ 'yes' if has_secondary_email else 'no' }}">{% endif %}
-                {% if activity_start %}<input type="hidden" name="activity_start" value="{{ activity_start }}">{% endif %}
-                {% if activity_end %}<input type="hidden" name="activity_end" value="{{ activity_end }}">{% endif %}
-
-                <input
-                    type="text"
-                    name="search"
-                    value="{{ search }}"
-                    placeholder="Search by name or email..."
-                    class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                >
-                <button
-                    type="submit"
-                    class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                >
-                    Search
-                </button>
-                {% if search %}
-                <a
-                    href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{{ filter_params() }}"
-                    class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                >
-                    Clear
-                </a>
-                {% endif %}
-            </form>
-        </div>
-
-        <!-- Filter Panel -->
-        <div class="mb-6 relative">
-            <!-- Funnel Button and Filter Indicators -->
             <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Users</h1>
                 <button
                     type="button"
                     id="filter-toggle-btn"
@@ -122,27 +81,32 @@
                 {% if has_any_filter %}
                 <span class="text-sm text-blue-600 dark:text-blue-400 font-medium">Filtered results</span>
                 <a
-                    href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
+                    href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}"
                     id="clear-filters-link"
                     class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline"
                 >
                     Clear filters
                 </a>
                 {% endif %}
+                <div class="flex-1"></div>
+                <button type="button" id="apply-filters-btn"
+                    class="hidden px-6 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Apply
+                </button>
             </div>
 
-            <!-- Floating Filter Panel -->
-            <div id="filter-panel" class="hidden absolute left-0 top-full mt-2 z-30 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+            <!-- Filter Panel (inline, horizontal flow) -->
+            <div id="filter-panel" class="hidden mt-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700">
                 {% set sel_base = "w-full border rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" %}
                 {% set sel_idle = sel_base ~ " border-gray-300 dark:border-gray-600" %}
 
                 {% macro filter_select(id, label, active, negated, tooltip="") %}
-                <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                    <div class="flex items-center gap-2 mb-2">
+                <div class="min-w-[180px]">
+                    <div class="flex items-center gap-2 mb-1.5">
                         <span class="text-sm font-medium text-gray-700 dark:text-gray-300"{% if tooltip %} title="{{ tooltip }}"{% endif %}>{{ label }}{% if tooltip %} <span class="text-gray-400 cursor-help">?</span>{% endif %}</span>
                         <button type="button" class="negate-toggle text-xs font-medium px-1.5 py-0.5 rounded
                                 {% if negated %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300
-                                {% else %}bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-500{% endif %}"
+                                {% else %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300{% endif %}"
                                 data-filter="{{ id }}" data-active="{{ '1' if negated else '0' }}">
                             {{ 'is not' if negated else 'is' }}
                         </button>
@@ -153,107 +117,112 @@
                 </div>
                 {% endmacro %}
 
-                <!-- Role Filter -->
-                {% call filter_select("filter-role", "Role", roles, role_negate) %}
-                    <option value="">All roles</option>
-                    <option value="member" {% if 'member' in roles %}selected{% endif %}>Member</option>
-                    <option value="admin" {% if 'admin' in roles %}selected{% endif %}>Admin</option>
-                    <option value="super_admin" {% if 'super_admin' in roles %}selected{% endif %}>Super Admin</option>
-                {% endcall %}
-
-                <!-- Status Filter -->
-                {% call filter_select("filter-status", "Status", statuses, status_negate) %}
-                    <option value="">All statuses</option>
-                    <option value="active" {% if 'active' in statuses %}selected{% endif %}>Active</option>
-                    <option value="inactivated" {% if 'inactivated' in statuses %}selected{% endif %}>Inactivated</option>
-                    <option value="anonymized" {% if 'anonymized' in statuses %}selected{% endif %}>Anonymized</option>
-                {% endcall %}
-
-                <!-- Auth Method Filter -->
-                {% if auth_method_options %}
-                {% call filter_select("filter-auth-method", "Auth Method", auth_methods, auth_method_negate) %}
-                    <option value="">All methods</option>
-                    {% for opt in auth_method_options %}
-                    <option value="{{ opt.auth_method_key }}" {% if opt.auth_method_key in auth_methods %}selected{% endif %}>{{ opt.auth_method_label }}</option>
-                    {% endfor %}
-                {% endcall %}
-                {% endif %}
-
-                <!-- Domain Filter -->
-                {% if domain_options %}
-                {% call filter_select("filter-domain", "Domain", domain, domain_negate, tooltip="Matches users who have any email (primary or secondary) at this domain") %}
-                    <option value="">All domains</option>
-                    {% for d in domain_options %}
-                    <option value="{{ d.domain }}" {% if domain == d.domain %}selected{% endif %}>{{ d.domain }}{% if d.privileged %} ★{% endif %}</option>
-                    {% endfor %}
-                {% endcall %}
-                {% endif %}
-
-                <!-- Group Filter -->
-                {% if group_options %}
-                {% call filter_select("filter-group", "Group", group_id, group_negate) %}
-                    <option value="">All groups</option>
-                    {% for g in group_options %}
-                    <option value="{{ g.id }}" {% if group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
-                    {% endfor %}
-                {% endcall %}
-                <div class="-mt-1 px-4 pb-3 border-b border-gray-100 dark:border-gray-700">
-                    <label class="flex items-center gap-1.5">
-                        <input type="checkbox" id="group-children"
-                               {% if group_include_children %}checked{% endif %}
-                               class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">Include child groups</span>
-                    </label>
-                </div>
-                {% endif %}
-
-                <!-- Has Secondary Email Filter -->
-                <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Has Secondary Email</span>
+                <div class="flex flex-wrap gap-x-8 gap-y-5 items-start">
+                    <!-- Search -->
+                    <div class="min-w-[240px] flex-1">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Search</span>
+                        </div>
+                        <input
+                            type="text"
+                            id="filter-search"
+                            value="{{ search }}"
+                            placeholder="Name or email..."
+                            class="{{ sel_idle }} focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
                     </div>
-                    <select id="filter-secondary-email" class="{{ sel_idle }}">
-                        <option value="">Any</option>
-                        <option value="yes" {% if has_secondary_email == true %}selected{% endif %}>Yes</option>
-                        <option value="no" {% if has_secondary_email == false %}selected{% endif %}>No</option>
-                    </select>
-                </div>
 
-                <!-- Last Activity Date Range -->
-                <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Last Activity</span>
+                    <!-- Role Filter -->
+                    {% call filter_select("filter-role", "Role", roles, role_negate) %}
+                        <option value="">All roles</option>
+                        <option value="member" {% if 'member' in roles %}selected{% endif %}>Member</option>
+                        <option value="admin" {% if 'admin' in roles %}selected{% endif %}>Admin</option>
+                        <option value="super_admin" {% if 'super_admin' in roles %}selected{% endif %}>Super Admin</option>
+                    {% endcall %}
+
+                    <!-- Status Filter -->
+                    {% call filter_select("filter-status", "Status", statuses, status_negate) %}
+                        <option value="">All statuses</option>
+                        <option value="active" {% if 'active' in statuses %}selected{% endif %}>Active</option>
+                        <option value="inactivated" {% if 'inactivated' in statuses %}selected{% endif %}>Inactivated</option>
+                        <option value="anonymized" {% if 'anonymized' in statuses %}selected{% endif %}>Anonymized</option>
+                    {% endcall %}
+
+                    <!-- Auth Method Filter -->
+                    {% if auth_method_options %}
+                    {% call filter_select("filter-auth-method", "Auth Method", auth_methods, auth_method_negate) %}
+                        <option value="">All methods</option>
+                        {% for opt in auth_method_options %}
+                        <option value="{{ opt.auth_method_key }}" {% if opt.auth_method_key in auth_methods %}selected{% endif %}>{{ opt.auth_method_label }}</option>
+                        {% endfor %}
+                    {% endcall %}
+                    {% endif %}
+
+                    <!-- Domain Filter -->
+                    {% if domain_options %}
+                    {% call filter_select("filter-domain", "Domain", domain, domain_negate, tooltip="Matches users who have any email (primary or secondary) at this domain") %}
+                        <option value="">All domains</option>
+                        {% for d in domain_options %}
+                        <option value="{{ d.domain }}" {% if domain == d.domain %}selected{% endif %}>{{ d.domain }}{% if d.privileged %} ★{% endif %}</option>
+                        {% endfor %}
+                    {% endcall %}
+                    {% endif %}
+
+                    <!-- Group Filter -->
+                    {% if group_options %}
+                    <div class="min-w-[180px]">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Group</span>
+                            <button type="button" class="negate-toggle text-xs font-medium px-1.5 py-0.5 rounded
+                                    {% if group_negate %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300
+                                    {% else %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300{% endif %}"
+                                    data-filter="filter-group" data-active="{{ '1' if group_negate else '0' }}">
+                                {{ 'is not' if group_negate else 'is' }}
+                            </button>
+                            <label class="flex items-center gap-1 ml-auto">
+                                <input type="checkbox" id="group-children"
+                                       {% if group_include_children %}checked{% endif %}
+                                       class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 w-3.5 h-3.5">
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Children</span>
+                            </label>
+                        </div>
+                        <select id="filter-group" class="{{ sel_idle }}">
+                            <option value="">All groups</option>
+                            {% for g in group_options %}
+                            <option value="{{ g.id }}" {% if group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <div class="flex-1">
-                            <label for="filter-activity-start" class="text-xs text-gray-500 dark:text-gray-400">From</label>
+                    {% endif %}
+
+                    <!-- Has Secondary Email Filter -->
+                    <div class="min-w-[180px]">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Secondary Email</span>
+                        </div>
+                        <select id="filter-secondary-email" class="{{ sel_idle }}">
+                            <option value="">Any</option>
+                            <option value="yes" {% if has_secondary_email == true %}selected{% endif %}>Yes</option>
+                            <option value="no" {% if has_secondary_email == false %}selected{% endif %}>No</option>
+                        </select>
+                    </div>
+
+                    <!-- Last Activity Date Range -->
+                    <div class="min-w-[240px]">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Last Activity</span>
+                        </div>
+                        <div class="flex items-center gap-2">
                             <input type="date" id="filter-activity-start" value="{{ activity_start }}"
-                                class="w-full border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                        </div>
-                        <div class="flex-1">
-                            <label for="filter-activity-end" class="text-xs text-gray-500 dark:text-gray-400">To</label>
+                                class="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                            <span class="text-gray-400 dark:text-gray-500">&ndash;</span>
                             <input type="date" id="filter-activity-end" value="{{ activity_end }}"
-                                class="w-full border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                                class="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                         </div>
                     </div>
-                </div>
-
-                <!-- Apply Button -->
-                <div class="px-4 py-3">
-                    <button type="button" id="apply-filters-btn"
-                        class="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                        Apply Filters
-                    </button>
                 </div>
             </div>
         </div>
-
-        <!-- Results count -->
-        {% if search %}
-        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-            Found {{ pagination.total_count }} result{{ 's' if pagination.total_count != 1 else '' }} for "{{ search }}"
-        </div>
-        {% endif %}
 
         <!-- Pagination Controls - Top -->
         {{ pagination_controls(border_class="border-b") }}
@@ -268,7 +237,7 @@
                         </th>
                         {% macro sort_header(field, label, width_class="") %}
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider {{ width_class }}">
-                            <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
+                            <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{{ filter_params() }}"
                                class="group inline-flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-300">
                                 <span>{{ label }}</span>
                                 {% if sort_field == field %}
@@ -463,6 +432,8 @@ const { tenantId, filtersActive, search, sortField, sortOrder, pageSize, totalCo
 
 const getFilterState = () => {
     const state = {};
+    const searchVal = document.getElementById('filter-search')?.value?.trim();
+    if (searchVal) state.search = searchVal;
     const neg = id => document.querySelector(`.negate-toggle[data-filter="${id}"]`)?.dataset.active === '1';
     const role = document.getElementById('filter-role')?.value;
     if (role) state.role = neg('filter-role') ? `!${role}` : role;
@@ -487,7 +458,7 @@ const getFilterState = () => {
 
 const buildFilterUrl = (state, size) => {
     let url = `/users/list?page=1&size=${size}&sort=${sortField}&order=${sortOrder}`;
-    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (state.search) url += `&search=${encodeURIComponent(state.search)}`;
     if (state.role) url += `&role=${encodeURIComponent(state.role)}`;
     if (state.status) url += `&status=${encodeURIComponent(state.status)}`;
     if (state.auth_method) url += `&auth_method=${encodeURIComponent(state.auth_method)}`;
@@ -584,8 +555,19 @@ const filterPanel = document.getElementById('filter-panel');
 const filterToggleBtn = document.getElementById('filter-toggle-btn');
 const applyFiltersBtn = document.getElementById('apply-filters-btn');
 
-const applyAndClose = () => {
+const showPanel = () => {
+    filterPanel.classList.remove('hidden');
+    applyFiltersBtn.classList.remove('hidden');
+    document.getElementById('filter-search')?.focus();
+};
+
+const hidePanel = () => {
     filterPanel.classList.add('hidden');
+    applyFiltersBtn.classList.add('hidden');
+};
+
+const applyAndClose = () => {
+    hidePanel();
     const state = getFilterState();
     const url = buildFilterUrl(state, pageSize);
     // Only navigate if filters actually changed
@@ -599,7 +581,11 @@ const applyAndClose = () => {
 // Toggle panel on funnel button click
 filterToggleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    filterPanel.classList.toggle('hidden');
+    if (filterPanel.classList.contains('hidden')) {
+        showPanel();
+    } else {
+        applyAndClose();
+    }
 });
 
 // Apply and close on Apply button click
@@ -619,14 +605,27 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// Enter key in search input applies filters
+document.getElementById('filter-search')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        applyAndClose();
+    }
+});
+
 // Negate toggles (visual only, no navigation)
 document.querySelectorAll('.negate-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
-        const select = document.getElementById(btn.dataset.filter);
-        if (!select?.value) return;
         const nowActive = btn.dataset.active !== '1';
         btn.dataset.active = nowActive ? '1' : '0';
         btn.textContent = nowActive ? 'is not' : 'is';
+        btn.classList.remove('bg-red-100', 'text-red-700', 'dark:bg-red-900/30', 'dark:text-red-300',
+            'bg-green-100', 'text-green-700', 'dark:bg-green-900/30', 'dark:text-green-300');
+        if (nowActive) {
+            btn.classList.add('bg-red-100', 'text-red-700', 'dark:bg-red-900/30', 'dark:text-red-300');
+        } else {
+            btn.classList.add('bg-green-100', 'text-green-700', 'dark:bg-green-900/30', 'dark:text-green-300');
+        }
     });
 });
 </script>

@@ -99,8 +99,13 @@
             <div id="filter-panel" class="hidden mt-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700">
                 {% set sel_base = "w-full border rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" %}
                 {% set sel_idle = sel_base ~ " border-gray-300 dark:border-gray-600" %}
+                {% set sel_inc = sel_base ~ " border-green-500 dark:border-green-400" %}
+                {% set sel_exc = sel_base ~ " border-red-500 dark:border-red-400" %}
 
                 {% macro filter_select(id, label, active, negated, tooltip="") %}
+                {% if active and negated %}{% set input_cls = sel_exc %}
+                {% elif active %}{% set input_cls = sel_inc %}
+                {% else %}{% set input_cls = sel_idle %}{% endif %}
                 <div class="min-w-[180px]">
                     <div class="flex items-center gap-2 mb-1.5">
                         <span class="text-sm font-medium text-gray-700 dark:text-gray-300"{% if tooltip %} title="{{ tooltip }}"{% endif %}>{{ label }}{% if tooltip %} <span class="text-gray-400 cursor-help">?</span>{% endif %}</span>
@@ -111,7 +116,7 @@
                             {{ 'is not' if negated else 'is' }}
                         </button>
                     </div>
-                    <select id="{{ id }}" class="{{ sel_idle }}">
+                    <select id="{{ id }}" class="tinted-input {{ input_cls }}">
                         {{ caller() }}
                     </select>
                 </div>
@@ -128,7 +133,7 @@
                             id="filter-search"
                             value="{{ search }}"
                             placeholder="Name or email..."
-                            class="{{ sel_idle }} focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            class="tinted-input {{ sel_inc if search else sel_idle }} focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                     </div>
 
@@ -186,7 +191,7 @@
                                 <span class="text-xs text-gray-500 dark:text-gray-400">Children</span>
                             </label>
                         </div>
-                        <select id="filter-group" class="{{ sel_idle }}">
+                        <select id="filter-group" class="tinted-input {% if group_id and group_negate %}{{ sel_exc }}{% elif group_id %}{{ sel_inc }}{% else %}{{ sel_idle }}{% endif %}">
                             <option value="">All groups</option>
                             {% for g in group_options %}
                             <option value="{{ g.id }}" {% if group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
@@ -200,7 +205,7 @@
                         <div class="flex items-center gap-2 mb-1.5">
                             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Secondary Email</span>
                         </div>
-                        <select id="filter-secondary-email" class="{{ sel_idle }}">
+                        <select id="filter-secondary-email" class="tinted-input {{ sel_inc if has_secondary_email is not none else sel_idle }}">
                             <option value="">Any</option>
                             <option value="yes" {% if has_secondary_email == true %}selected{% endif %}>Yes</option>
                             <option value="no" {% if has_secondary_email == false %}selected{% endif %}>No</option>
@@ -214,10 +219,10 @@
                         </div>
                         <div class="flex items-center gap-2">
                             <input type="date" id="filter-activity-start" value="{{ activity_start }}"
-                                class="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                                class="tinted-input flex-1 border {{ 'border-green-500 dark:border-green-400' if activity_start else 'border-gray-300 dark:border-gray-600' }} rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                             <span class="text-gray-400 dark:text-gray-500">&ndash;</span>
                             <input type="date" id="filter-activity-end" value="{{ activity_end }}"
-                                class="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                                class="tinted-input flex-1 border {{ 'border-green-500 dark:border-green-400' if activity_end else 'border-gray-300 dark:border-gray-600' }} rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                         </div>
                     </div>
                 </div>
@@ -613,7 +618,20 @@ document.getElementById('filter-search')?.addEventListener('keydown', (e) => {
     }
 });
 
-// Negate toggles (visual only, no navigation)
+// Border tinting: green when value set + "is", red when value set + "is not", gray when empty
+const borderIdle = ['border-gray-300', 'dark:border-gray-600'];
+const borderInc = ['border-green-500', 'dark:border-green-400'];
+const borderExc = ['border-red-500', 'dark:border-red-400'];
+const allBorders = [...borderIdle, ...borderInc, ...borderExc];
+
+const tintInput = (el, hasValue, negated) => {
+    el.classList.remove(...allBorders);
+    if (hasValue && negated) el.classList.add(...borderExc);
+    else if (hasValue) el.classList.add(...borderInc);
+    else el.classList.add(...borderIdle);
+};
+
+// Negate toggles (visual only, no navigation) + update associated input tint
 document.querySelectorAll('.negate-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
         const nowActive = btn.dataset.active !== '1';
@@ -626,6 +644,20 @@ document.querySelectorAll('.negate-toggle').forEach(btn => {
         } else {
             btn.classList.add('bg-green-100', 'text-green-700', 'dark:bg-green-900/30', 'dark:text-green-300');
         }
+        // Update the associated input border
+        const input = document.getElementById(btn.dataset.filter);
+        if (input) tintInput(input, !!input.value, nowActive);
+    });
+});
+
+// Update input tint on value change
+document.querySelectorAll('.tinted-input').forEach(el => {
+    const eventType = el.tagName === 'INPUT' ? 'input' : 'change';
+    el.addEventListener(eventType, () => {
+        const negBtn = document.querySelector(`.negate-toggle[data-filter="${el.id}"]`);
+        const negated = negBtn?.dataset.active === '1';
+        const hasValue = el.type === 'date' ? !!el.value : !!el.value?.trim();
+        tintInput(el, hasValue, negated);
     });
 });
 </script>

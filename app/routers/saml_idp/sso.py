@@ -155,11 +155,17 @@ def consent_page(
     # Require authenticated session
     user_id = request.session.get("user_id")
     if not user_id:
+        logger.warning("Consent page: no user_id in session. Keys: %s", list(request.session.keys()))
         return _render_sso_error(request, tenant_id, "no_session")
 
     # Require pending SSO context
     sp_entity_id = request.session.get("pending_sso_sp_entity_id")
     if not sp_entity_id:
+        logger.warning(
+            "Consent page: no pending_sso_sp_entity_id. user_id=%s, session keys: %s",
+            user_id,
+            list(request.session.keys()),
+        )
         return _render_sso_error(request, tenant_id, "no_pending_sso")
 
     # Verify SSO context is bound to this user

@@ -1,6 +1,6 @@
 # Background Jobs
 
-Some operations run in the background: event log exports, bulk email operations, and other long-running tasks. Check their status from your account menu at **Background Jobs**.
+Some operations run in the background: event log exports, user exports, bulk email operations, and other long-running tasks. Check their status from your account menu at **Background Jobs**.
 
 ## Job list
 

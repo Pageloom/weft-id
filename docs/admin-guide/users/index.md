@@ -21,21 +21,23 @@ Click any column header to sort by that field. Click again to reverse the order.
 
 ### Filtering
 
-Click **Filters** to open the filter panel. Combine multiple filters to narrow results.
+Click the funnel icon next to the page title to open the filter panel. Combine multiple filters to narrow results. Click **Apply** to apply your selections.
 
 | Filter | Options |
 |--------|---------|
 | **Role** | Member, Admin, Super Admin |
 | **Status** | Active, Inactivated, Anonymized |
 | **Auth Method** | Lists all authentication methods in use (Password, specific IdPs) |
-| **Domain** | Email domains in use. Privileged domains are marked with a star. |
-| **Group** | Select a group. Optionally check **Include child groups** to include members of descendant groups in the hierarchy. |
+| **Domain** | Email domains in use. Matches any email at that domain (primary or secondary). Privileged domains are marked with a star. |
+| **Group** | Select a group. Check **Include children** to also match members of descendant groups. |
+| **Secondary Email** | Yes or No. Filter by whether the user has a secondary email address. |
+| **Last Activity** | Date range (start and end). Filter by when users last accessed the system. |
 
-Each filter has an **is/is not** toggle. Click it to negate the filter. For example, set Role to "Admin" with "is not" to see everyone who is *not* an admin.
+Each filter (except Secondary Email and Last Activity) has an **is/is not** toggle. Click it to negate the filter. For example, set Role to "Admin" with "is not" to see everyone who is *not* an admin.
 
-Active filters are indicated by a **Filtered results** label next to the Filters button. Click **Clear filters** to reset.
+Active filters are highlighted with tinted borders (green for "is", red for "is not"). The funnel icon turns blue and a **Filtered results** label appears. Click **Clear filters** to reset.
 
-Filter state and page size preferences are saved in your browser and persist across sessions.
+Page size preferences are saved in your browser and persist across sessions.
 
 ### Bulk selection
 

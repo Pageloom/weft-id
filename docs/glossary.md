@@ -140,7 +140,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 ## Audit & Security
 
 **Event log**
-:   A tamper-evident record of every write operation in a tenant: user creation, role changes, SP configuration, sign-in events, and more. Each entry records the actor, timestamp, event type, affected resource, and contextual metadata. See [Audit](admin-guide/audit/index.md).
+:   A tamper-evident record of every write operation in a tenant: user creation, role changes, SP configuration, sign-in events, and more. Each entry records the actor, timestamp, event type, affected resource, and contextual metadata. Events are classified into visibility tiers (security, admin, operational, system) for filtering. See [Audit](admin-guide/audit/index.md).
 
 **Activity tracking**
 :   Recording when users last performed read operations (viewing pages, listing resources). Used by the automatic inactivation policy to identify inactive accounts. Distinct from event logging, which records writes.

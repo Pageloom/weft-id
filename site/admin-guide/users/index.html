@@ -2210,7 +2210,7 @@
 <h3 id="sorting">Sorting<a class="headerlink" href="#sorting" title="Permanent link">&para;</a></h3>
 <p>Click any column header to sort by that field. Click again to reverse the order. Sortable columns: name, email, role, status, last activity, and created date.</p>
 <h3 id="filtering">Filtering<a class="headerlink" href="#filtering" title="Permanent link">&para;</a></h3>
-<p>Click <strong>Filters</strong> to open the filter panel. Combine multiple filters to narrow results.</p>
+<p>Click the funnel icon next to the page title to open the filter panel. Combine multiple filters to narrow results. Click <strong>Apply</strong> to apply your selections.</p>
 <table>
 <thead>
 <tr>
@@ -2233,17 +2233,25 @@
 </tr>
 <tr>
 <td><strong>Domain</strong></td>
-<td>Email domains in use. Privileged domains are marked with a star.</td>
+<td>Email domains in use. Matches any email at that domain (primary or secondary). Privileged domains are marked with a star.</td>
 </tr>
 <tr>
 <td><strong>Group</strong></td>
-<td>Select a group. Optionally check <strong>Include child groups</strong> to include members of descendant groups in the hierarchy.</td>
+<td>Select a group. Check <strong>Include children</strong> to also match members of descendant groups.</td>
+</tr>
+<tr>
+<td><strong>Secondary Email</strong></td>
+<td>Yes or No. Filter by whether the user has a secondary email address.</td>
+</tr>
+<tr>
+<td><strong>Last Activity</strong></td>
+<td>Date range (start and end). Filter by when users last accessed the system.</td>
 </tr>
 </tbody>
 </table>
-<p>Each filter has an <strong>is/is not</strong> toggle. Click it to negate the filter. For example, set Role to "Admin" with "is not" to see everyone who is <em>not</em> an admin.</p>
-<p>Active filters are indicated by a <strong>Filtered results</strong> label next to the Filters button. Click <strong>Clear filters</strong> to reset.</p>
-<p>Filter state and page size preferences are saved in your browser and persist across sessions.</p>
+<p>Each filter (except Secondary Email and Last Activity) has an <strong>is/is not</strong> toggle. Click it to negate the filter. For example, set Role to "Admin" with "is not" to see everyone who is <em>not</em> an admin.</p>
+<p>Active filters are highlighted with tinted borders (green for "is", red for "is not"). The funnel icon turns blue and a <strong>Filtered results</strong> label appears. Click <strong>Clear filters</strong> to reset.</p>
+<p>Page size preferences are saved in your browser and persist across sessions.</p>
 <h3 id="bulk-selection">Bulk selection<a class="headerlink" href="#bulk-selection" title="Permanent link">&para;</a></h3>
 <p>Use checkboxes to select users for <a href="email-management/#bulk-email-operations">bulk email operations</a>. After checking users on the current page, you can click <strong>Select all N matching users</strong> to extend the selection to every user matching the current search and filters, even across pages.</p>
 <p>The bulk action bar appears at the bottom when users are selected, with options to manage secondary emails or change primary emails.</p>

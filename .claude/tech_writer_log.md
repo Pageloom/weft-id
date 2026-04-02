@@ -825,3 +825,42 @@ None.
 ### Screenshots Requested
 
 None.
+
+---
+
+## 2026-04-02 - Documentation Update (Tiers, User Export, Filters)
+
+**Starting commit:** 4b337d1
+**Mode:** Documentation
+
+### Gap Analysis
+
+Compared ~10 commits since last documentation session (c410bfa..HEAD). Identified 3 undocumented features.
+
+### Pages Updated (4)
+
+1. **`docs/admin-guide/audit/index.md`** -- Added "Visibility tiers" section (tier table with colors, defaults, coverage). Renamed "Export" to "Event log export" for clarity. Added "User export" section describing the multi-sheet XLSX (Users, Group Memberships, App Access).
+2. **`docs/admin-guide/users/index.md`** -- Updated filter panel description: funnel icon instead of text button, added Secondary Email and Last Activity filters to filter table, added tinted border visual feedback, noted Apply button behavior, removed stale "filter state saved" note (only page size persists).
+3. **`docs/user-guide/background-jobs.md`** -- Added "user exports" to intro list of background job types.
+4. **`docs/glossary.md`** -- Updated "Event log" definition to mention visibility tiers.
+
+### Features Documented
+
+| Feature | Where Documented |
+|---------|-----------------|
+| Audit event visibility tiers | audit/index.md (new section), glossary.md |
+| User export (multi-sheet XLSX) | audit/index.md (new section), background-jobs.md |
+| Filter panel redesign (funnel icon, tinted borders) | users/index.md (updated) |
+| Secondary Email filter | users/index.md (added to filter table) |
+| Last Activity date range filter | users/index.md (added to filter table) |
+
+### Not Documented (Intentional)
+
+- Authorization denials moved to app log (fdd10c4) -- internal logging change, no user-facing impact
+- Debugging logging (ecac5f4) -- development tooling
+- Flaky test fix (db38506) -- test infrastructure
+- Dependency lock sync (89b8311) -- build infrastructure
+
+### Screenshots Requested
+
+None.

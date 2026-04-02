@@ -6,6 +6,21 @@ Review a complete event log of all actions taken in your tenant. Navigate to **A
 
 Every write operation in WeftID is recorded in the event log. Events capture who performed the action, what was affected, when it happened, and relevant context.
 
+### Visibility tiers
+
+Events are classified into four visibility tiers. Toggle tiers on or off using the colored buttons above the event list.
+
+| Tier | Color | What it covers | Shown by default |
+|------|-------|----------------|-----------------|
+| **Security** | Red | Authentication, authorization, credential changes, account lifecycle | Yes |
+| **Admin** | Blue | Configuration changes by admins (IdP/SP setup, settings, groups, emails, branding) | Yes |
+| **Operational** | Amber | High-volume automated activity (SSO assertions, certificate auto-rotation, group sync) | No |
+| **System** | Gray | Internal bookkeeping (export jobs, task creation, setup steps) | No |
+
+By default, the event log shows security and admin events. Enable operational or system tiers to see the full picture.
+
+Each event's tier is shown as a colored badge in both the list and detail views.
+
 ### Filtering
 
 Filter the event log by date range, event type, actor (who performed the action), artifact type, and artifact ID.
@@ -14,7 +29,7 @@ Filter the event log by date range, event type, actor (who performed the action)
 
 Click any event to see its full details, including metadata and request information (IP address, user agent).
 
-### Export
+### Event log export
 
 Export events as a password-encrypted XLSX spreadsheet. Optionally filter by date range using the **From** and **To** fields before clicking **Export**.
 
@@ -23,6 +38,18 @@ The export runs as a background job. Check progress at [Background Jobs](../../u
 The XLSX file resolves IDs to human-readable names: user names, group names, SP names, and IdP names appear alongside their UUIDs. Cells are locked to prevent accidental modification.
 
 Files are retained for 24 hours, then automatically deleted. Admin role required.
+
+## User export
+
+Export a comprehensive snapshot of all users, group memberships, and application access. Navigate to **Audit > User Export** and click **Export Users**.
+
+The export produces a password-encrypted XLSX workbook with three sheets:
+
+* **Users** -- role, status, auth method, two-step verification, last sign-in, app count, and more
+* **Group Memberships** -- one row per user-group pair, with group name, type, and membership date
+* **App Access** -- one row per user-application pair, with last authentication date and how access is granted (group names or "All users")
+
+The export runs as a background job, same as event log exports. See [Background Jobs](../../user-guide/background-jobs.md) for downloading and file passwords.
 
 ## Event types
 

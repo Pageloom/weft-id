@@ -6,6 +6,7 @@ Tests include:
 - Error handling and resilience
 - File not found handling
 - Database cleanup
+- Password redaction from bg_tasks
 """
 
 from unittest.mock import MagicMock, patch
@@ -37,11 +38,13 @@ def test_cleanup_expired_exports_success():
     from jobs.cleanup_exports import cleanup_expired_exports
 
     export_id = str(uuid4())
+    bg_task_id = str(uuid4())
     storage_path = "exports/test/expired-export.json.gz"
 
     mock_export = {
         "id": export_id,
         "storage_path": storage_path,
+        "bg_task_id": bg_task_id,
     }
 
     with (
@@ -69,6 +72,9 @@ def test_cleanup_expired_exports_success():
         # Verify database delete was called
         mock_db.export_files.delete_export_file.assert_called_once_with(export_id)
 
+        # Verify password was redacted from bg_task
+        mock_db.bg_tasks.redact_result_password.assert_called_once_with(bg_task_id)
+
 
 def test_cleanup_expired_exports_file_not_found():
     """Test cleanup when file doesn't exist in storage."""
@@ -77,11 +83,13 @@ def test_cleanup_expired_exports_file_not_found():
     from jobs.cleanup_exports import cleanup_expired_exports
 
     export_id = str(uuid4())
+    bg_task_id = str(uuid4())
     storage_path = "exports/test/missing-file.json.gz"
 
     mock_export = {
         "id": export_id,
         "storage_path": storage_path,
+        "bg_task_id": bg_task_id,
     }
 
     with (
@@ -108,6 +116,9 @@ def test_cleanup_expired_exports_file_not_found():
         # Verify database delete was called
         mock_db.export_files.delete_export_file.assert_called_once_with(export_id)
 
+        # Verify password was redacted
+        mock_db.bg_tasks.redact_result_password.assert_called_once_with(bg_task_id)
+
 
 def test_cleanup_expired_exports_delete_failure():
     """Test cleanup when storage delete fails."""
@@ -116,11 +127,13 @@ def test_cleanup_expired_exports_delete_failure():
     from jobs.cleanup_exports import cleanup_expired_exports
 
     export_id = str(uuid4())
+    bg_task_id = str(uuid4())
     storage_path = "exports/test/failed-delete.json.gz"
 
     mock_export = {
         "id": export_id,
         "storage_path": storage_path,
+        "bg_task_id": bg_task_id,
     }
 
     with (
@@ -144,6 +157,9 @@ def test_cleanup_expired_exports_delete_failure():
         # Verify database delete was called
         mock_db.export_files.delete_export_file.assert_called_once_with(export_id)
 
+        # Verify password was redacted
+        mock_db.bg_tasks.redact_result_password.assert_called_once_with(bg_task_id)
+
 
 def test_cleanup_expired_exports_exception_handling():
     """Test cleanup continues on exception."""
@@ -157,6 +173,7 @@ def test_cleanup_expired_exports_exception_handling():
     mock_export = {
         "id": export_id,
         "storage_path": storage_path,
+        "bg_task_id": None,
     }
 
     with (
@@ -184,7 +201,11 @@ def test_cleanup_expired_exports_multiple_files():
 
     # Create 3 mock expired export files
     mock_exports = [
-        {"id": str(uuid4()), "storage_path": f"exports/test/multi-export-{i}.json.gz"}
+        {
+            "id": str(uuid4()),
+            "storage_path": f"exports/test/multi-export-{i}.json.gz",
+            "bg_task_id": str(uuid4()),
+        }
         for i in range(3)
     ]
 
@@ -209,6 +230,9 @@ def test_cleanup_expired_exports_multiple_files():
         # Verify all 3 were deleted from database
         assert mock_db.export_files.delete_export_file.call_count == 3
 
+        # Verify all 3 had passwords redacted
+        assert mock_db.bg_tasks.redact_result_password.call_count == 3
+
 
 def test_cleanup_expired_exports_mixed_success_and_failure():
     """Test cleanup with some successes and some failures."""
@@ -218,7 +242,11 @@ def test_cleanup_expired_exports_mixed_success_and_failure():
 
     # Create 3 mock expired export files
     mock_exports = [
-        {"id": str(uuid4()), "storage_path": f"exports/test/mixed-export-{i}.json.gz"}
+        {
+            "id": str(uuid4()),
+            "storage_path": f"exports/test/mixed-export-{i}.json.gz",
+            "bg_task_id": str(uuid4()),
+        }
         for i in range(3)
     ]
 
@@ -268,3 +296,77 @@ def test_cleanup_expired_exports_return_format():
         assert "failed" in result
         assert isinstance(result["deleted"], int)
         assert isinstance(result["failed"], int)
+
+
+def test_cleanup_expired_exports_no_bg_task_id():
+    """Test cleanup when export has no associated bg_task (bg_task_id is None)."""
+    from uuid import uuid4
+
+    from jobs.cleanup_exports import cleanup_expired_exports
+
+    export_id = str(uuid4())
+    storage_path = "exports/test/no-task.json.gz"
+
+    mock_export = {
+        "id": export_id,
+        "storage_path": storage_path,
+        "bg_task_id": None,
+    }
+
+    with (
+        patch("jobs.cleanup_exports.database") as mock_db,
+        patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend,
+    ):
+        mock_db.export_files.get_expired_exports.return_value = [mock_export]
+        mock_db.export_files.delete_export_file.return_value = None
+
+        mock_backend = MagicMock()
+        mock_backend.exists.return_value = True
+        mock_backend.delete.return_value = True
+        mock_get_backend.return_value = mock_backend
+
+        result = cleanup_expired_exports()
+
+        assert result["deleted"] == 1
+        assert result["failed"] == 0
+
+        # Verify export was deleted but password redaction was not called
+        mock_db.export_files.delete_export_file.assert_called_once_with(export_id)
+        mock_db.bg_tasks.redact_result_password.assert_not_called()
+
+
+def test_cleanup_expired_exports_redacts_password_from_bg_task():
+    """Test that cleanup redacts the password from the associated bg_task result."""
+    from uuid import uuid4
+
+    from jobs.cleanup_exports import cleanup_expired_exports
+
+    export_id = str(uuid4())
+    bg_task_id = str(uuid4())
+    storage_path = "exports/test/redact-test.json.gz"
+
+    mock_export = {
+        "id": export_id,
+        "storage_path": storage_path,
+        "bg_task_id": bg_task_id,
+    }
+
+    with (
+        patch("jobs.cleanup_exports.database") as mock_db,
+        patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend,
+    ):
+        mock_db.export_files.get_expired_exports.return_value = [mock_export]
+        mock_db.export_files.delete_export_file.return_value = None
+
+        mock_backend = MagicMock()
+        mock_backend.exists.return_value = True
+        mock_backend.delete.return_value = True
+        mock_get_backend.return_value = mock_backend
+
+        result = cleanup_expired_exports()
+
+        assert result["deleted"] == 1
+        assert result["failed"] == 0
+
+        # Verify password redaction was called with the correct bg_task_id
+        mock_db.bg_tasks.redact_result_password.assert_called_once_with(bg_task_id)

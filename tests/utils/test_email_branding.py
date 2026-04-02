@@ -222,12 +222,12 @@ class TestWrapHtml:
         assert 'class="' not in result
 
     def test_footer_always_present(self):
-        """Footer with automated message and Pageloom attribution is always present."""
+        """Footer with do-not-reply notice and Pageloom attribution is always present."""
         from utils.email import _wrap_html
 
         result = _wrap_html("<p>Content</p>", None)
 
-        assert "automated message" in result
+        assert "Do not reply." in result
         assert "WeftID by Pageloom" in result
 
 

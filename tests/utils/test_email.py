@@ -507,7 +507,7 @@ def test_send_mfa_reset_notification():
         to_email, subject, html_body, text_body = call_args[0]
 
         assert to_email == "user@example.com"
-        assert subject == "Your multi-factor authentication was reset"
+        assert subject == "Your two-step verification was reset"
         assert "Jane Admin" in html_body
         assert "2026-01-26 12:00 UTC" in html_body
         assert "Jane Admin" in text_body

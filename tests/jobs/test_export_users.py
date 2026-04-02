@@ -188,7 +188,7 @@ def test_users_sheet_headers():
         "Last Login IP",
         "Last Activity",
         "Password Changed",
-        "MFA Enabled",
+        "Two-Step Verification",
         "App Count",
     ]
 

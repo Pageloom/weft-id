@@ -75,7 +75,7 @@ def _build_users_sheet(
         "Last Login IP",
         "Last Activity",
         "Password Changed",
-        "MFA Enabled",
+        "Two-Step Verification",
         "App Count",
     ]
     ws.append(headers)

@@ -81,7 +81,7 @@ def _build_header_html(branding: EmailBranding) -> str:
 
 def _build_footer_html() -> str:
     """Build the shared footer with automated message notice and Pageloom attribution."""
-    return f"""<div style="{_S_FOOTER}"><p style="margin: 0 0 4px 0;">This is an automated message, please do not reply.</p><p style="margin: 0;"><a href="https://pageloom.com" style="{_S_FOOTER_LINK}">WeftID by Pageloom</a></p></div>"""
+    return f"""<div style="{_S_FOOTER}"><p style="margin: 0 0 4px 0;">Do not reply.</p><p style="margin: 0;"><a href="https://pageloom.com" style="{_S_FOOTER_LINK}">WeftID by Pageloom</a></p></div>"""
 
 
 def _wrap_html(body_content: str, branding: EmailBranding | None = None) -> str:
@@ -103,7 +103,7 @@ def _wrap_text(body_content: str, branding: EmailBranding | None = None) -> str:
     header = (
         f"{branding['tenant_name']}\n{'=' * len(branding['tenant_name'])}\n\n" if branding else ""
     )
-    footer = "\n---\nThis is an automated message, please do not reply.\nWeftID by Pageloom - https://pageloom.com\n"
+    footer = "\n---\nDo not reply.\nWeftID by Pageloom - https://pageloom.com\n"
     return f"{header}{body_content.strip()}{footer}"
 
 
@@ -554,35 +554,35 @@ def send_mfa_reset_notification(
     *,
     tenant_id: str | None = None,
 ) -> bool:
-    """Send notification when an admin resets a user's MFA.
+    """Send notification when an admin resets a user's two-step verification.
 
-    Informs the user that their MFA was reset, including which admin
-    performed the action and when. No action links are included.
+    Informs the user that their two-step verification was reset, including
+    which admin performed the action and when. No action links are included.
     """
     branding = _get_branding(tenant_id)
-    subject = "Your multi-factor authentication was reset"
+    subject = "Your two-step verification was reset"
 
     text_body = _wrap_text(
         f"""
-Your multi-factor authentication (MFA) has been reset by an administrator.
+Your two-step verification has been reset by an administrator.
 
 Reset by: {admin_name}
 Time: {reset_timestamp}
 
-Your next sign-in will use email verification codes. You can re-enroll in authenticator-based MFA from your account settings after signing in.
+Your next sign-in will use email verification codes. You can re-enroll in authenticator-based two-step verification from your account settings after signing in.
 
 If you did not expect this change, please contact your administrator.
 """,
         branding,
     )
 
-    body = f"""<h1 style="{_S_H1}">Your MFA Was Reset</h1>
+    body = f"""<h1 style="{_S_H1}">Your Two-Step Verification Was Reset</h1>
 <div style="{_S_WARNING_BOX}">
-<p style="margin: 0;">Your multi-factor authentication (MFA) has been reset by an administrator.</p>
+<p style="margin: 0;">Your two-step verification has been reset by an administrator.</p>
 </div>
 <p style="{_S_P}"><strong>Reset by:</strong> {html.escape(admin_name)}</p>
 <p style="{_S_P}"><strong>Time:</strong> {html.escape(reset_timestamp)}</p>
-<p style="{_S_P}">Your next sign-in will use email verification codes. You can re-enroll in authenticator-based MFA from your account settings after signing in.</p>"""
+<p style="{_S_P}">Your next sign-in will use email verification codes. You can re-enroll in authenticator-based two-step verification from your account settings after signing in.</p>"""
 
     html_body = _wrap_html(body, branding)
     return send_email(to_email, subject, html_body, text_body)

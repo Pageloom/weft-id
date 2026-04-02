@@ -10,8 +10,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 2 | File Structure, Security |
-| Low | 2 | Copy, Duplication |
+| Medium | 1 | File Structure |
+| Low | 1 | Duplication |
 
 **Last security scan:** 2026-03-29 (deep: full codebase, all OWASP categories; 2 medium, 1 low)
 **Last compliance scan:** 2026-03-19 (1 low: SendGrid client missing timeout)
@@ -21,18 +21,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
 **Last copy review:** 2026-04-02 (filter panel, audit pages, export page, email templates, terminology)
-
----
-
-## [SECURITY] Export file passwords displayed indefinitely in background jobs UI
-
-**Found in:** Background jobs page (export file password display)
-**Impact:** Medium
-**Category:** Security
-**Description:** When an admin generates an encrypted XLSX export, the file password is displayed on the background jobs page alongside the download link. The password remains visible as long as the job record exists, even after the export file itself has expired and been cleaned up. This means the password is continuously exposed in the UI beyond the useful lifetime of the export.
-**Why It Matters:** Passwords for sensitive export files (audit logs, user data) should have limited exposure. Displaying them indefinitely increases the window for shoulder-surfing or screenshot capture. Once the file expires, the password serves no purpose but remains visible.
-**Suggested Fix:** Clear or redact the password from the job record when the associated export file expires or is cleaned up. Alternatively, only show the password for a limited time after generation (e.g., until first download or within a time window).
-**Files Affected:** Background job cleanup logic, export download UI
 
 ---
 
@@ -48,26 +36,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 - `idp_lifecycle.py` (~350 lines): group lifecycle and discovery
 - `idp_membership.py` (~350 lines): sync, base group membership, cross-IdP moves
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
-
----
-
-## [COPY] "MFA" terminology in email templates and export column header
-
-**Found in:** `app/utils/email.py:563-585`, `app/jobs/export_users.py:78`
-**Severity:** Low
-**Description:** The MFA reset notification email and the user export XLSX column header still use "MFA" / "multi-factor authentication" instead of the project-standard "two-step verification". User-facing template text was renamed in a previous session, but these Python-side strings were missed.
-**Current:**
-- Email subject: "Your multi-factor authentication was reset"
-- Email heading: "Your MFA Was Reset"
-- Email body: "multi-factor authentication (MFA)" (3 instances)
-- Email body: "authenticator-based MFA" (2 instances)
-- Email footer: "please do not reply" (2 instances in `_build_footer_html` and `_wrap_text`)
-- Export column: "MFA Enabled"
-**Suggested:**
-- Email: Replace "MFA"/"multi-factor authentication" with "two-step verification" throughout
-- Email footer: "Do not reply." (drop "please")
-- Export column: "Two-Step Verification"
-**Scope:** 2 files, ~10 string changes
 
 ---
 

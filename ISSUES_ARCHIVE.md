@@ -3115,3 +3115,40 @@ Store the SP's UUID (`sp.id`) in the session as `pending_sso_sp_id` alongside th
 - `tests/test_routers_saml_idp_sso.py` - Added SP ID to mock sessions, verified artifact_id
 
 ---
+
+## [SECURITY] Export file passwords displayed indefinitely in background jobs UI
+
+**Status:** Resolved (2026-04-02)
+
+**Original Severity:** Medium
+
+**Description:** Export file passwords remained visible on the background jobs page after the export file expired and was deleted. Passwords were exposed indefinitely with no purpose.
+
+**Resolution:** Redact the password from the background task result when the export file expires. The cleanup job now calls `redact_result_password()` to remove the `password` key from the task's result JSONB. The UI shows "Redacted" instead of the password for expired exports.
+
+**Files Modified:**
+- `app/database/bg_tasks.py` - Added `redact_result_password()`
+- `app/database/export_files.py` - Include `bg_task_id` in expired exports query
+- `app/jobs/cleanup_exports.py` - Call password redaction during cleanup
+- `app/templates/account_background_jobs.html` - Show "Redacted" for expired passwords
+- `app/templates/account_job_output.html` - Show "Password redacted (file expired)"
+
+---
+
+## [COPY] "MFA" terminology in email templates and export column header
+
+**Status:** Resolved (2026-04-02)
+
+**Original Severity:** Low
+
+**Description:** The MFA reset notification email and user export XLSX column header used "MFA"/"multi-factor authentication" instead of the project-standard "two-step verification". Email footer also contained "please do not reply".
+
+**Resolution:** Renamed all MFA references to "two-step verification" in email subject, heading, and body. Updated export column header from "MFA Enabled" to "Two-Step Verification". Changed email footer to "Do not reply."
+
+**Files Modified:**
+- `app/utils/email.py` - Email text and footer
+- `app/jobs/export_users.py` - Column header
+- `tests/utils/test_email.py` - Updated assertions
+- `tests/jobs/test_export_users.py` - Updated assertions
+
+---

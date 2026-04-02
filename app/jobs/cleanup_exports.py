@@ -38,6 +38,7 @@ def cleanup_expired_exports() -> dict[str, Any]:
     for export in expired:
         export_id = str(export["id"])
         storage_path = export["storage_path"]
+        bg_task_id = str(export["bg_task_id"]) if export.get("bg_task_id") else None
 
         try:
             # Delete from storage
@@ -49,6 +50,11 @@ def cleanup_expired_exports() -> dict[str, Any]:
 
             # Delete from database (even if file deletion failed)
             database.export_files.delete_export_file(export_id)
+
+            # Redact password from the associated background task result
+            if bg_task_id:
+                database.bg_tasks.redact_result_password(bg_task_id)
+
             deleted_count += 1
             logger.debug("Deleted export record: %s", export_id)
 

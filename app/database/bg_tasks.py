@@ -251,6 +251,23 @@ def get_task_for_user(
     )
 
 
+def redact_result_password(task_id: str) -> None:
+    """Remove the password key from a task's result JSONB.
+
+    Called during export cleanup to redact passwords after the
+    export file has expired and been deleted.
+    """
+    execute(
+        UNSCOPED,
+        """
+        UPDATE bg_tasks
+        SET result = result - 'password'
+        WHERE id = :task_id AND result ? 'password'
+        """,
+        {"task_id": task_id},
+    )
+
+
 def delete_tasks(
     tenant_id: TenantArg,
     user_id: str,

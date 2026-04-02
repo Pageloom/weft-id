@@ -171,7 +171,7 @@ def get_expired_exports() -> list[dict]:
     return fetchall(
         UNSCOPED,
         """
-        SELECT id, tenant_id, storage_type, storage_path
+        SELECT id, tenant_id, storage_type, storage_path, bg_task_id
         FROM export_files
         WHERE expires_at <= now()
         """,

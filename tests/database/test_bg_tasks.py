@@ -213,3 +213,78 @@ def test_count_pending_tasks(test_tenant, test_user):
     count = database.bg_tasks.count_pending_tasks(unique_type)
 
     assert count >= 2
+
+
+def test_count_pending_tasks_all_types(test_tenant, test_user):
+    """Test counting pending tasks across all job types."""
+    import database
+
+    count = database.bg_tasks.count_pending_tasks()
+
+    assert isinstance(count, int)
+    assert count >= 0
+
+
+def test_list_tasks_for_tenant_all_types(test_tenant, test_user):
+    """Test listing tasks without a job_type filter."""
+    import database
+
+    tasks = database.bg_tasks.list_tasks_for_tenant(str(test_tenant["id"]))
+
+    assert isinstance(tasks, list)
+
+
+def test_redact_result_password(test_tenant, test_user):
+    """Test redacting password from a task's result JSONB."""
+    import database
+
+    task = database.bg_tasks.create_task(
+        tenant_id=str(test_tenant["id"]),
+        job_type="export_events",
+        created_by=str(test_user["id"]),
+    )
+    task_id = str(task["id"])
+
+    # Complete the task with a result containing a password
+    database.bg_tasks.complete_task(
+        task_id, result={"password": "secret123", "filename": "export.xlsx"}
+    )
+
+    # Verify password exists before redaction
+    fetched = database.bg_tasks.get_task_for_user(
+        str(test_tenant["id"]), str(test_user["id"]), task_id
+    )
+    assert fetched["result"]["password"] == "secret123"
+
+    # Redact the password
+    database.bg_tasks.redact_result_password(task_id)
+
+    # Verify password is gone but other fields remain
+    fetched = database.bg_tasks.get_task_for_user(
+        str(test_tenant["id"]), str(test_user["id"]), task_id
+    )
+    assert "password" not in fetched["result"]
+    assert fetched["result"]["filename"] == "export.xlsx"
+
+
+def test_redact_result_password_no_password(test_tenant, test_user):
+    """Test redacting password when result has no password key (no-op)."""
+    import database
+
+    task = database.bg_tasks.create_task(
+        tenant_id=str(test_tenant["id"]),
+        job_type="export_events",
+        created_by=str(test_user["id"]),
+    )
+    task_id = str(task["id"])
+
+    # Complete task with result that has no password
+    database.bg_tasks.complete_task(task_id, result={"filename": "export.xlsx"})
+
+    # Redact should be a no-op
+    database.bg_tasks.redact_result_password(task_id)
+
+    fetched = database.bg_tasks.get_task_for_user(
+        str(test_tenant["id"]), str(test_user["id"]), task_id
+    )
+    assert fetched["result"]["filename"] == "export.xlsx"

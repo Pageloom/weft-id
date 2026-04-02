@@ -485,3 +485,11 @@ def test_export_nonexistent_tenant():
 
         with pytest.raises(ValueError, match="does not exist"):
             handle_export_users(task)
+
+
+def test_fmt_dt_string_passthrough():
+    """_fmt_dt passes through non-datetime, non-None values as strings."""
+    from jobs.export_users import _fmt_dt
+
+    assert _fmt_dt("2026-01-01") == "2026-01-01"
+    assert _fmt_dt(42) == "42"

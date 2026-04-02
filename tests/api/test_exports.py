@@ -307,3 +307,44 @@ def test_list_exports_service_error(client, test_tenant_host, oauth2_admin_autho
         )
 
     assert response.status_code == 500
+
+
+# =============================================================================
+# Create User Export - Error Paths
+# =============================================================================
+
+
+def test_create_user_export_returns_error_when_task_creation_fails(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Create user export returns 500 when bg task creation returns None."""
+    with patch(
+        "routers.api.v1.exports.bg_tasks_service.create_user_export_task",
+        return_value=None,
+    ):
+        response = client.post(
+            "/api/v1/exports/users",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        )
+
+    assert response.status_code == 500
+    assert "Failed to create" in response.json()["detail"]
+
+
+def test_create_user_export_service_error(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Create user export returns error when service raises ServiceError."""
+    from services.exceptions import ServiceError
+
+    with patch(
+        "routers.api.v1.exports.bg_tasks_service.create_user_export_task",
+        side_effect=ServiceError(message="Export failed", code="export_error"),
+    ):
+        response = client.post(
+            "/api/v1/exports/users",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Export failed"

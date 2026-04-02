@@ -16,7 +16,7 @@ set -e
 REPO="pageloom/weft-id"
 RAW_URL="https://raw.githubusercontent.com/${REPO}"
 API_URL="https://api.github.com/repos/${REPO}"
-FILES="Caddyfile weftid"
+FILES="Caddyfile"
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -73,7 +73,6 @@ download_files() {
         echo "  $f"
     done
 
-    chmod +x weftid
 }
 
 # --- Interactive prompts ----------------------------------------------------
@@ -191,9 +190,10 @@ main() {
     echo "  1. Review .env and adjust settings if needed"
     echo "  2. Start WeftID:"
     echo ""
-    echo "     ./weftid up"
+    echo "     docker compose up -d"
     echo ""
-    echo "  Run ./weftid help to see all available commands."
+    echo "  See the self-hosting guide for all management commands:"
+    echo "  https://docs.weftid.com/self-hosting/"
     echo ""
 }
 

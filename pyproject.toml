@@ -54,6 +54,7 @@ pytest-playwright = "^0.7.2"
 pytest-testmon = "^2.2.0"
 pip = ">=26.0"
 zensical = "^0.0.28"
+pygments = ">=2.16,<2.20"  # 2.20.0 breaks pymdownx.superfences (filename=None crash)
 
 [tool.poetry.scripts]
 # Note: These are for documentation. Run commands directly:

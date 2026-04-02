@@ -43,12 +43,11 @@ you through initial configuration:
 curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh | bash
 ```
 
-This creates four files in the current directory:
+This creates three files in the current directory:
 
-* `docker-compose.yml` — service definitions (downloaded from `docker-compose.production.yml` in the repo)
-* `Caddyfile` — reverse proxy with automatic HTTPS
-* `.env` — your configuration (secrets, domain, SMTP)
-* `weftid` — management script (run `./weftid help` to see all commands)
+* `docker-compose.yml` -- service definitions (downloaded from `docker-compose.production.yml` in the repo)
+* `Caddyfile` -- reverse proxy with automatic HTTPS
+* `.env` -- your configuration (secrets, domain, SMTP)
 
 The script asks for your domain and SMTP settings interactively. If you use SendGrid or Resend
 instead of SMTP, press Enter to skip the SMTP prompts. Then edit `.env` to configure your
@@ -62,7 +61,6 @@ email backend (see [Email configuration](#email)).
     curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/docker-compose.production.yml \
       -o docker-compose.yml
     curl -fsSLO https://raw.githubusercontent.com/pageloom/weft-id/main/Caddyfile
-    curl -fsSLO https://raw.githubusercontent.com/pageloom/weft-id/main/weftid && chmod +x weftid
 
     # Copy and edit .env
     curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/.env.production.example -o .env
@@ -114,7 +112,7 @@ provider, edit `.env` before starting the services.
 ## 4. Start the services
 
 ```bash
-./weftid up
+docker compose up -d
 ```
 
 On first start, the `migrate` service applies the database schema, then the app starts. Caddy
@@ -123,13 +121,13 @@ obtains a TLS certificate for each subdomain automatically as tenants are first 
 Check that everything is running:
 
 ```bash
-./weftid status
+docker compose ps
 ```
 
 All services should show as healthy. If the migrate service failed, check its logs:
 
 ```bash
-./weftid logs migrate
+docker compose logs migrate
 ```
 
 ## 5. Verify email delivery
@@ -138,7 +136,7 @@ Before provisioning a tenant, verify that email delivery is working. The foundin
 receives an invitation email, so broken email configuration means they cannot complete setup.
 
 ```bash
-./weftid email you@example.com
+docker compose exec app python -m app.cli.verify_email --to you@example.com
 ```
 
 Replace `you@example.com` with an address you can check. The command:
@@ -155,21 +153,26 @@ production to improve deliverability.
 Once the services are running, create a tenant and its founding super admin:
 
 ```bash
-./weftid tenant
+docker compose exec app python -m app.cli.provision_tenant \
+  --subdomain acme \
+  --tenant-name "Acme Corp" \
+  --email admin@acme.com \
+  --first-name Jane \
+  --last-name Smith
 ```
 
-The script prompts for the subdomain, tenant name, admin email, first name, and last name,
-validating each field as you go. It then provisions the tenant and sends an invitation email.
+Replace the values with your actual subdomain, tenant name, and super admin details. The
+command provisions the tenant and sends an invitation email.
 
 The super admin receives an invitation email with a link to verify their email address and set
 a password. This also validates that email delivery is working.
 
 !!! note
     If email delivery fails, the command prints a warning and the verification URL as a
-    fallback. Fix your email settings in `.env`, run `./weftid restart`, and visit the printed
-    URL to continue setup.
+    fallback. Fix your email settings in `.env`, run `docker compose restart`, and visit the
+    printed URL to continue setup.
 
-To add more tenants later, run `./weftid tenant` again with a different subdomain and tenant name.
+To add more tenants later, run the same command with a different subdomain and tenant name.
 If the subdomain already exists, the command reuses the existing tenant and adds a new super
 admin.
 
@@ -179,73 +182,131 @@ admin.
 
 ### Before you upgrade
 
-Always back up before upgrading. An upgrade runs migrations that change the database schema,
-and those changes cannot be reversed automatically.
+Always back up before upgrading. Migrations change the database schema and cannot be reversed
+automatically. Follow the steps in [Backups](#backups) to create a full backup (database roles,
+data, and file storage).
 
-```bash
-./weftid backup
-```
-
-This creates timestamped, version-tagged backup files for database roles, data, and file storage
-(e.g., `roles-1.0.4-20260321.sql`, `backup-1.0.4-20260321.sql`, `storage-1.0.4-20260321.tar.gz`).
+Check available versions at
+[github.com/pageloom/weft-id/releases](https://github.com/pageloom/weft-id/releases)
+before proceeding.
 
 ### Upgrade procedure
 
-```bash
-./weftid upgrade
-```
+1. Edit `.env` and set `WEFT_VERSION` to the target version (e.g., `1.1.0`).
 
-The script prompts for the target version, validates it exists, warns if no backup from today
-is found, updates `WEFT_VERSION` in `.env`, pulls the new image, and restarts. The current
-version is recorded in `.previous_versions` for rollback.
+2. Pull the new image and restart:
 
-The `migrate` service runs automatically and applies any pending schema migrations before the
-app starts. If a migration fails, the migrate service exits non-zero and the app will not start.
-Check migration logs with `./weftid logs migrate`.
+    ```bash
+    docker compose pull
+    docker compose up -d
+    ```
+
+    The `migrate` service runs automatically and applies any pending schema migrations before
+    the app starts. If a migration fails, the migrate service exits non-zero and the app will
+    not start. Check migration logs with `docker compose logs migrate`.
+
+3. Verify the services are healthy:
+
+    ```bash
+    docker compose ps
+    ```
 
 ### Rolling back
 
-Migrations are forward-only. If an upgrade fails or causes problems, roll back to the previous
-version:
-
-```bash
-./weftid rollback
-```
-
-This performs a full rollback: stops all services, deletes the database volume, restores from
-the backup files you created before upgrading, and restarts on the previous version.
-
-The command finds the most recent backup files for the previous version (recorded in
-`.previous_versions` during upgrade) and shows exactly what it will do before asking for
-confirmation. You must type `rollback` to proceed.
+Migrations are forward-only. If an upgrade causes problems, restore from the backup you
+created before upgrading.
 
 !!! warning
     Rollback is a destructive operation. The current database is deleted and replaced with
     the backup. Any data created or changed since the backup (users, settings, audit logs)
     will be lost. This cannot be undone.
 
+1. Stop all services:
+
+    ```bash
+    docker compose down
+    ```
+
+2. Remove the database volume:
+
+    ```bash
+    docker volume rm "$(docker volume ls -q --filter name=_dbdata | head -1)"
+    ```
+
+3. Edit `.env` and set `WEFT_VERSION` back to the previous version (e.g., `1.0.0`).
+
+4. Start the database and wait for it to be ready:
+
+    ```bash
+    docker compose up -d db
+    # Wait for the database to accept connections
+    until docker compose exec -T db pg_isready -U postgres; do sleep 1; done
+    ```
+
+5. Restore roles and data:
+
+    ```bash
+    docker compose exec -T db psql -U postgres < roles-backup.sql
+    docker compose exec -T db psql -U postgres appdb < data-backup.sql
+    ```
+
+6. If you backed up file storage, restore it:
+
+    ```bash
+    docker run --rm \
+      -v "$(docker volume ls -q --filter name=_storage | head -1):/data" \
+      -v "$(pwd):/backup" \
+      alpine sh -c "rm -rf /data/* && tar xzf /backup/storage-backup.tar.gz -C /data"
+    ```
+
+7. Start all services:
+
+    ```bash
+    docker compose up -d
+    ```
+
 ## Backups
 
-Back up regularly. At a minimum, back up before every upgrade.
+Back up regularly. At a minimum, back up before every upgrade. The commands below create
+backup files in the current directory.
+
+### Database
 
 ```bash
-./weftid backup
+# Roles (required for restoring onto a fresh database)
+docker compose exec -T db \
+  pg_dumpall -U postgres --roles-only > roles-backup.sql
+
+# Full database dump
+docker compose exec -T db \
+  pg_dump -U postgres appdb > data-backup.sql
+
+# Restrict permissions (backups contain password hashes, PII)
+chmod 600 roles-backup.sql data-backup.sql
 ```
 
-This creates three version-tagged, timestamped files in the current directory:
+### File storage
 
-* `roles-<version>-<date>.sql` — Postgres roles (`appowner`, `appuser`). Required for restoring onto a fresh database.
-* `backup-<version>-<date>.sql` — full database dump.
-* `storage-<version>-<date>.tar.gz` — uploaded files (logos, exports) from the storage volume.
+If you use local file storage (the default), back up the storage volume. The command below
+finds the compose project's storage volume by name and archives its contents:
+
+```bash
+docker run --rm \
+  -v "$(docker volume ls -q --filter name=_storage | head -1):/data" \
+  -v "$(pwd):/backup" \
+  alpine tar czf /backup/storage-backup.tar.gz -C /data .
+```
+
+### Restoring
 
 To restore onto a fresh database, apply roles first, then data:
 
 ```bash
 docker compose exec -T db \
-  psql -U postgres < roles-1.0.4-20260321.sql
+  psql -U postgres < roles-backup.sql
 
 docker compose exec -T db \
-  psql -U postgres appdb < backup-1.0.4-20260321.sql
+  psql -U postgres appdb < data-backup.sql
 ```
 
 ### Configuration
@@ -264,8 +325,8 @@ or an encrypted vault). Do not commit it to version control.
 
 The app exposes a health endpoint at `/healthz` that returns:
 
-* **200** — app is healthy and the database is reachable
-* **503** — database is unreachable
+* **200** -- app is healthy and the database is reachable
+* **503** -- database is unreachable
 
 This endpoint bypasses tenant resolution (no subdomain required) and needs no authentication.
 Use it for load balancer probes or uptime monitoring:
@@ -280,13 +341,23 @@ View logs for all services or a specific one:
 
 ```bash
 # All services
-./weftid logs
+docker compose logs -f
 
 # App only
-./weftid logs app
+docker compose logs -f app
 
 # Migration output
-./weftid logs migrate
+docker compose logs migrate
+```
+
+### Migration status
+
+Check which migrations have been applied:
+
+```bash
+docker compose exec -T db \
+  psql -U postgres -d appdb \
+  -c "SELECT version, status, started_at, completed_at FROM schema_migration_log ORDER BY id"
 ```
 
 ---
@@ -319,10 +390,10 @@ ghcr.io/pageloom/weft-id
 
 Available tags:
 
-* `1.0.0` — exact version (recommended for production)
-* `1.0` — latest patch for a minor version
-* `1` — latest minor for a major version
-* `latest` — newest stable release
+* `1.0.0` -- exact version (recommended for production)
+* `1.0` -- latest patch for a minor version
+* `1` -- latest minor for a major version
+* `latest` -- newest stable release
 
 ### Configuration reference
 
@@ -365,12 +436,6 @@ forward-only and logged in the `schema_migration_log` table.
 
 The migrate service connects as the PostgreSQL superuser (`postgres`). The app connects as
 `appuser`, a restricted role created by the baseline schema that enforces row-level security.
-
-#### Checking migration status
-
-```bash
-./weftid migrate-status
-```
 
 ### TLS and reverse proxy
 

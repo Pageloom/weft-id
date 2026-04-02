@@ -1,5 +1,36 @@
 # Tech Writer Log
 
+## 2026-04-02 - Self-Hosting Docs: Remove weftid Script
+
+**Starting commit:** 5bc16e3
+**Mode:** Documentation (targeted review)
+
+### Changes Made
+
+Reviewed `docs/self-hosting/index.md` after the `weftid` management script was removed and all
+commands replaced with Docker Compose equivalents.
+
+1. **Removed backup duplication** -- "Before you upgrade" section was repeating the full backup
+   commands from the Backups section. Replaced with a cross-reference link.
+2. **Fixed broken numbered list** -- migration explanation paragraph was sitting between steps 2
+   and 3 without indentation, breaking list flow. Moved it inside step 2 as a continuation.
+3. **Removed `sed -i` commands** -- `sed -i` without `''` doesn't work on macOS. Replaced with
+   plain-English instruction to edit `.env` directly. Simpler and portable.
+4. **Added version check guidance** -- old script validated version on GitHub before pulling.
+   Added a link to the releases page so operators can verify before upgrading.
+5. **Clarified storage volume command** -- added a one-line explanation of what the
+   `docker volume ls --filter` pipeline does for operators unfamiliar with Docker internals.
+
+### Screenshots Requested
+
+None.
+
+### Areas Not Yet Reviewed
+
+- Rest of docs site (not affected by this change)
+
+---
+
 ## 2026-03-08 - Documentation Site Scaffold
 
 **Starting commit:** 2ca23e9

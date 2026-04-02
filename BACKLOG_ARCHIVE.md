@@ -4,6 +4,54 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Remove `weftid` Management Script
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Delete the `weftid` script from the repo
+- [x] Update `install.sh` to stop generating/referencing the `weftid` script
+- [x] Update `docs/self-hosting/index.md` to replace all `./weftid` commands with direct Docker Compose equivalents and plain shell commands
+- [x] Update CLAUDE.md if it references the `weftid` script (confirmed: no references)
+- [x] Remove any `weftid`-related entries from ISSUES_ARCHIVE.md
+- [x] Rebuild the documentation site (`make docs`)
+
+**Resolution:** Deleted the `weftid` management script (~630 lines) and replaced all references with standard Docker Compose commands and documented recipes. Self-hosting docs now include step-by-step backup, upgrade, and rollback procedures using `pg_dumpall`, `pg_dump`, and `docker compose` directly. The install script no longer downloads or references the script.
+
+**Effort:** S
+**Value:** High
+**Version impact:** Patch (operational tooling change, no application changes)
+
+---
+
+## User List Filter Panel Redesign
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Funnel icon replaces the current "Filters" text button with tooltip and active state
+- [x] Floating panel overlays page content (no layout shift), always starts closed
+- [x] Click outside panel or "Apply Filters" button applies and closes
+- [x] Each filter row: `Label IS [Dropdown]` with IS clickable to toggle IS NOT
+- [x] Role, Status, Auth Method, Domain, Group filters with current behavior
+- [x] Domain filter tooltip explains it matches any email (primary or secondary)
+- [x] Group filter has "Include child groups" checkbox
+- [x] Has Secondary Email exposed as Yes/No dropdown
+- [x] Last Activity exposed as date range (start and end date inputs)
+- [x] No auto-apply on individual dropdown changes (batch until applied)
+- [x] "Filtered results" text and "Clear filter" link when filters active
+- [x] Multiselect and bulk action bar continue to work
+
+**Resolution:** Replaced inline collapsible filter section with a floating popover anchored to a funnel icon button. Filters use an IS/IS NOT toggle pattern with color-coded borders (green for included, red for excluded). All seven filter types implemented with batch-apply behavior. Dark mode support throughout. Backend query parameters unchanged.
+
+**Effort:** M
+**Value:** High
+**Version impact:** Patch (UI enhancement, no API or schema changes)
+
+---
+
 ## Audit Event Visibility Tiers
 
 **Status:** Complete
@@ -406,30 +454,6 @@ So that I can quickly jump to the relevant documentation without hunting through
 - [x] Child pages inherit their parent's `docs_path` if they don't define their own
 
 ---
-
-## Self-Hosting Management Script (`weftid`)
-
-**Status:** Complete
-
-**User Story:**
-As a self-hosting operator
-I want a single management script with simple subcommands
-So that I can manage my WeftID instance without remembering long docker compose invocations
-
-**Acceptance Criteria:**
-
-- [x] `weftid` shell script in the repo root with all subcommands (up, down, restart, status, logs, version, email, tenant, backup, upgrade, rollback, migrate-status, shell, help)
-- [x] POSIX shell compatible (no bash-isms), matching the `install.sh` standard
-- [x] `install.sh` downloads `weftid` alongside the other files and makes it executable
-- [x] `./weftid help` lists all commands with one-line descriptions
-- [x] `./weftid tenant` interactively prompts for each required field and validates before proceeding
-- [x] `./weftid backup` produces version-tagged, timestamped files for roles, data, and storage
-- [x] `./weftid upgrade` validates the version exists on GitHub before pulling
-- [x] `./weftid upgrade` warns if no backup files from today exist and asks for confirmation
-- [x] `./weftid upgrade` records current version in `.previous_versions` for rollback
-- [x] `./weftid rollback` reverts to the previous version from `.previous_versions`
-- [x] Self-hosting docs updated to use `./weftid` commands instead of raw `docker compose`
-- [x] Documentation site rebuilt (`make docs`)
 
 ---
 

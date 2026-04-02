@@ -165,7 +165,7 @@
 
                     <!-- Domain Filter -->
                     {% if domain_options %}
-                    {% call filter_select("filter-domain", "Domain", domain, domain_negate, tooltip="Matches users who have any email (primary or secondary) at this domain") %}
+                    {% call filter_select("filter-domain", "Domain", domain, domain_negate, tooltip="Matches any email at this domain (primary or secondary)") %}
                         <option value="">All domains</option>
                         {% for d in domain_options %}
                         <option value="{{ d.domain }}" {% if domain == d.domain %}selected{% endif %}>{{ d.domain }}{% if d.privileged %} ★{% endif %}</option>
@@ -188,7 +188,7 @@
                                 <input type="checkbox" id="group-children"
                                        {% if group_include_children %}checked{% endif %}
                                        class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 w-3.5 h-3.5">
-                                <span class="text-xs text-gray-500 dark:text-gray-400">Children</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Include children</span>
                             </label>
                         </div>
                         <select id="filter-group" class="tinted-input {% if group_id and group_negate %}{{ sel_exc }}{% elif group_id %}{{ sel_inc }}{% else %}{{ sel_idle }}{% endif %}">

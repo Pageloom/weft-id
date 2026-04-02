@@ -780,3 +780,48 @@ Compared ~40 feature commits since last documentation session (ea01468..HEAD) ag
 ### Screenshots Requested
 
 None.
+
+---
+
+## 2026-04-02 - Copy Review (Terminology + Tightening)
+
+**Starting commit:** ecac5f4
+**Mode:** Copy review
+
+### Changes Since Last Session
+
+~10 commits since c410bfa, primarily: user list filter panel redesign (floating popover, inline horizontal layout, tinted borders), audit event visibility tiers, debugging logging.
+
+### Direct Copy Fixes (6 files)
+
+1. **users_new.html:92** -- "login credential" -> "sign-in credential" (glossary)
+2. **saml_idp_select.html:62** -- "Back to login" -> "Back to sign in" (glossary)
+3. **admin_events.html:110** -- "to view progress and download the file when ready" -> "for progress and download" (tightened)
+4. **admin_user_export.html:10** -- "Password-encrypted XLSX workbook with all users" -> "Password-encrypted XLSX with users" (front-load, drop filler)
+5. **admin_user_export.html:23** -- "Included sheets" -> "Sheets" (implicit)
+6. **admin_user_export.html:25** -- "MFA" -> "two-step verification", "application count" -> "app count" (glossary + consistency with "App Access" on line 27)
+7. **users_list.html:168** -- Domain tooltip: "Matches users who have any email (primary or secondary) at this domain" -> "Matches any email at this domain (primary or secondary)" (tighter)
+8. **users_list.html:191** -- Group filter checkbox: "Children" -> "Include children" (action-oriented label)
+
+### Issues Logged to ISSUES.md
+
+1. **"MFA" in email templates and export column header** -- email.py still uses "MFA"/"multi-factor authentication" in the MFA reset notification (subject, heading, body). export_users.py uses "MFA Enabled" as XLSX column header. Also "please" in email footer. All require Python code changes.
+
+### Not Changed (Intentional)
+
+- **"Deactivate" for OAuth2/B2B clients** -- Previous session (2026-03-08) explicitly accepted this for non-user entities. Kept.
+- **"← Back to X" pattern** -- Consistent across 24 templates. Initially tightened event_detail to "← Event Log" but reverted to maintain consistency.
+- **"Per page:" label in admin_events.html** -- Consistent with users_list.html. Not changed.
+- **Event detail section headings** ("Context", "Details", "Raw Event") -- These are domain-appropriate labels for the audit audience. "Context" accurately groups request metadata (IP, user agent, device, session). "Details" is more user-friendly than "Metadata". Kept.
+
+### Areas Reviewed
+
+- All templates changed since c410bfa (51 files diffed, focused on substantive changes)
+- Full "login"/"MFA"/"please"/"successfully" terminology sweeps across all templates
+- app/pages.py navigation labels (clean)
+- app/utils/email.py user-facing strings
+- app/jobs/export_users.py column headers
+
+### Screenshots Requested
+
+None.

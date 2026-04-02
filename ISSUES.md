@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 2 | File Structure, Security |
-| Low | 1 | Duplication |
+| Low | 2 | Copy, Duplication |
 
 **Last security scan:** 2026-03-29 (deep: full codebase, all OWASP categories; 2 medium, 1 low)
 **Last compliance scan:** 2026-03-19 (1 low: SendGrid client missing timeout)
@@ -20,7 +20,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
-**Last copy review:** 2026-03-21 (password templates, API/service errors, self-hosting docs)
+**Last copy review:** 2026-04-02 (filter panel, audit pages, export page, email templates, terminology)
 
 ---
 
@@ -48,6 +48,26 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 - `idp_lifecycle.py` (~350 lines): group lifecycle and discovery
 - `idp_membership.py` (~350 lines): sync, base group membership, cross-IdP moves
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
+
+---
+
+## [COPY] "MFA" terminology in email templates and export column header
+
+**Found in:** `app/utils/email.py:563-585`, `app/jobs/export_users.py:78`
+**Severity:** Low
+**Description:** The MFA reset notification email and the user export XLSX column header still use "MFA" / "multi-factor authentication" instead of the project-standard "two-step verification". User-facing template text was renamed in a previous session, but these Python-side strings were missed.
+**Current:**
+- Email subject: "Your multi-factor authentication was reset"
+- Email heading: "Your MFA Was Reset"
+- Email body: "multi-factor authentication (MFA)" (3 instances)
+- Email body: "authenticator-based MFA" (2 instances)
+- Email footer: "please do not reply" (2 instances in `_build_footer_html` and `_wrap_text`)
+- Export column: "MFA Enabled"
+**Suggested:**
+- Email: Replace "MFA"/"multi-factor authentication" with "two-step verification" throughout
+- Email footer: "Do not reply." (drop "please")
+- Export column: "Two-Step Verification"
+**Scope:** 2 files, ~10 string changes
 
 ---
 

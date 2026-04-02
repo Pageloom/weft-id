@@ -7,7 +7,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">User Export</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Password-encrypted XLSX workbook with all users, group memberships, and application access.
+            Password-encrypted XLSX with users, group memberships, and application access.
         </p>
 
         {% if success == 'export_started' %}
@@ -20,9 +20,9 @@
 
         <div class="space-y-4">
             <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-md">
-                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Included sheets</h3>
+                <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sheets</h3>
                 <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                    <li><span class="font-medium">Users</span> — role, status, auth method, MFA, last sign-in, application count</li>
+                    <li><span class="font-medium">Users</span> — role, status, auth method, two-step verification, last sign-in, app count</li>
                     <li><span class="font-medium">Group Memberships</span> — which groups each user belongs to</li>
                     <li><span class="font-medium">App Access</span> — which applications each user can reach, with last authentication date</li>
                 </ul>

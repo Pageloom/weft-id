@@ -148,9 +148,10 @@
                 <span class="text-sm text-gray-700 dark:text-gray-300">
                     <span id="selected-count">0</span> jobs selected
                 </span>
-                <button type="button" id="delete-selected-btn"
-                    class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md">
-                    Delete Selected
+                <button type="button" id="delete-selected-btn" title="Delete Selected"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md">
+                    {{ icon("x-mark", class="w-5 h-5") }}
+                    Delete
                 </button>
             </div>
             <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">

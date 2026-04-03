@@ -4,6 +4,29 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Bulk Inactivation and Reactivation (Browser-Native)
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] "Inactivate" and "Reactivate" buttons in user list action bar when users are selected
+- [x] Buttons contextually enabled: "Inactivate" only if selection contains active users, "Reactivate" only if selection contains inactive users
+- [x] Confirmation modal: shows count, lists consequences (token revocation for inactivation)
+- [x] Deferred background job processes each user in turn
+- [x] Guardrails: last super admin protection, service user protection (per-user errors, not job failure)
+- [x] Job result: N inactivated/reactivated, N skipped, N errors
+- [x] Each state change emits `user_inactivated` or `user_reactivated` audit event
+- [x] API: `POST /api/v1/users/bulk-ops/inactivate` and `POST /api/v1/users/bulk-ops/reactivate` accept user IDs or filter
+
+**Resolution:** Admins can select users from the filtered list and inactivate or reactivate them in bulk via background jobs. A synchronous preview endpoint checks eligibility before confirmation, filtering out ineligible users (already in target state, service users, last super admin, anonymized) and showing accurate counts in the modal. Job handlers process each user individually with per-user guardrails that skip rather than fail.
+
+**Effort:** M
+**Value:** Medium
+**Version impact:** Minor (new feature)
+
+---
+
 ## Remove `weftid` Management Script
 
 **Status:** Complete

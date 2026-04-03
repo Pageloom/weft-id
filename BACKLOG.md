@@ -155,36 +155,7 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
-## Bulk Inactivation and Reactivation (Browser-Native)
-
-**User Story:**
-As an admin,
-I want to select users from the filtered list and inactivate or reactivate them in bulk,
-So that I can handle department offboarding, seasonal staff changes, or post-migration cleanup efficiently.
-
-**Context:**
-
-The flow: filter users (e.g. by status, last activity, group), select them, click "Inactivate"
-or "Reactivate" in the action bar. A confirmation dialog shows the count and warns about
-consequences. On confirm, a deferred job processes each user.
-
-The same guardrails from single-user inactivation apply: cannot inactivate the last super admin,
-cannot inactivate service users.
-
-**Acceptance Criteria:**
-
-- [ ] "Inactivate" and "Reactivate" buttons in user list action bar when users are selected
-- [ ] Buttons contextually enabled: "Inactivate" only if selection contains active users, "Reactivate" only if selection contains inactive users
-- [ ] Confirmation modal: shows count, lists consequences (token revocation for inactivation)
-- [ ] Deferred background job processes each user in turn
-- [ ] Guardrails: last super admin protection, service user protection (per-user errors, not job failure)
-- [ ] Job result: N inactivated/reactivated, N skipped, N errors
-- [ ] Each state change emits `user_inactivated` or `user_reactivated` audit event
-- [ ] API: `POST /api/v1/users/bulk-ops/inactivate` and `POST /api/v1/users/bulk-ops/reactivate` accept user IDs or filter
-
-**Effort:** M
-**Value:** Medium
-**Version impact:** Minor (new feature)
+## ~~Bulk Inactivation and Reactivation (Browser-Native)~~ (Complete)
 
 ---
 

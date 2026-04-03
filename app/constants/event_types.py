@@ -116,6 +116,8 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
         "Background job created to apply bulk primary email changes"
     ),
     "user_export_task_created": "Background job created to export user audit data",
+    "bulk_inactivate_task_created": ("Background job created to inactivate users in bulk"),
+    "bulk_reactivate_task_created": ("Background job created to reactivate users in bulk"),
     # Groups & Group Management
     "group_created": "Group created",
     "group_updated": "Group updated",
@@ -315,6 +317,8 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "bulk_primary_email_preview_task_created": "system",
     "bulk_primary_email_apply_task_created": "system",
     "user_export_task_created": "system",
+    "bulk_inactivate_task_created": "system",
+    "bulk_reactivate_task_created": "system",
     "totp_setup_initiated": "system",
     # Deprecated events (system tier)
     "idp_certificate_added": "system",

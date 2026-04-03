@@ -367,3 +367,105 @@ def test_bulk_primary_email_apply_null_result(
 
     assert response.status_code == 202
     assert "error" in response.json()
+
+
+# =============================================================================
+# POST /api/v1/users/bulk-ops/inactivate
+# =============================================================================
+
+
+def test_bulk_inactivate_returns_202(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Admin can create a bulk inactivate task and get 202."""
+    user_id = str(uuid4())
+
+    with patch("routers.api.v1.users.bg_tasks_service.create_bulk_inactivate_task") as mock_create:
+        mock_create.return_value = {
+            "id": str(uuid4()),
+            "created_at": datetime(2026, 3, 28, 10, 0, 0, tzinfo=UTC),
+        }
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/inactivate",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [user_id]},
+        )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert "task_id" in data
+    assert "created_at" in data
+
+
+def test_bulk_inactivate_requires_admin(client, test_tenant_host, oauth2_authorization_header):
+    """Regular member cannot create bulk inactivate tasks."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/inactivate",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"user_ids": [str(uuid4())]},
+    )
+
+    assert response.status_code == 403
+
+
+def test_bulk_inactivate_empty_ids_returns_422(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Empty user_ids list returns 422 (Pydantic validation)."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/inactivate",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"user_ids": []},
+    )
+
+    assert response.status_code == 422
+
+
+# =============================================================================
+# POST /api/v1/users/bulk-ops/reactivate
+# =============================================================================
+
+
+def test_bulk_reactivate_returns_202(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Admin can create a bulk reactivate task and get 202."""
+    user_id = str(uuid4())
+
+    with patch("routers.api.v1.users.bg_tasks_service.create_bulk_reactivate_task") as mock_create:
+        mock_create.return_value = {
+            "id": str(uuid4()),
+            "created_at": datetime(2026, 3, 28, 10, 0, 0, tzinfo=UTC),
+        }
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/reactivate",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [user_id]},
+        )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert "task_id" in data
+    assert "created_at" in data
+
+
+def test_bulk_reactivate_requires_admin(client, test_tenant_host, oauth2_authorization_header):
+    """Regular member cannot create bulk reactivate tasks."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/reactivate",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"user_ids": [str(uuid4())]},
+    )
+
+    assert response.status_code == 403
+
+
+def test_bulk_reactivate_empty_ids_returns_422(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Empty user_ids list returns 422 (Pydantic validation)."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/reactivate",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"user_ids": []},
+    )
+
+    assert response.status_code == 422

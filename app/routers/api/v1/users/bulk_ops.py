@@ -10,6 +10,7 @@ from schemas.api import (
     BulkAddSecondaryEmailsRequest,
     BulkChangePrimaryEmailApplyRequest,
     BulkChangePrimaryEmailPreviewRequest,
+    BulkUserIdsRequest,
 )
 from services.exceptions import ServiceError
 from utils.service_errors import translate_to_http_exception
@@ -120,6 +121,119 @@ def bulk_primary_email_apply(
         result = _pkg.bg_tasks_service.create_bulk_primary_email_apply_task(
             requesting_user, items, body.preview_job_id
         )
+        if result:
+            return {
+                "task_id": str(result["id"]),
+                "created_at": result["created_at"].isoformat(),
+            }
+        return {"error": "Failed to create task"}
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+@router.post("/bulk-ops/inactivate/preview")
+def preview_bulk_inactivate(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    body: BulkUserIdsRequest,
+):
+    """
+    Preview which users are eligible for bulk inactivation.
+
+    Returns eligible user IDs and a list of skipped users with reasons.
+    No data is modified.
+
+    Request Body:
+        user_ids: List of user ID strings
+
+    Returns:
+        eligible_ids, eligible count, skipped list with reasons
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        return _pkg.bg_tasks_service.preview_bulk_inactivate(requesting_user, body.user_ids)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+@router.post("/bulk-ops/reactivate/preview")
+def preview_bulk_reactivate(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    body: BulkUserIdsRequest,
+):
+    """
+    Preview which users are eligible for bulk reactivation.
+
+    Returns eligible user IDs and a list of skipped users with reasons.
+    No data is modified.
+
+    Request Body:
+        user_ids: List of user ID strings
+
+    Returns:
+        eligible_ids, eligible count, skipped list with reasons
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        return _pkg.bg_tasks_service.preview_bulk_reactivate(requesting_user, body.user_ids)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+@router.post("/bulk-ops/inactivate", status_code=202)
+def bulk_inactivate_users(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    body: BulkUserIdsRequest,
+):
+    """
+    Create a background job to inactivate multiple users.
+
+    Requires admin role. Each user is inactivated individually with
+    guardrails (last super admin, service users). OAuth tokens are
+    revoked for each inactivated user.
+
+    Request Body:
+        user_ids: List of user ID strings
+
+    Returns:
+        202 Accepted with task_id and created_at
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        result = _pkg.bg_tasks_service.create_bulk_inactivate_task(requesting_user, body.user_ids)
+        if result:
+            return {
+                "task_id": str(result["id"]),
+                "created_at": result["created_at"].isoformat(),
+            }
+        return {"error": "Failed to create task"}
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+@router.post("/bulk-ops/reactivate", status_code=202)
+def bulk_reactivate_users(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    body: BulkUserIdsRequest,
+):
+    """
+    Create a background job to reactivate multiple users.
+
+    Requires admin role. Each user is reactivated individually.
+    Anonymized users and users that are not inactivated are skipped.
+
+    Request Body:
+        user_ids: List of user ID strings
+
+    Returns:
+        202 Accepted with task_id and created_at
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        result = _pkg.bg_tasks_service.create_bulk_reactivate_task(requesting_user, body.user_ids)
         if result:
             return {
                 "task_id": str(result["id"]),

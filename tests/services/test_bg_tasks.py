@@ -520,3 +520,256 @@ def test_delete_jobs_tracks_activity(make_requesting_user):
         bg_tasks.delete_jobs(requesting_user, [])
 
         mock_track.assert_called_once_with(tenant_id, admin_id)
+
+
+# =============================================================================
+# create_bulk_inactivate_task Tests
+# =============================================================================
+
+
+def test_create_bulk_inactivate_task(make_requesting_user, make_bg_task_dict):
+    """Test that admins can create bulk inactivate tasks."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    requesting_user = make_requesting_user(
+        user_id=admin_id,
+        tenant_id=tenant_id,
+        role="admin",
+    )
+
+    task = make_bg_task_dict(
+        tenant_id=tenant_id,
+        created_by=admin_id,
+        job_type="bulk_inactivate_users",
+    )
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+        patch("services.bg_tasks.log_event") as mock_log,
+    ):
+        mock_db.bg_tasks.create_task.return_value = task
+
+        user_ids = [str(uuid4()), str(uuid4())]
+        result = bg_tasks.create_bulk_inactivate_task(requesting_user, user_ids)
+
+        assert result is not None
+        assert result["id"] == task["id"]
+        mock_db.bg_tasks.create_task.assert_called_once()
+
+        call_kwargs = mock_db.bg_tasks.create_task.call_args.kwargs
+        assert call_kwargs["job_type"] == "bulk_inactivate_users"
+        assert call_kwargs["payload"]["user_ids"] == user_ids
+
+        mock_log.assert_called_once()
+        log_kwargs = mock_log.call_args.kwargs
+        assert log_kwargs["event_type"] == "bulk_inactivate_task_created"
+        assert log_kwargs["metadata"]["item_count"] == 2
+
+
+def test_create_bulk_inactivate_task_empty_ids(make_requesting_user):
+    """Test that empty user_ids raises ValidationError."""
+    from services import bg_tasks
+    from services.exceptions import ValidationError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="admin")
+
+    with pytest.raises(ValidationError) as exc_info:
+        bg_tasks.create_bulk_inactivate_task(requesting_user, [])
+
+    assert exc_info.value.code == "empty_user_ids"
+
+
+def test_create_bulk_inactivate_task_forbidden(make_requesting_user):
+    """Test that members cannot create bulk inactivate tasks."""
+    from services import bg_tasks
+    from services.exceptions import ForbiddenError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="member")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        bg_tasks.create_bulk_inactivate_task(requesting_user, [str(uuid4())])
+
+    assert exc_info.value.code == "admin_required"
+
+
+# =============================================================================
+# create_bulk_reactivate_task Tests
+# =============================================================================
+
+
+def test_create_bulk_reactivate_task(make_requesting_user, make_bg_task_dict):
+    """Test that admins can create bulk reactivate tasks."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    requesting_user = make_requesting_user(
+        user_id=admin_id,
+        tenant_id=tenant_id,
+        role="admin",
+    )
+
+    task = make_bg_task_dict(
+        tenant_id=tenant_id,
+        created_by=admin_id,
+        job_type="bulk_reactivate_users",
+    )
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+        patch("services.bg_tasks.log_event") as mock_log,
+    ):
+        mock_db.bg_tasks.create_task.return_value = task
+
+        user_ids = [str(uuid4()), str(uuid4()), str(uuid4())]
+        result = bg_tasks.create_bulk_reactivate_task(requesting_user, user_ids)
+
+        assert result is not None
+        assert result["id"] == task["id"]
+        mock_db.bg_tasks.create_task.assert_called_once()
+
+        call_kwargs = mock_db.bg_tasks.create_task.call_args.kwargs
+        assert call_kwargs["job_type"] == "bulk_reactivate_users"
+        assert call_kwargs["payload"]["user_ids"] == user_ids
+
+        mock_log.assert_called_once()
+        log_kwargs = mock_log.call_args.kwargs
+        assert log_kwargs["event_type"] == "bulk_reactivate_task_created"
+        assert log_kwargs["metadata"]["item_count"] == 3
+
+
+def test_create_bulk_reactivate_task_empty_ids(make_requesting_user):
+    """Test that empty user_ids raises ValidationError."""
+    from services import bg_tasks
+    from services.exceptions import ValidationError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="admin")
+
+    with pytest.raises(ValidationError) as exc_info:
+        bg_tasks.create_bulk_reactivate_task(requesting_user, [])
+
+    assert exc_info.value.code == "empty_user_ids"
+
+
+def test_create_bulk_reactivate_task_forbidden(make_requesting_user):
+    """Test that members cannot create bulk reactivate tasks."""
+    from services import bg_tasks
+    from services.exceptions import ForbiddenError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="member")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        bg_tasks.create_bulk_reactivate_task(requesting_user, [str(uuid4())])
+
+    assert exc_info.value.code == "admin_required"
+
+
+# --- Preview Bulk Inactivate ---
+
+
+def test_preview_bulk_inactivate_eligible(make_requesting_user):
+    """Preview returns eligible users and skips ineligible ones."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    user1_id = str(uuid4())
+    user2_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.side_effect = [
+            {
+                "id": user1_id,
+                "role": "member",
+                "is_inactivated": False,
+                "first_name": "Active",
+                "last_name": "User",
+            },
+            {
+                "id": user2_id,
+                "role": "member",
+                "is_inactivated": True,
+                "first_name": "Inactive",
+                "last_name": "User",
+            },
+        ]
+        mock_db.users.is_service_user.return_value = False
+
+        result = bg_tasks.preview_bulk_inactivate(requesting_user, [user1_id, user2_id])
+
+    assert result["eligible"] == 1
+    assert result["eligible_ids"] == [user1_id]
+    assert len(result["skipped"]) == 1
+    assert result["skipped"][0]["reason"] == "Already inactivated"
+
+
+def test_preview_bulk_inactivate_forbidden(make_requesting_user):
+    """Members cannot preview bulk inactivation."""
+    from services import bg_tasks
+    from services.exceptions import ForbiddenError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="member")
+
+    with pytest.raises(ForbiddenError):
+        bg_tasks.preview_bulk_inactivate(requesting_user, [str(uuid4())])
+
+
+# --- Preview Bulk Reactivate ---
+
+
+def test_preview_bulk_reactivate_eligible(make_requesting_user):
+    """Preview returns eligible users and skips ineligible ones."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    user1_id = str(uuid4())
+    user2_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.side_effect = [
+            {
+                "id": user1_id,
+                "is_inactivated": True,
+                "is_anonymized": False,
+                "first_name": "Inactive",
+                "last_name": "User",
+            },
+            {
+                "id": user2_id,
+                "is_inactivated": False,
+                "is_anonymized": False,
+                "first_name": "Active",
+                "last_name": "User",
+            },
+        ]
+
+        result = bg_tasks.preview_bulk_reactivate(requesting_user, [user1_id, user2_id])
+
+    assert result["eligible"] == 1
+    assert result["eligible_ids"] == [user1_id]
+    assert len(result["skipped"]) == 1
+    assert result["skipped"][0]["reason"] == "Not inactivated"
+
+
+def test_preview_bulk_reactivate_forbidden(make_requesting_user):
+    """Members cannot preview bulk reactivation."""
+    from services import bg_tasks
+    from services.exceptions import ForbiddenError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="member")
+
+    with pytest.raises(ForbiddenError):
+        bg_tasks.preview_bulk_reactivate(requesting_user, [str(uuid4())])

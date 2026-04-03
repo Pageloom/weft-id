@@ -397,3 +397,40 @@ def submit_bulk_reactivate(
         url="/account/background-jobs?success=bulk_reactivate_started",
         status_code=303,
     )
+
+
+@router.post("/bulk-ops/group-assignment")
+def submit_bulk_group_assignment(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin)],
+    group_id: Annotated[str, Form()],
+    selection_mode: Annotated[str, Form()],
+    user_ids: Annotated[list[str] | None, Form()] = None,
+    filter_criteria: Annotated[str | None, Form()] = None,
+    search: Annotated[str | None, Form()] = None,
+):
+    """Create a background job to add selected users to a group."""
+    resolved_ids = _resolve_user_ids(tenant_id, selection_mode, user_ids, filter_criteria, search)
+
+    if not resolved_ids:
+        return RedirectResponse(
+            url="/users/list?error=no_users_selected",
+            status_code=303,
+        )
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        bg_tasks_service.create_bulk_group_assignment_task(requesting_user, group_id, resolved_ids)
+    except ServiceError:
+        logger.exception("Failed to create bulk group assignment task")
+        return RedirectResponse(
+            url="/users/list?error=bulk_operation_failed",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        url="/account/background-jobs?success=bulk_group_assignment_started",
+        status_code=303,
+    )

@@ -211,6 +211,7 @@ def main() -> None:
         from jobs import (
             bulk_add_secondary_emails,  # noqa: F401
             bulk_change_primary_email,  # noqa: F401
+            bulk_group_assignment,  # noqa: F401
             bulk_inactivate_users,  # noqa: F401
             bulk_reactivate_users,  # noqa: F401
             cleanup_exports,  # noqa: F401

@@ -773,3 +773,174 @@ def test_preview_bulk_reactivate_forbidden(make_requesting_user):
 
     with pytest.raises(ForbiddenError):
         bg_tasks.preview_bulk_reactivate(requesting_user, [str(uuid4())])
+
+
+# =============================================================================
+# preview_bulk_group_assignment Tests
+# =============================================================================
+
+
+def test_preview_bulk_group_assignment_eligible(make_requesting_user):
+    """Preview returns eligible users and skips existing members."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    group_id = str(uuid4())
+    user1_id = str(uuid4())
+    user2_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = {
+            "id": group_id,
+            "name": "Engineering",
+            "group_type": "weftid",
+        }
+        mock_db.users.get_user_by_id.side_effect = [
+            {"id": user1_id, "first_name": "New", "last_name": "User"},
+            {"id": user2_id, "first_name": "Existing", "last_name": "Member"},
+        ]
+        mock_db.groups.is_group_member.side_effect = [False, True]
+
+        result = bg_tasks.preview_bulk_group_assignment(
+            requesting_user, group_id, [user1_id, user2_id]
+        )
+
+    assert result["eligible"] == 1
+    assert result["eligible_ids"] == [user1_id]
+    assert len(result["skipped"]) == 1
+    assert result["skipped"][0]["reason"] == "Already a member"
+    assert result["group_name"] == "Engineering"
+
+
+def test_preview_bulk_group_assignment_idp_group(make_requesting_user):
+    """Preview rejects IdP groups."""
+    from services import bg_tasks
+    from services.exceptions import ValidationError
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = {
+            "id": group_id,
+            "name": "Okta Group",
+            "group_type": "idp",
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            bg_tasks.preview_bulk_group_assignment(requesting_user, group_id, [str(uuid4())])
+
+        assert exc_info.value.code == "idp_group_read_only"
+
+
+def test_preview_bulk_group_assignment_group_not_found(make_requesting_user):
+    """Preview raises NotFoundError when group doesn't exist."""
+    from services import bg_tasks
+    from services.exceptions import NotFoundError
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError):
+            bg_tasks.preview_bulk_group_assignment(requesting_user, group_id, [str(uuid4())])
+
+
+def test_preview_bulk_group_assignment_forbidden(make_requesting_user):
+    """Members cannot preview bulk group assignment."""
+    from services import bg_tasks
+    from services.exceptions import ForbiddenError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="member")
+
+    with pytest.raises(ForbiddenError):
+        bg_tasks.preview_bulk_group_assignment(requesting_user, str(uuid4()), [str(uuid4())])
+
+
+# =============================================================================
+# create_bulk_group_assignment_task Tests
+# =============================================================================
+
+
+def test_create_bulk_group_assignment_task(make_requesting_user, make_bg_task_dict):
+    """Test that admins can create bulk group assignment tasks."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(
+        user_id=admin_id,
+        tenant_id=tenant_id,
+        role="admin",
+    )
+
+    task = make_bg_task_dict(
+        tenant_id=tenant_id,
+        created_by=admin_id,
+        job_type="bulk_group_assignment",
+    )
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+        patch("services.bg_tasks.log_event") as mock_log,
+    ):
+        mock_db.bg_tasks.create_task.return_value = task
+
+        user_ids = [str(uuid4()), str(uuid4())]
+        result = bg_tasks.create_bulk_group_assignment_task(requesting_user, group_id, user_ids)
+
+        assert result is not None
+        assert result["id"] == task["id"]
+        mock_db.bg_tasks.create_task.assert_called_once()
+
+        call_kwargs = mock_db.bg_tasks.create_task.call_args.kwargs
+        assert call_kwargs["job_type"] == "bulk_group_assignment"
+        assert call_kwargs["payload"]["group_id"] == group_id
+        assert call_kwargs["payload"]["user_ids"] == user_ids
+
+        mock_log.assert_called_once()
+        log_kwargs = mock_log.call_args.kwargs
+        assert log_kwargs["event_type"] == "bulk_group_assignment_task_created"
+        assert log_kwargs["metadata"]["group_id"] == group_id
+        assert log_kwargs["metadata"]["item_count"] == 2
+
+
+def test_create_bulk_group_assignment_task_empty_ids(make_requesting_user):
+    """Test that empty user_ids raises ValidationError."""
+    from services import bg_tasks
+    from services.exceptions import ValidationError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="admin")
+
+    with pytest.raises(ValidationError) as exc_info:
+        bg_tasks.create_bulk_group_assignment_task(requesting_user, str(uuid4()), [])
+
+    assert exc_info.value.code == "empty_user_ids"
+
+
+def test_create_bulk_group_assignment_task_forbidden(make_requesting_user):
+    """Test that members cannot create bulk group assignment tasks."""
+    from services import bg_tasks
+    from services.exceptions import ForbiddenError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="member")
+
+    with pytest.raises(ForbiddenError):
+        bg_tasks.create_bulk_group_assignment_task(requesting_user, str(uuid4()), [str(uuid4())])

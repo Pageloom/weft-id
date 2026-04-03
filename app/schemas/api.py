@@ -180,6 +180,15 @@ class BulkUserIdsRequest(BaseModel):
     user_ids: list[str] = Field(..., min_length=1, max_length=10000)
 
 
+class BulkGroupAssignmentRequest(BaseModel):
+    """Request to assign multiple users to a group."""
+
+    group_id: str = Field(..., min_length=1, max_length=36, description="Target group UUID")
+    user_ids: list[str] = Field(
+        ..., min_length=1, max_length=10000, description="List of user UUIDs to add"
+    )
+
+
 # ============================================================================
 # MFA Management Schemas
 # ============================================================================

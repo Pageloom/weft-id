@@ -819,3 +819,81 @@ def test_submit_bulk_reactivate_service_error(test_admin_user, override_auth):
 
     assert response.status_code == 303
     assert "bulk_operation_failed" in response.headers["location"]
+
+
+# =============================================================================
+# POST /users/bulk-ops/group-assignment
+# =============================================================================
+
+
+def test_submit_bulk_group_assignment_success(test_admin_user, override_auth):
+    """Group assignment endpoint creates task and redirects."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    user_ids = [str(uuid4()), str(uuid4())]
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_group_assignment_task"
+    ) as mock_create:
+        mock_create.return_value = {"id": str(uuid4())}
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/group-assignment",
+            data={
+                "selection_mode": "ids",
+                "user_ids": user_ids,
+                "group_id": group_id,
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    assert "bulk_group_assignment_started" in response.headers["location"]
+    mock_create.assert_called_once()
+    call_args = mock_create.call_args
+    assert call_args[0][1] == group_id
+    assert call_args[0][2] == user_ids
+
+
+def test_submit_bulk_group_assignment_no_users(test_admin_user, override_auth):
+    """Group assignment redirects when no users selected."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/group-assignment",
+        data={
+            "selection_mode": "ids",
+            "group_id": str(uuid4()),
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "no_users_selected" in response.headers["location"]
+
+
+def test_submit_bulk_group_assignment_service_error(test_admin_user, override_auth):
+    """Group assignment redirects on ServiceError."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_group_assignment_task"
+    ) as mock_create:
+        mock_create.side_effect = ServiceError(message="Task failed", code="fail")
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/group-assignment",
+            data={
+                "selection_mode": "ids",
+                "user_ids": [str(uuid4())],
+                "group_id": str(uuid4()),
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    assert "bulk_operation_failed" in response.headers["location"]

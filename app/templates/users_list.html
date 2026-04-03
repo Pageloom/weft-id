@@ -391,6 +391,12 @@
                     class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
                     Change Primary Email
                 </button>
+                {% if group_options %}
+                <button type="button" id="bulk-group-assign-btn"
+                    class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+                    Add to Group
+                </button>
+                {% endif %}
                 <button type="button" id="bulk-inactivate-btn"
                     class="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700">
                     Inactivate
@@ -427,6 +433,40 @@
             <input type="hidden" name="filter_criteria" id="bulk-re-filter-criteria" value="">
             <input type="hidden" name="search" id="bulk-re-search" value="">
         </form>
+        <form id="bulk-group-assign-form" method="post" action="/users/bulk-ops/group-assignment" class="hidden">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="group_id" id="bulk-ga-group-id" value="">
+            <input type="hidden" name="selection_mode" id="bulk-ga-selection-mode" value="ids">
+            <input type="hidden" name="filter_criteria" id="bulk-ga-filter-criteria" value="">
+            <input type="hidden" name="search" id="bulk-ga-search" value="">
+        </form>
+
+        <!-- Group Picker Modal -->
+        {% if group_options %}
+        <div id="group-picker-modal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true" role="dialog">
+            <div class="flex items-center justify-center min-h-screen px-4">
+                <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75"></div>
+                <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Add to Group</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Select a group to add the selected users to.
+                    </p>
+                    <select id="group-picker-select" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm text-sm mb-4">
+                        <option value="">Choose a group...</option>
+                        {% for g in group_options %}
+                            {% if g.group_type == 'weftid' %}
+                            <option value="{{ g.id }}">{{ g.name }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" id="group-picker-cancel" class="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600">Cancel</button>
+                        <button type="button" id="group-picker-confirm" disabled class="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">Continue</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Pagination Controls - Bottom -->
         <div class="mt-6">
@@ -617,6 +657,17 @@ WeftUtils.listManager({
                 form.submit();
             },
         }, {
+            selector: '#bulk-group-assign-btn',
+            callback: (selectedIds) => {
+                const modal = document.getElementById('group-picker-modal');
+                if (!modal) return;
+                const select = document.getElementById('group-picker-select');
+                select.value = '';
+                document.getElementById('group-picker-confirm').disabled = true;
+                modal.classList.remove('hidden');
+                modal._selectedIds = _collectUserIds(selectedIds);
+            },
+        }, {
             selector: '#bulk-inactivate-btn',
             callback: (selectedIds) => {
                 const userIds = _collectUserIds(selectedIds);
@@ -653,6 +704,76 @@ WeftUtils.listManager({
         },
     },
 });
+
+/* --- Group picker modal behavior --- */
+const _gpModal = document.getElementById('group-picker-modal');
+if (_gpModal) {
+    const _gpSelect = document.getElementById('group-picker-select');
+    const _gpConfirm = document.getElementById('group-picker-confirm');
+    const _gpCancel = document.getElementById('group-picker-cancel');
+    const _gpBackdrop = _gpModal.querySelector('.fixed.inset-0');
+
+    _gpSelect.addEventListener('change', () => {
+        _gpConfirm.disabled = !_gpSelect.value;
+    });
+
+    const _gpClose = () => _gpModal.classList.add('hidden');
+    _gpCancel.addEventListener('click', _gpClose);
+    _gpBackdrop.addEventListener('click', _gpClose);
+
+    _gpConfirm.addEventListener('click', async () => {
+        const groupId = _gpSelect.value;
+        if (!groupId) return;
+        _gpClose();
+
+        const userIds = _gpModal._selectedIds || [];
+        try {
+            const resp = await WeftUtils.apiFetch('/api/v1/users/bulk-ops/group-assignment/preview', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({group_id: groupId, user_ids: userIds}),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                WeftUtils.confirm(err.detail || 'Preview failed. Please try again.', null, {okOnly: true});
+                return;
+            }
+            const data = await resp.json();
+
+            if (data.eligible === 0) {
+                const reasons = data.skipped.map(s => s.reason);
+                const unique = [...new Set(reasons)];
+                WeftUtils.confirm(
+                    `No eligible users. ${data.skipped.length} skipped: ${unique.join(', ')}.`,
+                    null, {okOnly: true}
+                );
+                return;
+            }
+
+            let msg = `Add ${data.eligible} user${data.eligible !== 1 ? 's' : ''} to ${data.group_name}?`;
+            if (data.skipped.length > 0) {
+                msg += ` (${data.skipped.length} ineligible will be skipped)`;
+            }
+
+            WeftUtils.confirm(msg, () => {
+                const form = document.getElementById('bulk-group-assign-form');
+                form.querySelector('#bulk-ga-group-id').value = groupId;
+                form.querySelector('#bulk-ga-selection-mode').value = 'ids';
+                form.querySelectorAll('input[name="user_ids"]').forEach(el => el.remove());
+                for (const id of data.eligible_ids) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'user_ids';
+                    input.value = id;
+                    form.appendChild(input);
+                }
+                form.submit();
+            });
+        } catch {
+            WeftUtils.confirm('Preview failed. Please try again.', null, {okOnly: true});
+        }
+    });
+}
 
 /* --- Filter popover behavior --- */
 const filterPanel = document.getElementById('filter-panel');

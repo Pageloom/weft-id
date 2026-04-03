@@ -469,3 +469,133 @@ def test_bulk_reactivate_empty_ids_returns_422(
     )
 
     assert response.status_code == 422
+
+
+# =============================================================================
+# POST /api/v1/users/bulk-ops/group-assignment
+# =============================================================================
+
+
+def test_bulk_group_assignment_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Admin can create a bulk group assignment task."""
+    group_id = str(uuid4())
+    user_ids = [str(uuid4()), str(uuid4())]
+
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.create_bulk_group_assignment_task"
+    ) as mock_create:
+        mock_create.return_value = {
+            "id": str(uuid4()),
+            "created_at": datetime(2026, 4, 3, 10, 0, 0, tzinfo=UTC),
+        }
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/group-assignment",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"group_id": group_id, "user_ids": user_ids},
+        )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert "task_id" in data
+    assert "created_at" in data
+
+
+def test_bulk_group_assignment_unauthorized_member(
+    client, test_tenant_host, oauth2_authorization_header
+):
+    """Regular member cannot create bulk group assignment tasks."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/group-assignment",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"group_id": str(uuid4()), "user_ids": [str(uuid4())]},
+    )
+
+    assert response.status_code == 403
+
+
+def test_bulk_group_assignment_no_auth(client, test_tenant_host):
+    """Unauthenticated request is rejected."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/group-assignment",
+        headers={"Host": test_tenant_host},
+        json={"group_id": str(uuid4()), "user_ids": [str(uuid4())]},
+    )
+
+    assert response.status_code == 401
+
+
+def test_bulk_group_assignment_empty_user_ids(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Empty user_ids list returns 422 (Pydantic validation)."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/group-assignment",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"group_id": str(uuid4()), "user_ids": []},
+    )
+
+    assert response.status_code == 422
+
+
+def test_bulk_group_assignment_missing_group_id(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Missing group_id returns 422."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/group-assignment",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"user_ids": [str(uuid4())]},
+    )
+
+    assert response.status_code == 422
+
+
+# =============================================================================
+# POST /api/v1/users/bulk-ops/group-assignment/preview
+# =============================================================================
+
+
+def test_bulk_group_assignment_preview_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Admin can preview bulk group assignment."""
+    group_id = str(uuid4())
+    user_id = str(uuid4())
+
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.preview_bulk_group_assignment"
+    ) as mock_preview:
+        mock_preview.return_value = {
+            "eligible_ids": [user_id],
+            "eligible": 1,
+            "skipped": [],
+            "group_id": group_id,
+            "group_name": "Engineering",
+        }
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/group-assignment/preview",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"group_id": group_id, "user_ids": [user_id]},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["eligible"] == 1
+    assert data["group_name"] == "Engineering"
+
+
+def test_bulk_group_assignment_preview_unauthorized(
+    client, test_tenant_host, oauth2_authorization_header
+):
+    """Regular member cannot preview bulk group assignment."""
+    response = client.post(
+        "/api/v1/users/bulk-ops/group-assignment/preview",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"group_id": str(uuid4()), "user_ids": [str(uuid4())]},
+    )
+
+    assert response.status_code == 403

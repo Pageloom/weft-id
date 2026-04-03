@@ -443,9 +443,8 @@
 
         <!-- Group Picker Modal -->
         {% if group_options %}
-        <div id="group-picker-modal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-modal="true" role="dialog">
+        <div id="group-picker-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 items-center justify-center" aria-modal="true" role="dialog">
             <div class="flex items-center justify-center min-h-screen px-4">
-                <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75"></div>
                 <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Add to Group</h3>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -664,7 +663,7 @@ WeftUtils.listManager({
                 const select = document.getElementById('group-picker-select');
                 select.value = '';
                 document.getElementById('group-picker-confirm').disabled = true;
-                modal.classList.remove('hidden');
+                WeftUtils.showModal('group-picker-modal');
                 modal._selectedIds = _collectUserIds(selectedIds);
             },
         }, {
@@ -711,15 +710,14 @@ if (_gpModal) {
     const _gpSelect = document.getElementById('group-picker-select');
     const _gpConfirm = document.getElementById('group-picker-confirm');
     const _gpCancel = document.getElementById('group-picker-cancel');
-    const _gpBackdrop = _gpModal.querySelector('.fixed.inset-0');
 
     _gpSelect.addEventListener('change', () => {
         _gpConfirm.disabled = !_gpSelect.value;
     });
 
-    const _gpClose = () => _gpModal.classList.add('hidden');
+    const _gpClose = () => WeftUtils.hideModal('group-picker-modal');
     _gpCancel.addEventListener('click', _gpClose);
-    _gpBackdrop.addEventListener('click', _gpClose);
+    _gpModal.addEventListener('click', (e) => { if (e.target === _gpModal) _gpClose(); });
 
     _gpConfirm.addEventListener('click', async () => {
         const groupId = _gpSelect.value;

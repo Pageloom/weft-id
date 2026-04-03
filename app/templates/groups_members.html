@@ -315,9 +315,10 @@
             <span class="text-sm text-gray-700 dark:text-gray-300">
                 <span id="selected-count">0</span> members selected
             </span>
-            <button type="submit" form="bulk-remove-form" id="bulk-remove-btn"
-                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md">
-                Remove Selected
+            <button type="submit" form="bulk-remove-form" id="bulk-remove-btn" title="Remove Selected"
+                class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md">
+                {{ icon("x-mark", class="w-5 h-5") }}
+                Remove
             </button>
         </div>
         </form>

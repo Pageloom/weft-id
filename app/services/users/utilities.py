@@ -200,7 +200,7 @@ def get_group_filter_options(tenant_id: str) -> list[dict]:
     groups = database.groups.list_groups(
         tenant_id, sort_field="name", sort_order="asc", page_size=10000
     )
-    return [{"id": str(g["id"]), "name": g["name"]} for g in groups]
+    return [{"id": str(g["id"]), "name": g["name"], "group_type": g["group_type"]} for g in groups]
 
 
 def email_exists(tenant_id: str, email: str) -> bool:

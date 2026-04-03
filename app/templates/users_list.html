@@ -391,6 +391,14 @@
                     class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
                     Change Primary Email
                 </button>
+                <button type="button" id="bulk-inactivate-btn"
+                    class="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700">
+                    Inactivate
+                </button>
+                <button type="button" id="bulk-reactivate-btn"
+                    class="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">
+                    Reactivate
+                </button>
             </div>
         </div>
         <input type="hidden" id="selection-mode" value="ids">
@@ -406,6 +414,18 @@
             <input type="hidden" name="selection_mode" id="bulk-pe-selection-mode" value="ids">
             <input type="hidden" name="filter_criteria" id="bulk-pe-filter-criteria" value="">
             <input type="hidden" name="search" id="bulk-pe-search" value="">
+        </form>
+        <form id="bulk-inactivate-form" method="post" action="/users/bulk-ops/inactivate" class="hidden">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="selection_mode" id="bulk-in-selection-mode" value="ids">
+            <input type="hidden" name="filter_criteria" id="bulk-in-filter-criteria" value="">
+            <input type="hidden" name="search" id="bulk-in-search" value="">
+        </form>
+        <form id="bulk-reactivate-form" method="post" action="/users/bulk-ops/reactivate" class="hidden">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="selection_mode" id="bulk-re-selection-mode" value="ids">
+            <input type="hidden" name="filter_criteria" id="bulk-re-filter-criteria" value="">
+            <input type="hidden" name="search" id="bulk-re-search" value="">
         </form>
 
         <!-- Pagination Controls - Bottom -->
@@ -476,6 +496,61 @@ const buildFilterUrl = (state, size) => {
     return url;
 };
 
+const _collectUserIds = (selectedIds) => {
+    const mode = document.getElementById('selection-mode').value;
+    if (mode === 'filter') {
+        return Array.from(document.querySelectorAll('.user-checkbox')).map(cb => cb.value);
+    }
+    return selectedIds;
+};
+
+const _previewAndConfirm = async (previewUrl, userIds, opts) => {
+    try {
+        const resp = await WeftUtils.apiFetch(previewUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({user_ids: userIds}),
+        });
+        if (!resp.ok) {
+            WeftUtils.confirm('Preview failed. Please try again.', null, {okOnly: true});
+            return;
+        }
+        const data = await resp.json();
+
+        if (data.eligible === 0) {
+            const reasons = data.skipped.map(s => s.reason);
+            const unique = [...new Set(reasons)];
+            WeftUtils.confirm(
+                `No eligible users. ${data.skipped.length} skipped: ${unique.join(', ')}.`,
+                null, {okOnly: true}
+            );
+            return;
+        }
+
+        let msg = `${opts.action} ${data.eligible} user${data.eligible !== 1 ? 's' : ''}?`;
+        if (data.skipped.length > 0) {
+            msg += ` (${data.skipped.length} ineligible will be skipped)`;
+        }
+        msg += ` ${opts.consequence}`;
+
+        WeftUtils.confirm(msg, () => {
+            const form = document.getElementById(opts.formId);
+            form.querySelector(`#${opts.modeFieldId}`).value = 'ids';
+            form.querySelectorAll('input[name="user_ids"]').forEach(el => el.remove());
+            for (const id of data.eligible_ids) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'user_ids';
+                input.value = id;
+                form.appendChild(input);
+            }
+            form.submit();
+        }, {destructive: opts.destructive});
+    } catch {
+        WeftUtils.confirm('Preview failed. Please try again.', null, {okOnly: true});
+    }
+};
+
 WeftUtils.listManager({
     storage: {
         filtersKey: `weftid_filters_${tenantId}`,
@@ -540,6 +615,30 @@ WeftUtils.listManager({
                     });
                 }
                 form.submit();
+            },
+        }, {
+            selector: '#bulk-inactivate-btn',
+            callback: (selectedIds) => {
+                const userIds = _collectUserIds(selectedIds);
+                _previewAndConfirm('/api/v1/users/bulk-ops/inactivate/preview', userIds, {
+                    action: 'Inactivate',
+                    consequence: 'OAuth tokens will be revoked and affected users will lose login access.',
+                    destructive: true,
+                    formId: 'bulk-inactivate-form',
+                    modeFieldId: 'bulk-in-selection-mode',
+                });
+            },
+        }, {
+            selector: '#bulk-reactivate-btn',
+            callback: (selectedIds) => {
+                const userIds = _collectUserIds(selectedIds);
+                _previewAndConfirm('/api/v1/users/bulk-ops/reactivate/preview', userIds, {
+                    action: 'Reactivate',
+                    consequence: 'Affected users will regain login access.',
+                    destructive: false,
+                    formId: 'bulk-reactivate-form',
+                    modeFieldId: 'bulk-re-selection-mode',
+                });
             },
         }],
         selectAllMatching: {

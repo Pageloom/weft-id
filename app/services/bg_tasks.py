@@ -269,6 +269,203 @@ def create_bulk_primary_email_apply_task(
     return result
 
 
+def preview_bulk_inactivate(
+    requesting_user: RequestingUser,
+    user_ids: list[str],
+) -> dict:
+    """Check eligibility for bulk inactivation without executing it.
+
+    Authorization: Requires admin or super_admin role.
+
+    Returns:
+        Dict with eligible_ids, eligible count, skipped list with reasons.
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+    admin_id = requesting_user["id"]
+    eligible_ids: list[str] = []
+    skipped: list[dict[str, str]] = []
+
+    for user_id in user_ids:
+        user = database.users.get_user_by_id(tenant_id, user_id)
+        if not user:
+            skipped.append({"user_id": user_id, "name": "Unknown", "reason": "User not found"})
+            continue
+
+        name = f"{user['first_name']} {user['last_name']}"
+
+        if user_id == admin_id:
+            skipped.append(
+                {
+                    "user_id": user_id,
+                    "name": name,
+                    "reason": "Cannot inactivate yourself",
+                }
+            )
+            continue
+
+        if user.get("is_inactivated"):
+            skipped.append({"user_id": user_id, "name": name, "reason": "Already inactivated"})
+            continue
+
+        if database.users.is_service_user(tenant_id, user_id):
+            skipped.append({"user_id": user_id, "name": name, "reason": "Service user"})
+            continue
+
+        if user["role"] == "super_admin":
+            active_count = database.users.count_active_super_admins(tenant_id)
+            if active_count <= 1:
+                skipped.append({"user_id": user_id, "name": name, "reason": "Last super admin"})
+                continue
+
+        eligible_ids.append(user_id)
+
+    return {
+        "eligible_ids": eligible_ids,
+        "eligible": len(eligible_ids),
+        "skipped": skipped,
+    }
+
+
+def preview_bulk_reactivate(
+    requesting_user: RequestingUser,
+    user_ids: list[str],
+) -> dict:
+    """Check eligibility for bulk reactivation without executing it.
+
+    Authorization: Requires admin or super_admin role.
+
+    Returns:
+        Dict with eligible_ids, eligible count, skipped list with reasons.
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+    eligible_ids: list[str] = []
+    skipped: list[dict[str, str]] = []
+
+    for user_id in user_ids:
+        user = database.users.get_user_by_id(tenant_id, user_id)
+        if not user:
+            skipped.append({"user_id": user_id, "name": "Unknown", "reason": "User not found"})
+            continue
+
+        name = f"{user['first_name']} {user['last_name']}"
+
+        if user.get("is_anonymized"):
+            skipped.append({"user_id": user_id, "name": name, "reason": "Anonymized user"})
+            continue
+
+        if not user.get("is_inactivated"):
+            skipped.append({"user_id": user_id, "name": name, "reason": "Not inactivated"})
+            continue
+
+        eligible_ids.append(user_id)
+
+    return {
+        "eligible_ids": eligible_ids,
+        "eligible": len(eligible_ids),
+        "skipped": skipped,
+    }
+
+
+def create_bulk_inactivate_task(
+    requesting_user: RequestingUser,
+    user_ids: list[str],
+) -> dict | None:
+    """Create a background task to inactivate users in bulk.
+
+    Authorization: Requires admin or super_admin role.
+
+    Args:
+        requesting_user: The user making the request
+        user_ids: List of user IDs to inactivate
+
+    Returns:
+        Dict with task id and created_at, or None if creation failed
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    if not user_ids:
+        raise ValidationError(
+            message="At least one user ID is required",
+            code="empty_user_ids",
+        )
+
+    result = database.bg_tasks.create_task(
+        tenant_id=requesting_user["tenant_id"],
+        job_type="bulk_inactivate_users",
+        created_by=requesting_user["id"],
+        payload={"user_ids": user_ids},
+    )
+
+    if result:
+        log_event(
+            tenant_id=requesting_user["tenant_id"],
+            actor_user_id=requesting_user["id"],
+            artifact_type="bg_task",
+            artifact_id=str(result["id"]),
+            event_type="bulk_inactivate_task_created",
+            metadata={
+                "job_type": "bulk_inactivate_users",
+                "item_count": len(user_ids),
+            },
+        )
+
+    return result
+
+
+def create_bulk_reactivate_task(
+    requesting_user: RequestingUser,
+    user_ids: list[str],
+) -> dict | None:
+    """Create a background task to reactivate users in bulk.
+
+    Authorization: Requires admin or super_admin role.
+
+    Args:
+        requesting_user: The user making the request
+        user_ids: List of user IDs to reactivate
+
+    Returns:
+        Dict with task id and created_at, or None if creation failed
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    if not user_ids:
+        raise ValidationError(
+            message="At least one user ID is required",
+            code="empty_user_ids",
+        )
+
+    result = database.bg_tasks.create_task(
+        tenant_id=requesting_user["tenant_id"],
+        job_type="bulk_reactivate_users",
+        created_by=requesting_user["id"],
+        payload={"user_ids": user_ids},
+    )
+
+    if result:
+        log_event(
+            tenant_id=requesting_user["tenant_id"],
+            actor_user_id=requesting_user["id"],
+            artifact_type="bg_task",
+            artifact_id=str(result["id"]),
+            event_type="bulk_reactivate_task_created",
+            metadata={
+                "job_type": "bulk_reactivate_users",
+                "item_count": len(user_ids),
+            },
+        )
+
+    return result
+
+
 def list_user_jobs(requesting_user: RequestingUser) -> JobListResponse:
     """
     List background jobs created by the requesting user.

@@ -325,3 +325,75 @@ def apply_bulk_primary_emails(
         return JSONResponse({"error": "Failed to create task"}, status_code=500)
     except ServiceError as exc:
         return JSONResponse({"error": exc.message}, status_code=400)
+
+
+@router.post("/bulk-ops/inactivate")
+def submit_bulk_inactivate(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin)],
+    selection_mode: Annotated[str, Form()],
+    user_ids: Annotated[list[str] | None, Form()] = None,
+    filter_criteria: Annotated[str | None, Form()] = None,
+    search: Annotated[str | None, Form()] = None,
+):
+    """Create a background job to inactivate selected users."""
+    resolved_ids = _resolve_user_ids(tenant_id, selection_mode, user_ids, filter_criteria, search)
+
+    if not resolved_ids:
+        return RedirectResponse(
+            url="/users/list?error=no_users_selected",
+            status_code=303,
+        )
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        bg_tasks_service.create_bulk_inactivate_task(requesting_user, resolved_ids)
+    except ServiceError:
+        logger.exception("Failed to create bulk inactivate task")
+        return RedirectResponse(
+            url="/users/list?error=bulk_operation_failed",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        url="/account/background-jobs?success=bulk_inactivate_started",
+        status_code=303,
+    )
+
+
+@router.post("/bulk-ops/reactivate")
+def submit_bulk_reactivate(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin)],
+    selection_mode: Annotated[str, Form()],
+    user_ids: Annotated[list[str] | None, Form()] = None,
+    filter_criteria: Annotated[str | None, Form()] = None,
+    search: Annotated[str | None, Form()] = None,
+):
+    """Create a background job to reactivate selected users."""
+    resolved_ids = _resolve_user_ids(tenant_id, selection_mode, user_ids, filter_criteria, search)
+
+    if not resolved_ids:
+        return RedirectResponse(
+            url="/users/list?error=no_users_selected",
+            status_code=303,
+        )
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        bg_tasks_service.create_bulk_reactivate_task(requesting_user, resolved_ids)
+    except ServiceError:
+        logger.exception("Failed to create bulk reactivate task")
+        return RedirectResponse(
+            url="/users/list?error=bulk_operation_failed",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        url="/account/background-jobs?success=bulk_reactivate_started",
+        status_code=303,
+    )

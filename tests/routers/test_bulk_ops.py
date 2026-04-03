@@ -665,3 +665,157 @@ def test_apply_primary_null_result(test_admin_user, override_auth):
 
     assert response.status_code == 500
     assert "Failed" in response.json()["error"]
+
+
+# =============================================================================
+# POST /users/bulk-ops/inactivate
+# =============================================================================
+
+
+def test_submit_bulk_inactivate_redirects(test_admin_user, override_auth):
+    """Inactivate endpoint creates a background job and redirects."""
+    override_auth(test_admin_user, level="admin")
+
+    user1_id = str(uuid4())
+    user2_id = str(uuid4())
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_inactivate_task"
+    ) as mock_create:
+        mock_create.return_value = {"id": str(uuid4()), "created_at": "2026-01-01"}
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/inactivate",
+            data={
+                "selection_mode": "ids",
+                "user_ids": [user1_id, user2_id],
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    assert "background-jobs" in response.headers["location"]
+    assert "bulk_inactivate_started" in response.headers["location"]
+
+    mock_create.assert_called_once()
+    call_args = mock_create.call_args
+    user_ids = (
+        call_args.args[1] if len(call_args.args) > 1 else call_args.kwargs.get("user_ids", [])
+    )
+    assert len(user_ids) == 2
+
+
+def test_submit_bulk_inactivate_no_users(test_admin_user, override_auth):
+    """Inactivate endpoint redirects when no users are selected."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/inactivate",
+        data={"selection_mode": "ids"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "no_users_selected" in response.headers["location"]
+
+
+def test_submit_bulk_inactivate_service_error(test_admin_user, override_auth):
+    """Inactivate endpoint redirects on ServiceError."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_inactivate_task"
+    ) as mock_create:
+        mock_create.side_effect = ServiceError(message="Task failed", code="fail")
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/inactivate",
+            data={
+                "selection_mode": "ids",
+                "user_ids": [str(uuid4())],
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    assert "bulk_operation_failed" in response.headers["location"]
+
+
+# =============================================================================
+# POST /users/bulk-ops/reactivate
+# =============================================================================
+
+
+def test_submit_bulk_reactivate_redirects(test_admin_user, override_auth):
+    """Reactivate endpoint creates a background job and redirects."""
+    override_auth(test_admin_user, level="admin")
+
+    user1_id = str(uuid4())
+    user2_id = str(uuid4())
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_reactivate_task"
+    ) as mock_create:
+        mock_create.return_value = {"id": str(uuid4()), "created_at": "2026-01-01"}
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/reactivate",
+            data={
+                "selection_mode": "ids",
+                "user_ids": [user1_id, user2_id],
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    assert "background-jobs" in response.headers["location"]
+    assert "bulk_reactivate_started" in response.headers["location"]
+
+    mock_create.assert_called_once()
+    call_args = mock_create.call_args
+    user_ids = (
+        call_args.args[1] if len(call_args.args) > 1 else call_args.kwargs.get("user_ids", [])
+    )
+    assert len(user_ids) == 2
+
+
+def test_submit_bulk_reactivate_no_users(test_admin_user, override_auth):
+    """Reactivate endpoint redirects when no users are selected."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/reactivate",
+        data={"selection_mode": "ids"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "no_users_selected" in response.headers["location"]
+
+
+def test_submit_bulk_reactivate_service_error(test_admin_user, override_auth):
+    """Reactivate endpoint redirects on ServiceError."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_reactivate_task"
+    ) as mock_create:
+        mock_create.side_effect = ServiceError(message="Task failed", code="fail")
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/reactivate",
+            data={
+                "selection_mode": "ids",
+                "user_ids": [str(uuid4())],
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    assert "bulk_operation_failed" in response.headers["location"]

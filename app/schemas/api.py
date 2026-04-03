@@ -170,6 +170,17 @@ class BulkChangePrimaryEmailApplyRequest(BaseModel):
 
 
 # ============================================================================
+# Bulk User State Operations Schemas
+# ============================================================================
+
+
+class BulkUserIdsRequest(BaseModel):
+    """Request to perform a bulk operation on a list of users by ID."""
+
+    user_ids: list[str] = Field(..., min_length=1, max_length=10000)
+
+
+# ============================================================================
 # MFA Management Schemas
 # ============================================================================
 

@@ -121,6 +121,7 @@ def _render_reset_form_with_error(
     token: str,
     validation_result: dict,
     error: str,
+    recovery_mode: bool = False,
 ) -> HTMLResponse:
     """Re-render the reset form with an error message."""
     return templates.TemplateResponse(
@@ -133,5 +134,90 @@ def _render_reset_form_with_error(
             "minimum_password_length": validation_result["minimum_password_length"],
             "minimum_zxcvbn_score": validation_result["minimum_zxcvbn_score"],
             "error": error,
+            "recovery_mode": recovery_mode,
         },
     )
+
+
+# =============================================================================
+# Account Recovery (new unified flow after proof of email possession)
+# =============================================================================
+
+
+@router.get("/account-recovery/{token}", response_class=HTMLResponse)
+def account_recovery_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    token: str,
+):
+    """Landing page for account recovery link.
+
+    Proof of email possession is established by clicking the link.
+    Shows different content based on user state:
+    - Active password user: password reset form
+    - Inactivated user: inactivation disclosure + reactivation option
+    """
+    result = users_service.validate_recovery_token(tenant_id, token)
+    if not result:
+        return RedirectResponse(url="/forgot-password?error=invalid_or_expired", status_code=303)
+
+    if result["is_inactivated"]:
+        return templates.TemplateResponse(
+            request,
+            "account_recovery_inactivated.html",
+            {
+                "csrf_token": make_csrf_token_func(request),
+                "csp_nonce": get_csp_nonce(request),
+                "user_id": result["user_id"],
+                "role": result["role"],
+            },
+        )
+
+    # Active password user: show password reset form
+    return templates.TemplateResponse(
+        request,
+        "reset_password.html",
+        {
+            "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
+            "token": token,
+            "minimum_password_length": result["minimum_password_length"],
+            "minimum_zxcvbn_score": result["minimum_zxcvbn_score"],
+            "error": None,
+            "recovery_mode": True,
+        },
+    )
+
+
+@router.post("/account-recovery/{token}")
+def account_recovery_submit(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    token: str,
+    new_password: Annotated[str, Form()] = "",
+    new_password_confirm: Annotated[str, Form()] = "",
+):
+    """Process account recovery form submission (password reset path)."""
+    result = users_service.validate_recovery_token(tenant_id, token)
+    if not result:
+        return RedirectResponse(url="/forgot-password?error=invalid_or_expired", status_code=303)
+
+    if result["is_inactivated"]:
+        # Inactivated users use the existing reactivation request flow.
+        # The token proved email possession, so redirect to reactivation.
+        return RedirectResponse(url="/forgot-password?error=invalid_or_expired", status_code=303)
+
+    # Password reset path
+    if new_password != new_password_confirm:
+        return _render_reset_form_with_error(
+            request, token, result, "passwords_dont_match", recovery_mode=True
+        )
+
+    try:
+        users_service.complete_self_service_password_reset(
+            tenant_id, result["user_id"], new_password
+        )
+    except ValidationError as e:
+        return _render_reset_form_with_error(request, token, result, e.code, recovery_mode=True)
+
+    return RedirectResponse(url="/login?success=password_reset", status_code=303)

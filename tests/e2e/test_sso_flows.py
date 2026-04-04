@@ -7,7 +7,7 @@ These tests exercise real cross-tenant SSO using two WeftID tenants:
 The testbed is provisioned by the session-scoped `e2e_config` fixture.
 """
 
-from helpers.maildev import clear_emails, extract_otp_code, get_latest_email
+from tests.e2e.conftest import enter_email_and_reach_password_form
 
 
 class TestSpInitiatedSso:
@@ -17,80 +17,47 @@ class TestSpInitiatedSso:
         """Full SP-initiated SSO flow with JIT user provisioning.
 
         1. User enters IdP admin email at SP login
-        2. SP sends email verification code, user verifies
-        3. SP determines SAML route, redirects to IdP SSO endpoint
-        4. IdP sees unauthenticated user, redirects to IdP login
-        5. User logs in at IdP (email verify + password + MFA)
-        6. IdP shows consent page, user approves
-        7. SAML Response auto-submitted to SP ACS
-        8. SP JIT-creates user, user lands on SP dashboard
+        2. SP routes to SAML IdP (direct routing, no email verification)
+        3. IdP sees unauthenticated user, redirects to IdP login
+        4. User logs in at IdP (password + MFA)
+        5. IdP shows consent page, user approves
+        6. SAML Response auto-submitted to SP ACS
+        7. SP JIT-creates user, user lands on SP dashboard
         """
         idp_base = idp_config["base_url"]
         sp_base = sp_config["base_url"]
         idp_email = idp_config["admin_email"]
         idp_password = idp_config["admin_password"]
 
-        # Step 1: Navigate to SP login and enter the IdP admin's email
-        clear_emails()
-        page.goto(f"{sp_base}/login")
-        page.locator("#email").fill(idp_email)
-        page.locator("#emailForm button[type='submit']").click()
-
-        # Step 2: Verify email at the SP
-        page.wait_for_url("**/login/verify**")
-        mail = get_latest_email(to=idp_email, timeout=10.0)
-        assert mail is not None, f"No verification email received for {idp_email}"
-        code = extract_otp_code(mail)
-        assert code is not None, "Could not extract verification code from email"
-
-        page.locator("#code").fill(code)
-        page.locator("#verifyCodeForm button[type='submit']").click(no_wait_after=True)
-        page.wait_for_timeout(2000)
-
-        # Step 3: SP routes to SAML. Navigate to the SAML login endpoint
-        # to trigger the redirect chain to IdP SSO. (Direct navigation
-        # works around a Playwright issue with POST→303 redirect chains.)
+        # Step 1: Navigate to SP login and enter the IdP admin's email.
+        # With direct routing (default), SP routes to SAML immediately.
+        # Navigate directly to SAML login endpoint to trigger the redirect
+        # chain to IdP SSO (Playwright POST->303 workaround).
         idp_id = sp_config["idp_id"]
         page.goto(f"{sp_base}/saml/login/{idp_id}")
 
         # IdP sees unauthenticated user and redirects to IdP /login
         page.wait_for_url(f"{idp_base}/login**", timeout=15000)
 
-        # Step 4: Complete login at the IdP (email verify + password + MFA)
-        clear_emails()
-        page.locator("#email").fill(idp_email)
-        page.locator("#emailForm button[type='submit']").click()
-
-        page.wait_for_url("**/login/verify**")
-        mail = get_latest_email(to=idp_email, timeout=10.0)
-        assert mail is not None, "No verification email at IdP"
-        code = extract_otp_code(mail)
-        assert code is not None, "Could not extract IdP verification code"
-
-        page.locator("#code").fill(code)
-        page.locator("#verifyCodeForm button[type='submit']").click()
-
-        # Password form
-        page.wait_for_url("**/login?**show_password**")
-        page.locator("input[name='password']").fill(idp_password)
-        page.locator("#loginForm button[type='submit']").click()
+        # Step 2: Complete login at the IdP (password + MFA)
+        enter_email_and_reach_password_form(page, idp_base, idp_email, idp_password)
 
         # MFA (BYPASS_OTP=true, any 6-digit code works)
         page.wait_for_url("**/mfa/verify**")
         page.locator("#code").fill("123456")
         page.locator("#mfaVerifyForm button[type='submit']").click()
 
-        # Step 5: After MFA, IdP detects pending SSO context and shows consent page
+        # Step 3: After MFA, IdP detects pending SSO context and shows consent page
         page.wait_for_url(f"{idp_base}/saml/idp/consent**", timeout=10000)
 
         # Verify consent page shows SP name
         consent_text = page.content()
         assert sp_config["subdomain"] in consent_text.lower() or "SP" in consent_text
 
-        # Step 6: Approve consent
+        # Step 4: Approve consent
         page.locator("button", has_text="Continue").first.click()
 
-        # Step 7: SAML Response auto-submits to SP ACS, SP creates session.
+        # Step 5: SAML Response auto-submits to SP ACS, SP creates session.
         # User lands on SP dashboard.
         page.wait_for_url(f"{sp_base}/dashboard**", timeout=15000)
 

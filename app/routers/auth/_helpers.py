@@ -87,3 +87,35 @@ def _route_after_email_verification(
         url=f"/login?prefill_email={quote(email)}&show_password=true",
         status_code=303,
     )
+
+
+def _route_without_verification(request: Request, tenant_id: str, email: str) -> RedirectResponse:
+    """
+    Route user to auth flow without email possession verification.
+
+    Maps inactivated, not_found, idp_disabled, and no_auth_method all to the
+    password form to prevent information leakage. Only idp/idp_jit get an IdP
+    redirect; password gets the password form; invalid_email shows an error.
+    """
+    from urllib.parse import quote
+
+    result = saml_service.determine_auth_route(tenant_id, email)
+
+    if result.route_type in ("idp", "idp_jit"):
+        return RedirectResponse(
+            url=f"/saml/login/{result.idp_id}",
+            status_code=303,
+        )
+
+    if result.route_type == "invalid_email":
+        return RedirectResponse(
+            url=f"/login?error=invalid_email&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    # Everything else (password, inactivated, not_found, idp_disabled,
+    # no_auth_method, unknown) routes to password form with no disclosure
+    return RedirectResponse(
+        url=f"/login?prefill_email={quote(email)}&show_password=true",
+        status_code=303,
+    )

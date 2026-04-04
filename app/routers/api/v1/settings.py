@@ -269,6 +269,7 @@ def update_tenant_security(
         minimum_password_length: Minimum password length (8, 10, 12, 14, 16, 18, or 20)
         minimum_zxcvbn_score: Minimum zxcvbn strength score (3 or 4)
         group_assertion_scope: Group scope for SAML assertions
+        require_email_verification_for_login: Require email verification before login routing
 
     Returns:
         Updated security settings

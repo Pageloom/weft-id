@@ -81,6 +81,31 @@
         </div>
 
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <div class="mb-6">
+                <label for="require_email_verification_for_login" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Sign-in verification
+                </label>
+                <label class="flex items-start">
+                    <input
+                        type="checkbox"
+                        name="require_email_verification_for_login"
+                        value="true"
+                        {% if require_email_verification_for_login %}checked{% endif %}
+                        class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                    >
+                    <span class="ml-2">
+                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Require email verification before sign-in routing
+                        </span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            When enabled, users must verify email possession before being routed to their authentication method. When disabled (default), users are routed immediately after entering their email.
+                        </span>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
             <div class="flex gap-3">
                 <button type="submit"
                         class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">

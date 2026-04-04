@@ -35,6 +35,7 @@ from utils.crypto import derive_hmac_key
 # preventing a code generated for one purpose from being accepted for another.
 PURPOSE_MFA_EMAIL = "mfa_email"
 PURPOSE_PASSWORD_RESET = "password_reset"
+PURPOSE_ACCOUNT_RECOVERY = "account_recovery"
 
 # Derived HMAC key for all stateless token operations.
 _token_key = derive_hmac_key("token")

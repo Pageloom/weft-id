@@ -20,7 +20,8 @@ def get_security_settings(tenant_id: TenantArg) -> dict | None:
                inactivity_threshold_days, max_certificate_lifetime_years,
                certificate_rotation_window_days,
                minimum_password_length, minimum_zxcvbn_score,
-               group_assertion_scope
+               group_assertion_scope,
+               require_email_verification_for_login
         from tenant_security_settings
         where tenant_id = :tenant_id
         """,
@@ -94,6 +95,7 @@ def update_security_settings(
     minimum_password_length: int,
     minimum_zxcvbn_score: int,
     group_assertion_scope: str,
+    require_email_verification_for_login: bool,
     updated_by: str,
     tenant_id_value: str,
 ) -> int:
@@ -125,14 +127,16 @@ def update_security_settings(
             allow_users_edit_profile,
             inactivity_threshold_days, max_certificate_lifetime_years,
             certificate_rotation_window_days, minimum_password_length,
-            minimum_zxcvbn_score, group_assertion_scope, updated_by
+            minimum_zxcvbn_score, group_assertion_scope,
+            require_email_verification_for_login, updated_by
         )
         values (
             :tenant_id, :timeout_seconds, :persistent_sessions,
             :allow_users_edit_profile,
             :inactivity_threshold_days, :max_certificate_lifetime_years,
             :certificate_rotation_window_days, :minimum_password_length,
-            :minimum_zxcvbn_score, :group_assertion_scope, :updated_by
+            :minimum_zxcvbn_score, :group_assertion_scope,
+            :require_email_verification_for_login, :updated_by
         )
         on conflict (tenant_id)
         do update set
@@ -145,6 +149,7 @@ def update_security_settings(
             minimum_password_length = :minimum_password_length,
             minimum_zxcvbn_score = :minimum_zxcvbn_score,
             group_assertion_scope = :group_assertion_scope,
+            require_email_verification_for_login = :require_email_verification_for_login,
             updated_at = now(),
             updated_by = :updated_by
         """,
@@ -159,6 +164,7 @@ def update_security_settings(
             "minimum_password_length": minimum_password_length,
             "minimum_zxcvbn_score": minimum_zxcvbn_score,
             "group_assertion_scope": group_assertion_scope,
+            "require_email_verification_for_login": require_email_verification_for_login,
             "updated_by": updated_by,
         },
     )

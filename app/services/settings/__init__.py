@@ -31,6 +31,7 @@ from services.settings.security import (
     get_password_policy,
     get_security_settings,
     get_session_settings,
+    requires_email_verification_for_login,
     update_security_settings,
 )
 
@@ -54,5 +55,6 @@ __all__ = [
     "get_password_policy",
     "get_security_settings",
     "get_session_settings",
+    "requires_email_verification_for_login",
     "update_security_settings",
 ]

@@ -288,6 +288,7 @@ def _get_security_template_context(
             minimum_password_length=settings.minimum_password_length,
             minimum_zxcvbn_score=settings.minimum_zxcvbn_score,
             group_assertion_scope=settings.group_assertion_scope,
+            require_email_verification_for_login=settings.require_email_verification_for_login,
             success=success,
             error=error,
         ),
@@ -364,6 +365,7 @@ def update_admin_security_sessions(
     session_timeout: Annotated[str, Form()] = "",
     persistent_sessions: Annotated[str, Form()] = "",
     inactivity_threshold: Annotated[str, Form()] = "",
+    require_email_verification_for_login: Annotated[str, Form()] = "",
 ):
     """Update session security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -413,6 +415,7 @@ def update_admin_security_sessions(
             session_timeout_seconds=timeout_seconds,
             persistent_sessions=persistent_sessions == "true",
             inactivity_threshold_days=inactivity_days,
+            require_email_verification_for_login=(require_email_verification_for_login == "true"),
         )
     except PydanticValidationError as e:
         exc = ValidationError(

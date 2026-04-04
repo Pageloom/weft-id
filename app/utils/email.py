@@ -621,6 +621,44 @@ If you did not request this, you can safely ignore this email. Your password wil
     return send_email(to_email, subject, html_body, text_body)
 
 
+def send_account_recovery_email(
+    to_email: str, recovery_url: str, *, tenant_id: str | None = None
+) -> bool:
+    """Send a neutral account recovery link.
+
+    Does not reveal account type, status, or any details. Used for both
+    password reset and inactivation discovery after the user proves email
+    possession by clicking the link.
+    """
+    branding = _get_branding(tenant_id)
+    subject = "Continue to your account"
+
+    text_body = _wrap_text(
+        f"""
+Click the link below to continue:
+
+{recovery_url}
+
+This link will expire in 30 minutes.
+
+If you did not request this, you can safely ignore this email.
+""",
+        branding,
+    )
+
+    url = html.escape(recovery_url)
+    body = f"""<h1 style="{_S_H1}">Continue to Your Account</h1>
+<p style="{_S_P}">Click the button below to continue:</p>
+<a href="{url}" style="{_S_BUTTON}">Continue</a>
+<p style="{_S_P}">Or copy and paste this link into your browser:</p>
+<p style="{_S_LINK_FALLBACK}">{url}</p>
+<p style="{_S_P}">This link will expire in <strong>30 minutes</strong>.</p>
+<p style="{_S_P}">If you did not request this, you can safely ignore this email.</p>"""
+
+    html_body = _wrap_html(body, branding)
+    return send_email(to_email, subject, html_body, text_body)
+
+
 def send_hibp_breach_admin_notification(
     to_email: str,
     breach_count: int,

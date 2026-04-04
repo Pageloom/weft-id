@@ -46,10 +46,16 @@ def test_email_send_rate_limit_by_ip(client, test_tenant_host):
 
 
 def test_email_send_rate_limit_by_email(client, test_tenant_host):
-    """Test email send rate limit by email address (5/10min)."""
+    """Test email send rate limit by email address (5/10min) when verification is enabled."""
     from services.exceptions import RateLimitError
 
-    with patch("routers.auth.login.ratelimit.prevent") as mock_prevent:
+    with (
+        patch(
+            "routers.auth.login.settings_service.requires_email_verification_for_login",
+            return_value=True,
+        ),
+        patch("routers.auth.login.ratelimit.prevent") as mock_prevent,
+    ):
         # Mock the second prevent() call raising error (email-based limit)
         def prevent_side_effect(*args, **kwargs):
             # First call (IP limit) passes, second call (email limit) fails

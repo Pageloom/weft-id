@@ -1675,3 +1675,263 @@ def test_about_page_forbidden_for_regular_user(test_user, override_auth, mocker)
 
     # Admin-required routes redirect non-admins
     assert response.status_code in (303, 403)
+
+
+# =============================================================================
+# Domain Group Linking Tests
+# =============================================================================
+
+
+def test_link_group_to_domain_success(test_admin_user, override_auth, mocker):
+    """Test linking a group to a privileged domain redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    mock_add = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.add_domain_group_link")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/domain-123/link-group",
+        data={"group_id": "group-456"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=group_linked" in response.headers["location"]
+    mock_add.assert_called_once()
+
+
+def test_link_group_to_domain_service_error(test_admin_user, override_auth, mocker):
+    """Test linking group with service error renders error page."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_add = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.add_domain_group_link")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+
+    mock_add.side_effect = ServiceError(message="Group not found")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/domain-123/link-group",
+        data={"group_id": "group-456"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_unlink_group_from_domain_success(test_admin_user, override_auth, mocker):
+    """Test unlinking a group from a privileged domain redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    mock_delete = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.delete_domain_group_link")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/domain-123/unlink-group/link-789",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=group_unlinked" in response.headers["location"]
+    mock_delete.assert_called_once()
+
+
+def test_unlink_group_from_domain_service_error(test_admin_user, override_auth, mocker):
+    """Test unlinking group with service error renders error page."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_delete = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.delete_domain_group_link")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+
+    mock_delete.side_effect = ServiceError(message="Link not found")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/domain-123/unlink-group/link-789",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+# =============================================================================
+# Password/Certificate/Permissions PydanticValidation and ServiceError Tests
+# =============================================================================
+
+
+def test_update_passwords_service_error(test_super_admin_user, override_auth, mocker):
+    """Test updating password settings with service error shows error page."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mock_update = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.update_security_settings")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+
+    mock_update.side_effect = ServiceError(message="Database error")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/passwords/update",
+        data={"minimum_password_length": "14", "minimum_zxcvbn_score": "3"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_update_passwords_pydantic_validation_error(test_super_admin_user, override_auth, mocker):
+    """Test PydanticValidationError during password settings schema shows error page."""
+    from pydantic import BaseModel
+    from pydantic import ValidationError as PydanticValidationError
+
+    override_auth(test_super_admin_user, level="super_admin")
+
+    class _Dummy(BaseModel):
+        x: int
+
+    saved_err = None
+    try:
+        _Dummy(x="bad")  # type: ignore[arg-type]
+    except PydanticValidationError as e:
+        saved_err = e
+
+    assert saved_err is not None
+
+    mocker.patch(f"{ROUTERS_SETTINGS}.TenantSecuritySettingsUpdate", side_effect=saved_err)
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/passwords/update",
+        data={"minimum_password_length": "14", "minimum_zxcvbn_score": "3"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()
+
+
+def test_update_certificates_service_error(test_super_admin_user, override_auth, mocker):
+    """Test updating certificate settings with service error shows error page."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mock_update = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.update_security_settings")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+
+    mock_update.side_effect = ServiceError(message="Database error")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/certificates/update",
+        data={"certificate_lifetime": "3"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_update_certificates_pydantic_validation_error(
+    test_super_admin_user, override_auth, mocker
+):
+    """Test PydanticValidationError during certificate settings schema shows error page."""
+    from pydantic import BaseModel
+    from pydantic import ValidationError as PydanticValidationError
+
+    override_auth(test_super_admin_user, level="super_admin")
+
+    class _Dummy(BaseModel):
+        x: int
+
+    saved_err = None
+    try:
+        _Dummy(x="bad")  # type: ignore[arg-type]
+    except PydanticValidationError as e:
+        saved_err = e
+
+    assert saved_err is not None
+
+    mocker.patch(f"{ROUTERS_SETTINGS}.TenantSecuritySettingsUpdate", side_effect=saved_err)
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/certificates/update",
+        data={"certificate_lifetime": "3"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()
+
+
+def test_update_permissions_service_error(test_super_admin_user, override_auth, mocker):
+    """Test updating permission settings with service error shows error page."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mock_update = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.update_security_settings")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+
+    mock_update.side_effect = ServiceError(message="Database error")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/permissions/update",
+        data={"allow_users_edit_profile": "true"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_update_permissions_pydantic_validation_error(test_super_admin_user, override_auth, mocker):
+    """Test PydanticValidationError during permission settings schema shows error page."""
+    from pydantic import BaseModel
+    from pydantic import ValidationError as PydanticValidationError
+
+    override_auth(test_super_admin_user, level="super_admin")
+
+    class _Dummy(BaseModel):
+        x: int
+
+    saved_err = None
+    try:
+        _Dummy(x="bad")  # type: ignore[arg-type]
+    except PydanticValidationError as e:
+        saved_err = e
+
+    assert saved_err is not None
+
+    mocker.patch(f"{ROUTERS_SETTINGS}.TenantSecuritySettingsUpdate", side_effect=saved_err)
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/permissions/update",
+        data={"allow_users_edit_profile": "true"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()

@@ -1108,3 +1108,277 @@ class TestDisabledSPRejection:
         # Enabled SP should redirect to login (not error)
         assert response.status_code == 303
         assert "/login" in response.headers["location"]
+
+
+# ============================================================================
+# SSO Error Paths
+# ============================================================================
+
+
+class TestSSOErrorPaths:
+    """Cover remaining error paths in SSO flow."""
+
+    def test_missing_issuer_returns_error(self, client, sso_host):
+        """AuthnRequest with empty issuer returns invalid_request error."""
+        xml = _make_authn_request_xml(issuer="")
+        saml_request = _encode_redirect(xml)
+
+        with patch(
+            f"{ROUTER_MODULE}.parse_authn_request",
+            return_value={"issuer": "", "id": "_req123"},
+        ):
+            response = client.get(
+                "/saml/idp/sso",
+                params={"SAMLRequest": saml_request},
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_sp_pending_trust_returns_error(self, client, sso_host):
+        """SSO request for SP without established trust returns sp_pending_trust."""
+        xml = _make_authn_request_xml()
+        saml_request = _encode_redirect(xml)
+
+        pending_sp = _sample_sp_config()
+        pending_sp.trust_established = False
+
+        with patch(
+            "services.service_providers.get_sp_by_entity_id",
+            return_value=pending_sp,
+        ):
+            response = client.get(
+                "/saml/idp/sso",
+                params={"SAMLRequest": saml_request},
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_authn_request_validation_failure(self, client, sso_host):
+        """ValueError from validate_authn_request returns invalid_request error."""
+        xml = _make_authn_request_xml()
+        saml_request = _encode_redirect(xml)
+
+        with (
+            patch(
+                "services.service_providers.get_sp_by_entity_id",
+                return_value=_sample_sp_config(),
+            ),
+            patch(
+                f"{ROUTER_MODULE}.validate_authn_request",
+                side_effect=ValueError("ACS URL mismatch"),
+            ),
+        ):
+            response = client.get(
+                "/saml/idp/sso",
+                params={"SAMLRequest": saml_request},
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_idp_initiated_launch_pending_trust_returns_error(self, client, sso_user, sso_host):
+        """IdP-initiated launch for SP without trust returns sp_pending_trust."""
+        sp_id = str(uuid4())
+        mock_session = {
+            "user_id": sso_user["id"],
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.get_service_provider_by_id",
+                return_value={
+                    "id": sp_id,
+                    "entity_id": "https://sp.example.com",
+                    "name": "Test SP",
+                    "trust_established": False,
+                    "enabled": True,
+                },
+            ),
+        ):
+            response = client.get(
+                f"/saml/idp/launch/{sp_id}",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+
+
+# ============================================================================
+# Consent - Additional Error Paths
+# ============================================================================
+
+
+class TestConsentErrors:
+    """Cover remaining consent screen error paths."""
+
+    def test_consent_user_info_unavailable(self, client, sso_user, sso_host):
+        """Consent returns error when get_user_consent_info returns None."""
+        sp_id = str(uuid4())
+        mock_session = {
+            "user_id": sso_user["id"],
+            "pending_sso_user_id": sso_user["id"],
+            "pending_sso_sp_id": sp_id,
+            "pending_sso_sp_entity_id": "https://sp.example.com",
+            "pending_sso_sp_name": "Test SP",
+            "pending_sso_authn_request_id": "_req123",
+            "pending_sso_relay_state": "",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch("services.service_providers.check_user_sp_access", return_value=True),
+            patch("services.service_providers.get_user_consent_info", return_value=None),
+        ):
+            response = client.get(
+                "/saml/idp/consent",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_consent_with_sp_logo(self, client, sso_user, sso_host):
+        """Consent page extracts SP logo timestamp when logo exists."""
+        from datetime import UTC, datetime
+
+        sp_id = str(uuid4())
+        mock_session = {
+            "user_id": sso_user["id"],
+            "pending_sso_user_id": sso_user["id"],
+            "pending_sso_sp_id": sp_id,
+            "pending_sso_sp_entity_id": "https://sp.example.com",
+            "pending_sso_sp_name": "Test SP",
+            "pending_sso_authn_request_id": "_req123",
+            "pending_sso_relay_state": "",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch("services.service_providers.check_user_sp_access", return_value=True),
+            patch(
+                "services.service_providers.get_user_consent_info",
+                return_value={
+                    "email": "alice@test.com",
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                },
+            ),
+            patch(
+                "services.branding.get_sp_logo_for_serving",
+                return_value={
+                    "data": b"png-data",
+                    "content_type": "image/png",
+                    "updated_at": datetime(2026, 3, 1, tzinfo=UTC),
+                },
+            ),
+            patch("services.service_providers.get_groups_for_consent", return_value=[]),
+        ):
+            response = client.get(
+                "/saml/idp/consent",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 200
+
+    def test_consent_post_without_session(self, client, sso_host):
+        """POST /consent without user_id in session returns no_session error."""
+        mock_session = {
+            "_csrf_token": "test-csrf-token",
+        }
+
+        with patch(
+            "starlette.requests.Request.session",
+            new_callable=lambda: property(lambda self: mock_session),
+        ):
+            response = client.post(
+                "/saml/idp/consent",
+                data={"action": "continue", "csrf_token": "test-csrf-token"},
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_sso_response_build_failure(self, client, sso_user, sso_host):
+        """Exception during build_sso_response returns no_certificate error."""
+        mock_session = {
+            "user_id": sso_user["id"],
+            "pending_sso_user_id": sso_user["id"],
+            "pending_sso_sp_id": str(uuid4()),
+            "pending_sso_sp_entity_id": "https://sp.example.com",
+            "pending_sso_sp_name": "Test SP",
+            "pending_sso_authn_request_id": "_req123",
+            "pending_sso_relay_state": "",
+            "_csrf_token": "test-csrf-token",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.build_sso_response",
+                side_effect=Exception("No signing certificate"),
+            ),
+        ):
+            response = client.post(
+                "/saml/idp/consent",
+                data={"action": "continue", "csrf_token": "test-csrf-token"},
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+
+
+# ============================================================================
+# Switch Account
+# ============================================================================
+
+
+class TestSwitchAccount:
+    """Test the switch-account endpoint."""
+
+    def test_switch_account_clears_auth_preserves_sso(self, client, sso_user, sso_host):
+        """POST /consent/switch-account clears auth but preserves SSO context."""
+        mock_session = {
+            "user_id": sso_user["id"],
+            "pending_sso_sp_id": str(uuid4()),
+            "pending_sso_sp_entity_id": "https://sp.example.com",
+            "pending_sso_authn_request_id": "_req123",
+            "pending_sso_relay_state": "",
+            "pending_sso_sp_name": "Test SP",
+            "pending_sso_user_id": sso_user["id"],
+            "_csrf_token": "test-csrf-token",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(f"{ROUTER_MODULE}.log_event") as mock_log,
+        ):
+            response = client.post(
+                "/saml/idp/consent/switch-account",
+                data={"csrf_token": "test-csrf-token"},
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "/login" in response.headers["location"]
+        # Verify sign-out event was logged
+        mock_log.assert_called_once()
+        assert mock_log.call_args[1]["event_type"] == "user_signed_out"
+        assert mock_log.call_args[1]["metadata"]["reason"] == "sso_switch_account"

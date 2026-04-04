@@ -599,3 +599,218 @@ def test_bulk_group_assignment_preview_unauthorized(
     )
 
     assert response.status_code == 403
+
+
+# =============================================================================
+# Inactivate/Reactivate/GroupAssignment Preview Endpoints
+# =============================================================================
+
+
+def test_preview_bulk_inactivate_success(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Admin can preview bulk inactivation."""
+    user_id = str(uuid4())
+
+    with patch("routers.api.v1.users.bg_tasks_service.preview_bulk_inactivate") as mock_preview:
+        mock_preview.return_value = {
+            "eligible_ids": [user_id],
+            "eligible": 1,
+            "skipped": [],
+        }
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/inactivate/preview",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [user_id]},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["eligible"] == 1
+
+
+def test_preview_bulk_inactivate_service_error(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """ServiceError from preview_bulk_inactivate is translated to HTTP exception."""
+    from services.exceptions import ServiceError
+
+    with patch("routers.api.v1.users.bg_tasks_service.preview_bulk_inactivate") as mock_preview:
+        mock_preview.side_effect = ServiceError(message="Failed", code="fail")
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/inactivate/preview",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [str(uuid4())]},
+        )
+
+    assert response.status_code >= 400
+
+
+def test_preview_bulk_reactivate_success(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Admin can preview bulk reactivation."""
+    user_id = str(uuid4())
+
+    with patch("routers.api.v1.users.bg_tasks_service.preview_bulk_reactivate") as mock_preview:
+        mock_preview.return_value = {
+            "eligible_ids": [user_id],
+            "eligible": 1,
+            "skipped": [],
+        }
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/reactivate/preview",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [user_id]},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["eligible"] == 1
+
+
+def test_preview_bulk_reactivate_service_error(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """ServiceError from preview_bulk_reactivate is translated to HTTP exception."""
+    from services.exceptions import ServiceError
+
+    with patch("routers.api.v1.users.bg_tasks_service.preview_bulk_reactivate") as mock_preview:
+        mock_preview.side_effect = ServiceError(message="Failed", code="fail")
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/reactivate/preview",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [str(uuid4())]},
+        )
+
+    assert response.status_code >= 400
+
+
+# =============================================================================
+# Null result + ServiceError for Inactivate/Reactivate/GroupAssignment
+# =============================================================================
+
+
+def test_bulk_inactivate_null_result(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Null result from inactivate service returns error body."""
+    with patch("routers.api.v1.users.bg_tasks_service.create_bulk_inactivate_task") as mock_create:
+        mock_create.return_value = None
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/inactivate",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [str(uuid4())]},
+        )
+
+    assert response.status_code == 202
+    assert "error" in response.json()
+
+
+def test_bulk_inactivate_service_error(client, test_tenant_host, oauth2_admin_authorization_header):
+    """ServiceError from inactivate task is translated to HTTP exception."""
+    from services.exceptions import ServiceError
+
+    with patch("routers.api.v1.users.bg_tasks_service.create_bulk_inactivate_task") as mock_create:
+        mock_create.side_effect = ServiceError(message="Failed", code="fail")
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/inactivate",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [str(uuid4())]},
+        )
+
+    assert response.status_code >= 400
+
+
+def test_bulk_reactivate_null_result(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Null result from reactivate service returns error body."""
+    with patch("routers.api.v1.users.bg_tasks_service.create_bulk_reactivate_task") as mock_create:
+        mock_create.return_value = None
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/reactivate",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [str(uuid4())]},
+        )
+
+    assert response.status_code == 202
+    assert "error" in response.json()
+
+
+def test_bulk_reactivate_service_error(client, test_tenant_host, oauth2_admin_authorization_header):
+    """ServiceError from reactivate task is translated to HTTP exception."""
+    from services.exceptions import ServiceError
+
+    with patch("routers.api.v1.users.bg_tasks_service.create_bulk_reactivate_task") as mock_create:
+        mock_create.side_effect = ServiceError(message="Failed", code="fail")
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/reactivate",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"user_ids": [str(uuid4())]},
+        )
+
+    assert response.status_code >= 400
+
+
+def test_bulk_group_assignment_null_result(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Null result from group assignment service returns error body."""
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.create_bulk_group_assignment_task"
+    ) as mock_create:
+        mock_create.return_value = None
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/group-assignment",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"group_id": str(uuid4()), "user_ids": [str(uuid4())]},
+        )
+
+    assert response.status_code == 202
+    assert "error" in response.json()
+
+
+def test_bulk_group_assignment_service_error(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """ServiceError from group assignment task is translated to HTTP exception."""
+    from services.exceptions import ServiceError
+
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.create_bulk_group_assignment_task"
+    ) as mock_create:
+        mock_create.side_effect = ServiceError(message="Failed", code="fail")
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/group-assignment",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"group_id": str(uuid4()), "user_ids": [str(uuid4())]},
+        )
+
+    assert response.status_code >= 400
+
+
+def test_bulk_group_assignment_preview_service_error(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """ServiceError from group assignment preview is translated to HTTP exception."""
+    from services.exceptions import ServiceError
+
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.preview_bulk_group_assignment"
+    ) as mock_preview:
+        mock_preview.side_effect = ServiceError(message="Failed", code="fail")
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/group-assignment/preview",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"group_id": str(uuid4()), "user_ids": [str(uuid4())]},
+        )
+
+    assert response.status_code >= 400

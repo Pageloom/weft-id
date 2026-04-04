@@ -378,6 +378,17 @@ class TestCompleteForcedPasswordReset:
                 complete_forced_password_reset(tenant_id, user_id, "weak")
             assert exc_info.value.code == "password_too_weak"
 
+    def test_complete_reset_user_not_found(self):
+        """Forced reset raises ValidationError when user doesn't exist."""
+        from services.users.password import complete_forced_password_reset
+
+        with patch("services.users.password.database") as mock_db:
+            mock_db.users.get_user_by_id.return_value = None
+
+            with pytest.raises(ValidationError) as exc_info:
+                complete_forced_password_reset(str(uuid4()), str(uuid4()), "password")
+            assert exc_info.value.code == "user_not_found"
+
     def test_complete_reset_same_password_rejected(self, make_user_dict):
         """Forced reset rejects same-password reuse."""
         from services.users.password import complete_forced_password_reset
@@ -718,3 +729,141 @@ class TestValidateResetToken:
 
             result = validate_reset_token(tenant_id, "valid-token")
             assert result["minimum_password_length"] == 20
+
+    def test_user_not_found_returns_none(self):
+        from services.users.password import validate_reset_token
+
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.extract_user_id_from_url_token", return_value=user_id),
+            patch("services.users.password.database") as mock_db,
+        ):
+            mock_db.users.get_user_by_id.return_value = None
+
+            assert validate_reset_token(str(uuid4()), "token-for-missing-user") is None
+
+
+class TestValidateRecoveryToken:
+    """Tests for users.validate_recovery_token()."""
+
+    def test_valid_recovery_token(self):
+        from services.users.password import validate_recovery_token
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.extract_user_id_from_url_token", return_value=user_id),
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.verify_url_token", return_value=user_id),
+        ):
+            mock_db.users.get_user_by_id.return_value = {
+                "role": "member",
+                "is_inactivated": False,
+                "has_password": True,
+                "password_changed_at": "2026-01-01",
+            }
+            mock_db.security.get_password_policy.return_value = {
+                "minimum_password_length": 14,
+                "minimum_zxcvbn_score": 3,
+            }
+
+            result = validate_recovery_token(tenant_id, "valid-token")
+
+            assert result is not None
+            assert result["user_id"] == user_id
+            assert result["is_inactivated"] is False
+            assert result["has_password"] is True
+            assert result["minimum_password_length"] == 14
+            assert result["minimum_zxcvbn_score"] == 3
+
+    def test_invalid_token_returns_none(self):
+        from services.users.password import validate_recovery_token
+
+        with patch("services.users.password.extract_user_id_from_url_token", return_value=None):
+            assert validate_recovery_token(str(uuid4()), "bad-token") is None
+
+    def test_user_not_found_returns_none(self):
+        from services.users.password import validate_recovery_token
+
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.extract_user_id_from_url_token", return_value=user_id),
+            patch("services.users.password.database") as mock_db,
+        ):
+            mock_db.users.get_user_by_id.return_value = None
+
+            assert validate_recovery_token(str(uuid4()), "token") is None
+
+    def test_expired_recovery_token_returns_none(self):
+        from services.users.password import validate_recovery_token
+
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.extract_user_id_from_url_token", return_value=user_id),
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.verify_url_token", return_value=None),
+        ):
+            mock_db.users.get_user_by_id.return_value = {
+                "role": "member",
+                "is_inactivated": False,
+                "has_password": True,
+                "password_changed_at": "2026-01-01",
+            }
+
+            assert validate_recovery_token(str(uuid4()), "expired-token") is None
+
+    def test_super_admin_gets_higher_min_length(self):
+        from services.users.password import validate_recovery_token
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.extract_user_id_from_url_token", return_value=user_id),
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.verify_url_token", return_value=user_id),
+        ):
+            mock_db.users.get_user_by_id.return_value = {
+                "role": "super_admin",
+                "is_inactivated": False,
+                "has_password": True,
+                "password_changed_at": "2026-01-01",
+            }
+            mock_db.security.get_password_policy.return_value = {
+                "minimum_password_length": 14,
+                "minimum_zxcvbn_score": 3,
+            }
+
+            result = validate_recovery_token(tenant_id, "valid-token")
+            assert result["minimum_password_length"] == 20
+
+    def test_inactivated_user(self):
+        from services.users.password import validate_recovery_token
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.extract_user_id_from_url_token", return_value=user_id),
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.verify_url_token", return_value=user_id),
+        ):
+            mock_db.users.get_user_by_id.return_value = {
+                "role": "member",
+                "is_inactivated": True,
+                "has_password": False,
+                "password_changed_at": None,
+            }
+            mock_db.security.get_password_policy.return_value = {
+                "minimum_password_length": 14,
+                "minimum_zxcvbn_score": 3,
+            }
+
+            result = validate_recovery_token(tenant_id, "valid-token")
+
+            assert result["is_inactivated"] is True
+            assert result["has_password"] is False

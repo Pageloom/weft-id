@@ -301,4 +301,68 @@ formatting, stable JSON key ordering for metadata, and a defined null representa
 
 ---
 
+## Streamlined Sign-In Flow (Skip Email Verification by Default)
+
+**User Story:**
+As a user signing in to WeftID,
+I want to enter my email and immediately be directed to my sign-in method,
+So that I don't have to prove email possession just to reach the login form.
+
+**Context:**
+
+The current "discovery" flow requires email verification (6-digit code) before revealing the user's auth method. This prevents email enumeration but adds a full email round-trip on every first-time or new-device sign-in. The trust cookie covers repeat visits, but the initial experience is friction-heavy and unusual compared to other identity platforms.
+
+This item introduces a second sign-in track that becomes the default, while the current discovery flow becomes opt-in per tenant. The new flow accepts the trade-off of revealing auth method in exchange for speed, mitigated by rate limiting. The forgot-password flow absorbs the "prove email, then discover your situation" role that the discovery flow serves today.
+
+**Rationale:** This changes the default authentication experience. The current discovery flow remains available as an opt-in tenant setting for security-conscious deployments. The enumeration risk in the new flow is accepted and mitigated by IP+tenant rate limiting, which is consistent with how most identity platforms operate.
+
+**Key invariant:** In both flows, SAML users are redirected to their IdP and never see a password form or forgot-password link. The only difference is whether email possession is verified *before* routing (old flow) or not (new flow). The old flow doubles as a discovery mechanism and anti-enumeration measure. The new flow trades that for ease of use.
+
+**Sign-in flow (new default):**
+
+- User enters email
+- System looks up auth method and routes immediately:
+  - **Password user** → password form
+  - **SAML/SSO user** → redirect to assigned IdP
+  - **Inactivated user** → password form (no status disclosure)
+  - **Unknown email** → password form (no existence disclosure)
+- Rate limited by IP+tenant combination (prevents bulk enumeration)
+
+**Sign-in flow (opt-in, current behavior):**
+
+- User enters email → verification code sent → prove possession → routed to auth method
+- Tenant setting enables this mode (e.g., `require_email_verification_for_login`)
+
+**Forgot-password flow changes:**
+
+The forgot-password flow becomes the proof-of-possession discovery mechanism:
+
+- User enters email on forgot-password page
+- If account exists (any type, any status): sends a neutral email ("click here to continue", no account details in the email body)
+- If no account exists, or active SAML user: no email sent (but UI shows same "check your email" message)
+- After clicking the link (email possession proven), the landing page reveals the user's situation:
+  - **Password user** → password reset form (as today)
+  - **Inactivated user** (password or SAML) → inactivation status + reactivation flow
+  - **No account** → "No account found at [tenant]. Contact your administrator."
+
+**Acceptance Criteria:**
+
+- [ ] New tenant setting to opt in to email-verification-first login (current discovery flow)
+- [ ] Default sign-in flow: email entry routes immediately to auth method without verification
+- [ ] Unknown emails and inactivated users are routed to the password form (no info disclosure)
+- [ ] IP+tenant rate limiting on the email-entry endpoint
+- [ ] Forgot-password email is neutral (no account details, just a "continue" link)
+- [ ] Forgot-password landing page (after click = proof of possession) shows situation-appropriate outcome: password reset form, inactivation status, or "no account found"
+- [ ] Active SAML users who manually navigate to forgot-password do not receive an email
+- [ ] Existing trust cookie optimization continues to work in both flows
+- [ ] Existing rate limits on password login attempts preserved
+- [ ] Event logging for sign-in routing decisions (audit trail)
+- [ ] Database migration for tenant setting
+
+**Effort:** L
+**Value:** High
+**Version impact:** Minor (new default behavior, old behavior preserved via tenant setting; no breaking API changes)
+
+---
+
 

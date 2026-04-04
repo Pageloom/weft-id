@@ -4,6 +4,29 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Bulk Group Assignment (Browser-Native)
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Group members page: "Bulk Add" button opens user selection view (filtered to non-members of this group)
+- [x] User list: "Add to Group" button in action bar when users are selected, with group picker dropdown
+- [x] Both flows handle additions (group members page uses immediate adds for small batches; user list uses deferred background job)
+- [x] IdP-synced groups (`group_type = idp`) reject all changes with clear error
+- [x] Job result: N added, N skipped (already member), N errors
+- [x] Each addition emits `group_member_added` audit event
+- [x] Removal: existing multiselect on group members page already handles this (no new work needed)
+- [x] API: `POST /api/v1/groups/{group_id}/members/bulk` accepts list of user IDs
+
+**Resolution:** Two entry points for bulk group assignment. From the group members page, admins click "Add Members" to open a filtered user selection view (non-members only) with immediate processing. From the user list, admins select users, click "Add to Group", pick from a group dropdown, and the additions run as a background job. IdP groups are protected at service, job, and UI layers.
+
+**Effort:** M
+**Value:** Medium
+**Version impact:** Minor (new feature)
+
+---
+
 ## Bulk Inactivation and Reactivation (Browser-Native)
 
 **Status:** Complete

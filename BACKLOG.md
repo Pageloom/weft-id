@@ -159,39 +159,7 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
-## Bulk Group Assignment (Browser-Native)
-
-**User Story:**
-As an admin,
-I want to add or remove users from a group in bulk from within the browser,
-So that I can handle org restructures and team changes without tedious one-at-a-time clicking.
-
-**Context:**
-
-Two entry points:
-1. From the group members page: "Bulk Add Members" opens the user list with multi-select,
-   filtered to non-members. Select users, confirm, done.
-2. From the user list: select users, click "Add to Group", pick a group from a dropdown, confirm.
-
-Removal works from the group members page: select current members, click "Remove Selected"
-(this already exists via the multiselect action bar).
-
-IdP-synced groups reject bulk changes with a clear error.
-
-**Acceptance Criteria:**
-
-- [ ] Group members page: "Bulk Add" button opens user selection view (filtered to non-members of this group)
-- [ ] User list: "Add to Group" button in action bar when users are selected, with group picker dropdown
-- [ ] Both flows create a deferred job for the additions
-- [ ] IdP-synced groups (`group_type = idp`) reject all changes with clear error
-- [ ] Job result: N added, N skipped (already member), N errors
-- [ ] Each addition emits `group_member_added` audit event
-- [ ] Removal: existing multiselect on group members page already handles this (no new work needed)
-- [ ] API: `POST /api/v1/groups/{group_id}/bulk-members` accepts list of user IDs or filter
-
-**Effort:** M
-**Value:** Medium
-**Version impact:** Minor (new feature)
+## ~~Bulk Group Assignment (Browser-Native)~~ (Complete)
 
 ---
 

@@ -12,8 +12,6 @@ Uses the two-tenant testbed with extras (no-access user, second SSO user).
 import subprocess
 import textwrap
 
-from helpers.maildev import clear_emails, extract_otp_code, get_latest_email
-
 
 class TestConsentDenial:
     """User cancels at the consent screen during IdP-initiated SSO."""
@@ -239,23 +237,12 @@ class TestSwitchAccount:
         # Step 5: Redirected to /login with SSO context preserved
         page.wait_for_url(f"{idp_base}/login**", timeout=10000)
 
-        # Step 6: Full multi-step login as user B
-        clear_emails()
+        # Step 6: Login as user B (direct routing, no email verification)
         page.locator("#email").fill(user_b_email)
         page.locator("#emailForm button[type='submit']").click()
 
-        # Email verification
-        page.wait_for_url("**/login/verify**")
-        mail = get_latest_email(to=user_b_email, timeout=10.0)
-        assert mail is not None, f"No verification email received for {user_b_email}"
-        code = extract_otp_code(mail)
-        assert code is not None, "Could not extract verification code"
-
-        page.locator("#code").fill(code)
-        page.locator("#verifyCodeForm button[type='submit']").click()
-
-        # Password form
-        page.wait_for_url("**/login?**show_password**")
+        # Direct routing: password form immediately
+        page.wait_for_url("**/login?**show_password**", timeout=10000)
         page.locator("input[name='password']").fill(user_b_password)
         page.locator("#loginForm button[type='submit']").click()
 

@@ -237,6 +237,56 @@ def login(page):
 
 
 # ---------------------------------------------------------------------------
+# Login flow helpers
+# ---------------------------------------------------------------------------
+
+
+def _set_email_verification_required(subdomain: str, required: bool):
+    """Toggle require_email_verification_for_login for a tenant via SQL."""
+    val = "true" if required else "false"
+    sql = (
+        f"INSERT INTO tenant_security_settings "
+        f"(tenant_id, require_email_verification_for_login) "
+        f"SELECT id, {val} FROM tenants WHERE subdomain = '{subdomain}' "
+        f"ON CONFLICT (tenant_id) DO UPDATE "
+        f"SET require_email_verification_for_login = {val};"
+    )
+    subprocess.run(
+        [
+            *DOCKER_COMPOSE,
+            "exec",
+            "-T",
+            "db",
+            "psql",
+            "-U",
+            "postgres",
+            "-d",
+            "appdb",
+            "-c",
+            sql,
+        ],
+        capture_output=True,
+        timeout=10,
+    )
+
+
+def enter_email_and_reach_password_form(page, base_url, email, password):
+    """Enter email at login and navigate to the password form.
+
+    Works with the default direct-routing flow (no email verification).
+    After entering email, the user is immediately shown the password form.
+    """
+    page.goto(f"{base_url}/login")
+    page.locator("#email").fill(email)
+    page.locator("#emailForm button[type='submit']").click()
+
+    # Direct routing: immediately lands on password form
+    page.wait_for_url("**/login?**show_password**", timeout=10000)
+    page.locator("input[name='password']").fill(password)
+    page.locator("#loginForm button[type='submit']").click()
+
+
+# ---------------------------------------------------------------------------
 # MailDev utilities
 # ---------------------------------------------------------------------------
 

@@ -228,3 +228,154 @@ class TestLoginForgotPasswordLink:
         assert response.status_code == 200
         assert "Forgot password?" in response.text
         assert "/forgot-password" in response.text
+
+
+class TestAccountRecovery:
+    """Tests for /account-recovery/{token} endpoints."""
+
+    def teardown_method(self):
+        app.dependency_overrides.clear()
+
+    def test_get_active_password_user_shows_reset_form(self, mocker):
+        _setup(mocker)
+        user_id = str(uuid4())
+        mock_svc = mocker.patch(f"{AUTH_PW_RESET}.users_service")
+        mock_svc.validate_recovery_token.return_value = {
+            "user_id": user_id,
+            "is_inactivated": False,
+            "has_password": True,
+            "role": "member",
+            "minimum_password_length": 14,
+            "minimum_zxcvbn_score": 3,
+        }
+
+        client = TestClient(app)
+        response = client.get("/account-recovery/valid-token")
+
+        assert response.status_code == 200
+        assert "Set New Password" in response.text
+        # Form action should point to account-recovery (recovery mode)
+        assert "/account-recovery/valid-token" in response.text
+
+    def test_get_inactivated_user_shows_disclosure(self, mocker):
+        _setup(mocker)
+        user_id = str(uuid4())
+        mock_svc = mocker.patch(f"{AUTH_PW_RESET}.users_service")
+        mock_svc.validate_recovery_token.return_value = {
+            "user_id": user_id,
+            "is_inactivated": True,
+            "has_password": False,
+            "role": "member",
+            "minimum_password_length": 14,
+            "minimum_zxcvbn_score": 3,
+        }
+
+        client = TestClient(app)
+        response = client.get("/account-recovery/valid-token")
+
+        assert response.status_code == 200
+        assert "Account Inactivated" in response.text
+        assert "Request Reactivation" in response.text
+
+    def test_get_inactivated_super_admin_shows_self_reactivation(self, mocker):
+        _setup(mocker)
+        user_id = str(uuid4())
+        mock_svc = mocker.patch(f"{AUTH_PW_RESET}.users_service")
+        mock_svc.validate_recovery_token.return_value = {
+            "user_id": user_id,
+            "is_inactivated": True,
+            "has_password": True,
+            "role": "super_admin",
+            "minimum_password_length": 20,
+            "minimum_zxcvbn_score": 3,
+        }
+
+        client = TestClient(app)
+        response = client.get("/account-recovery/valid-token")
+
+        assert response.status_code == 200
+        assert "Reactivate My Account" in response.text
+
+    def test_get_invalid_token(self, mocker):
+        _setup(mocker)
+        mock_svc = mocker.patch(f"{AUTH_PW_RESET}.users_service")
+        mock_svc.validate_recovery_token.return_value = None
+
+        client = TestClient(app, follow_redirects=False)
+        response = client.get("/account-recovery/bad-token")
+
+        assert response.status_code == 303
+        assert "/forgot-password?error=invalid_or_expired" in response.headers["location"]
+
+    def test_post_password_reset_success(self, mocker):
+        _setup(mocker)
+        user_id = str(uuid4())
+        mock_svc = mocker.patch(f"{AUTH_PW_RESET}.users_service")
+        mock_svc.validate_recovery_token.return_value = {
+            "user_id": user_id,
+            "is_inactivated": False,
+            "has_password": True,
+            "role": "member",
+            "minimum_password_length": 14,
+            "minimum_zxcvbn_score": 3,
+        }
+
+        client = TestClient(app, follow_redirects=False)
+        response = client.post(
+            "/account-recovery/valid-token",
+            data={
+                "new_password": "new_strong_password",
+                "new_password_confirm": "new_strong_password",
+                "csrf_token": "test",
+            },
+        )
+
+        assert response.status_code == 303
+        assert "/login?success=password_reset" in response.headers["location"]
+        mock_svc.complete_self_service_password_reset.assert_called_once_with(
+            TENANT_ID, user_id, "new_strong_password"
+        )
+
+    def test_post_password_mismatch(self, mocker):
+        _setup(mocker)
+        user_id = str(uuid4())
+        mock_svc = mocker.patch(f"{AUTH_PW_RESET}.users_service")
+        mock_svc.validate_recovery_token.return_value = {
+            "user_id": user_id,
+            "is_inactivated": False,
+            "has_password": True,
+            "role": "member",
+            "minimum_password_length": 14,
+            "minimum_zxcvbn_score": 3,
+        }
+
+        client = TestClient(app)
+        response = client.post(
+            "/account-recovery/valid-token",
+            data={
+                "new_password": "pass_one",
+                "new_password_confirm": "pass_two",
+                "csrf_token": "test",
+            },
+        )
+
+        assert response.status_code == 200
+        assert "Passwords do not match" in response.text
+
+    def test_post_invalid_token(self, mocker):
+        _setup(mocker)
+        mock_svc = mocker.patch(f"{AUTH_PW_RESET}.users_service")
+        mock_svc.validate_recovery_token.return_value = None
+
+        client = TestClient(app, follow_redirects=False)
+        response = client.post(
+            "/account-recovery/bad-token",
+            data={
+                "new_password": "new_password",
+                "new_password_confirm": "new_password",
+                "csrf_token": "test",
+            },
+        )
+
+        assert response.status_code == 303
+        assert "/forgot-password?error=invalid_or_expired" in response.headers["location"]

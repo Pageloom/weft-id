@@ -69,6 +69,7 @@ def test_all_non_public_routes_have_authentication():
         "/mfa/verify/send-email",
         "/",  # Root redirect - handled by tenants router
         "/account/emails/verify/{email_id}/{nonce}",  # Email verification doesn't require login
+        "/account-recovery/{token}",  # Account recovery after proof of email possession
     }
 
     # Authentication dependencies to check for
@@ -209,8 +210,13 @@ def test_router_level_dependencies_are_set():
     # Account routes should have authentication (either require_current_user or get_current_user)
     auth_deps = {get_current_user, require_current_user, require_admin, require_super_admin}
 
+    # Paths that start with /account but don't require authentication
+    account_exceptions = {"/account-recovery/{token}"}
+
     for route in account_routes:
         if hasattr(route, "dependant"):
+            if route.path in account_exceptions:
+                continue
             deps = [dep.call for dep in route.dependant.dependencies if hasattr(dep, "call")]
             has_auth = any(dep in auth_deps for dep in deps)
             assert has_auth, f"Account route {route.path} missing authentication dependency"

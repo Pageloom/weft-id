@@ -29,6 +29,7 @@ _SETTINGS_FIELDS: list[tuple[str, str, Any]] = [
     ("minimum_password_length", "minimum_password_length", 14),
     ("minimum_zxcvbn_score", "minimum_zxcvbn_score", 3),
     ("group_assertion_scope", "group_assertion_scope", "access_relevant"),
+    ("require_email_verification_for_login", "require_email_verification_for_login", False),
 ]
 
 
@@ -106,6 +107,7 @@ def get_security_settings(
             minimum_password_length=14,
             minimum_zxcvbn_score=3,
             group_assertion_scope="access_relevant",
+            require_email_verification_for_login=False,
         )
 
     return TenantSecuritySettings(
@@ -118,6 +120,9 @@ def get_security_settings(
         minimum_password_length=settings.get("minimum_password_length", 14),
         minimum_zxcvbn_score=settings.get("minimum_zxcvbn_score", 3),
         group_assertion_scope=settings.get("group_assertion_scope", "access_relevant"),
+        require_email_verification_for_login=settings.get(
+            "require_email_verification_for_login", False
+        ),
     )
 
 
@@ -245,6 +250,25 @@ def get_group_assertion_scope(tenant_id: str) -> str:
     return database.security.get_group_assertion_scope(tenant_id)
 
 
+def requires_email_verification_for_login(tenant_id: str) -> bool:
+    """
+    Check if tenant requires email verification before login routing.
+
+    This is a utility function without authorization, used during
+    the login flow to determine which sign-in track to use.
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        True if email verification is required, False otherwise (default)
+    """
+    settings = database.security.get_security_settings(tenant_id)
+    if not settings:
+        return False
+    return bool(settings.get("require_email_verification_for_login", False))
+
+
 # =============================================================================
 # Update Operation
 # =============================================================================
@@ -352,6 +376,7 @@ def update_security_settings(
         minimum_password_length=resolved["minimum_password_length"],
         minimum_zxcvbn_score=resolved["minimum_zxcvbn_score"],
         group_assertion_scope=resolved["group_assertion_scope"],
+        require_email_verification_for_login=resolved["require_email_verification_for_login"],
         updated_by=requesting_user["id"],
         tenant_id_value=tenant_id,
     )
@@ -461,4 +486,5 @@ def update_security_settings(
         minimum_password_length=resolved["minimum_password_length"],
         minimum_zxcvbn_score=resolved["minimum_zxcvbn_score"],
         group_assertion_scope=resolved["group_assertion_scope"],
+        require_email_verification_for_login=resolved["require_email_verification_for_login"],
     )

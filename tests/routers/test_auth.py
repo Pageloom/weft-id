@@ -726,11 +726,18 @@ def test_set_password_too_short(test_tenant, mocker):
 
 
 def test_send_verification_code_sends_email_and_creates_cookie(test_tenant, mocker):
-    """Test that send-code endpoint sends email and creates verification cookie."""
+    """Test send-code sends email and creates cookie when verification is enabled."""
     override_tenant(app, test_tenant["id"])
 
+    mocker.patch(
+        f"{AUTH_LOGIN}.settings_service.requires_email_verification_for_login",
+        return_value=True,
+    )
+    mocker.patch(f"{AUTH_LOGIN}.ratelimit")
+    mocker.patch(f"{AUTH_LOGIN}.get_trust_cookie_name", return_value="email_trust_abc")
     mock_send = mocker.patch(f"{AUTH_LOGIN}.send_email_possession_code")
     mock_gen = mocker.patch(f"{AUTH_LOGIN}.generate_verification_code")
+    mocker.patch(f"{AUTH_LOGIN}.create_verification_cookie", return_value="cookie-val")
 
     mock_gen.return_value = "123456"
     mock_send.return_value = True
@@ -743,9 +750,7 @@ def test_send_verification_code_sends_email_and_creates_cookie(test_tenant, mock
     )
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/login/verify"
-    # Check cookie was set
-    assert "email_verify_pending" in response.cookies
+    assert "/login/verify" in response.headers["location"]
     mock_send.assert_called_once_with("user@example.com", "123456", tenant_id=ANY)
 
 
@@ -993,8 +998,15 @@ def test_email_normalization_in_send_code(test_tenant, mocker):
     """Test that email is normalized to lowercase in send-code."""
     override_tenant(app, test_tenant["id"])
 
+    mocker.patch(
+        f"{AUTH_LOGIN}.settings_service.requires_email_verification_for_login",
+        return_value=True,
+    )
+    mocker.patch(f"{AUTH_LOGIN}.ratelimit")
+    mocker.patch(f"{AUTH_LOGIN}.get_trust_cookie_name", return_value="email_trust_abc")
     mock_send = mocker.patch(f"{AUTH_LOGIN}.send_email_possession_code")
     mock_gen = mocker.patch(f"{AUTH_LOGIN}.generate_verification_code")
+    mocker.patch(f"{AUTH_LOGIN}.create_verification_cookie", return_value="cookie-val")
 
     mock_gen.return_value = "123456"
     mock_send.return_value = True
@@ -1450,56 +1462,134 @@ def test_set_password_logs_event(test_tenant, mocker):
 
 
 # =============================================================================
-# Route Type Failure Tests (using deprecated /login/check-email endpoint)
+# Direct Login Routing Tests (new default flow without email verification)
 # =============================================================================
 
 
-def test_check_email_route_idp_disabled(test_tenant, mocker):
-    """Test check-email handles idp_disabled route type."""
-    override_tenant(app, test_tenant["id"])
+def _mock_direct_routing(mocker, route_type, idp_id=None, user_id=None):
+    """Set up mocks for direct routing (verification disabled)."""
+    mocker.patch(
+        f"{AUTH_LOGIN}.settings_service.requires_email_verification_for_login",
+        return_value=False,
+    )
+    mock_route = mocker.patch(f"{AUTH_HELPERS}.saml_service.determine_auth_route")
+    mock_route.return_value = Mock(route_type=route_type, idp_id=idp_id, user_id=user_id)
+    mocker.patch(f"{AUTH_LOGIN}.ratelimit")
+    return mock_route
 
-    mock_route = mocker.patch(f"{AUTH_LOGIN}.saml_service.determine_auth_route")
-    mock_route.return_value = Mock(route_type="idp_disabled", idp_id=None, user_id=None)
+
+def test_direct_routing_password_user(test_tenant, mocker):
+    """Direct routing: password user -> password form."""
+    override_tenant(app, test_tenant["id"])
+    _mock_direct_routing(mocker, "password", user_id="user-123")
 
     client = TestClient(app)
     response = client.post(
-        "/login/check-email",
+        "/login/send-code",
         data={"email": "test@example.com"},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert "error=idp_disabled" in response.headers["location"]
+    assert "show_password=true" in response.headers["location"]
 
 
-def test_check_email_route_no_auth_method(test_tenant, mocker):
-    """Test check-email handles no_auth_method route type."""
+def test_direct_routing_idp_user(test_tenant, mocker):
+    """Direct routing: IdP user -> SAML redirect."""
     override_tenant(app, test_tenant["id"])
-
-    mock_route = mocker.patch(f"{AUTH_LOGIN}.saml_service.determine_auth_route")
-    mock_route.return_value = Mock(route_type="no_auth_method", idp_id=None, user_id=None)
+    _mock_direct_routing(mocker, "idp", idp_id="idp-abc")
 
     client = TestClient(app)
     response = client.post(
-        "/login/check-email",
+        "/login/send-code",
         data={"email": "test@example.com"},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert "error=no_auth_method" in response.headers["location"]
+    assert "/saml/login/idp-abc" in response.headers["location"]
 
 
-def test_check_email_route_invalid_email(test_tenant, mocker):
-    """Test check-email handles invalid_email route type."""
+def test_direct_routing_idp_jit_user(test_tenant, mocker):
+    """Direct routing: IdP JIT user -> SAML redirect."""
     override_tenant(app, test_tenant["id"])
-
-    mock_route = mocker.patch(f"{AUTH_LOGIN}.saml_service.determine_auth_route")
-    mock_route.return_value = Mock(route_type="invalid_email", idp_id=None, user_id=None)
+    _mock_direct_routing(mocker, "idp_jit", idp_id="idp-jit-123")
 
     client = TestClient(app)
     response = client.post(
-        "/login/check-email",
+        "/login/send-code",
+        data={"email": "test@example.com"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "/saml/login/idp-jit-123" in response.headers["location"]
+
+
+def test_direct_routing_inactivated_user_no_disclosure(test_tenant, mocker):
+    """Direct routing: inactivated user -> password form (no info leak)."""
+    override_tenant(app, test_tenant["id"])
+    _mock_direct_routing(mocker, "inactivated", user_id="user-456")
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/send-code",
+        data={"email": "test@example.com"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert "show_password=true" in location
+    assert "error=" not in location
+    assert "inactivated" not in location
+
+
+def test_direct_routing_not_found_no_disclosure(test_tenant, mocker):
+    """Direct routing: unknown email -> password form (no info leak)."""
+    override_tenant(app, test_tenant["id"])
+    _mock_direct_routing(mocker, "not_found")
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/send-code",
+        data={"email": "nobody@example.com"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert "show_password=true" in location
+    assert "error=" not in location
+    assert "not_found" not in location
+
+
+def test_direct_routing_idp_disabled_no_disclosure(test_tenant, mocker):
+    """Direct routing: disabled IdP user -> password form (no info leak)."""
+    override_tenant(app, test_tenant["id"])
+    _mock_direct_routing(mocker, "idp_disabled", user_id="user-789")
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/send-code",
+        data={"email": "test@example.com"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert "show_password=true" in location
+    assert "idp_disabled" not in location
+
+
+def test_direct_routing_invalid_email(test_tenant, mocker):
+    """Direct routing: invalid email format -> error."""
+    override_tenant(app, test_tenant["id"])
+    _mock_direct_routing(mocker, "invalid_email")
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/send-code",
         data={"email": "invalid-email"},
         follow_redirects=False,
     )
@@ -1508,23 +1598,46 @@ def test_check_email_route_invalid_email(test_tenant, mocker):
     assert "error=invalid_email" in response.headers["location"]
 
 
-def test_check_email_route_unknown_type_fallback(test_tenant, mocker):
-    """Test check-email handles unknown route type with password fallback."""
+def test_direct_routing_unknown_type_fallback(test_tenant, mocker):
+    """Direct routing: unknown route type -> password form."""
     override_tenant(app, test_tenant["id"])
-
-    mock_route = mocker.patch(f"{AUTH_LOGIN}.saml_service.determine_auth_route")
-    mock_route.return_value = Mock(route_type="some_unknown_type", idp_id=None, user_id=None)
+    _mock_direct_routing(mocker, "some_unknown_type")
 
     client = TestClient(app)
     response = client.post(
-        "/login/check-email",
+        "/login/send-code",
         data={"email": "test@example.com"},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    # Unknown route type falls back to password form
     assert "show_password=true" in response.headers["location"]
+
+
+def test_verification_flow_when_enabled(test_tenant, mocker):
+    """When verification is required, send-code sends a verification code."""
+    override_tenant(app, test_tenant["id"])
+
+    mocker.patch(
+        f"{AUTH_LOGIN}.settings_service.requires_email_verification_for_login",
+        return_value=True,
+    )
+    mocker.patch(f"{AUTH_LOGIN}.ratelimit")
+    mocker.patch(f"{AUTH_LOGIN}.get_trust_cookie_name", return_value="email_trust_abc")
+    mocker.patch(f"{AUTH_LOGIN}.generate_verification_code", return_value="123456")
+    mock_send = mocker.patch(f"{AUTH_LOGIN}.send_email_possession_code")
+    mocker.patch(f"{AUTH_LOGIN}.create_verification_cookie", return_value="cookie-val")
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/send-code",
+        data={"email": "test@example.com"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "/login/verify" in response.headers["location"]
+    mock_send.assert_called_once()
 
 
 # =============================================================================

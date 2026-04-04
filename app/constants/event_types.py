@@ -14,6 +14,7 @@ in the map with a description indicating they are deprecated.
 # All event types with their human-readable descriptions
 EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # Authentication & Login
+    "account_recovery_requested": "Account recovery email requested",
     "login_failed": "Login attempt failed",
     "password_set": "Password set or changed",
     "password_changed": "User changed their password",
@@ -193,6 +194,7 @@ DEFAULT_TIERS = ("security", "admin")
 # system: internal bookkeeping with no audit value (task creation, job cleanup, setup steps)
 EVENT_TYPE_TIERS: dict[str, str] = {
     # Security tier
+    "account_recovery_requested": "security",
     "login_failed": "security",
     "password_set": "security",
     "password_changed": "security",

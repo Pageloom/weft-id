@@ -402,7 +402,7 @@ class TestCompleteForcedPasswordReset:
 class TestRequestPasswordReset:
     """Tests for users.request_password_reset()."""
 
-    def test_sends_email_for_valid_user(self):
+    def test_sends_email_for_active_password_user(self):
         from services.users.password import request_password_reset
 
         tenant_id = str(uuid4())
@@ -410,7 +410,7 @@ class TestRequestPasswordReset:
 
         with (
             patch("services.users.password.database") as mock_db,
-            patch("services.users.password.send_password_reset_email") as mock_send,
+            patch("services.users.password.send_account_recovery_email") as mock_send,
             patch("services.users.password.generate_url_token", return_value="test-token"),
             patch("services.users.password.log_event") as mock_log,
         ):
@@ -427,18 +427,70 @@ class TestRequestPasswordReset:
 
             mock_send.assert_called_once_with(
                 "user@example.com",
-                "https://example.com/reset-password/test-token",
+                "https://example.com/account-recovery/test-token",
                 tenant_id=tenant_id,
             )
             mock_log.assert_called_once()
-            assert mock_log.call_args.kwargs["event_type"] == "password_reset_requested"
+            assert mock_log.call_args.kwargs["event_type"] == "account_recovery_requested"
+
+    def test_sends_email_for_inactivated_user(self):
+        """Inactivated users now receive the recovery email (changed behavior)."""
+        from services.users.password import request_password_reset
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.send_account_recovery_email") as mock_send,
+            patch("services.users.password.generate_url_token", return_value="test-token"),
+            patch("services.users.password.log_event"),
+        ):
+            mock_db.users.get_user_by_email_for_reset.return_value = {
+                "user_id": user_id,
+                "has_password": True,
+                "is_inactivated": True,
+                "saml_idp_id": None,
+                "password_changed_at": None,
+                "role": "member",
+            }
+
+            request_password_reset(tenant_id, "inactive@example.com", "https://example.com")
+
+            mock_send.assert_called_once()
+
+    def test_sends_email_for_inactivated_saml_user(self):
+        """Inactivated SAML users also receive the recovery email."""
+        from services.users.password import request_password_reset
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.send_account_recovery_email") as mock_send,
+            patch("services.users.password.generate_url_token", return_value="test-token"),
+            patch("services.users.password.log_event"),
+        ):
+            mock_db.users.get_user_by_email_for_reset.return_value = {
+                "user_id": user_id,
+                "has_password": False,
+                "is_inactivated": True,
+                "saml_idp_id": str(uuid4()),
+                "password_changed_at": None,
+                "role": "member",
+            }
+
+            request_password_reset(tenant_id, "inactive-saml@example.com", "https://example.com")
+
+            mock_send.assert_called_once()
 
     def test_silent_for_unknown_email(self):
         from services.users.password import request_password_reset
 
         with (
             patch("services.users.password.database") as mock_db,
-            patch("services.users.password.send_password_reset_email") as mock_send,
+            patch("services.users.password.send_account_recovery_email") as mock_send,
         ):
             mock_db.users.get_user_by_email_for_reset.return_value = None
 
@@ -446,12 +498,12 @@ class TestRequestPasswordReset:
 
             mock_send.assert_not_called()
 
-    def test_silent_for_idp_user(self):
+    def test_silent_for_active_idp_user(self):
         from services.users.password import request_password_reset
 
         with (
             patch("services.users.password.database") as mock_db,
-            patch("services.users.password.send_password_reset_email") as mock_send,
+            patch("services.users.password.send_account_recovery_email") as mock_send,
         ):
             mock_db.users.get_user_by_email_for_reset.return_value = {
                 "user_id": str(uuid4()),
@@ -466,32 +518,12 @@ class TestRequestPasswordReset:
 
             mock_send.assert_not_called()
 
-    def test_silent_for_inactivated_user(self):
+    def test_silent_for_active_no_password_user(self):
         from services.users.password import request_password_reset
 
         with (
             patch("services.users.password.database") as mock_db,
-            patch("services.users.password.send_password_reset_email") as mock_send,
-        ):
-            mock_db.users.get_user_by_email_for_reset.return_value = {
-                "user_id": str(uuid4()),
-                "has_password": True,
-                "is_inactivated": True,
-                "saml_idp_id": None,
-                "password_changed_at": None,
-                "role": "member",
-            }
-
-            request_password_reset(str(uuid4()), "inactive@example.com", "https://example.com")
-
-            mock_send.assert_not_called()
-
-    def test_silent_for_no_password_user(self):
-        from services.users.password import request_password_reset
-
-        with (
-            patch("services.users.password.database") as mock_db,
-            patch("services.users.password.send_password_reset_email") as mock_send,
+            patch("services.users.password.send_account_recovery_email") as mock_send,
         ):
             mock_db.users.get_user_by_email_for_reset.return_value = {
                 "user_id": str(uuid4()),

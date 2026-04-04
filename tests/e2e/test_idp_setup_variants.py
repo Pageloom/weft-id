@@ -7,7 +7,6 @@ Tests:
     verify an unknown user with that domain gets JIT-provisioned via SSO.
 """
 
-from helpers.maildev import clear_emails, extract_otp_code, get_latest_email
 
 
 class TestIdpRegistrationViaUrl:
@@ -94,25 +93,9 @@ class TestDomainBasedRouting:
         # Pre-authenticate at IdP (skip full login flow at IdP)
         login(idp_base, domain_email)
 
-        # Step 1: Enter email at SP login
-        clear_emails()
-        page.goto(f"{sp_base}/login")
-        page.locator("#email").fill(domain_email)
-        page.locator("#emailForm button[type='submit']").click()
-
-        # Step 2: Verify email at SP
-        page.wait_for_url("**/login/verify**")
-        mail = get_latest_email(to=domain_email, timeout=10.0)
-        assert mail is not None, f"No verification email for {domain_email}"
-        code = extract_otp_code(mail)
-        assert code is not None, "Could not extract verification code"
-
-        page.locator("#code").fill(code)
-        page.locator("#verifyCodeForm button[type='submit']").click(no_wait_after=True)
-        page.wait_for_timeout(2000)
-
-        # Step 3: SP routes to IdP via domain binding. Navigate directly
-        # to SAML login (works around Playwright POST→303 chain issue).
+        # Step 1: SP routes to IdP via domain binding. Navigate directly
+        # to SAML login (Playwright POST->303 workaround). With direct routing
+        # (default), SP would redirect to IdP immediately after email entry.
         sp_idp_id = sp_config["idp_id"]
         page.goto(f"{sp_base}/saml/login/{sp_idp_id}")
 

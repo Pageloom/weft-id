@@ -44,6 +44,7 @@ from services.users.password import (
     complete_self_service_password_reset,
     force_password_reset,
     request_password_reset,
+    validate_recovery_token,
     validate_reset_token,
 )
 
@@ -100,6 +101,7 @@ __all__ = [
     "complete_self_service_password_reset",
     "force_password_reset",
     "request_password_reset",
+    "validate_recovery_token",
     "validate_reset_token",
     # Profile
     "get_current_user_profile",

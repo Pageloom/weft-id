@@ -8,10 +8,11 @@ from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
 from utils.crypto import derive_hmac_key
-from utils.email import send_password_reset_email
+from utils.email import send_account_recovery_email
 from utils.password import hash_password, verify_password
 from utils.password_strength import compute_hibp_monitoring_data, validate_password
 from utils.tokens import (
+    PURPOSE_ACCOUNT_RECOVERY,
     PURPOSE_PASSWORD_RESET,
     extract_user_id_from_url_token,
     generate_url_token,
@@ -271,46 +272,66 @@ def request_password_reset(
     base_url: str,
     client_ip: str | None = None,
 ) -> None:
-    """Request a self-service password reset.
+    """Request account recovery (password reset or inactivation discovery).
 
-    Sends a reset link to the user's email if the account is eligible.
-    Always returns normally (never reveals whether the email exists).
+    Sends a neutral email if the account is eligible:
+    - Active password users: email sent (landing page shows password reset form)
+    - Inactivated users (any auth type): email sent (landing page shows disclosure)
+
+    Does NOT send to:
+    - Non-existent users
+    - Active SAML/IdP users (they use their IdP, not password)
+    - Active users with no password and no IdP
+
+    Always returns normally (never reveals eligibility).
 
     Args:
         tenant_id: Tenant ID
-        email: Email address to send the reset link to
-        base_url: Base URL for building the reset link
+        email: Email address to send the recovery link to
+        base_url: Base URL for building the recovery link
         client_ip: Client IP for audit logging
     """
     email = email.strip().lower()
 
     user = database.users.get_user_by_email_for_reset(tenant_id, email)
 
-    # Silently bail for non-existent, IdP-federated, no-password, or inactivated users
+    # Non-existent user: bail silently
     if not user:
-        return
-    if user.get("saml_idp_id"):
-        return
-    if not user.get("has_password"):
-        return
-    if user.get("is_inactivated"):
         return
 
     user_id = str(user["user_id"])
-    state = str(user["password_changed_at"]) if user.get("password_changed_at") else ""
+    is_inactivated = bool(user.get("is_inactivated"))
 
-    token = generate_url_token(user_id, PURPOSE_PASSWORD_RESET, ttl_seconds=1800, state=state)
+    # Active SAML user: bail silently (they use IdP, not password)
+    if not is_inactivated and user.get("saml_idp_id"):
+        return
 
-    reset_url = f"{base_url.rstrip('/')}/reset-password/{token}"
-    send_password_reset_email(email, reset_url, tenant_id=tenant_id)
+    # Active user with no password and no IdP: bail silently
+    if not is_inactivated and not user.get("has_password") and not user.get("saml_idp_id"):
+        return
+
+    # Eligible: active password user OR inactivated user (any auth type)
+    password_changed_at = (
+        str(user["password_changed_at"]) if user.get("password_changed_at") else "none"
+    )
+    state = f"{password_changed_at}:{is_inactivated}"
+
+    token = generate_url_token(user_id, PURPOSE_ACCOUNT_RECOVERY, ttl_seconds=1800, state=state)
+
+    recovery_url = f"{base_url.rstrip('/')}/account-recovery/{token}"
+    send_account_recovery_email(email, recovery_url, tenant_id=tenant_id)
 
     log_event(
         tenant_id=tenant_id,
         actor_user_id=user_id,
-        event_type="password_reset_requested",
+        event_type="account_recovery_requested",
         artifact_type="user",
         artifact_id=user_id,
-        metadata={"email": email, "ip": client_ip},
+        metadata={
+            "email": email,
+            "ip": client_ip,
+            "is_inactivated": is_inactivated,
+        },
     )
 
 
@@ -410,6 +431,57 @@ def validate_reset_token(tenant_id: str, token: str) -> dict | None:
 
     return {
         "user_id": verified_user_id,
+        "role": user.get("role"),
+        "minimum_password_length": min_length,
+        "minimum_zxcvbn_score": min_score,
+    }
+
+
+_RECOVERY_TTL = 1800  # 30 minutes
+
+
+def validate_recovery_token(tenant_id: str, token: str) -> dict | None:
+    """Validate an account recovery URL token.
+
+    Returns user state info for the landing page to determine what to show
+    (password reset form vs inactivation disclosure).
+
+    Args:
+        tenant_id: Tenant ID
+        token: The URL token from the recovery link
+
+    Returns:
+        Dict with user_id, is_inactivated, has_password, role, and
+        password policy info if valid, or None if invalid/expired.
+    """
+    user_id = extract_user_id_from_url_token(token)
+    if not user_id:
+        return None
+
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user:
+        return None
+
+    is_inactivated = bool(user.get("is_inactivated"))
+    password_changed_at = (
+        str(user.get("password_changed_at")) if user.get("password_changed_at") else "none"
+    )
+    state = f"{password_changed_at}:{is_inactivated}"
+
+    verified_user_id = verify_url_token(
+        token, PURPOSE_ACCOUNT_RECOVERY, ttl_seconds=_RECOVERY_TTL, state=state
+    )
+    if not verified_user_id:
+        return None
+
+    min_length, min_score = _get_policy(tenant_id)
+    if user.get("role") == "super_admin":
+        min_length = max(min_length, 20)
+
+    return {
+        "user_id": verified_user_id,
+        "is_inactivated": is_inactivated,
+        "has_password": bool(user.get("has_password")),
         "role": user.get("role"),
         "minimum_password_length": min_length,
         "minimum_zxcvbn_score": min_score,

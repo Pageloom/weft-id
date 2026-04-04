@@ -17,6 +17,7 @@ def test_get_security_settings(test_tenant, test_admin_user):
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -45,6 +46,7 @@ def test_get_session_settings(test_tenant, test_admin_user):
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -72,6 +74,7 @@ def test_get_session_timeout(test_tenant, test_admin_user):
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -98,6 +101,7 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -119,6 +123,7 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -145,6 +150,7 @@ def test_update_security_settings(test_tenant, test_admin_user):
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -164,6 +170,7 @@ def test_update_security_settings(test_tenant, test_admin_user):
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -190,6 +197,7 @@ def test_update_security_settings_with_none_timeout(test_tenant, test_admin_user
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -213,6 +221,7 @@ def test_get_security_settings_includes_certificate_lifetime(test_tenant, test_a
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -247,6 +256,7 @@ def test_get_certificate_lifetime_configured(test_tenant, test_admin_user):
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -271,6 +281,7 @@ def test_update_security_settings_with_certificate_lifetime(test_tenant, test_ad
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -290,6 +301,7 @@ def test_update_security_settings_with_certificate_lifetime(test_tenant, test_ad
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="access_relevant",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -496,6 +508,7 @@ def test_get_group_assertion_scope_configured(test_tenant, test_admin_user):
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="trunk",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -521,6 +534,7 @@ def test_get_group_assertion_scope_all_values(test_tenant, test_admin_user):
             minimum_password_length=14,
             minimum_zxcvbn_score=3,
             group_assertion_scope=scope,
+            require_email_verification_for_login=False,
             updated_by=test_admin_user["id"],
             tenant_id_value=test_tenant["id"],
         )
@@ -544,6 +558,7 @@ def test_get_security_settings_includes_group_assertion_scope(test_tenant, test_
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
         group_assertion_scope="all",
+        require_email_verification_for_login=False,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )

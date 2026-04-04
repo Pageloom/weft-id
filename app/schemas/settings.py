@@ -97,6 +97,13 @@ class TenantSecuritySettings(BaseModel):
             "or access_relevant (only groups granting SP access)"
         ),
     )
+    require_email_verification_for_login: bool = Field(
+        False,
+        description=(
+            "Require email possession verification before routing to auth method. "
+            "When disabled (default), users are routed immediately after entering their email."
+        ),
+    )
 
 
 class VersionInfo(BaseModel):
@@ -141,4 +148,11 @@ class TenantSecuritySettingsUpdate(BaseModel):
     group_assertion_scope: Literal["all", "trunk", "access_relevant"] | None = Field(
         None,
         description=("Which groups to include in SAML assertions: all, trunk, or access_relevant"),
+    )
+    require_email_verification_for_login: bool | None = Field(
+        None,
+        description=(
+            "Require email possession verification before routing to auth method. "
+            "When disabled (default), users are routed immediately after entering their email."
+        ),
     )

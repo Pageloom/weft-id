@@ -18,7 +18,11 @@ from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Cookie, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from middleware.csrf import make_csrf_token_func
-from routers.auth._helpers import _get_client_ip, _route_after_email_verification
+from routers.auth._helpers import (
+    _get_client_ip,
+    _route_after_email_verification,
+    _route_without_verification,
+)
 from services.event_log import log_event
 from services.exceptions import RateLimitError, ServiceError
 from utils.auth import verify_login_with_status
@@ -109,8 +113,28 @@ def send_verification_code(
             status_code=303,
         )
 
-    # Rate limiting: prevent abuse of email sending
     client_ip = _get_client_ip(request)
+
+    # Check tenant setting: direct routing vs email verification
+    if not settings_service.requires_email_verification_for_login(tenant_id):
+        # Direct routing: route immediately without email verification
+        try:
+            ratelimit.prevent(
+                "login_route:ip:{ip}:tenant:{tenant}",
+                limit=30,
+                timespan=MINUTE * 5,
+                ip=client_ip,
+                tenant=str(tenant_id),
+            )
+        except RateLimitError:
+            return RedirectResponse(
+                url=f"/login?error=too_many_requests&prefill_email={quote(email)}",
+                status_code=303,
+            )
+        return _route_without_verification(request, tenant_id, email)
+
+    # Email verification flow: rate limit and send code
+    # Rate limiting: prevent abuse of email sending
     try:
         ratelimit.prevent("email_send:ip:{ip}", limit=10, timespan=HOUR, ip=client_ip)
         ratelimit.prevent("email_send:email:{email}", limit=5, timespan=MINUTE * 10, email=email)
@@ -291,77 +315,6 @@ def resend_verification_code(
         secure=not settings.IS_DEV,
     )
     return redirect
-
-
-@router.post("/login/check-email")
-def check_email_route(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    email: Annotated[str, Form()],
-):
-    """
-    DEPRECATED: Direct email check without verification.
-
-    This endpoint is kept for backwards compatibility but should not be used.
-    Use /login/send-code instead which requires email possession verification.
-    """
-    from urllib.parse import quote
-
-    result = saml_service.determine_auth_route(tenant_id, email)
-
-    if result.route_type == "password":
-        # User should authenticate with password
-        return RedirectResponse(
-            url=f"/login?prefill_email={quote(email)}&show_password=true",
-            status_code=303,
-        )
-
-    if result.route_type in ("idp", "idp_jit"):
-        # User should authenticate via SAML IdP
-        return RedirectResponse(
-            url=f"/saml/login/{result.idp_id}",
-            status_code=303,
-        )
-
-    if result.route_type == "inactivated":
-        # User is inactivated
-        return RedirectResponse(
-            url=f"/login?error=account_inactivated&prefill_email={quote(email)}",
-            status_code=303,
-        )
-
-    if result.route_type == "not_found":
-        # No user found and no JIT route
-        return RedirectResponse(
-            url=f"/login?error=user_not_found&prefill_email={quote(email)}",
-            status_code=303,
-        )
-
-    if result.route_type == "idp_disabled":
-        # User's IdP is disabled - they can't authenticate
-        return RedirectResponse(
-            url=f"/login?error=idp_disabled&prefill_email={quote(email)}",
-            status_code=303,
-        )
-
-    if result.route_type == "no_auth_method":
-        # User exists but has no password and no IdP - should not happen
-        return RedirectResponse(
-            url=f"/login?error=no_auth_method&prefill_email={quote(email)}",
-            status_code=303,
-        )
-
-    if result.route_type == "invalid_email":
-        return RedirectResponse(
-            url=f"/login?error=invalid_email&prefill_email={quote(email)}",
-            status_code=303,
-        )
-
-    # Unknown route type - fallback to password form
-    return RedirectResponse(
-        url=f"/login?prefill_email={quote(email)}&show_password=true",
-        status_code=303,
-    )
 
 
 @router.post("/login")

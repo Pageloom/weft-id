@@ -944,3 +944,225 @@ def test_create_bulk_group_assignment_task_forbidden(make_requesting_user):
 
     with pytest.raises(ForbiddenError):
         bg_tasks.create_bulk_group_assignment_task(requesting_user, str(uuid4()), [str(uuid4())])
+
+
+# --- Preview Bulk Inactivate: skip reasons ---
+
+
+def test_preview_bulk_inactivate_user_not_found(make_requesting_user):
+    """Preview skips users that don't exist."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    missing_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.return_value = None
+
+        result = bg_tasks.preview_bulk_inactivate(requesting_user, [missing_id])
+
+    assert result["eligible"] == 0
+    assert len(result["skipped"]) == 1
+    assert result["skipped"][0]["reason"] == "User not found"
+    assert result["skipped"][0]["name"] == "Unknown"
+
+
+def test_preview_bulk_inactivate_cannot_inactivate_self(make_requesting_user):
+    """Preview skips the admin's own account."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.return_value = {
+            "id": admin_id,
+            "role": "admin",
+            "is_inactivated": False,
+            "first_name": "Self",
+            "last_name": "Admin",
+        }
+
+        result = bg_tasks.preview_bulk_inactivate(requesting_user, [admin_id])
+
+    assert result["eligible"] == 0
+    assert result["skipped"][0]["reason"] == "Cannot inactivate yourself"
+
+
+def test_preview_bulk_inactivate_service_user_skipped(make_requesting_user):
+    """Preview skips service users."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    svc_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.return_value = {
+            "id": svc_id,
+            "role": "member",
+            "is_inactivated": False,
+            "first_name": "Service",
+            "last_name": "Account",
+        }
+        mock_db.users.is_service_user.return_value = True
+
+        result = bg_tasks.preview_bulk_inactivate(requesting_user, [svc_id])
+
+    assert result["eligible"] == 0
+    assert result["skipped"][0]["reason"] == "Service user"
+
+
+def test_preview_bulk_inactivate_last_super_admin_skipped(make_requesting_user):
+    """Preview skips the last super admin."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    sa_id = str(uuid4())
+    requesting_user = make_requesting_user(
+        user_id=admin_id, tenant_id=tenant_id, role="super_admin"
+    )
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.return_value = {
+            "id": sa_id,
+            "role": "super_admin",
+            "is_inactivated": False,
+            "first_name": "Last",
+            "last_name": "SuperAdmin",
+        }
+        mock_db.users.is_service_user.return_value = False
+        mock_db.users.count_active_super_admins.return_value = 1
+
+        result = bg_tasks.preview_bulk_inactivate(requesting_user, [sa_id])
+
+    assert result["eligible"] == 0
+    assert result["skipped"][0]["reason"] == "Last super admin"
+
+
+# --- Preview Bulk Reactivate: skip reasons ---
+
+
+def test_preview_bulk_reactivate_user_not_found(make_requesting_user):
+    """Preview skips users that don't exist."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    missing_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.return_value = None
+
+        result = bg_tasks.preview_bulk_reactivate(requesting_user, [missing_id])
+
+    assert result["eligible"] == 0
+    assert result["skipped"][0]["reason"] == "User not found"
+
+
+def test_preview_bulk_reactivate_anonymized_user_skipped(make_requesting_user):
+    """Preview skips anonymized users."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    anon_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.return_value = {
+            "id": anon_id,
+            "is_inactivated": True,
+            "is_anonymized": True,
+            "first_name": "Anon",
+            "last_name": "User",
+        }
+
+        result = bg_tasks.preview_bulk_reactivate(requesting_user, [anon_id])
+
+    assert result["eligible"] == 0
+    assert result["skipped"][0]["reason"] == "Anonymized user"
+
+
+# --- Preview Bulk Group Assignment: skip reasons ---
+
+
+def test_preview_bulk_group_assignment_user_not_found(make_requesting_user):
+    """Preview skips users that don't exist."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    missing_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = {
+            "id": group_id,
+            "name": "Engineering",
+            "group_type": "weftid",
+        }
+        mock_db.users.get_user_by_id.return_value = None
+
+        result = bg_tasks.preview_bulk_group_assignment(requesting_user, group_id, [missing_id])
+
+    assert result["eligible"] == 0
+    assert result["skipped"][0]["reason"] == "User not found"
+
+
+# --- Create Bulk Group Assignment: missing group_id ---
+
+
+def test_create_bulk_group_assignment_task_missing_group_id(make_requesting_user):
+    """Task creation rejects empty group_id."""
+    from services import bg_tasks
+    from services.exceptions import ValidationError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="admin")
+
+    with pytest.raises(ValidationError) as exc_info:
+        bg_tasks.create_bulk_group_assignment_task(requesting_user, "", [str(uuid4())])
+
+    assert exc_info.value.code == "missing_group_id"
+
+
+# --- Export task: future end_date ---
+
+
+def test_create_export_task_future_end_date(make_requesting_user):
+    """Export task rejects a future end_date."""
+    from services import bg_tasks
+    from services.exceptions import ValidationError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="admin")
+
+    with pytest.raises(ValidationError, match="future"):
+        bg_tasks.create_export_task(
+            requesting_user,
+            end_date=date(2099, 12, 31),
+        )

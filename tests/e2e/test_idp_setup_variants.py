@@ -8,7 +8,6 @@ Tests:
 """
 
 
-
 class TestIdpRegistrationViaUrl:
     """SP admin registers an IdP via metadata URL import."""
 

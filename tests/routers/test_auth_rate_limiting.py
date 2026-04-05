@@ -193,7 +193,7 @@ def test_hard_login_block_rate_limit_renders_template(client, test_tenant_host, 
                     assert template_name == "login.html"
                     # Verify error message is passed to template
                     assert "error" in template_context
-                    assert "Too many login attempts" in template_context["error"]
+                    assert "Too many sign-in attempts" in template_context["error"]
 
 
 def test_rate_limit_cooldown_shown_to_user(client, test_tenant_host):

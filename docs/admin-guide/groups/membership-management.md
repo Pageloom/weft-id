@@ -2,24 +2,34 @@
 
 ## Adding members
 
-From a group's detail page, the **Members** tab lists current members with search, filtering, and pagination.
+There are two ways to add members to a group.
 
-To add members:
+**From the group's members page.** The **Members** tab on a group's detail page lists current members with search, filtering, and pagination.
 
 1. Click **Add Members**
-2. Search for users by name or email
+2. Search for users by name or email (only non-members are shown)
 3. Select one or more users
 4. Click **Add**
 
-You can also add a user to multiple groups at once from the user's detail page.
+Small batches are processed immediately. The page shows how many members were added.
+
+**From the user list.** Select users from the main user list, then click **Add to Group** in the action bar.
+
+1. Select users using the checkboxes
+2. Click **Add to Group**
+3. Pick a group from the dropdown
+4. A preview shows eligible users and any that will be skipped (already members)
+5. Confirm to start a background job
+
+The job result is available under **Account > Background Jobs**.
 
 ## Removing members
 
-Select one or more members using the checkboxes, then click **Remove** in the action bar. You can also remove a single member from the member row.
+Select one or more members using the checkboxes on the group's members page, then click **Remove** in the action bar.
 
 ## IdP groups
 
-Members of IdP-type groups are managed automatically by the identity provider. Membership updates each time a user signs in via SAML and the IdP includes group assertions. You cannot manually add or remove members from IdP groups.
+Members of IdP-type groups are managed automatically by the identity provider. Membership updates each time a user signs in via SAML and the IdP includes group assertions. You cannot manually add or remove members from IdP groups. Bulk assignment also rejects IdP groups.
 
 ## Inherited membership
 

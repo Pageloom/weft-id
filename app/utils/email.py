@@ -174,7 +174,7 @@ If you did not request this code, please ignore this email.
     )
 
     body = f"""<h1 style="{_S_H1}">Your Verification Code</h1>
-<p style="{_S_P}">Use the following code to complete your sign-in:</p>
+<p style="{_S_P}">Enter this code to continue signing in:</p>
 <div style="{_S_CODE_BOX}">{html.escape(code)}</div>
 <p style="{_S_P}">This code will expire in <strong>10 minutes</strong>.</p>
 <p style="{_S_P}">If you did not request this code, please ignore this email.</p>"""
@@ -678,7 +678,7 @@ The automated HIBP (Have I Been Pwned) breach monitor has detected that {breach_
 
 These users have been automatically flagged and will be required to change their password on their next sign-in. Their active API tokens have been revoked.
 
-No action is required from you. Affected users will see a password reset prompt at their next login.
+No action is required from you. Affected users will see a password reset prompt at their next sign-in.
 """,
         branding,
     )

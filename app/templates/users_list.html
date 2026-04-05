@@ -672,7 +672,7 @@ WeftUtils.listManager({
                 const userIds = _collectUserIds(selectedIds);
                 _previewAndConfirm('/api/v1/users/bulk-ops/inactivate/preview', userIds, {
                     action: 'Inactivate',
-                    consequence: 'OAuth tokens will be revoked and affected users will lose login access.',
+                    consequence: 'OAuth tokens will be revoked and affected users will lose sign-in access.',
                     destructive: true,
                     formId: 'bulk-inactivate-form',
                     modeFieldId: 'bulk-in-selection-mode',
@@ -684,7 +684,7 @@ WeftUtils.listManager({
                 const userIds = _collectUserIds(selectedIds);
                 _previewAndConfirm('/api/v1/users/bulk-ops/reactivate/preview', userIds, {
                     action: 'Reactivate',
-                    consequence: 'Affected users will regain login access.',
+                    consequence: 'Affected users will regain sign-in access.',
                     destructive: false,
                     formId: 'bulk-reactivate-form',
                     modeFieldId: 'bulk-re-selection-mode',

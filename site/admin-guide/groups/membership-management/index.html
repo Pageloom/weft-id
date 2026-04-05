@@ -2272,19 +2272,28 @@
 
 <h1 id="membership-management">Membership Management<a class="headerlink" href="#membership-management" title="Permanent link">&para;</a></h1>
 <h2 id="adding-members">Adding members<a class="headerlink" href="#adding-members" title="Permanent link">&para;</a></h2>
-<p>From a group's detail page, the <strong>Members</strong> tab lists current members with search, filtering, and pagination.</p>
-<p>To add members:</p>
+<p>There are two ways to add members to a group.</p>
+<p><strong>From the group's members page.</strong> The <strong>Members</strong> tab on a group's detail page lists current members with search, filtering, and pagination.</p>
 <ol>
 <li>Click <strong>Add Members</strong></li>
-<li>Search for users by name or email</li>
+<li>Search for users by name or email (only non-members are shown)</li>
 <li>Select one or more users</li>
 <li>Click <strong>Add</strong></li>
 </ol>
-<p>You can also add a user to multiple groups at once from the user's detail page.</p>
+<p>Small batches are processed immediately. The page shows how many members were added.</p>
+<p><strong>From the user list.</strong> Select users from the main user list, then click <strong>Add to Group</strong> in the action bar.</p>
+<ol>
+<li>Select users using the checkboxes</li>
+<li>Click <strong>Add to Group</strong></li>
+<li>Pick a group from the dropdown</li>
+<li>A preview shows eligible users and any that will be skipped (already members)</li>
+<li>Confirm to start a background job</li>
+</ol>
+<p>The job result is available under <strong>Account &gt; Background Jobs</strong>.</p>
 <h2 id="removing-members">Removing members<a class="headerlink" href="#removing-members" title="Permanent link">&para;</a></h2>
-<p>Select one or more members using the checkboxes, then click <strong>Remove</strong> in the action bar. You can also remove a single member from the member row.</p>
+<p>Select one or more members using the checkboxes on the group's members page, then click <strong>Remove</strong> in the action bar.</p>
 <h2 id="idp-groups">IdP groups<a class="headerlink" href="#idp-groups" title="Permanent link">&para;</a></h2>
-<p>Members of IdP-type groups are managed automatically by the identity provider. Membership updates each time a user signs in via SAML and the IdP includes group assertions. You cannot manually add or remove members from IdP groups.</p>
+<p>Members of IdP-type groups are managed automatically by the identity provider. Membership updates each time a user signs in via SAML and the IdP includes group assertions. You cannot manually add or remove members from IdP groups. Bulk assignment also rejects IdP groups.</p>
 <h2 id="inherited-membership">Inherited membership<a class="headerlink" href="#inherited-membership" title="Permanent link">&para;</a></h2>
 <p>Group membership is explicit. A user who is a member of a parent group is not automatically a member of its children. However, access to service providers can be controlled at any level in the hierarchy. See <a href="../group-based-access/">Group-Based Access</a>.</p>
 

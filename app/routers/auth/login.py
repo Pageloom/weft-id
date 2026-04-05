@@ -348,7 +348,7 @@ def login(
             "login.html",
             {
                 "request": request,
-                "error": "Too many login attempts. Please try again later.",
+                "error": "Too many sign-in attempts. Please try again later.",
                 "sso_enabled": sso_enabled,
                 "prefill_email": email,
                 "show_password": True,

@@ -1,5 +1,45 @@
 # Tech Writer Log
 
+## 2026-04-05 - Copy Review + Docs for Streamlined Sign-In, Bulk Ops
+
+**Starting commit:** 106624e
+**Mode:** Both (copy review + documentation)
+
+### Copy Review Changes
+
+1. **settings_security_tab_sessions.html:101** — verbose help text for email verification
+   checkbox replaced with terse one-liner.
+2. **users_list.html:675,687** — "login access" → "sign-in access" in bulk
+   inactivate/reactivate confirmation dialogs.
+3. **email.py:177** — standardized MFA email code phrasing to match sign-in code email
+   ("Enter this code to continue signing in").
+4. **email.py:681** — "next login" → "next sign-in" in HIBP breach notification.
+5. **login.py:351** — "Too many login attempts" → "Too many sign-in attempts".
+6. **test_auth_rate_limiting.py:196** — updated assertion to match new copy.
+
+### Documentation Changes
+
+1. **user-guide/signing-in.md** — rewrote to document both sign-in flows (streamlined
+   default and opt-in email verification), forgot-password discovery mechanism, and
+   account recovery for inactivated users.
+2. **admin-guide/security/sessions.md** — added "Sign-in verification" section documenting
+   the new tenant setting and trade-offs.
+3. **admin-guide/users/user-lifecycle.md** — added "Bulk inactivation and reactivation"
+   section and "Account recovery via forgot-password" section.
+4. **admin-guide/groups/membership-management.md** — expanded "Adding members" to document
+   both entry points (group members page and user list bulk assignment).
+
+### Screenshots Requested
+
+None.
+
+### Areas Not Yet Reviewed
+
+- API docs (no new API endpoints documented yet for bulk ops)
+- Email management docs (bulk secondary email, bulk primary email change)
+
+---
+
 ## 2026-04-02 - Self-Hosting Docs: Remove weftid Script
 
 **Starting commit:** 5bc16e3

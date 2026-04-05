@@ -688,10 +688,32 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#bulk-inactivation-and-reactivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk inactivation and reactivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#reactivation" class="md-nav__link">
     <span class="md-ellipsis">
       
         Reactivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#account-recovery-via-forgot-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Account recovery via forgot-password
       
     </span>
   </a>
@@ -2252,10 +2274,32 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#bulk-inactivation-and-reactivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk inactivation and reactivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#reactivation" class="md-nav__link">
     <span class="md-ellipsis">
       
         Reactivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#account-recovery-via-forgot-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Account recovery via forgot-password
       
     </span>
   </a>
@@ -2317,6 +2361,15 @@
 <li>They cannot request reactivation if a previous request was denied</li>
 </ul>
 <p>An admin can inactivate any user except themselves, service users (linked to OAuth2 clients), or the last super admin.</p>
+<h3 id="bulk-inactivation-and-reactivation">Bulk inactivation and reactivation<a class="headerlink" href="#bulk-inactivation-and-reactivation" title="Permanent link">&para;</a></h3>
+<p>Admins can inactivate or reactivate multiple users at once from the user list:</p>
+<ol>
+<li>Select users using the checkboxes.</li>
+<li>Click <strong>Inactivate</strong> or <strong>Reactivate</strong> in the action bar.</li>
+<li>A preview shows which users are eligible and which will be skipped (with reasons).</li>
+<li>Confirm to start a background job that processes each user individually.</li>
+</ol>
+<p>Skipped users include those already in the target state, service users, the last super admin, and anonymized users. Per-user errors do not fail the entire job.</p>
 <h3 id="reactivation">Reactivation<a class="headerlink" href="#reactivation" title="Permanent link">&para;</a></h3>
 <p>There are three ways to reactivate a user:</p>
 <p><strong>Admin-initiated.</strong> An admin reactivates the user directly from the user's detail page. No request or approval needed.</p>
@@ -2330,6 +2383,8 @@
 <p>Approved users can sign in immediately. Denied users cannot submit another request. They must contact their administrator, who can still reactivate them manually from the user detail page.</p>
 <p>Past decisions are visible in the reactivation history view (<strong>Admin &gt; Todo &gt; Reactivation &gt; View History</strong>).</p>
 <p><strong>Super admin self-reactivation.</strong> Super admins can reactivate themselves by verifying their email address. No admin approval is needed. After verification, the super admin can sign in immediately if they have a password, or must contact another admin to set one up.</p>
+<h3 id="account-recovery-via-forgot-password">Account recovery via forgot-password<a class="headerlink" href="#account-recovery-via-forgot-password" title="Permanent link">&para;</a></h3>
+<p>Inactivated users who use the forgot-password flow will see their inactivation status after proving email ownership. From there they can request reactivation directly.</p>
 <h3 id="automatic-inactivation">Automatic inactivation<a class="headerlink" href="#automatic-inactivation" title="Permanent link">&para;</a></h3>
 <p>If configured in <a href="../../security/sessions/">Security &gt; Sessions</a>, users who haven't been active for a set period are automatically inactivated. An admin must reactivate them before they can sign in again.</p>
 <p>Any authenticated action counts as activity: signing in, triggering an SSO flow, viewing pages, or making API calls.</p>

@@ -15,9 +15,9 @@ authentication (TOTP, email codes, backup codes), and user lifecycle management.
 For more details, see [pageloom.com/products/weft-id](https://pageloom.com/products/weft-id).
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/federation-overview-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset=".github/assets/federation-overview-light.png">
-  <img alt="WeftID federation overview: identity providers on the left (Okta, Entra ID, Google Workspace, SAML) federated through WeftID to applications on the right (Slack, Jira, GitLab, SAML apps)" src=".github/assets/federation-overview-light.png" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/federation-overview-dark-v2.png">
+  <source media="(prefers-color-scheme: light)" srcset=".github/assets/federation-overview-light-v2.png">
+  <img alt="WeftID federation overview: identity providers on the left (Okta, Entra ID, Google Workspace, SAML) federated through WeftID to applications on the right (Slack, Jira, GitLab, SAML apps)" src=".github/assets/federation-overview-light-v2.png" width="100%">
 </picture>
 
 **Self-hosting?** See the [self-hosting guide](docs/self-hosting/index.md) for installation,

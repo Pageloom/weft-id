@@ -4,6 +4,32 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Streamlined Sign-In Flow (Skip Email Verification by Default)
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] New tenant setting to opt in to email-verification-first login (current discovery flow)
+- [x] Default sign-in flow: email entry routes immediately to auth method without verification
+- [x] Unknown emails and inactivated users are routed to the password form (no info disclosure)
+- [x] IP+tenant rate limiting on the email-entry endpoint
+- [x] Forgot-password email is neutral (no account details, just a "continue" link)
+- [x] Forgot-password landing page (after click = proof of possession) shows situation-appropriate outcome: password reset form, inactivation status, or "no account found"
+- [x] Active SAML users who manually navigate to forgot-password do not receive an email
+- [x] Existing trust cookie optimization continues to work in both flows
+- [x] Existing rate limits on password login attempts preserved
+- [x] Event logging for sign-in routing decisions (audit trail)
+- [x] Database migration for tenant setting
+
+**Resolution:** New default sign-in flow skips email verification and routes immediately to the auth method (password form or IdP redirect). Unknown emails and inactivated users see the password form with no info disclosure. A `require_email_verification_for_login` tenant setting preserves the old discovery flow as opt-in. The forgot-password flow now serves as the proof-of-possession discovery mechanism, with a neutral email and a landing page that reveals the user's situation after email possession is proven. Account recovery for inactivated users shows their status and guides reactivation.
+
+**Effort:** L
+**Value:** High
+**Version impact:** Minor (new default behavior, old behavior preserved via tenant setting)
+
+---
+
 ## Bulk Group Assignment (Browser-Native)
 
 **Status:** Complete

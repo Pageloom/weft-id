@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-04-05
+
+### Added
+
+- Streamlined sign-in flow that routes directly to auth method without email verification, with tenant opt-in setting to preserve the old discovery flow
+- Bulk user operations from the user list: inactivate/reactivate, add to group, add secondary emails, and change primary email with dry-run SP assertion impact preview
+- User audit export as password-encrypted XLSX (Users, Group Memberships, App Access sheets)
+- Audit log XLSX export with optional date range, replacing the JSON export
+- Audit event visibility tiers (security, admin, operational, system) with color-coded UI toggles and API filter support
+- Resend invitation email for pending users with nonce-based link invalidation
+- Branded email headers with tenant logo and name across all 15 outbound emails, plus a Pageloom footer
+- User list filter panel redesigned as floating popover with IS/IS NOT toggle, filter negation, group hierarchy inclusion, and tinted active-state borders
+- Contextual documentation links on admin pages (information-circle icon linking to relevant docs)
+- Icons on action bar buttons
+
+### Changed
+
+- Email management is now admin-only; self-service email add/remove/promote/verify removed from user accounts
+- Sign-in flow defaults to skipping email verification (old behavior available via `require_email_verification_for_login` tenant setting)
+- Consolidated tenant name and site title into a single field (`tenants.name`)
+- Standardized product name to "WeftID" across all user-facing copy
+- Renamed "MFA" to "two-step verification" in emails and exports
+- Authorization denial logs moved from tenant audit trail to application logs
+- Removed `weftid` management script in favor of documented Docker Compose commands
+
+### Fixed
+
+- Fixed XSS in bulk email template where user-controlled names were interpolated via innerHTML
+- Fixed group picker missing group_type data and modal backdrop issues
+- Fixed export file passwords persisting in the database after file expiry (now redacted)
+- Fixed flaky test_claim_next_task in parallel test runs
+
+### Security
+
+- Set-password and invitation links are now one-time use via nonce-based invalidation (migration 0023)
+- Bounded bulk operation list fields to max 5000 items to prevent resource exhaustion
+- Export file passwords are redacted from the database after the download window expires
+
 ## [1.1.0] - 2026-03-21
 
 ### Added

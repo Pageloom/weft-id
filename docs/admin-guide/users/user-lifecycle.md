@@ -18,6 +18,17 @@ Inactivated users cannot sign in. All their data is preserved, and they can be r
 
 An admin can inactivate any user except themselves, service users (linked to OAuth2 clients), or the last super admin.
 
+### Bulk inactivation and reactivation
+
+Admins can inactivate or reactivate multiple users at once from the user list:
+
+1. Select users using the checkboxes.
+2. Click **Inactivate** or **Reactivate** in the action bar.
+3. A preview shows which users are eligible and which will be skipped (with reasons).
+4. Confirm to start a background job that processes each user individually.
+
+Skipped users include those already in the target state, service users, the last super admin, and anonymized users. Per-user errors do not fail the entire job.
+
 ### Reactivation
 
 There are three ways to reactivate a user:
@@ -36,6 +47,10 @@ Approved users can sign in immediately. Denied users cannot submit another reque
 Past decisions are visible in the reactivation history view (**Admin > Todo > Reactivation > View History**).
 
 **Super admin self-reactivation.** Super admins can reactivate themselves by verifying their email address. No admin approval is needed. After verification, the super admin can sign in immediately if they have a password, or must contact another admin to set one up.
+
+### Account recovery via forgot-password
+
+Inactivated users who use the forgot-password flow will see their inactivation status after proving email ownership. From there they can request reactivation directly.
 
 ### Automatic inactivation
 

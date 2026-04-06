@@ -78,9 +78,9 @@ Request → Router → Service → Database → PostgreSQL
 | `app/Dockerfile` | Dev build (used by `dev/docker-compose.yml`) |
 | `dev/docker-compose.yml` | Dev compose (nginx, app, worker, db, maildev, memcached) |
 | `deploy/docker-compose.yml` | Self-hosting compose (Caddy + GHCR image, automatic HTTPS) |
-| `Caddyfile` | Caddy reverse proxy config (on-demand TLS for tenant subdomains) |
-| `.env.production.example` | Production environment template with generation instructions |
-| `install.sh` | Self-hosting install script (downloads files, generates secrets, writes .env) |
+| `deploy/Caddyfile` | Caddy reverse proxy config (on-demand TLS for tenant subdomains) |
+| `deploy/.env.example` | Production environment template with generation instructions |
+| `deploy/install.sh` | Self-hosting install script (downloads files, generates secrets, writes .env) |
 | `.github/workflows/publish.yml` | GHCR publish workflow (triggers on `v*.*.*` tags) |
 | `app/cli/provision_tenant.py` | CLI to provision a tenant and super admin (`python -m app.cli.provision_tenant`) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
@@ -120,7 +120,8 @@ db-init/              # Database schema baseline + migration runner
   schema.sql          # Complete baseline schema (applied on fresh DB)
   migrate.py          # Forward-only migration runner
   migrations/         # Incremental migration files (0001_name.sql)
-scripts/              # Compliance and dependency checks
+dev/compliance_check.py  # Architectural compliance checker
+dev/deps_check.py        # Dependency security scanner
 dev/                  # Dev docker-compose and tooling
 deploy/               # Production docker-compose and deployment files
 docs/                 # Documentation site (Zensical source)
@@ -324,8 +325,8 @@ static assets, or the app directory structure.
 
 **Self-hosting:** `deploy/docker-compose.yml` runs the GHCR image with Caddy for automatic HTTPS
 (on-demand TLS, HTTP-01 challenge). Migrations run automatically before the app starts. See
-`.env.production.example` for configuration. The migrate service connects as `postgres` (superuser);
-the app connects as `appuser` (created by `schema.sql`) to preserve RLS enforcement. `install.sh`
+`deploy/.env.example` for configuration. The migrate service connects as `postgres` (superuser);
+the app connects as `appuser` (created by `schema.sql`) to preserve RLS enforcement. `deploy/install.sh`
 automates first-time setup (downloads files, generates secrets, prompts for domain/SMTP, writes `.env`).
 After install, provision the first tenant and super admin via CLI:
 `docker compose exec app python -m app.cli.provision_tenant --subdomain <sub> --tenant-name <name> --email <email> --first-name <first> --last-name <last>`.
@@ -365,8 +366,8 @@ make fix                                    # Auto-fix lint/format, then check t
 
 **Dependency security scanning:**
 ```bash
-python scripts/deps_check.py                # Scan dependencies
-python scripts/deps_check.py --include-dev  # Include dev deps
+python dev/deps_check.py                # Scan dependencies
+python dev/deps_check.py --include-dev  # Include dev deps
 ```
 
 **E2E tests (Playwright):**

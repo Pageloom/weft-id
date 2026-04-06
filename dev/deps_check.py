@@ -7,7 +7,7 @@ database to identify known security vulnerabilities. It scans both Python (PyPI)
 vendored JavaScript (npm) dependencies.
 
 Usage:
-    python scripts/deps_check.py [--json] [--include-dev] [--package PACKAGE]
+    python dev/deps_check.py [--json] [--include-dev] [--package PACKAGE]
 
 Options:
     --json          Output results as JSON

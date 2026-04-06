@@ -49,4 +49,4 @@ jobs:
         run: poetry run python -m mypy app/
 
       - name: Compliance check
-        run: python scripts/compliance_check.py
+        run: python dev/compliance_check.py

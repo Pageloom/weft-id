@@ -25,12 +25,12 @@ jobs:
           pipx inject poetry poetry-plugin-export
 
       - name: Export production requirements
-        run: poetry export --only main --without-hashes -f requirements.txt -o prod_requirements.lock.txt
+        run: poetry export --only main --without-hashes -f requirements.txt -o deploy/prod_requirements.lock.txt
 
       - name: Check for changes
         id: diff
         run: |
-          if git diff --quiet prod_requirements.lock.txt; then
+          if git diff --quiet deploy/prod_requirements.lock.txt; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -41,6 +41,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add prod_requirements.lock.txt
-          git commit -m "Sync prod_requirements.lock.txt with poetry.lock [skip ci]"
+          git add deploy/prod_requirements.lock.txt
+          git commit -m "Sync deploy/prod_requirements.lock.txt with poetry.lock [skip ci]"
           git push

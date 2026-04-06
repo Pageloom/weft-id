@@ -4,9 +4,9 @@
 # Downloads production files, generates secrets, and writes .env.
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/install.sh | bash
 #   # or
-#   ./install.sh
+#   ./deploy/install.sh
 #
 # Prerequisites: curl, openssl, POSIX shell
 # Works on Linux and macOS.
@@ -16,7 +16,6 @@ set -e
 REPO="pageloom/weft-id"
 RAW_URL="https://raw.githubusercontent.com/${REPO}"
 API_URL="https://api.github.com/repos/${REPO}"
-FILES="Caddyfile"
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -63,15 +62,14 @@ download_files() {
     ref="$1"
     echo "Downloading from ${REPO}@${ref} ..."
 
-    # Rename production compose file so 'docker compose' finds it by default
+    # Download production files (repo paths differ from local filenames)
     curl -fsSL "${RAW_URL}/${ref}/deploy/docker-compose.yml" -o "docker-compose.yml" \
-        || die "Failed to download deploy/docker-compose.yml"
+        || die "Failed to download docker-compose.yml"
     echo "  docker-compose.yml"
 
-    for f in $FILES; do
-        curl -fsSL "${RAW_URL}/${ref}/${f}" -o "$f" || die "Failed to download ${f}"
-        echo "  $f"
-    done
+    curl -fsSL "${RAW_URL}/${ref}/deploy/Caddyfile" -o "Caddyfile" \
+        || die "Failed to download Caddyfile"
+    echo "  Caddyfile"
 
 }
 

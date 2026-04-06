@@ -6,7 +6,7 @@ This script programmatically checks for architectural violations to reduce
 the token usage of manual compliance scanning by the AI agent.
 
 Usage:
-    python scripts/compliance_check.py [--check PRINCIPLE] [--json]
+    python dev/compliance_check.py [--check PRINCIPLE] [--json]
 
 Principles checked:
     1. architecture   - Router should not import from database layer

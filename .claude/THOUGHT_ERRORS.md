@@ -81,7 +81,7 @@ Like pytest, pip-audit must be run as a Python module. The script entry point is
 
 ## Dependency Security Scanning: Primary vs Fallback Path
 
-**Primary path (pip-audit):** `scripts/deps_check.py` runs pip-audit against the full venv, catching both direct and transitive dependencies. This is the normal case.
+**Primary path (pip-audit):** `dev/deps_check.py` runs pip-audit against the full venv, catching both direct and transitive dependencies. This is the normal case.
 
 **Fallback path (OSV API):** If pip-audit fails, the script falls back to scanning only direct dependencies from pyproject.toml and will miss transitive vulnerabilities.
 

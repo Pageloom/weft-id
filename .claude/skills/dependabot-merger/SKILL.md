@@ -17,7 +17,7 @@ ones we're deliberately skipping.
 ## Quick Reference
 
 - **Reads:** GitHub PRs, pyproject.toml, poetry.lock, changelogs
-- **Writes:** Git branch, pyproject.toml, poetry.lock, prod_requirements.lock.txt, GitHub PR
+- **Writes:** Git branch, pyproject.toml, poetry.lock, deploy/prod_requirements.lock.txt, GitHub PR
 - **Can commit:** Yes
 
 ## Before You Start
@@ -119,7 +119,7 @@ included, skipped, and superseded. Let dependabot handle the lifecycle.
 
 A PR has value if it:
 - Fixes a CVE or closes a known security advisory (**always include**)
-- Bumps a dependency that `pip-audit` / `scripts/deps_check.py` has flagged
+- Bumps a dependency that `pip-audit` / `dev/deps_check.py` has flagged
 - Is a patch release (low-risk freshness)
 - Is a minor bump of a dev-only tool (no runtime impact)
 
@@ -191,9 +191,9 @@ Resolved poetry.lock conflict by regenerating after cherry-pick.
 
 ## Transitive Dependencies
 
-Some dependabot PRs only modify `prod_requirements.lock.txt` (a generated file). These are
+Some dependabot PRs only modify `deploy/prod_requirements.lock.txt` (a generated file). These are
 transitive dependencies not directly pinned in `pyproject.toml`. The canonical source for
-transitive dep versions is `poetry.lock`. `prod_requirements.lock.txt` is derived from it
+transitive dep versions is `poetry.lock`. `deploy/prod_requirements.lock.txt` is derived from it
 via `poetry export` (automated by the `sync-prod-requirements` workflow).
 
 **Do not cherry-pick these PRs.** Instead, after applying direct dep bumps, update transitive
@@ -201,10 +201,10 @@ deps through poetry:
 
 ```bash
 poetry update <pkg1> <pkg2> ...
-poetry export --only main --without-hashes -f requirements.txt -o prod_requirements.lock.txt
+poetry export --only main --without-hashes -f requirements.txt -o deploy/prod_requirements.lock.txt
 ```
 
-Commit the updated `pyproject.toml`, `poetry.lock`, and `prod_requirements.lock.txt` together.
+Commit the updated `pyproject.toml`, `poetry.lock`, and `deploy/prod_requirements.lock.txt` together.
 
 ---
 
@@ -212,7 +212,7 @@ Commit the updated `pyproject.toml`, `poetry.lock`, and `prod_requirements.lock.
 
 - Does not merge the PR (that is a human action after CI passes)
 - Does not modify application code beyond `pyproject.toml`, `poetry.lock`, and
-  `prod_requirements.lock.txt` (unless a breaking change forces an adjustment, which
+  `deploy/prod_requirements.lock.txt` (unless a breaking change forces an adjustment, which
   should be called out explicitly)
 - Does not manually close any dependabot PRs (dependabot auto-closes them)
 - Does not read ISSUES.md or BACKLOG.md

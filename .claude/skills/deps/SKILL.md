@@ -30,7 +30,7 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 
 ```bash
 # Direct dependencies
-python scripts/deps_check.py
+python dev/deps_check.py
 
 # ALL dependencies including transitive (catches more)
 poetry run python -m pip_audit --progress-spinner off

@@ -60,7 +60,7 @@ jobs:
 
       - name: Create .env from dev example
         run: |
-          cp .env.dev.example .env
+          cp dev/.env.example .env
           sed -i 's/^BYPASS_OTP=false/BYPASS_OTP=true/' .env
 
       - name: Build Tailwind CSS

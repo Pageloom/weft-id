@@ -40,7 +40,7 @@ Then run the install script, which downloads the production files, generates sec
 you through initial configuration:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/install.sh | bash
 ```
 
 This creates three files in the current directory:
@@ -60,10 +60,10 @@ email backend (see [Email configuration](#email)).
     # Download production compose file and rename so docker compose finds it by default
     curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/docker-compose.yml \
       -o docker-compose.yml
-    curl -fsSLO https://raw.githubusercontent.com/pageloom/weft-id/main/Caddyfile
+    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/Caddyfile -o Caddyfile
 
     # Copy and edit .env
-    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/.env.production.example -o .env
+    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/.env.example -o .env
     ```
 
     Then edit `.env` to fill in all required values. Generate secrets with `openssl rand -base64 32`.
@@ -398,7 +398,7 @@ Available tags:
 ### Configuration reference
 
 All configuration is in `.env`. The install script generates this file interactively, or you
-can copy `.env.production.example` and edit it manually.
+can copy `deploy/.env.example` and edit it manually.
 
 #### Required variables
 

@@ -65,13 +65,13 @@ configuration, upgrades, and backups.
 
 4. Generate dev-env certificates
    ```bash
-   ./devscripts/mkcert.sh
+   ./dev/mkcert.sh
    ```
    **Note**: This will prompt for your password to install the local certificate authority.
 
 5. Generate an .env file
    ```bash
-   cp .env.dev.example .env
+   cp dev/.env.example .env
    ```
 
 6. Run the app

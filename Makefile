@@ -52,10 +52,10 @@ sh-%: ## Open a shell to a service. Example: make sh-app
 
 ## Dev
 build-css: ## Build Tailwind CSS for production
-	./$(TAILWIND_BIN) -i static/css/input.css -o static/css/output.css --minify
+	./$(TAILWIND_BIN) --config dev/tailwind.config.js -i static/css/input.css -o static/css/output.css --minify
 
 watch-css: ## Watch and rebuild CSS on changes (dev mode)
-	./$(TAILWIND_BIN) -i static/css/input.css -o static/css/output.css --watch
+	./$(TAILWIND_BIN) --config dev/tailwind.config.js -i static/css/input.css -o static/css/output.css --watch
 
 watch-tests: ## Watch and rerun tests on changes (dev mode)
 	poetry run python -m watchfiles 'poetry run python -m pytest --testmon' app tests
@@ -81,15 +81,15 @@ check: ## Run code quality checks (lint, format, types, compliance)
 	@echo "=== Lint ===" && poetry run ruff check app/ tests/ \
 	&& echo "" && echo "=== Formatting ===" && poetry run ruff format --check app/ tests/ \
 	&& echo "" && echo "=== Type Check ===" && poetry run python -m mypy app/ \
-	&& echo "" && echo "=== Compliance Check ===" && python scripts/compliance_check.py \
-	&& echo "" && echo "=== Dependency Security ===" && python scripts/deps_check.py
+	&& echo "" && echo "=== Compliance Check ===" && python dev/compliance_check.py \
+	&& echo "" && echo "=== Dependency Security ===" && python dev/deps_check.py
 
 fix: ## Auto-fix lint/format, then check types and compliance
 	@echo "=== Lint ===" && poetry run ruff check --fix app/ tests/ \
 	&& echo "" && echo "=== Formatting ===" && poetry run ruff format app/ tests/ \
 	&& echo "" && echo "=== Type Check ===" && poetry run python -m mypy app/ \
-	&& echo "" && echo "=== Compliance Check ===" && python scripts/compliance_check.py \
-	&& echo "" && echo "=== Dependency Security ===" && python scripts/deps_check.py
+	&& echo "" && echo "=== Compliance Check ===" && python dev/compliance_check.py \
+	&& echo "" && echo "=== Dependency Security ===" && python dev/deps_check.py
 
 quality-all: ## Run all QA: code quality + unit tests + E2E tests
 	$(MAKE) check && $(MAKE) test && $(MAKE) e2e

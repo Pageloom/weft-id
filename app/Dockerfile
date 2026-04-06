@@ -49,7 +49,7 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
  && mv tailwindcss-linux-${TAILWIND_ARCH} /usr/local/bin/tailwindcss
 
 # Copy Tailwind config and CSS source from root
-COPY tailwind.config.js /app/
+COPY dev/tailwind.config.js /app/
 COPY static/css/input.css /app/static/css/
 
 # Build CSS

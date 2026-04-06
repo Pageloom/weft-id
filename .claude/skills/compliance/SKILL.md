@@ -9,7 +9,7 @@ Verify the codebase adheres to architectural principles and design patterns.
 
 ## Quick Reference
 
-- **Reads:** Codebase, `scripts/compliance_check.py` output
+- **Reads:** Codebase, `dev/compliance_check.py` output
 - **Writes:** ISSUES.md
 - **Can commit:** No
 
@@ -127,7 +127,7 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 
 ```bash
 make check                              # Full suite (lint, format, types, compliance)
-python scripts/compliance_check.py     # Compliance only
+python dev/compliance_check.py     # Compliance only
 ```
 
 Compliance-only options:
@@ -229,6 +229,6 @@ log_event(
 
 ## Start Here
 
-1. Run `python scripts/compliance_check.py`
+1. Run `python dev/compliance_check.py`
 2. Report findings
 3. Ask if manual scanning is needed

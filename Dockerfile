@@ -21,7 +21,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-COPY prod_requirements.lock.txt ./
+COPY deploy/prod_requirements.lock.txt ./
 RUN pip install --no-cache-dir -r prod_requirements.lock.txt
 
 # Build Tailwind CSS
@@ -35,7 +35,7 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
  && chmod +x tailwindcss-linux-${TAILWIND_ARCH} \
  && mv tailwindcss-linux-${TAILWIND_ARCH} /usr/local/bin/tailwindcss
 
-COPY tailwind.config.js /build/
+COPY dev/tailwind.config.js /build/
 COPY app/templates/ /build/app/templates/
 COPY static/css/input.css /build/static/css/
 RUN mkdir -p /build/static/css \

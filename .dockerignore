@@ -11,5 +11,9 @@ tests/
 .ruff_cache
 htmlcov/
 .coverage*
-devscripts/
+dev/mkcert.sh
+dev/nginx/
+dev/.env.example
+dev/compliance_check.py
+dev/deps_check.py
 site/

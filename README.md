@@ -12,7 +12,9 @@ An open-source federation layer that aggregates multiple identity providers into
   <img alt="WeftID federation overview: identity providers on the left (Okta, Entra ID, Google Workspace, SAML) federated through WeftID to applications on the right (Slack, Jira, GitLab, SAML apps)" src=".github/assets/federation-overview-light-v2.png" width="100%">
 </picture>
 
-WeftID sits between your applications and identity systems like Okta, Microsoft Entra ID, and Google Workspace. Add or remove providers without touching application code. It also works as a standalone identity provider with built-in password authentication, multi-factor authentication, and user lifecycle management.
+WeftID sits between your applications and identity systems like Okta, Microsoft Entra ID, and Google Workspace. Add or remove providers without touching application code.
+
+No external IdP? WeftID is also a fully capable standalone identity provider with password authentication, multi-factor authentication, and user lifecycle management. Start standalone, federate later.
 
 * **SAML 2.0 federation** -- upstream IdP integration and downstream SP registration
 * **Built-in authentication** -- passwords, TOTP, email codes, backup codes

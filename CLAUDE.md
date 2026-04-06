@@ -75,8 +75,9 @@ Request → Router → Service → Database → PostgreSQL
 | `VERSIONING.md` | Semver policy: patch/minor/major definitions, identity-specific rules |
 | `CHANGELOG.md` | Release changelog (Keep a Changelog format) |
 | `Dockerfile` | Production multi-stage build (GHCR images, no dev deps) |
-| `app/Dockerfile` | Dev build (used by `docker-compose.yml`) |
-| `docker-compose.production.yml` | Self-hosting compose (Caddy + GHCR image, automatic HTTPS) |
+| `app/Dockerfile` | Dev build (used by `dev/docker-compose.yml`) |
+| `dev/docker-compose.yml` | Dev compose (nginx, app, worker, db, maildev, memcached) |
+| `deploy/docker-compose.yml` | Self-hosting compose (Caddy + GHCR image, automatic HTTPS) |
 | `Caddyfile` | Caddy reverse proxy config (on-demand TLS for tenant subdomains) |
 | `.env.production.example` | Production environment template with generation instructions |
 | `install.sh` | Self-hosting install script (downloads files, generates secrets, writes .env) |
@@ -85,7 +86,7 @@ Request → Router → Service → Database → PostgreSQL
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
 | `mkdocs.yml` | Zensical documentation site configuration |
 | `docs/` | Documentation site source (Markdown) |
-| `site/` | Built documentation site (checked in, served at `/docs`) |
+| `site/` | Built documentation site (gitignored, built at Docker image time, served at `/docs`) |
 | `.claude/THOUGHT_ERRORS.md` | Common mistakes to avoid |
 
 ## Directory Structure
@@ -120,13 +121,15 @@ db-init/              # Database schema baseline + migration runner
   migrate.py          # Forward-only migration runner
   migrations/         # Incremental migration files (0001_name.sql)
 scripts/              # Compliance and dependency checks
+dev/                  # Dev docker-compose and tooling
+deploy/               # Production docker-compose and deployment files
 docs/                 # Documentation site (Zensical source)
   getting-started/    # Getting started guide
   admin-guide/        # Administrator documentation
   user-guide/         # End-user documentation
   api/                # API documentation
   self-hosting/       # Self-hosting guide
-site/                 # Built documentation site (served at /docs)
+site/                 # Built documentation site (gitignored, built at image time)
 .claude/skills/       # Skill definitions (/pm, /dev, /test, etc.)
 .claude/references/   # Detailed patterns and checklists for agents
 ```
@@ -313,13 +316,13 @@ The canonical version lives in `pyproject.toml`. `app/version.py` exposes it at 
 package isn't installed with `--no-root`). See `VERSIONING.md` for the full policy.
 
 **Two Dockerfiles:**
-- `app/Dockerfile` — dev build (all deps, dev entrypoint with `--reload`, used by `docker-compose.yml`)
+- `app/Dockerfile` — dev build (all deps, dev entrypoint with `--reload`, used by `dev/docker-compose.yml`)
 - `Dockerfile` (root) — production multi-stage build (main deps only, no dev scripts, OCI labels)
 
 Changes to the dev Dockerfile may need mirroring in the production one if they affect dependencies,
 static assets, or the app directory structure.
 
-**Self-hosting:** `docker-compose.production.yml` runs the GHCR image with Caddy for automatic HTTPS
+**Self-hosting:** `deploy/docker-compose.yml` runs the GHCR image with Caddy for automatic HTTPS
 (on-demand TLS, HTTP-01 challenge). Migrations run automatically before the app starts. See
 `.env.production.example` for configuration. The migrate service connects as `postgres` (superuser);
 the app connects as `appuser` (created by `schema.sql`) to preserve RLS enforcement. `install.sh`
@@ -410,10 +413,10 @@ make watch-css   # Watch templates and auto-rebuild CSS (recommended for active 
 
 **Documentation site:**
 ```bash
-make docs        # Build docs from docs/ into site/ (must be committed)
+make docs        # Build docs from docs/ into site/ (for local preview)
 ```
 
-The documentation site is built from Markdown sources in `docs/` using Zensical (reads `mkdocs.yml` for configuration). The built output in `site/` is checked into git and served by the app at `/docs`. To update the docs: edit files in `docs/`, run `make docs`, and commit both `docs/` and `site/`.
+The documentation site is built from Markdown sources in `docs/` using Zensical (reads `mkdocs.yml` for configuration). The built output in `site/` is gitignored and built automatically during the Docker image build. For local preview, run `make docs`. Only commit changes to `docs/` source files.
 
 **Quick reference:**
 ```bash

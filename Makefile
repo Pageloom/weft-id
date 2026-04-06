@@ -1,4 +1,4 @@
-COMPOSE := docker compose
+COMPOSE := docker compose --project-directory . -f dev/docker-compose.yml
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
@@ -20,8 +20,8 @@ status: ## Show up/down for all services
 	  fi; \
 	done
 
-up: ## Build and start all services (detached) - also builds docs first
-	make docs && $(COMPOSE) up --build -d
+up: ## Build and start all services (detached)
+	$(COMPOSE) up --build -d
 
 down: ## Stop and remove containers (keep volumes)
 	$(COMPOSE) down --remove-orphans

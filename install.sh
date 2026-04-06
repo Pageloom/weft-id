@@ -64,8 +64,8 @@ download_files() {
     echo "Downloading from ${REPO}@${ref} ..."
 
     # Rename production compose file so 'docker compose' finds it by default
-    curl -fsSL "${RAW_URL}/${ref}/docker-compose.production.yml" -o "docker-compose.yml" \
-        || die "Failed to download docker-compose.production.yml"
+    curl -fsSL "${RAW_URL}/${ref}/deploy/docker-compose.yml" -o "docker-compose.yml" \
+        || die "Failed to download deploy/docker-compose.yml"
     echo "  docker-compose.yml"
 
     for f in $FILES; do

@@ -48,7 +48,7 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 ```bash
 make test                                 # Run all tests (parallel)
 make test ARGS="--cov=app --cov-report=term-missing"  # With coverage
-./test --testmon                          # Run only tests affected by recent changes
+make test ARGS="--testmon"                # Run only tests affected by recent changes
 make watch-tests                          # Watch mode: auto-rerun affected tests on changes
 ```
 

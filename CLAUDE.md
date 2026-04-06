@@ -15,7 +15,7 @@ WeftID is a multi-tenant identity federation platform that acts as middleware be
 
 **Read `.claude/THOUGHT_ERRORS.md`** for common mistakes to avoid. Key gotchas:
 
-- **Tests**: Use `poetry run python -m pytest` or `./test` (not `pytest` directly)
+- **Tests**: Use `make test` or `poetry run python -m pytest` (not `pytest` directly)
 - **Code quality**: Run `make check` (lint, format, type check, compliance)
 - **UUIDs**: Convert to string when comparing across boundaries
 - **Background jobs**: Restart worker container, not app container
@@ -115,7 +115,7 @@ app/
 ├── jobs/             # Background task handlers
 └── constants/        # Enums and constants
 tests/                # Mirrors app/ structure
-├── e2e/              # Playwright E2E tests (run via ./test-e2e)
+├── e2e/              # Playwright E2E tests (run via make e2e)
 db-init/              # Database schema baseline + migration runner
   schema.sql          # Complete baseline schema (applied on fresh DB)
   migrate.py          # Forward-only migration runner
@@ -347,14 +347,13 @@ Background jobs run in a separate worker container.
 
 **Run tests:**
 ```bash
-./test                                                         # Run all tests (parallelized by default)
-poetry run python -m pytest                                    # Full command
-poetry run python -m pytest --cov=app --cov-report=term-missing  # With coverage report
-make watch-tests                                               # Watch mode: auto-rerun only affected tests on file changes
-./test --testmon                                               # Run only tests affected by recent changes (one-time)
+make test                                    # Run all tests (parallelized by default)
+make test ARGS="-v -k my_test"               # With extra pytest args
+make watch-tests                             # Watch mode: auto-rerun only affected tests on file changes
+make test ARGS="--testmon"                   # Run only tests affected by recent changes (one-time)
 ```
 
-Note: Tests run in parallel by default (`-n auto` configured in `pytest.ini`).
+Note: Tests run in parallel by default (`-n auto` configured in `pyproject.toml`).
 
 **Watch mode** (`make watch-tests`) uses `pytest-testmon` to intelligently run only tests affected by your code changes. On first run, it builds a coverage database (`.testmondata`). Subsequent runs only execute tests that cover the changed code, providing much faster feedback than running the full suite.
 
@@ -372,21 +371,25 @@ python scripts/deps_check.py --include-dev  # Include dev deps
 
 **E2E tests (Playwright):**
 ```bash
-./test-e2e                          # Run all E2E tests (requires Docker services running)
-./test-e2e --headed --slowmo=500    # Debug in visible browser
-./test-e2e -k test_sp_initiated     # Run specific test
-./test-e2e --tb=long                # Verbose tracebacks
+make e2e                            # Run all E2E tests (requires Docker services running)
+make e2e ARGS="--headed --slowmo=500"  # Debug in visible browser
+make e2e ARGS="-k test_sp_initiated"   # Run specific test
 ```
 
-E2E tests live in `tests/e2e/` and are **excluded** from `./test` (via `--ignore=tests/e2e` in `pytest.ini`). They run sequentially (`-n 0`) and require Docker services plus MailDev to be running. Tests are skipped automatically if MailDev is not reachable.
+E2E tests live in `tests/e2e/` and are **excluded** from `make test` (via `--ignore=tests/e2e` in `pyproject.toml`). They run sequentially (`-n 0`) and require Docker services plus MailDev to be running. Tests are skipped automatically if MailDev is not reachable.
 
 **Combined coverage (unit + E2E):**
 ```bash
-./test-coverage-all                 # Merged coverage from both test suites
-./test-coverage-all --html          # Also generate htmlcov/ report
+make coverage                       # Merged coverage from both test suites
+make coverage ARGS="--html"         # Also generate htmlcov/ report
 ```
 
 Runs unit tests and E2E tests separately with coverage collection, then uses `coverage combine` to merge data files into a single report. Shows true overall coverage including SAML SSO/SLO paths that only E2E tests exercise.
+
+**Full QA sweep:**
+```bash
+make quality-all                    # Code quality + unit tests + E2E tests
+```
 
 ### Docker Infrastructure (Use Make)
 
@@ -510,7 +513,7 @@ All checks must pass before committing.
 - **Cover happy paths and key edge cases** - don't just test the golden path
 - **All existing tests must pass** - never break existing functionality
 - Tests live in `tests/` mirroring the app structure
-- **E2E tests** live in `tests/e2e/` and run separately via `./test-e2e`. They cover SAML SSO flows (SP- and IdP-initiated), SLO, MFA (email and TOTP), group-based SP access, and login using Playwright. They are excluded from `./test`.
+- **E2E tests** live in `tests/e2e/` and run separately via `make e2e`. They cover SAML SSO flows (SP- and IdP-initiated), SLO, MFA (email and TOTP), group-based SP access, and login using Playwright. They are excluded from `make test`.
 - **Test environment**: Tests set `IS_DEV=true` (in `tests/conftest.py`) to bypass production validation
 
 ## Agent Workflow

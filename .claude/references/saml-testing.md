@@ -41,7 +41,7 @@ Only the service-layer crypto functions truly need E2E coverage:
 
 ## E2E Test Suite
 
-Automated E2E tests live in `tests/e2e/` using Playwright. Run with `./test-e2e`.
+Automated E2E tests live in `tests/e2e/` using Playwright. Run with `make e2e`.
 
 The test bed (`app/dev/sso_testbed.py`) provisions two cross-tenant setups:
 - **IdP tenant** (`e2e-idp`) with a super admin user

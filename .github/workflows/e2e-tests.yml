@@ -85,7 +85,7 @@ jobs:
             | sudo tee -a /etc/hosts
 
       - name: Start Docker Compose services
-        run: docker compose up --build -d app db reverse-proxy maildev migrate memcached
+        run: docker compose --project-directory . -f dev/docker-compose.yml up --build -d app db reverse-proxy maildev migrate memcached
 
       - name: Wait for services to be ready
         run: |
@@ -98,7 +98,7 @@ jobs:
             sleep 2
           done
           echo "Timed out waiting for app"
-          docker compose logs --tail=50
+          docker compose --project-directory . -f dev/docker-compose.yml logs --tail=50
           exit 1
 
       - uses: actions/setup-python@v6
@@ -132,15 +132,15 @@ jobs:
         run: |
           FILTER="${{ github.event.inputs.test_filter }}"
           if [ -n "$FILTER" ]; then
-            ./test-e2e -k "$FILTER"
+            poetry run python -m pytest tests/e2e/ -n 0 -v --tb=short -k "$FILTER"
           else
-            ./test-e2e
+            poetry run python -m pytest tests/e2e/ -n 0 -v --tb=short
           fi
 
       - name: Docker Compose logs
         if: failure()
-        run: docker compose logs --tail=200
+        run: docker compose --project-directory . -f dev/docker-compose.yml logs --tail=200
 
       - name: Stop services
         if: always()
-        run: docker compose down
+        run: docker compose --project-directory . -f dev/docker-compose.yml down

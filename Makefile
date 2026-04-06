@@ -1,5 +1,12 @@
 COMPOSE := docker compose --project-directory . -f dev/docker-compose.yml
-TAILWIND_BIN := tailwindcss-macos-arm64
+
+TAILWIND_VERSION := 3.4.17
+ifeq ($(shell uname -s),Darwin)
+  TAILWIND_BIN := tailwindcss-macos-$(if $(filter arm64,$(shell uname -m)),arm64,x64)
+else
+  TAILWIND_BIN := tailwindcss-linux-$(if $(filter aarch64,$(shell uname -m)),arm64,x64)
+endif
+TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TAILWIND_VERSION)/$(TAILWIND_BIN)
 
 .DEFAULT_GOAL := help
 .PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev test e2e check fix quality-all coverage docs
@@ -51,10 +58,14 @@ sh-%: ## Open a shell to a service. Example: make sh-app
 	-$(COMPOSE) exec $* bash || $(COMPOSE) exec $* sh
 
 ## Dev
-build-css: ## Build Tailwind CSS for production
+$(TAILWIND_BIN):
+	@echo "Downloading Tailwind CSS v$(TAILWIND_VERSION) ($(TAILWIND_BIN))..."
+	@curl -sLO $(TAILWIND_URL) && chmod +x $(TAILWIND_BIN)
+
+build-css: $(TAILWIND_BIN) ## Build Tailwind CSS for production
 	./$(TAILWIND_BIN) --config dev/tailwind.config.js -i static/css/input.css -o static/css/output.css --minify
 
-watch-css: ## Watch and rebuild CSS on changes (dev mode)
+watch-css: $(TAILWIND_BIN) ## Watch and rebuild CSS on changes (dev mode)
 	./$(TAILWIND_BIN) --config dev/tailwind.config.js -i static/css/input.css -o static/css/output.css --watch
 
 watch-tests: ## Watch and rerun tests on changes (dev mode)

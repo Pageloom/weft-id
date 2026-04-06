@@ -45,7 +45,7 @@ curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh | b
 
 This creates three files in the current directory:
 
-* `docker-compose.yml` -- service definitions (downloaded from `docker-compose.production.yml` in the repo)
+* `docker-compose.yml` -- service definitions (downloaded from `deploy/docker-compose.yml` in the repo)
 * `Caddyfile` -- reverse proxy with automatic HTTPS
 * `.env` -- your configuration (secrets, domain, SMTP)
 
@@ -58,7 +58,7 @@ email backend (see [Email configuration](#email)).
 
     ```bash
     # Download production compose file and rename so docker compose finds it by default
-    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/docker-compose.production.yml \
+    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/docker-compose.yml \
       -o docker-compose.yml
     curl -fsSLO https://raw.githubusercontent.com/pageloom/weft-id/main/Caddyfile
 

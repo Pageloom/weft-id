@@ -1,7 +1,15 @@
 # Production multi-stage Dockerfile
-# Dev Dockerfile: app/Dockerfile (used by docker-compose.yml)
+# Dev Dockerfile: app/Dockerfile (used by dev/docker-compose.yml)
 
-# --- Stage 1: Builder ---
+# --- Stage 1: Docs builder ---
+FROM python:3.12-slim AS docs-builder
+WORKDIR /build
+RUN pip install --no-cache-dir 'zensical>=0.0.28' 'pygments>=2.16,<2.20'
+COPY mkdocs.yml .
+COPY docs/ docs/
+RUN zensical build
+
+# --- Stage 2: Asset builder ---
 FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -33,7 +41,7 @@ COPY static/css/input.css /build/static/css/
 RUN mkdir -p /build/static/css \
  && tailwindcss -i /build/static/css/input.css -o /build/static/css/output.css --minify
 
-# --- Stage 2: Runtime ---
+# --- Stage 3: Runtime ---
 FROM python:3.12-slim
 
 ARG VERSION=dev
@@ -77,8 +85,8 @@ COPY --from=builder /build/static/css/output.css /app/static/css/output.css
 COPY static/js/ /app/static/js/
 COPY static/svgs/ /app/static/svgs/
 
-# Copy documentation site
-COPY site/ /site/
+# Copy documentation site (built in docs-builder stage)
+COPY --from=docs-builder /build/site/ /site/
 
 # Copy migration runner
 COPY db-init/ /db-init/

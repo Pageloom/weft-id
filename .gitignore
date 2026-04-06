@@ -19,3 +19,6 @@ __pycache__/
 # Frontend build artifacts
 static/css/output.css
 tailwindcss-*
+
+# Built documentation site (built at Docker image time or via `make docs`)
+site/

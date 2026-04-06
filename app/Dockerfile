@@ -56,8 +56,10 @@ COPY static/css/input.css /app/static/css/
 RUN mkdir -p /app/static/css \
  && tailwindcss -i /app/static/css/input.css -o /app/static/css/output.css --minify
 
-# Copy pre-built documentation site
-COPY site/ /site/
+# Build documentation site
+COPY mkdocs.yml /tmp/
+COPY docs/ /tmp/docs/
+RUN cd /tmp && zensical build && mv site /site && rm -rf /tmp/mkdocs.yml /tmp/docs
 
 EXPOSE 8000
 ENTRYPOINT ["./dev-docker-entrypoint.sh"]

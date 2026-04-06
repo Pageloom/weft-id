@@ -11,6 +11,8 @@ at the IdP (step_5c), so assertions are encrypted by default.
 import subprocess
 import textwrap
 
+DOCKER_COMPOSE = ["docker", "compose", "--project-directory", ".", "-f", "dev/docker-compose.yml"]
+
 
 class TestEncryptedAssertionSso:
     """SSO works end-to-end with encrypted assertions."""
@@ -40,7 +42,7 @@ class TestEncryptedAssertionSso:
             print(f"enc_cert_present={{bool(enc)}}")
         """)
         result = subprocess.run(
-            ["docker", "compose", "exec", "-T", "app", "python", "-c", check_script],
+            [*DOCKER_COMPOSE, "exec", "-T", "app", "python", "-c", check_script],
             capture_output=True,
             text=True,
             timeout=15,
@@ -90,7 +92,7 @@ class TestEncryptedAssertionSso:
                 print("no_event_found")
         """)
         result = subprocess.run(
-            ["docker", "compose", "exec", "-T", "app", "python", "-c", verify_script],
+            [*DOCKER_COMPOSE, "exec", "-T", "app", "python", "-c", verify_script],
             capture_output=True,
             text=True,
             timeout=15,

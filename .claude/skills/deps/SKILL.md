@@ -10,7 +10,7 @@ Audit third-party dependencies for known vulnerabilities (CVEs).
 ## Quick Reference
 
 - **Reads:** pyproject.toml, poetry.lock, vulnerability databases
-- **Writes:** ISSUES.md
+- **Writes:** .claude/ISSUES.md
 - **Can commit:** No
 
 ## Before You Start
@@ -22,7 +22,7 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 1. Run automated scans (both tools)
 2. Investigate critical/high findings with WebSearch
 3. Check package maintenance status for flagged packages
-4. Log findings to ISSUES.md
+4. Log findings to .claude/ISSUES.md
 
 ## Automated Scanning
 
@@ -91,4 +91,4 @@ For critical/high vulnerabilities:
 
 ## Start Here
 
-Run both scans, investigate findings, log to ISSUES.md.
+Run both scans, investigate findings, log to .claude/ISSUES.md.

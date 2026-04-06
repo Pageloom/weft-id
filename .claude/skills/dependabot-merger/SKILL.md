@@ -215,7 +215,7 @@ Commit the updated `pyproject.toml`, `poetry.lock`, and `deploy/prod_requirement
   `deploy/prod_requirements.lock.txt` (unless a breaking change forces an adjustment, which
   should be called out explicitly)
 - Does not manually close any dependabot PRs (dependabot auto-closes them)
-- Does not read ISSUES.md or BACKLOG.md
+- Does not read .claude/ISSUES.md or .claude/BACKLOG.md
 - There are two Docker ecosystem entries in `.github/dependabot.yml` (dev at `/app`, production at `/`). Base image bumps may arrive as pairs.
 
 ---

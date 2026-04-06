@@ -10,7 +10,7 @@ Identify refactoring opportunities and technical debt. Primary goal: make code e
 ## Quick Reference
 
 - **Reads:** Codebase, `.claude/REFACTOR_HISTORY.md`
-- **Writes:** ISSUES.md, REFACTOR_HISTORY.md
+- **Writes:** .claude/ISSUES.md, REFACTOR_HISTORY.md
 - **Can commit:** No
 
 ## Before You Start
@@ -106,7 +106,7 @@ Check `.claude/REFACTOR_HISTORY.md` to understand:
 - Document exact file:line references
 - Assess impact (high/medium/low)
 
-### 4. Report to ISSUES.md
+### 4. Report to .claude/ISSUES.md
 
 ### 5. Update History
 

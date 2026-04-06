@@ -9,8 +9,8 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 
 ## Quick Reference
 
-- **Reads:** BACKLOG_ARCHIVE.md, ISSUES_ARCHIVE.md, codebase, `.claude/test_agent_log.md`
-- **Writes:** Tests, ISSUES.md, test agent log
+- **Reads:** .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES_ARCHIVE.md, codebase, `.claude/test_agent_log.md`
+- **Writes:** Tests, .claude/ISSUES.md, test agent log
 - **Can commit:** Yes, but ask user before committing
 
 ## Before You Start
@@ -27,9 +27,9 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 
 ## Workflow
 
-1. **Orient:** Read BACKLOG_ARCHIVE.md, ask user which area to focus on
+1. **Orient:** Read .claude/BACKLOG_ARCHIVE.md, ask user which area to focus on
 2. **Assess:** Review coverage, identify gaps, check acceptance criteria
-3. **Act:** Write tests, fix test bugs, log production bugs to ISSUES.md
+3. **Act:** Write tests, fix test bugs, log production bugs to .claude/ISSUES.md
 4. **Verify:** Run full suite, check coverage, all tests must pass
 
 ## What You Can Do Directly
@@ -38,7 +38,7 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 - Fix bugs in test code
 - Update test documentation
 
-## What Requires Logging to ISSUES.md
+## What Requires Logging to .claude/ISSUES.md
 
 - Production code bugs (do NOT fix directly)
 - For urgent bugs: notify user and recommend `/dev`
@@ -135,4 +135,4 @@ Ask the user before committing. They may want to review or bundle commits.
 
 ## Start Here
 
-Read BACKLOG_ARCHIVE.md and ask which area to focus on.
+Read .claude/BACKLOG_ARCHIVE.md and ask which area to focus on.

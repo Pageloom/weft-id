@@ -60,10 +60,10 @@ Request → Router → Service → Database → PostgreSQL
 | `app/utils/email.py` | All outbound emails. Shared layout with inline styles, branded header/footer |
 | `app/utils/email_branding.py` | Fetches tenant logo PNG + name for email headers |
 | `app/dev/preview_emails.py` | Sends all 15 email types to MailDev for visual testing |
-| `BACKLOG.md` | Product backlog (pending items) |
-| `BACKLOG_ARCHIVE.md` | Completed backlog items with acceptance criteria |
-| `ISSUES.md` | Active quality/security issues (goal: keep empty) |
-| `ISSUES_ARCHIVE.md` | Resolved issues with fix details |
+| `.claude/BACKLOG.md` | Product backlog (pending items) |
+| `.claude/BACKLOG_ARCHIVE.md` | Completed backlog items with acceptance criteria |
+| `.claude/ISSUES.md` | Active quality/security issues (goal: keep empty) |
+| `.claude/ISSUES_ARCHIVE.md` | Resolved issues with fix details |
 | `app/services/service_providers.py` | SP registration, SSO response building |
 | `app/routers/saml_idp/` | SAML IdP admin, SSO, metadata (package) |
 | `app/database/service_providers.py` | SP database queries |
@@ -72,7 +72,7 @@ Request → Router → Service → Database → PostgreSQL
 | `static/js/utils.js` | Shared `WeftUtils` JS object (modals, sticky bars, clipboard, locale) |
 | `static/js/cytoscape.min.js` | Cytoscape.js graph library (group graph views) |
 | `app/version.py` | Runtime version via `importlib.metadata` (falls back to baked-in `VERSION` file) |
-| `VERSIONING.md` | Semver policy: patch/minor/major definitions, identity-specific rules |
+| `docs/VERSIONING.md` | Semver policy: patch/minor/major definitions, identity-specific rules |
 | `CHANGELOG.md` | Release changelog (Keep a Changelog format) |
 | `Dockerfile` | Production multi-stage build (GHCR images, no dev deps) |
 | `app/Dockerfile` | Dev build (used by `dev/docker-compose.yml`) |
@@ -314,7 +314,7 @@ All outbound emails are in `app/utils/email.py` (15 functions). Key architecture
 
 The canonical version lives in `pyproject.toml`. `app/version.py` exposes it at runtime via
 `importlib.metadata`, falling back to a baked-in `VERSION` file in production images (where the
-package isn't installed with `--no-root`). See `VERSIONING.md` for the full policy.
+package isn't installed with `--no-root`). See `docs/VERSIONING.md` for the full policy.
 
 **Two Dockerfiles:**
 - `app/Dockerfile` — dev build (all deps, dev entrypoint with `--reload`, used by `dev/docker-compose.yml`)
@@ -502,7 +502,7 @@ All checks must pass before committing.
 6. **Migrations** go in `db-init/migrations/` with 4-digit numbering (e.g. `0001_description.sql`). Pure SQL, no `BEGIN/COMMIT`, use `SET LOCAL ROLE appowner` for DDL
 7. **Run formatting and linting** before committing code
 8. **API-first methodology** - any functionality available in the web client must also be exposed via API endpoints under `/api/v1/`. API endpoint docstrings must document all accepted fields/parameters (not a subset).
-9. **Backlog management** - after completing a BACKLOG.md item, move it to BACKLOG_ARCHIVE.md with status marked as Complete
+9. **Backlog management** - after completing a `.claude/BACKLOG.md` item, move it to `.claude/BACKLOG_ARCHIVE.md` with status marked as Complete
 10. **All string fields must have `max_length`** - every `str` field in Pydantic input schemas (Create, Update, Import) must specify `max_length`. Use these standard limits: names/titles 255, descriptions 2000, URLs 2048, enum-like fields 50, subdomains 63, domains 253. Database columns should have matching `CHECK` constraints or `VARCHAR(N)` types.
 11. **Use watch mode during development** - run `make watch-tests` in a separate terminal to get immediate feedback on code changes. It intelligently reruns only affected tests, providing fast iteration cycles (seconds instead of minutes).
 12. **State-changing fetch() calls to API endpoints must use `WeftUtils.apiFetch()`** - bare `fetch()` with `credentials: 'same-origin'` on a non-GET endpoint is a CSRF vulnerability. Bearer-token clients are unaffected.
@@ -520,7 +520,7 @@ All checks must pass before committing.
 ## Agent Workflow
 
 - Use `/pm` to add items to the product backlog
-- Use `/dev` to implement items from the backlog (checks ISSUES.md first)
+- Use `/dev` to implement items from the backlog (checks `.claude/ISSUES.md` first)
 - Use `/test` to review quality and push coverage intelligently
 - Use `/compliance` to verify architectural principles are followed
 - Use `/security` to scan for OWASP Top 10 and other security vulnerabilities
@@ -531,12 +531,12 @@ All checks must pass before committing.
 
 ## Issue Tracking
 
-- Quality issues found by `/test` are logged in `ISSUES.md`
-- Architectural violations found by `/compliance` are logged in `ISSUES.md`
-- Security vulnerabilities found by `/security` are logged in `ISSUES.md`
-- Dependency vulnerabilities found by `/deps` are logged in `ISSUES.md`
-- Refactoring opportunities found by `/refactor` are logged in `ISSUES.md`
-- Copy inconsistencies found by `/tech-writer` are logged in `ISSUES.md`
-- `/dev` checks ISSUES.md first before BACKLOG.md (bugs before features)
-- **When resolved:** Move issues from `ISSUES.md` to `ISSUES_ARCHIVE.md` (don't keep resolved items in ISSUES.md)
-- Goal: keep `ISSUES.md` empty
+- Quality issues found by `/test` are logged in `.claude/ISSUES.md`
+- Architectural violations found by `/compliance` are logged in `.claude/ISSUES.md`
+- Security vulnerabilities found by `/security` are logged in `.claude/ISSUES.md`
+- Dependency vulnerabilities found by `/deps` are logged in `.claude/ISSUES.md`
+- Refactoring opportunities found by `/refactor` are logged in `.claude/ISSUES.md`
+- Copy inconsistencies found by `/tech-writer` are logged in `.claude/ISSUES.md`
+- `/dev` checks `.claude/ISSUES.md` first before `.claude/BACKLOG.md` (bugs before features)
+- **When resolved:** Move issues from `.claude/ISSUES.md` to `.claude/ISSUES_ARCHIVE.md` (don't keep resolved items in `.claude/ISSUES.md`)
+- Goal: keep `.claude/ISSUES.md` empty

@@ -10,7 +10,7 @@ Identify OWASP Top 10 vulnerabilities and security misconfigurations.
 ## Quick Reference
 
 - **Reads:** Codebase (especially auth, database, templates)
-- **Writes:** ISSUES.md
+- **Writes:** .claude/ISSUES.md
 - **Can commit:** No
 
 ## Before You Start
@@ -71,7 +71,7 @@ For each vulnerability:
 - Impact (worst case)
 - Specific remediation
 
-### 4. Report to ISSUES.md
+### 4. Report to .claude/ISSUES.md
 
 ## Severity Guide
 

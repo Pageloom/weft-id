@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-# This is a convenience script to run all automated QA available
-./code-quality
-./test
-./test-e2e

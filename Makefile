@@ -2,7 +2,7 @@ COMPOSE := docker compose --project-directory . -f dev/docker-compose.yml
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev test e2e check fix coverage docs
+.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev test e2e check fix quality-all coverage docs
 
 help:
 	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -58,7 +58,7 @@ watch-css: ## Watch and rebuild CSS on changes (dev mode)
 	./$(TAILWIND_BIN) -i static/css/input.css -o static/css/output.css --watch
 
 watch-tests: ## Watch and rerun tests on changes (dev mode)
-	poetry run python -m watchfiles './test --testmon' app tests
+	poetry run python -m watchfiles 'poetry run python -m pytest --testmon' app tests
 
 seed-sso: ## Set up cross-tenant SSO test bed (dev <-> sp-test)
 	$(COMPOSE) exec app python ./dev/sso_testbed.py
@@ -72,16 +72,41 @@ docs: ## Build documentation site (output in site/)
 
 ## Quality
 test: ## Run all tests (pass args: make test ARGS="-v -k my_test")
-	./test $(ARGS)
+	poetry run python -m pytest $(ARGS)
 
 e2e: ## Run E2E tests (pass args: make e2e ARGS="--headed")
-	./test-e2e $(ARGS)
+	poetry run python -m pytest tests/e2e/ -n 0 -v --tb=short $(ARGS)
 
 check: ## Run code quality checks (lint, format, types, compliance)
-	./code-quality
+	@echo "=== Lint ===" && poetry run ruff check app/ tests/ \
+	&& echo "" && echo "=== Formatting ===" && poetry run ruff format --check app/ tests/ \
+	&& echo "" && echo "=== Type Check ===" && poetry run python -m mypy app/ \
+	&& echo "" && echo "=== Compliance Check ===" && python scripts/compliance_check.py \
+	&& echo "" && echo "=== Dependency Security ===" && python scripts/deps_check.py
 
 fix: ## Auto-fix lint/format, then check types and compliance
-	./code-quality --fix
+	@echo "=== Lint ===" && poetry run ruff check --fix app/ tests/ \
+	&& echo "" && echo "=== Formatting ===" && poetry run ruff format app/ tests/ \
+	&& echo "" && echo "=== Type Check ===" && poetry run python -m mypy app/ \
+	&& echo "" && echo "=== Compliance Check ===" && python scripts/compliance_check.py \
+	&& echo "" && echo "=== Dependency Security ===" && python scripts/deps_check.py
 
-coverage: ## Combined coverage report (unit + E2E)
-	./test-coverage-all $(ARGS)
+quality-all: ## Run all QA: code quality + unit tests + E2E tests
+	$(MAKE) check && $(MAKE) test && $(MAKE) e2e
+
+coverage: ## Combined coverage report (unit + E2E, pass ARGS="--html" for HTML)
+	@COV_DIR=$$(mktemp -d) && trap 'rm -rf "$$COV_DIR"' EXIT \
+	&& rm -f .coverage \
+	&& echo "=== Running unit tests with coverage ===" \
+	&& COVERAGE_FILE="$$COV_DIR/.coverage.unit" poetry run python -m pytest --cov=app --cov-report= -q --no-header \
+	&& echo "" && echo "=== Running E2E tests with coverage ===" \
+	&& COVERAGE_FILE="$$COV_DIR/.coverage.e2e" poetry run python -m pytest tests/e2e/ -n 0 --cov=app --cov-report= -q --no-header \
+	&& echo "" && echo "=== Combining coverage data ===" \
+	&& poetry run python -m coverage combine "$$COV_DIR/.coverage.unit" "$$COV_DIR/.coverage.e2e" \
+	&& echo "" && echo "=== Combined Coverage Report ===" \
+	&& poetry run python -m coverage report --show-missing \
+	&& if echo "$(ARGS)" | grep -q -- "--html"; then \
+	     echo "" && echo "=== Generating HTML report ===" \
+	     && poetry run python -m coverage html \
+	     && echo "HTML report written to htmlcov/index.html"; \
+	   fi

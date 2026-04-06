@@ -12,6 +12,8 @@ Uses the two-tenant testbed with extras (no-access user, second SSO user).
 import subprocess
 import textwrap
 
+DOCKER_COMPOSE = ["docker", "compose", "--project-directory", ".", "-f", "dev/docker-compose.yml"]
+
 
 class TestConsentDenial:
     """User cancels at the consent screen during IdP-initiated SSO."""
@@ -168,7 +170,7 @@ class TestCertificateRotation:
         """)
 
         result = subprocess.run(
-            ["docker", "compose", "exec", "-T", "app", "python", "-c", sync_script],
+            [*DOCKER_COMPOSE, "exec", "-T", "app", "python", "-c", sync_script],
             capture_output=True,
             text=True,
             timeout=30,

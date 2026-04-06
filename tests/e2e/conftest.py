@@ -25,7 +25,7 @@ from helpers.maildev import clear_emails, is_available
 
 IDP_SUBDOMAIN = "e2e-idp"
 SP_SUBDOMAIN = "e2e-sp"
-DOCKER_COMPOSE = ["docker", "compose"]
+DOCKER_COMPOSE = ["docker", "compose", "--project-directory", ".", "-f", "dev/docker-compose.yml"]
 
 
 def _flush_memcached():

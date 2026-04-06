@@ -10,8 +10,8 @@ bundled with the codebase. Flag inconsistencies that need dev work.
 
 ## Quick Reference
 
-- **Reads:** Templates, routers, BACKLOG_ARCHIVE.md, ISSUES_ARCHIVE.md, docs site, tech-writer log
-- **Writes:** Templates (copy only), `docs/`, ISSUES.md, tech-writer log
+- **Reads:** Templates, routers, .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES_ARCHIVE.md, docs site, tech-writer log
+- **Writes:** Templates (copy only), `docs/`, .claude/ISSUES.md, tech-writer log
 - **Can commit:** Yes, but ask user before committing
 
 ## Before You Start
@@ -131,7 +131,7 @@ If you find inconsistencies in the glossary vs. actual usage, flag them.
 - Redundant help text that restates the label
 - Typos and grammar errors
 
-### What Goes to ISSUES.md
+### What Goes to .claude/ISSUES.md
 
 - Terminology inconsistencies that require changes across multiple files or in code
   (e.g., a service error message says "log in" but the UI says "sign in")
@@ -245,14 +245,14 @@ docs/
 5. **Stay current.** Every documentation page should reflect the current state of the
    application. When reviewing changes since last run, update affected documentation pages.
 
-6. **Keep self-hosting docs current.** `docs/self-hosting/index.md` documents the GHCR image URL, available tags, and configuration. `VERSIONING.md` (repo root, not in `docs/`) documents the semver policy. When release infrastructure changes, update both.
+6. **Keep self-hosting docs current.** `docs/self-hosting/index.md` documents the GHCR image URL, available tags, and configuration. `docs/VERSIONING.md` documents the semver policy. When release infrastructure changes, update both.
 
 7. **Link, don't repeat.** If the same concept appears in multiple guides (e.g., MFA in
    both admin and user guide), write it once and link to it.
 
 ### Workflow for Documentation Updates
 
-1. **Check what changed:** `git log --oneline <last_commit>..HEAD` and review BACKLOG_ARCHIVE.md
+1. **Check what changed:** `git log --oneline <last_commit>..HEAD` and review .claude/BACKLOG_ARCHIVE.md
    for newly completed features.
 
 2. **Identify affected pages:** Which documentation pages describe functionality that changed?

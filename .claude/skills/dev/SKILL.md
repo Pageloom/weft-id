@@ -1,15 +1,15 @@
 ---
 name: dev
-description: Dev Agent - Implement items from ISSUES.md (bugs first) and BACKLOG.md (features second)
+description: Dev Agent - Implement items from .claude/ISSUES.md (bugs first) and .claude/BACKLOG.md (features second)
 ---
 
 # Dev Agent - Backlog Implementation Mode
 
-Implement items from ISSUES.md (bugs first) and BACKLOG.md (features second).
+Implement items from .claude/ISSUES.md (bugs first) and .claude/BACKLOG.md (features second).
 
 ## Quick Reference
 
-- **Reads:** ISSUES.md, BACKLOG.md, codebase
+- **Reads:** .claude/ISSUES.md, .claude/BACKLOG.md, codebase
 - **Writes:** Code, tests, archives
 - **Can commit:** Yes
 
@@ -19,8 +19,8 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 
 ## Workflow
 
-1. **Check ISSUES.md first** - bugs before features
-2. If empty, check BACKLOG.md for features
+1. **Check .claude/ISSUES.md first** - bugs before features
+2. If empty, check .claude/BACKLOG.md for features
 3. Present available items and ask which to implement
 4. Create implementation plan and get user approval
 5. Implement following architectural principles
@@ -81,7 +81,7 @@ Lists with bulk actions (e.g., group member management) follow additional rules:
 
 - **Two Dockerfiles:** `app/Dockerfile` (dev) and `Dockerfile` at the project root (production). If you change dependencies, static asset paths, or the `app/` directory structure in the dev Dockerfile, check whether the production Dockerfile needs the same change.
 - **Version bumps:** Change the version in `pyproject.toml`, then run `poetry install` to update the installed package metadata. `app/version.py` reads from `importlib.metadata` in dev and falls back to a baked-in `VERSION` file in production images.
-- **SAML assertion changes are major bumps.** See `VERSIONING.md` for the full policy on what constitutes patch, minor, and major changes. Identity-specific rules exist because seemingly minor SAML changes can silently break federation trust.
+- **SAML assertion changes are major bumps.** See `docs/VERSIONING.md` for the full policy on what constitutes patch, minor, and major changes. Identity-specific rules exist because seemingly minor SAML changes can silently break federation trust.
 
 ## Continuous Development
 
@@ -139,7 +139,7 @@ Both must pass.
 Distinguish between:
 
 - **Operational tasks** (fix a CVE, run checks, fix lint, upgrade a dependency): Just do it. These don't need to be tracked items.
-- **Untracked feature requests** (new functionality not in ISSUES.md or BACKLOG.md): Decline and suggest using `/pm` to add it as a backlog item first.
+- **Untracked feature requests** (new functionality not in .claude/ISSUES.md or .claude/BACKLOG.md): Decline and suggest using `/pm` to add it as a backlog item first.
 
 ## Completion
 
@@ -147,8 +147,8 @@ When done:
 - Verify all acceptance criteria met
 - All checks pass
 - Ask user to confirm
-- Move from ISSUES.md → ISSUES_ARCHIVE.md (or BACKLOG.md → BACKLOG_ARCHIVE.md)
+- Move from .claude/ISSUES.md → .claude/ISSUES_ARCHIVE.md (or .claude/BACKLOG.md → .claude/BACKLOG_ARCHIVE.md)
 
 ## Start Here
 
-Read ISSUES.md first, then BACKLOG.md if empty, and present available items.
+Read .claude/ISSUES.md first, then .claude/BACKLOG.md if empty, and present available items.

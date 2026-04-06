@@ -10,7 +10,7 @@ Verify the codebase adheres to architectural principles and design patterns.
 ## Quick Reference
 
 - **Reads:** Codebase, `dev/compliance_check.py` output
-- **Writes:** ISSUES.md
+- **Writes:** .claude/ISSUES.md
 - **Can commit:** No
 
 ## Before You Start
@@ -158,7 +158,7 @@ Focus on:
 - SQL content review for tenant isolation
 - Service-level role checks
 
-### 4. Log to ISSUES.md
+### 4. Log to .claude/ISSUES.md
 
 ## Event Context Note
 

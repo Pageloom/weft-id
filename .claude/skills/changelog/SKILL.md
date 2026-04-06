@@ -10,7 +10,7 @@ descriptions for the next release.
 
 ## Quick Reference
 
-- **Reads:** Git log, CHANGELOG.md, pyproject.toml, VERSIONING.md
+- **Reads:** Git log, CHANGELOG.md, pyproject.toml, docs/VERSIONING.md
 - **Writes:** CHANGELOG.md
 - **Can commit:** No (user reviews and commits)
 
@@ -63,12 +63,12 @@ group hierarchy queries could return stale results"). Write from the perspective
 self-hoster or operator reading the changelog.
 
 **Flag SAML/identity changes.** If any commits touch SAML assertions, attribute mappings,
-entityID format, or SSO flows, flag them prominently. Per `VERSIONING.md`, these changes
+entityID format, or SSO flows, flag them prominently. Per `docs/VERSIONING.md`, these changes
 require a major version bump.
 
 **Exclude from the changelog:**
 - Commits that only modify CLAUDE.md, skill files, or other Claude Code configuration
-- Commits that only modify BACKLOG.md, BACKLOG_ARCHIVE.md, ISSUES.md, or ISSUES_ARCHIVE.md
+- Commits that only modify .claude/BACKLOG.md, .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES.md, or .claude/ISSUES_ARCHIVE.md
 - Merge commits with no substantive changes
 
 ### 5. Present the draft

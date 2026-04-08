@@ -5,6 +5,32 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] CBC Padding Oracle: ACS error responses leak decryption failure details
+
+**Status:** Resolved (2026-04-08)
+**Found in:** `app/templates/saml_error.html`, `app/routers/saml/authentication.py`, `app/routers/saml/_helpers.py`
+**Severity:** High
+**Fix:** Removed `error_detail` from the `saml_error.html` template entirely (debug detail is still
+stored server-side in the SAML debug log). Stripped `error_detail` from the template context in
+`store_saml_debug_and_respond`. Collapsed `signature_error` and `invalid_response` ValidationError
+paths into a single generic `auth_failed` error type so decryption and signature failure outcomes
+are indistinguishable to the browser. Added `auth_failed` and `too_many_requests` display cases
+to the template.
+
+---
+
+### [SECURITY] CBC Padding Oracle: No rate limiting on SAML ACS endpoints
+
+**Status:** Resolved (2026-04-08)
+**Found in:** `app/routers/saml/authentication.py`
+**Severity:** Medium
+**Fix:** Added `ratelimit.prevent("saml_acs:ip:{ip}", limit=20, timespan=MINUTE * 5)` at the top
+of both `saml_acs_per_idp` and `saml_acs` handlers (after the test-flow bypass check). Returns a
+429 `too_many_requests` error page when exceeded. Uses the existing `ratelimit` utility backed by
+Memcached, which fails open when cache is unavailable.
+
+---
+
 ### [SECURITY] Logging: Inconsistent authorization failure audit logging
 
 **Status:** Resolved (2026-03-30)

@@ -1878,4 +1878,4 @@ def test_saml_acs_error_creates_debug_entry(acs_test_setup, test_tenant_host, mo
 
     # Debug entry should have been stored
     assert debug_entry_stored["called"], "Debug entry should be stored on SAML error"
-    assert debug_entry_stored["error_type"] == "signature_error"
+    assert debug_entry_stored["error_type"] == "auth_failed"

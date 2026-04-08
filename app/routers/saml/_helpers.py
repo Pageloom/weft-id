@@ -68,7 +68,6 @@ def store_saml_debug_and_respond(
         "saml_error.html",
         {
             "error_type": error_type,
-            "error_detail": error_detail,
             "is_dev": IS_DEV,
             "raw_saml_xml": raw_saml_xml,
             "csp_nonce": get_csp_nonce(request),

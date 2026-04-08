@@ -11,10 +11,12 @@ from services import saml as saml_service
 from services import settings as settings_service
 from services import users as users_service
 from services.branding import get_branding_for_template
-from services.exceptions import NotFoundError, ServiceError, ValidationError
+from services.exceptions import NotFoundError, RateLimitError, ServiceError, ValidationError
 from utils.csp_nonce import get_csp_nonce
 from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp
+from utils.ratelimit import MINUTE, ratelimit
+from utils.request_metadata import extract_remote_address
 from utils.saml import extract_issuer_from_response
 from utils.session import regenerate_session
 from utils.template_context import get_template_context
@@ -231,6 +233,18 @@ def saml_acs_per_idp(
     if RelayState.startswith("__test__:"):
         return _handle_saml_test_response(request, tenant_id, SAMLResponse, RelayState)
 
+    # Rate limit ACS to prevent padding oracle queries
+    client_ip = extract_remote_address(request) or "unknown"
+    try:
+        ratelimit.prevent("saml_acs:ip:{ip}", limit=20, timespan=MINUTE * 5, ip=client_ip)
+    except RateLimitError:
+        return templates.TemplateResponse(
+            request,
+            "saml_error.html",
+            {"error_type": "too_many_requests", "csp_nonce": get_csp_nonce(request)},
+            status_code=429,
+        )
+
     # Get stored request_id for validation
     expected_request_id = request.session.pop("saml_request_id", None)
     request.session.pop("saml_idp_id", None)
@@ -255,9 +269,7 @@ def saml_acs_per_idp(
         )
         user = saml_service.authenticate_via_saml(tenant_id, saml_result)
     except ValidationError as e:
-        error_type = "signature_error" if "signature" in str(e).lower() else "invalid_response"
-        if "expired" in str(e).lower():
-            error_type = "expired"
+        error_type = "expired" if "expired" in str(e).lower() else "auth_failed"
         return store_saml_debug_and_respond(
             request=request,
             tenant_id=tenant_id,
@@ -364,6 +376,18 @@ def saml_acs(
     if RelayState.startswith("__test__:"):
         return _handle_saml_test_response(request, tenant_id, SAMLResponse, RelayState)
 
+    # Rate limit ACS to prevent padding oracle queries
+    client_ip = extract_remote_address(request) or "unknown"
+    try:
+        ratelimit.prevent("saml_acs:ip:{ip}", limit=20, timespan=MINUTE * 5, ip=client_ip)
+    except RateLimitError:
+        return templates.TemplateResponse(
+            request,
+            "saml_error.html",
+            {"error_type": "too_many_requests", "csp_nonce": get_csp_nonce(request)},
+            status_code=429,
+        )
+
     # Get stored request_id for validation
     expected_request_id = request.session.pop("saml_request_id", None)
     stored_idp_id = request.session.pop("saml_idp_id", None)
@@ -438,9 +462,7 @@ def saml_acs(
         user = saml_service.authenticate_via_saml(tenant_id, saml_result)
 
     except ValidationError as e:
-        error_type = "signature_error" if "signature" in str(e).lower() else "invalid_response"
-        if "expired" in str(e).lower():
-            error_type = "expired"
+        error_type = "expired" if "expired" in str(e).lower() else "auth_failed"
         return store_saml_debug_and_respond(
             request=request,
             tenant_id=tenant_id,

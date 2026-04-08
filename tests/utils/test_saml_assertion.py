@@ -706,3 +706,99 @@ class TestAssertionEncryption:
         # Should NOT have EncryptedAssertion
         encrypted_assertion = root.find("saml:EncryptedAssertion", _NS)
         assert encrypted_assertion is None
+
+    def test_gcm_encrypted_response_structure(self, signing_keys, encryption_keys):
+        """When algorithm is aes256-gcm, Response uses GCM encryption."""
+        sign_cert, sign_key = signing_keys
+        enc_cert, _enc_key = encryption_keys
+
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id="_req_gcm_001",
+            user_attributes=_USER_ATTRS,
+            certificate_pem=sign_cert,
+            private_key_pem=sign_key,
+            encryption_certificate_pem=enc_cert,
+            assertion_encryption_algorithm="aes256-gcm",
+        )
+        root = _decode_response(result)
+
+        # Should have EncryptedAssertion (not plain)
+        plain = root.find("saml:Assertion", _NS)
+        assert plain is None
+        encrypted_assertion = root.find("saml:EncryptedAssertion", _NS)
+        assert encrypted_assertion is not None
+
+        # EncryptedData should reference GCM algorithm
+        encrypted_data = encrypted_assertion.find("xenc:EncryptedData", _NS)
+        assert encrypted_data is not None
+        enc_method = encrypted_data.find("xenc:EncryptionMethod", _NS)
+        assert enc_method is not None
+        assert enc_method.attrib["Algorithm"] == "http://www.w3.org/2009/xmlenc11#aes256-gcm"
+
+    def test_gcm_round_trip_encrypt_decrypt(self, signing_keys, encryption_keys):
+        """GCM encrypt with cert, decrypt with private key, verify assertion."""
+        sign_cert, sign_key = signing_keys
+        enc_cert, enc_key = encryption_keys
+
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id="_req_gcm_002",
+            user_attributes=_USER_ATTRS,
+            certificate_pem=sign_cert,
+            private_key_pem=sign_key,
+            encryption_certificate_pem=enc_cert,
+            assertion_encryption_algorithm="aes256-gcm",
+        )
+        root = _decode_response(result)
+
+        encrypted_assertion = root.find("saml:EncryptedAssertion", _NS)
+        encrypted_data = encrypted_assertion.find("xenc:EncryptedData", _NS)
+        assert encrypted_data is not None
+
+        # Decrypt using the encryption private key
+        manager = xmlsec.KeysManager()
+        key = xmlsec.Key.from_memory(enc_key.encode(), xmlsec.KeyFormat.PEM)
+        manager.add_key(key)
+        enc_ctx = xmlsec.EncryptionContext(manager)
+        decrypted = enc_ctx.decrypt(encrypted_data)
+
+        # The decrypted element should be a valid SAML Assertion
+        assert decrypted.tag == f"{{{_SAML_NS}}}Assertion"
+        issuer = decrypted.find("saml:Issuer", _NS)
+        assert issuer is not None
+        assert issuer.text == _ISSUER
+
+    def test_cbc_explicit_algorithm(self, signing_keys, encryption_keys):
+        """Explicitly requesting CBC produces CBC encryption."""
+        sign_cert, sign_key = signing_keys
+        enc_cert, _enc_key = encryption_keys
+
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id="_req_cbc_explicit",
+            user_attributes=_USER_ATTRS,
+            certificate_pem=sign_cert,
+            private_key_pem=sign_key,
+            encryption_certificate_pem=enc_cert,
+            assertion_encryption_algorithm="aes256-cbc",
+        )
+        root = _decode_response(result)
+
+        encrypted_assertion = root.find("saml:EncryptedAssertion", _NS)
+        encrypted_data = encrypted_assertion.find("xenc:EncryptedData", _NS)
+        enc_method = encrypted_data.find("xenc:EncryptionMethod", _NS)
+        assert enc_method is not None
+        assert enc_method.attrib["Algorithm"] == "http://www.w3.org/2001/04/xmlenc#aes256-cbc"

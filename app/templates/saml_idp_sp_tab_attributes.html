@@ -48,10 +48,30 @@
         <div class="mb-4">
             <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assertion Encryption</p>
             {% if sp.encryption_certificate_pem %}
-            <p class="text-sm text-gray-900 dark:text-gray-100">
+            <p class="text-sm text-gray-900 dark:text-gray-100 mb-2">
                 {{ icon("shield-check", class="w-4 h-4 inline-block mr-1 text-green-600 dark:text-green-400 -mt-0.5") }}
                 Assertions are encrypted. This SP provides an encryption certificate.
             </p>
+            <div class="ml-5">
+                <label for="edit-encryption-algorithm" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Encryption algorithm
+                </label>
+                <select id="edit-encryption-algorithm" name="assertion_encryption_algorithm"
+                        class="w-full max-w-xs px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="aes256-cbc" {% if sp.assertion_encryption_algorithm == 'aes256-cbc' %}selected{% endif %}>AES-256-CBC (default)</option>
+                    <option value="aes256-gcm" {% if sp.assertion_encryption_algorithm == 'aes256-gcm' %}selected{% endif %}>AES-256-GCM</option>
+                </select>
+                {% if encryption_methods %}
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    SP advertises:
+                    {% for m in encryption_methods %}{{ m.split('#')[-1] | upper }}{% if not loop.last %}, {% endif %}{% endfor %}
+                </p>
+                {% endif %}
+                <p id="gcm-warning" class="text-xs text-amber-700 dark:text-amber-400 mt-1 {% if sp.assertion_encryption_algorithm != 'aes256-gcm' %}hidden{% endif %}">
+                    {{ icon("exclamation-triangle", class="w-3.5 h-3.5 inline-block mr-0.5 -mt-0.5") }}
+                    GCM requires XML Encryption 1.1 support. Verify your SP supports it before enabling.
+                </p>
+            </div>
             {% else %}
             <p class="text-sm text-gray-500 dark:text-gray-400">
                 Assertions are sent unencrypted. This SP does not provide an encryption certificate in its metadata.
@@ -167,6 +187,14 @@
     if (groupClaimsCheckbox && scopeOverride) {
         groupClaimsCheckbox.addEventListener('change', () => {
             scopeOverride.classList.toggle('hidden', !groupClaimsCheckbox.checked);
+        });
+    }
+
+    const algoSelect = document.getElementById('edit-encryption-algorithm');
+    const gcmWarning = document.getElementById('gcm-warning');
+    if (algoSelect && gcmWarning) {
+        algoSelect.addEventListener('change', () => {
+            gcmWarning.classList.toggle('hidden', algoSelect.value !== 'aes256-gcm');
         });
     }
 </script>

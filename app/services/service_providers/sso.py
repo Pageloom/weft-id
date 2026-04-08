@@ -216,6 +216,7 @@ def build_sso_response(
     # 6c. Encrypt assertion if SP provides an encryption certificate
     encryption_cert = sp_row.get("encryption_certificate_pem")
     assertion_encrypted = encryption_cert is not None
+    encryption_algorithm = sp_row.get("assertion_encryption_algorithm", "aes256-cbc")
 
     saml_response_b64, session_index = build_saml_response(
         issuer_entity_id=issuer_entity_id,
@@ -229,6 +230,7 @@ def build_sso_response(
         private_key_pem=private_key_pem,
         attribute_mapping=attribute_mapping,
         encryption_certificate_pem=encryption_cert,
+        assertion_encryption_algorithm=encryption_algorithm,
     )
 
     # 7. Log event
@@ -242,6 +244,7 @@ def build_sso_response(
             "sp_entity_id": sp_entity_id,
             "sp_name": sp_row["name"],
             "assertion_encrypted": assertion_encrypted,
+            "assertion_encryption_algorithm": encryption_algorithm if assertion_encrypted else None,
         },
     )
 

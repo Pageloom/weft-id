@@ -18,6 +18,7 @@ def _row_to_config(row: dict) -> SPConfig:
         slo_url=row.get("slo_url"),
         certificate_pem=row.get("certificate_pem"),
         encryption_certificate_pem=row.get("encryption_certificate_pem"),
+        assertion_encryption_algorithm=row.get("assertion_encryption_algorithm", "aes256-cbc"),
         nameid_format=row["nameid_format"],
         include_group_claims=row.get("include_group_claims", False),
         group_assertion_scope=row.get("group_assertion_scope"),

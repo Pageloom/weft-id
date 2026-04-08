@@ -997,6 +997,154 @@ class TestParseSPMetadataEncryptionCert:
 
 
 # =============================================================================
+# parse_sp_metadata_xml: EncryptionMethod extraction
+# =============================================================================
+
+
+class TestParseSPMetadataEncryptionMethods:
+    """Tests for EncryptionMethod Algorithm URI extraction from SP metadata."""
+
+    def test_gcm_encryption_method(self):
+        """SP declaring GCM EncryptionMethod is extracted."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"
+            entityID="https://gcm.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor use="encryption">
+              <xenc:EncryptionMethod Algorithm="http://www.w3.org/2009/xmlenc11#aes256-gcm"/>
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>ENC_CERT</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://gcm.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        assert result["encryption_methods"] is not None
+        assert "http://www.w3.org/2009/xmlenc11#aes256-gcm" in result["encryption_methods"]
+
+    def test_multiple_encryption_methods(self):
+        """SP declaring both CBC and GCM is extracted."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"
+            entityID="https://multi.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor use="encryption">
+              <xenc:EncryptionMethod Algorithm="http://www.w3.org/2009/xmlenc11#aes256-gcm"/>
+              <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>ENC_CERT</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://multi.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        assert result["encryption_methods"] is not None
+        assert len(result["encryption_methods"]) == 2
+        assert "http://www.w3.org/2009/xmlenc11#aes256-gcm" in result["encryption_methods"]
+        assert "http://www.w3.org/2001/04/xmlenc#aes256-cbc" in result["encryption_methods"]
+
+    def test_no_encryption_method(self):
+        """SP with encryption cert but no EncryptionMethod declarations."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            entityID="https://nomethod.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor use="encryption">
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>ENC_CERT</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://nomethod.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        assert result["encryption_methods"] is None
+
+    def test_signing_key_encryption_method_ignored(self):
+        """EncryptionMethod on a signing KeyDescriptor is not collected."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            xmlns:xenc="http://www.w3.org/2001/04/xmlenc#"
+            entityID="https://sigonly.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor use="signing">
+              <xenc:EncryptionMethod Algorithm="http://www.w3.org/2009/xmlenc11#aes256-gcm"/>
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>SIGN_CERT</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://sigonly.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        # EncryptionMethod was on signing key, not encryption key
+        assert result["encryption_methods"] is None
+
+    def test_no_key_descriptors_no_methods(self):
+        """No KeyDescriptor elements means no encryption methods."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            entityID="https://nocerts.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://nocerts.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        assert result["encryption_methods"] is None
+
+
+# =============================================================================
 # fetch_sp_metadata tests
 # =============================================================================
 

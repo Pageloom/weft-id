@@ -16,6 +16,25 @@ from services.exceptions import NotFoundError, ValidationError
 from services.service_providers._converters import _row_to_config
 from services.types import RequestingUser
 
+# XML Encryption 1.1 algorithm URIs for auto-detection
+_GCM_URI = "http://www.w3.org/2009/xmlenc11#aes256-gcm"
+_CBC_URI = "http://www.w3.org/2001/04/xmlenc#aes256-cbc"
+
+
+def detect_encryption_algorithm(encryption_methods: list[str] | None) -> str | None:
+    """Detect the assertion encryption algorithm from SP metadata EncryptionMethod URIs.
+
+    Returns "aes256-gcm" if the SP declares only GCM support, None otherwise
+    (meaning keep the current setting or default to CBC).
+    """
+    if not encryption_methods:
+        return None
+    has_gcm = _GCM_URI in encryption_methods
+    has_cbc = _CBC_URI in encryption_methods
+    if has_gcm and not has_cbc:
+        return "aes256-gcm"
+    return None
+
 
 def _cert_fingerprint(pem: str | None) -> str | None:
     """Compute SHA-256 fingerprint of a PEM certificate for display."""
@@ -99,6 +118,20 @@ def _compute_metadata_diff(
             )
         )
 
+    # Encryption algorithm: auto-detected from EncryptionMethod declarations
+    detected_algo = detect_encryption_algorithm(parsed.get("encryption_methods"))
+    if detected_algo:
+        old_algo = current_row.get("assertion_encryption_algorithm", "aes256-cbc")
+        if detected_algo != old_algo:
+            algo_labels = {"aes256-cbc": "AES-256-CBC", "aes256-gcm": "AES-256-GCM"}
+            changes.append(
+                SPMetadataFieldChange(
+                    field="Encryption Algorithm",
+                    old_value=algo_labels.get(old_algo, old_algo),
+                    new_value=algo_labels.get(detected_algo, detected_algo),
+                )
+            )
+
     # sp_requested_attributes: compare as JSON
     old_attrs = current_row.get("sp_requested_attributes")
     new_attrs = parsed.get("requested_attributes")
@@ -175,6 +208,9 @@ def _apply_metadata_refresh(
 
     Returns the updated database row.
     """
+    # Auto-detect encryption algorithm from SP metadata EncryptionMethod
+    detected_algo = detect_encryption_algorithm(parsed.get("encryption_methods"))
+
     row = database.service_providers.refresh_sp_metadata_fields(
         tenant_id=tenant_id,
         sp_id=sp_id,
@@ -188,6 +224,7 @@ def _apply_metadata_refresh(
         slo_url=parsed.get("slo_url"),
         sp_requested_attributes=parsed.get("requested_attributes"),
         attribute_mapping=attribute_mapping,
+        assertion_encryption_algorithm=detected_algo,
     )
 
     if row is None:

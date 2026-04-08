@@ -749,6 +749,65 @@ class TestBuildSsoResponseEncryption:
         assert mock_build.call_args[1]["encryption_certificate_pem"] is None
         assert mock_log_event.call_args[1]["metadata"]["assertion_encrypted"] is False
 
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_passes_gcm_algorithm(self, mock_db, mock_log_event):
+        """Passes GCM algorithm from SP row to build_saml_response."""
+        self._setup_mocks(mock_db, encryption_certificate_pem=self._ENC_CERT)
+        # Add algorithm to SP row
+        sp_row = mock_db.service_providers.get_service_provider_by_entity_id.return_value
+        sp_row["assertion_encryption_algorithm"] = "aes256-gcm"
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        assert mock_build.call_args[1]["assertion_encryption_algorithm"] == "aes256-gcm"
+        meta = mock_log_event.call_args[1]["metadata"]
+        assert meta["assertion_encryption_algorithm"] == "aes256-gcm"
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_defaults_to_cbc_algorithm(self, mock_db, mock_log_event):
+        """Defaults to CBC when SP row has no algorithm field."""
+        self._setup_mocks(mock_db, encryption_certificate_pem=self._ENC_CERT)
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        assert mock_build.call_args[1]["assertion_encryption_algorithm"] == "aes256-cbc"
+
 
 # ============================================================================
 # get_groups_for_assertion: scope resolution

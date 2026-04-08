@@ -6,6 +6,7 @@ from database._core import TenantArg, execute, fetchall, fetchone
 
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, encryption_certificate_pem,
+               assertion_encryption_algorithm,
                nameid_format, metadata_xml, metadata_url,
                slo_url, include_group_claims, group_assertion_scope,
                sp_requested_attributes,
@@ -15,6 +16,7 @@ _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
 # Qualified columns for queries with JOINs (avoids ambiguous column errors)
 _SP_COLUMNS_Q = """sp.id, sp.tenant_id, sp.name, sp.description, sp.entity_id, sp.acs_url,
                sp.certificate_pem, sp.encryption_certificate_pem,
+               sp.assertion_encryption_algorithm,
                sp.nameid_format, sp.metadata_xml, sp.metadata_url,
                sp.slo_url, sp.include_group_claims, sp.group_assertion_scope,
                sp.sp_requested_attributes,
@@ -164,6 +166,7 @@ def update_service_provider(
         "nameid_format",
         "include_group_claims",
         "group_assertion_scope",
+        "assertion_encryption_algorithm",
         "attribute_mapping",
         "enabled",
         "available_to_all",
@@ -211,43 +214,57 @@ def refresh_sp_metadata_fields(
     slo_url: str | None = None,
     sp_requested_attributes: list[dict] | None = None,
     attribute_mapping: dict[str, str] | None = None,
+    assertion_encryption_algorithm: str | None = None,
 ) -> dict | None:
     """Update metadata-derived fields on an SP after a refresh or reimport.
 
     Does NOT touch name, description, entity_id, enabled, or metadata_url.
+    assertion_encryption_algorithm is only updated when explicitly provided
+    (auto-detected from SP metadata EncryptionMethod declarations).
 
     Returns:
         Updated SP dict, or None if not found
     """
+    # Build SET clause dynamically so we only touch algorithm when auto-detected
+    set_parts = [
+        "acs_url = :acs_url",
+        "certificate_pem = :certificate_pem",
+        "encryption_certificate_pem = :encryption_certificate_pem",
+        "nameid_format = :nameid_format",
+        "metadata_xml = :metadata_xml",
+        "slo_url = :slo_url",
+        "sp_requested_attributes = :sp_requested_attributes",
+        "attribute_mapping = :attribute_mapping",
+    ]
+    params: dict = {
+        "sp_id": sp_id,
+        "acs_url": acs_url,
+        "certificate_pem": certificate_pem,
+        "encryption_certificate_pem": encryption_certificate_pem,
+        "nameid_format": nameid_format,
+        "metadata_xml": metadata_xml,
+        "slo_url": slo_url,
+        "sp_requested_attributes": json.dumps(sp_requested_attributes)
+        if sp_requested_attributes
+        else None,
+        "attribute_mapping": json.dumps(attribute_mapping) if attribute_mapping else None,
+    }
+    if assertion_encryption_algorithm is not None:
+        set_parts.append("assertion_encryption_algorithm = :assertion_encryption_algorithm")
+        params["assertion_encryption_algorithm"] = assertion_encryption_algorithm
+
+    set_clause = ", ".join(set_parts)
+
     return fetchone(
         tenant_id,
         f"""
         update service_providers
-        set acs_url = :acs_url,
-            certificate_pem = :certificate_pem,
-            encryption_certificate_pem = :encryption_certificate_pem,
-            nameid_format = :nameid_format,
-            metadata_xml = :metadata_xml,
-            slo_url = :slo_url,
-            sp_requested_attributes = :sp_requested_attributes,
-            attribute_mapping = :attribute_mapping,
+        set {set_clause},
             updated_at = now()
         where id = :sp_id
         returning {_SP_COLUMNS}
         """,
-        {
-            "sp_id": sp_id,
-            "acs_url": acs_url,
-            "certificate_pem": certificate_pem,
-            "encryption_certificate_pem": encryption_certificate_pem,
-            "nameid_format": nameid_format,
-            "metadata_xml": metadata_xml,
-            "slo_url": slo_url,
-            "sp_requested_attributes": json.dumps(sp_requested_attributes)
-            if sp_requested_attributes
-            else None,
-            "attribute_mapping": json.dumps(attribute_mapping) if attribute_mapping else None,
-        },
+        params,
     )
 
 

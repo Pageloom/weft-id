@@ -46,6 +46,7 @@ def _make_sp_row(
     metadata_xml: str | None = None,
     certificate_pem: str | None = None,
     encryption_certificate_pem: str | None = None,
+    assertion_encryption_algorithm: str = "aes256-cbc",
     slo_url: str | None = None,
 ) -> dict:
     """Create a mock SP database row."""
@@ -57,6 +58,7 @@ def _make_sp_row(
         "acs_url": acs_url,
         "certificate_pem": certificate_pem,
         "encryption_certificate_pem": encryption_certificate_pem,
+        "assertion_encryption_algorithm": assertion_encryption_algorithm,
         "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
         "metadata_xml": metadata_xml,
         "metadata_url": metadata_url,
@@ -3170,3 +3172,198 @@ class TestUpdateSPAvailableToAll:
             result = sp_service.get_service_provider(requesting_user, sp_id)
 
             assert result.available_to_all is True
+
+
+# =============================================================================
+# Assertion Encryption Algorithm: CRUD and Metadata Sync
+# =============================================================================
+
+
+class TestUpdateEncryptionAlgorithm:
+    """Tests for updating the assertion encryption algorithm on an SP."""
+
+    def test_update_to_gcm(self, make_requesting_user):
+        """Super admin can change encryption algorithm to GCM."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(assertion_encryption_algorithm="aes256-gcm")
+        row = _make_sp_row(
+            tenant_id=tenant_id, sp_id=sp_id, assertion_encryption_algorithm="aes256-gcm"
+        )
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            assert result.assertion_encryption_algorithm == "aes256-gcm"
+            mock_db.service_providers.update_service_provider.assert_called_once_with(
+                tenant_id, sp_id, assertion_encryption_algorithm="aes256-gcm"
+            )
+
+    def test_algorithm_change_emits_event(self, make_requesting_user):
+        """Changing the algorithm emits a sp_encryption_algorithm_updated event."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(assertion_encryption_algorithm="aes256-gcm")
+        row = _make_sp_row(
+            tenant_id=tenant_id, sp_id=sp_id, assertion_encryption_algorithm="aes256-gcm"
+        )
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            # Should have 2 log calls: generic update + specific algorithm change
+            assert mock_log.call_count == 2
+            algo_call = mock_log.call_args_list[1]
+            assert algo_call[1]["event_type"] == "sp_encryption_algorithm_updated"
+            assert algo_call[1]["metadata"]["old_algorithm"] == "aes256-cbc"
+            assert algo_call[1]["metadata"]["new_algorithm"] == "aes256-gcm"
+
+    def test_same_algorithm_no_specific_event(self, make_requesting_user):
+        """Setting the same algorithm does not emit the specific change event."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(assertion_encryption_algorithm="aes256-cbc")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            # Only the generic update event, no specific algorithm change event
+            assert mock_log.call_count == 1
+            assert mock_log.call_args[1]["event_type"] == "service_provider_updated"
+
+
+class TestMetadataSyncEncryptionAlgorithm:
+    """Tests for encryption algorithm auto-detection during metadata sync."""
+
+    def test_detect_gcm_only(self):
+        """SP declaring only GCM triggers auto-detection."""
+        from services.service_providers.metadata_sync import detect_encryption_algorithm
+
+        methods = ["http://www.w3.org/2009/xmlenc11#aes256-gcm"]
+        assert detect_encryption_algorithm(methods) == "aes256-gcm"
+
+    def test_detect_both_returns_none(self):
+        """SP declaring both CBC and GCM keeps the default."""
+        from services.service_providers.metadata_sync import detect_encryption_algorithm
+
+        methods = [
+            "http://www.w3.org/2001/04/xmlenc#aes256-cbc",
+            "http://www.w3.org/2009/xmlenc11#aes256-gcm",
+        ]
+        assert detect_encryption_algorithm(methods) is None
+
+    def test_detect_cbc_only_returns_none(self):
+        """SP declaring only CBC keeps the default."""
+        from services.service_providers.metadata_sync import detect_encryption_algorithm
+
+        methods = ["http://www.w3.org/2001/04/xmlenc#aes256-cbc"]
+        assert detect_encryption_algorithm(methods) is None
+
+    def test_detect_none_returns_none(self):
+        """No EncryptionMethod declarations keeps the default."""
+        from services.service_providers.metadata_sync import detect_encryption_algorithm
+
+        assert detect_encryption_algorithm(None) is None
+        assert detect_encryption_algorithm([]) is None
+
+    def test_diff_shows_algorithm_change(self):
+        """Metadata diff includes algorithm change when auto-detected."""
+        from services.service_providers.metadata_sync import _compute_metadata_diff
+
+        current = _make_sp_row()
+        parsed = {
+            "entity_id": current["entity_id"],
+            "acs_url": current["acs_url"],
+            "certificate_pem": None,
+            "encryption_certificate_pem": None,
+            "encryption_methods": ["http://www.w3.org/2009/xmlenc11#aes256-gcm"],
+            "nameid_format": current["nameid_format"],
+            "slo_url": None,
+            "requested_attributes": None,
+        }
+        changes = _compute_metadata_diff(current, parsed, None)
+        algo_changes = [c for c in changes if c.field == "Encryption Algorithm"]
+        assert len(algo_changes) == 1
+        assert algo_changes[0].old_value == "AES-256-CBC"
+        assert algo_changes[0].new_value == "AES-256-GCM"
+
+    def test_diff_no_change_when_both_declared(self):
+        """No algorithm diff when SP declares both CBC and GCM."""
+        from services.service_providers.metadata_sync import _compute_metadata_diff
+
+        current = _make_sp_row()
+        parsed = {
+            "entity_id": current["entity_id"],
+            "acs_url": current["acs_url"],
+            "certificate_pem": None,
+            "encryption_certificate_pem": None,
+            "encryption_methods": [
+                "http://www.w3.org/2001/04/xmlenc#aes256-cbc",
+                "http://www.w3.org/2009/xmlenc11#aes256-gcm",
+            ],
+            "nameid_format": current["nameid_format"],
+            "slo_url": None,
+            "requested_attributes": None,
+        }
+        changes = _compute_metadata_diff(current, parsed, None)
+        algo_changes = [c for c in changes if c.field == "Encryption Algorithm"]
+        assert len(algo_changes) == 0
+
+    def test_diff_no_change_when_already_gcm(self):
+        """No algorithm diff when SP is already on GCM."""
+        from services.service_providers.metadata_sync import _compute_metadata_diff
+
+        current = _make_sp_row(assertion_encryption_algorithm="aes256-gcm")
+        parsed = {
+            "entity_id": current["entity_id"],
+            "acs_url": current["acs_url"],
+            "certificate_pem": None,
+            "encryption_certificate_pem": None,
+            "encryption_methods": ["http://www.w3.org/2009/xmlenc11#aes256-gcm"],
+            "nameid_format": current["nameid_format"],
+            "slo_url": None,
+            "requested_attributes": None,
+        }
+        changes = _compute_metadata_diff(current, parsed, None)
+        algo_changes = [c for c in changes if c.field == "Encryption Algorithm"]
+        assert len(algo_changes) == 0

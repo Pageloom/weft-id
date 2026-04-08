@@ -67,6 +67,7 @@ class SPUpdate(BaseModel):
     include_group_claims: bool | None = None
     group_assertion_scope: Literal["all", "trunk", "access_relevant"] | None = None
     available_to_all: bool | None = None
+    assertion_encryption_algorithm: Literal["aes256-cbc", "aes256-gcm"] | None = None
     attribute_mapping: (
         dict[Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]] | None
     ) = None
@@ -88,6 +89,7 @@ class SPConfig(BaseModel):
     slo_url: str | None = None
     certificate_pem: str | None = None
     encryption_certificate_pem: str | None = None
+    assertion_encryption_algorithm: str = "aes256-cbc"
     nameid_format: str
     include_group_claims: bool = False
     group_assertion_scope: Literal["all", "trunk", "access_relevant"] | None = None

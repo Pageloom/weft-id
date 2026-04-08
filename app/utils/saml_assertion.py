@@ -52,6 +52,7 @@ def build_saml_response(
     session_index: str | None = None,
     attribute_mapping: dict[str, str] | None = None,
     encryption_certificate_pem: str | None = None,
+    assertion_encryption_algorithm: str = "aes256-cbc",
 ) -> tuple[str, str]:
     """Build and sign a SAML 2.0 Response containing a signed Assertion.
 
@@ -70,6 +71,10 @@ def build_saml_response(
         attribute_mapping: Optional per-SP attribute name mapping
         encryption_certificate_pem: Optional PEM-encoded SP encryption certificate.
             When provided, the signed assertion is encrypted so only the SP can read it.
+        assertion_encryption_algorithm: Content encryption algorithm. One of
+            "aes256-cbc" (default, XML Encryption 1.0) or "aes256-gcm"
+            (XML Encryption 1.1). Only used when encryption_certificate_pem
+            is provided.
 
     Returns:
         Tuple of (base64_encoded_response, session_index)
@@ -102,7 +107,9 @@ def build_saml_response(
 
     # Encrypt the signed assertion if SP provides an encryption certificate
     if encryption_certificate_pem:
-        assertion_for_response = _encrypt_assertion(signed_assertion, encryption_certificate_pem)
+        assertion_for_response = _encrypt_assertion(
+            signed_assertion, encryption_certificate_pem, algorithm=assertion_encryption_algorithm
+        )
     else:
         assertion_for_response = signed_assertion
 
@@ -341,19 +348,34 @@ def _sign_assertion(
 _XENC_NS = "http://www.w3.org/2001/04/xmlenc#"
 
 
+_ENCRYPTION_TRANSFORMS = {
+    "aes256-cbc": xmlsec.Transform.AES256,  # type: ignore[attr-defined]
+    "aes256-gcm": xmlsec.Transform.AES256_GCM,  # type: ignore[attr-defined]
+}
+
+
 def _encrypt_assertion(
     signed_assertion: etree._Element,
     encryption_certificate_pem: str,
+    algorithm: str = "aes256-cbc",
 ) -> etree._Element:
     """Encrypt a signed SAML Assertion for the SP.
 
-    Uses AES-256-CBC for content encryption and RSA-OAEP for key transport,
-    then wraps the result in a <saml:EncryptedAssertion> element.
+    Uses RSA-OAEP for key transport and the selected content encryption
+    algorithm, then wraps the result in a <saml:EncryptedAssertion> element.
+
+    Args:
+        signed_assertion: The signed Assertion element to encrypt.
+        encryption_certificate_pem: SP's PEM-encoded encryption certificate.
+        algorithm: Content encryption algorithm. One of "aes256-cbc"
+            (XML Encryption 1.0) or "aes256-gcm" (XML Encryption 1.1).
     """
+    transform = _ENCRYPTION_TRANSFORMS.get(algorithm, _ENCRYPTION_TRANSFORMS["aes256-cbc"])
+
     # Create EncryptedData template
     enc_data = xmlsec.template.encrypted_data_create(
         signed_assertion,
-        method=xmlsec.Transform.AES256,  # type: ignore[attr-defined]
+        method=transform,
         type=f"{_XENC_NS}Element",
     )
     xmlsec.template.encrypted_data_ensure_cipher_value(enc_data)

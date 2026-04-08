@@ -176,6 +176,7 @@ def update_service_provider(
     - include_group_claims: Whether to include group claims in assertions
     - group_assertion_scope: Per-SP group scope override (null to inherit)
     - available_to_all: Whether the SP is accessible to all users
+    - assertion_encryption_algorithm: Encryption algorithm (aes256-cbc, aes256-gcm)
     - attribute_mapping: Custom SAML attribute name mappings (dict)
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)

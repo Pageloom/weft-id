@@ -284,6 +284,17 @@ def sp_tab_attributes(
 
     tenant_default_scope = settings_service.get_group_assertion_scope(tenant_id)
 
+    # Extract EncryptionMethod declarations from stored metadata (if available)
+    encryption_methods = None
+    if sp_config.metadata_xml:
+        try:
+            from utils.saml_idp import parse_sp_metadata_xml
+
+            parsed_meta = parse_sp_metadata_xml(sp_config.metadata_xml)
+            encryption_methods = parsed_meta.get("encryption_methods")
+        except (ValueError, Exception):
+            pass  # Non-critical: just skip displaying advertised methods
+
     context = get_template_context(
         request,
         tenant_id,
@@ -292,6 +303,7 @@ def sp_tab_attributes(
         saml_attributes=SAML_ATTRIBUTE_URIS,
         expected_mapping=expected_mapping,
         tenant_default_scope=tenant_default_scope,
+        encryption_methods=encryption_methods,
         active_tab="attributes",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
@@ -531,12 +543,13 @@ def sp_edit_attributes(
     sp_id: str,
     include_group_claims: str | None = Form(None),
     group_assertion_scope: str = Form(""),
+    assertion_encryption_algorithm: str = Form(""),
     attr_map_email: str = Form(""),
     attr_map_firstName: str = Form(""),  # noqa: N803
     attr_map_lastName: str = Form(""),  # noqa: N803
     attr_map_groups: str = Form(""),
 ):
-    """Update an SP's attribute mapping, include_group_claims, and scope override."""
+    """Update SP attribute mapping, group claims, scope override, and encryption algorithm."""
     if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
@@ -546,6 +559,11 @@ def sp_edit_attributes(
 
     update_fields: dict = {}
     update_fields["include_group_claims"] = include_group_claims == "true"
+
+    # Per-SP encryption algorithm: only set when a valid value is provided
+    valid_algorithms = ("aes256-cbc", "aes256-gcm")
+    if assertion_encryption_algorithm in valid_algorithms:
+        update_fields["assertion_encryption_algorithm"] = assertion_encryption_algorithm
 
     # Per-SP scope override: empty string means inherit tenant default (NULL in DB)
     valid_scopes = ("all", "trunk", "access_relevant")

@@ -137,6 +137,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "service_provider_created": "Downstream service provider registered",
     "service_provider_updated": "Downstream service provider configuration updated",
     "sp_nameid_format_updated": "NameID format changed for downstream service provider",
+    "sp_encryption_algorithm_updated": (
+        "Assertion encryption algorithm changed for downstream service provider"
+    ),
     "service_provider_enabled": "Downstream service provider enabled",
     "service_provider_disabled": "Downstream service provider disabled",
     "service_provider_deleted": "Downstream service provider removed",
@@ -267,6 +270,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "service_provider_disabled": "admin",
     "service_provider_trust_established": "admin",
     "sp_nameid_format_updated": "admin",
+    "sp_encryption_algorithm_updated": "admin",
     "sp_access_mode_updated": "admin",
     "sp_metadata_refreshed": "admin",
     "sp_metadata_reimported": "admin",

@@ -11,6 +11,7 @@ _XML_ATTR_ENTITIES = {'"': "&quot;", "'": "&apos;"}
 # SAML metadata namespace
 _MD_NS = "urn:oasis:names:tc:SAML:2.0:metadata"
 _DS_NS = "http://www.w3.org/2000/09/xmldsig#"
+_XENC_NS = "http://www.w3.org/2001/04/xmlenc#"
 
 
 def _wrap_pem(cert_data: str) -> str:
@@ -80,6 +81,7 @@ def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
     # First match per category wins.
     certificate_pem = None
     encryption_certificate_pem = None
+    encryption_methods: list[str] = []
     for kd in sp_descriptor.findall(f"{{{_MD_NS}}}KeyDescriptor"):
         x509_cert = kd.find(f".//{{{_DS_NS}}}X509Certificate")
         if x509_cert is None or not x509_cert.text:
@@ -92,6 +94,11 @@ def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
         elif use == "encryption":
             if encryption_certificate_pem is None:
                 encryption_certificate_pem = pem
+                # Collect EncryptionMethod Algorithm URIs from this KeyDescriptor
+                for em in kd.findall(f"{{{_XENC_NS}}}EncryptionMethod"):
+                    algo = em.attrib.get("Algorithm")
+                    if algo:
+                        encryption_methods.append(algo)
         else:
             # No use attribute: applies to both
             if certificate_pem is None:
@@ -144,6 +151,7 @@ def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
         "acs_url": acs_url,
         "certificate_pem": certificate_pem,
         "encryption_certificate_pem": encryption_certificate_pem,
+        "encryption_methods": encryption_methods or None,
         "nameid_format": nameid_format,
         "slo_url": slo_url,
         "requested_attributes": requested_attributes or None,

@@ -425,6 +425,8 @@ def update_service_provider(
         update_fields["group_assertion_scope"] = data.group_assertion_scope
     if data.available_to_all is not None:
         update_fields["available_to_all"] = data.available_to_all
+    if data.assertion_encryption_algorithm is not None:
+        update_fields["assertion_encryption_algorithm"] = data.assertion_encryption_algorithm
     if data.attribute_mapping is not None:
         update_fields["attribute_mapping"] = data.attribute_mapping
 
@@ -434,8 +436,9 @@ def update_service_provider(
             code="sp_update_no_fields",
         )
 
-    # Track old nameid_format for change detection
+    # Track old values for change detection
     old_nameid_format = existing.get("nameid_format")
+    old_encryption_algorithm = existing.get("assertion_encryption_algorithm", "aes256-cbc")
 
     row = database.service_providers.update_service_provider(tenant_id, sp_id, **update_fields)
 
@@ -480,6 +483,23 @@ def update_service_provider(
             metadata={
                 "old_format": old_nameid_format,
                 "new_format": update_fields["nameid_format"],
+            },
+        )
+
+    # Emit specific event when encryption algorithm actually changes
+    if (
+        "assertion_encryption_algorithm" in update_fields
+        and update_fields["assertion_encryption_algorithm"] != old_encryption_algorithm
+    ):
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="service_provider",
+            artifact_id=sp_id,
+            event_type="sp_encryption_algorithm_updated",
+            metadata={
+                "old_algorithm": old_encryption_algorithm,
+                "new_algorithm": update_fields["assertion_encryption_algorithm"],
             },
         )
 

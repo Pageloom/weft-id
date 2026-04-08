@@ -269,6 +269,62 @@ formatting, stable JSON key ordering for metadata, and a defined null representa
 
 ---
 
+## Per-SP AES-256-GCM Assertion Encryption (opt-in)
+
+**User Story:**
+As a super admin configuring a service provider,
+I want to select AES-256-GCM instead of AES-256-CBC for assertion encryption,
+So that encrypted assertions use authenticated encryption and are not vulnerable to CBC padding oracle attacks.
+
+**Context:**
+
+WeftID currently uses AES-256-CBC (XML Encryption 1.0) for encrypted assertions.
+AES-256-GCM (XML Encryption 1.1) provides authenticated encryption (AEAD), which
+prevents ciphertext tampering and eliminates the padding oracle attack surface.
+
+This must be opt-in per SP because GCM is XML Encryption 1.1 and not universally
+supported. Older SPs (ADFS, some Salesforce configurations) only implement
+XML Encryption 1.0 and will silently reject GCM-encrypted assertions. The default
+must remain CBC to preserve compatibility.
+
+The setting only applies when an encryption certificate is present on the SP.
+Without an encryption certificate, assertions are unencrypted regardless of algorithm.
+
+**SP metadata signalling:** The SAML metadata spec allows SPs to declare supported
+encryption algorithms via `<xenc:EncryptionMethod>` elements inside their
+`<KeyDescriptor use="encryption">`, in preference order. Many SPs omit this (meaning
+"accept anything"). When present, it is the authoritative signal of what the SP
+supports. `parse_sp_metadata_xml` in `saml_idp.py` already iterates `<KeyDescriptor>`
+to extract the encryption certificate; extending it to also collect `<EncryptionMethod>`
+Algorithm URIs is a small addition that enables auto-detection.
+
+Before implementing, verify that the installed `python-xmlsec` / `libxmlsec1` version
+exposes `xmlsec.Transform.AES256_GCM` (XML Encryption 1.1 URI:
+`http://www.w3.org/2009/xmlenc11#aes256-gcm`). If the transform is unavailable, the
+UI option should not be offered.
+
+**Acceptance Criteria:**
+
+- [ ] `parse_sp_metadata_xml` extracts `<EncryptionMethod>` Algorithm URIs from the encryption `<KeyDescriptor>` and returns them as `encryption_methods: list[str] | None` (None if absent, meaning no preference declared)
+- [ ] New column `assertion_encryption_algorithm` on `service_providers` table via migration (values: `aes256-cbc` | `aes256-gcm`, default `aes256-cbc`)
+- [ ] On metadata import/refresh, if the SP declares only GCM in its `<EncryptionMethod>` list, auto-set `assertion_encryption_algorithm` to `aes256-gcm`; if it declares both or neither, default to `aes256-cbc`
+- [ ] `_encrypt_assertion()` in `saml_assertion.py` accepts an `algorithm` parameter and selects the correct `xmlsec.Transform`
+- [ ] Algorithm is read from `sp_row` in `sso.py` and passed through to `build_saml_response()` and `_encrypt_assertion()`
+- [ ] SP schema (`ServiceProviderCreate`, `ServiceProviderUpdate`, `ServiceProviderResponse`) includes `assertion_encryption_algorithm`
+- [ ] SP admin UI shows the algorithm selector in the trust/security settings tab, adjacent to the encryption certificate field; if SP metadata declares supported algorithms, display them as read-only context ("SP advertises: GCM, CBC")
+- [ ] Algorithm selector is disabled (or hidden) when no encryption certificate is configured
+- [ ] UI includes a visible compatibility warning when GCM is selected: "GCM requires XML Encryption 1.1 support. Verify your SP supports it before enabling."
+- [ ] API endpoint docstrings document the accepted values
+- [ ] Event log metadata for SP updates includes the algorithm when it changes
+- [ ] Metadata diff preview (`_compute_metadata_diff`) includes algorithm change when auto-detection would change it
+- [ ] Tests cover: `<EncryptionMethod>` parsing, GCM auto-detection on import, GCM path in `_encrypt_assertion()`, SSO service passes algorithm correctly, UI disables selector when no cert present
+
+**Effort:** M
+**Value:** Low
+**Version impact:** Minor (new optional SP setting; default behavior unchanged, no SP reconfiguration required unless GCM is opted in)
+
+---
+
 ## Rename "Loom Identity Platform" to "WeftID" in Certificates and API Title
 
 **User Story:**

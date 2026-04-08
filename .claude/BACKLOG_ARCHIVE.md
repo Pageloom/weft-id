@@ -4,6 +4,28 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Per-SP AES-256-GCM Assertion Encryption (opt-in)
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] `parse_sp_metadata_xml` extracts `<EncryptionMethod>` Algorithm URIs from the encryption `<KeyDescriptor>` and returns them as `encryption_methods: list[str] | None`
+- [x] New column `assertion_encryption_algorithm` on `service_providers` table via migration (values: `aes256-cbc` | `aes256-gcm`, default `aes256-cbc`)
+- [x] On metadata import/refresh, if the SP declares only GCM in its `<EncryptionMethod>` list, auto-set to `aes256-gcm`; if it declares both or neither, default to `aes256-cbc`
+- [x] `_encrypt_assertion()` accepts an `algorithm` parameter and selects the correct `xmlsec.Transform`
+- [x] Algorithm is read from `sp_row` in `sso.py` and passed through to `build_saml_response()` and `_encrypt_assertion()`
+- [x] SP schema (`SPUpdate`, `SPConfig`) includes `assertion_encryption_algorithm`
+- [x] SP admin UI shows algorithm selector in the attributes tab, adjacent to the encryption certificate status; displays advertised methods from SP metadata
+- [x] Algorithm selector is hidden when no encryption certificate is configured
+- [x] UI includes a compatibility warning when GCM is selected
+- [x] API endpoint docstrings document the accepted values
+- [x] Event log metadata for SP updates includes the algorithm when it changes (`sp_encryption_algorithm_updated`)
+- [x] Metadata diff preview includes algorithm change when auto-detection would change it
+- [x] Tests cover: EncryptionMethod parsing, GCM auto-detection, GCM round-trip encrypt/decrypt, SSO algorithm passthrough, CRUD update with event log, metadata diff
+
+---
+
 ## Streamlined Sign-In Flow (Skip Email Verification by Default)
 
 **Status:** Complete

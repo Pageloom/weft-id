@@ -148,9 +148,8 @@ def test_saml_idp_mismatch_detection(client, test_tenant, test_tenant_host, test
                 },
             )
 
-            # Should reject with IdP mismatch error
-            assert response.status_code == 200  # Error page
-            assert "IdP mismatch" in response.text or "unexpected IdP" in response.text
+            # Should reject with IdP mismatch error (no detail leaked to browser)
+            assert response.status_code == 200  # Error page, not a redirect
 
 
 def test_saml_session_tampering_prevention(
@@ -191,8 +190,8 @@ def test_saml_session_tampering_prevention(
                 },
             )
 
-            # Should reject due to mismatch
-            assert "IdP mismatch" in response.text or "unexpected IdP" in response.text
+            # Should reject due to mismatch (no detail leaked to browser)
+            assert response.status_code == 200  # Error page, not a redirect
 
 
 def test_saml_session_persistence_configuration_non_persistent(

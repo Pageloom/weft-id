@@ -13,6 +13,8 @@
             <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
                 {% if error_type == 'invalid_response' %}
                     Invalid SSO Response
+                {% elif error_type == 'auth_failed' %}
+                    Authentication Failed
                 {% elif error_type == 'user_not_found' %}
                     Account Not Found
                 {% elif error_type == 'idp_not_found' %}
@@ -21,10 +23,10 @@
                     Identity Provider Disabled
                 {% elif error_type == 'configuration_error' %}
                     Configuration Error
-                {% elif error_type == 'signature_error' %}
-                    Signature Verification Failed
                 {% elif error_type == 'expired' %}
                     Response Expired
+                {% elif error_type == 'too_many_requests' %}
+                    Too Many Requests
                 {% else %}
                     Authentication Error
                 {% endif %}
@@ -33,6 +35,8 @@
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
                 {% if error_type == 'invalid_response' %}
                     Invalid SSO response from your identity provider.
+                {% elif error_type == 'auth_failed' %}
+                    SSO authentication could not be completed. Try signing in again.
                 {% elif error_type == 'user_not_found' %}
                     No account found for the email provided by your identity provider. Contact your administrator.
                 {% elif error_type == 'idp_not_found' %}
@@ -41,21 +45,14 @@
                     Identity provider disabled. Contact your administrator.
                 {% elif error_type == 'configuration_error' %}
                     Identity provider configuration error. Contact your administrator.
-                {% elif error_type == 'signature_error' %}
-                    SSO response signature could not be verified. Check IdP certificate configuration.
                 {% elif error_type == 'expired' %}
                     SSO response expired. Try signing in again.
+                {% elif error_type == 'too_many_requests' %}
+                    Too many sign-in attempts. Try again later.
                 {% else %}
                     An error occurred during SSO authentication.
                 {% endif %}
             </p>
-
-            {% if error_detail %}
-            <div class="mb-6 p-3 bg-gray-50 dark:bg-gray-700 rounded-md text-left">
-                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Error Details</p>
-                <p class="text-sm text-gray-700 dark:text-gray-300 font-mono break-all">{{ error_detail }}</p>
-            </div>
-            {% endif %}
 
             {% if is_dev and raw_saml_xml %}
             <details class="mb-6 text-left">

@@ -176,7 +176,7 @@ def test_per_idp_acs_validation_error_signature(
     mock_debug,
     tenant_client,
 ):
-    """Test ACS handles signature validation error."""
+    """Test ACS maps signature validation errors to auth_failed (no oracle signal)."""
     mock_process.side_effect = ValidationError("Invalid signature on response")
     mock_debug.return_value = HTMLResponse(content="<html>error</html>")
 
@@ -185,9 +185,8 @@ def test_per_idp_acs_validation_error_signature(
         data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
     )
     assert response.status_code == 200
-    # Check error_type is signature_error
     call_kwargs = mock_debug.call_args[1]
-    assert call_kwargs["error_type"] == "signature_error"
+    assert call_kwargs["error_type"] == "auth_failed"
 
 
 @patch("routers.saml.authentication.store_saml_debug_and_respond")
@@ -217,7 +216,7 @@ def test_per_idp_acs_validation_error_generic(
     mock_debug,
     tenant_client,
 ):
-    """Test ACS handles generic validation error."""
+    """Test ACS maps generic validation errors to auth_failed (no oracle signal)."""
     mock_process.side_effect = ValidationError("Missing required attribute")
     mock_debug.return_value = HTMLResponse(content="<html>error</html>")
 
@@ -227,7 +226,7 @@ def test_per_idp_acs_validation_error_generic(
     )
     assert response.status_code == 200
     call_kwargs = mock_debug.call_args[1]
-    assert call_kwargs["error_type"] == "invalid_response"
+    assert call_kwargs["error_type"] == "auth_failed"
 
 
 @patch("routers.saml.authentication.store_saml_debug_and_respond")
@@ -715,3 +714,77 @@ def test_legacy_acs_with_session_timeout(
     # Verify session timeout was passed
     regen_call = mock_regen.call_args
     assert regen_call[0][2] == 3600  # max_age
+
+
+# =============================================================================
+# Rate Limiting
+# =============================================================================
+
+
+@patch("routers.saml.authentication.ratelimit")
+def test_per_idp_acs_rate_limited(mock_ratelimit, tenant_client):
+    """Test per-IdP ACS returns 429 when rate limit exceeded."""
+    from services.exceptions import RateLimitError
+
+    mock_ratelimit.prevent.side_effect = RateLimitError(
+        message="Too many requests", limit=20, timespan=300, retry_after=300
+    )
+
+    response = tenant_client.post(
+        f"/saml/acs/{uuid4()}",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+    )
+    assert response.status_code == 429
+    assert "too many" in response.text.lower()
+
+
+@patch("routers.saml.authentication.ratelimit")
+def test_legacy_acs_rate_limited(mock_ratelimit, tenant_client):
+    """Test legacy ACS returns 429 when rate limit exceeded."""
+    from services.exceptions import RateLimitError
+
+    mock_ratelimit.prevent.side_effect = RateLimitError(
+        message="Too many requests", limit=20, timespan=300, retry_after=300
+    )
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+    )
+    assert response.status_code == 429
+    assert "too many" in response.text.lower()
+
+
+@patch("routers.saml.authentication.store_saml_debug_and_respond")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+@patch("routers.saml.authentication.ratelimit")
+def test_per_idp_acs_rate_limit_not_triggered(
+    mock_ratelimit, mock_process, mock_debug, tenant_client
+):
+    """Test per-IdP ACS proceeds normally when under rate limit."""
+    mock_ratelimit.prevent.return_value = 1  # Under limit
+    mock_process.side_effect = ValidationError("Missing attribute")
+    mock_debug.return_value = HTMLResponse(content="<html>error</html>")
+
+    response = tenant_client.post(
+        f"/saml/acs/{uuid4()}",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+    )
+    assert response.status_code == 200
+    mock_ratelimit.prevent.assert_called_once()
+
+
+@patch("routers.saml.authentication.ratelimit")
+def test_acs_test_flow_bypasses_rate_limit(mock_ratelimit, tenant_client):
+    """Test flow (RelayState __test__:) is not subject to rate limiting."""
+    from unittest.mock import patch as _patch
+
+    with _patch("routers.saml.authentication._handle_saml_test_response") as mock_handle:
+        mock_handle.return_value = HTMLResponse(content="<html>test result</html>")
+        response = tenant_client.post(
+            f"/saml/acs/{uuid4()}",
+            data={"SAMLResponse": "base64data", "RelayState": "__test__:some-idp-id"},
+        )
+
+    assert response.status_code == 200
+    mock_ratelimit.prevent.assert_not_called()

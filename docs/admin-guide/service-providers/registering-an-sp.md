@@ -32,7 +32,7 @@ Once your application is configured, return to the SP's detail page and import i
 | **Metadata XML** | You have the application's SAML metadata as XML. |
 | **Manual entry** | Enter the entity ID and ACS URL directly. |
 
-WeftID auto-detects the application's requested attributes and NameID format from its metadata.
+WeftID auto-detects the application's requested attributes, NameID format, and [encryption algorithm](attribute-mapping.md#auto-detection-from-metadata) from its metadata.
 
 ## Step 4: Configure access
 

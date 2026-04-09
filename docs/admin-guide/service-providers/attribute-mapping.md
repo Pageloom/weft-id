@@ -69,10 +69,30 @@ The **Attributes** tab shows the current encryption status:
 
 When encryption is active, a dropdown on the **Attributes** tab lets you choose the content encryption algorithm:
 
-- **AES-256-CBC** (default) -- Compatible with all SAML implementations.
-- **AES-256-GCM** -- Requires XML Encryption 1.1 support. Provides authenticated encryption (integrity and confidentiality in a single pass). Verify your application supports it before enabling.
+- **AES-256-CBC** (default) -- Compatible with all SAML implementations. Uses XML Encryption 1.0.
+- **AES-256-GCM** -- Authenticated encryption that provides both confidentiality and integrity in a single pass. Uses XML Encryption 1.1. Not all SAML implementations support it.
 
-If the application's metadata advertises supported encryption methods, WeftID shows them below the dropdown. When metadata declares only GCM, WeftID auto-selects GCM on import.
+GCM is the stronger option when your application supports it. CBC is a block cipher mode that requires separate padding and has no built-in integrity check. GCM combines encryption and authentication, eliminating padding-related vulnerabilities. If your application supports XML Encryption 1.1, switching to GCM is recommended.
+
+!!! warning
+    Verify your application supports GCM before enabling it. If the application cannot decrypt GCM-encrypted assertions, SSO will fail silently (the application receives a valid SAML response but cannot read the assertion inside it).
+
+### Auto-detection from metadata
+
+When you import or refresh an SP's metadata, WeftID reads the `<EncryptionMethod>` elements declared in the SP's encryption `KeyDescriptor`:
+
+- If the SP declares **only GCM** (no CBC), WeftID auto-selects GCM.
+- If the SP declares **both** CBC and GCM, or declares **neither**, WeftID keeps the current setting (defaulting to CBC for new SPs).
+
+The **Attributes** tab shows which algorithms the SP advertises, so you can make an informed choice even when auto-detection keeps the default.
+
+When a metadata refresh would change the encryption algorithm, the change appears in the diff preview before you apply it.
+
+### Changing the algorithm
+
+Select the algorithm from the dropdown on the **Attributes** tab and save. The change takes effect on the next SSO assertion. No application reconfiguration is needed (both algorithms use the same RSA-OAEP key transport; only the content cipher changes).
+
+Algorithm changes are recorded in the [audit log](../audit/index.md) as a separate event, showing both the old and new algorithm.
 
 ### Enabling encryption
 

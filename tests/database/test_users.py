@@ -157,15 +157,10 @@ def test_update_last_login(test_user):
     # Verify it was updated
     user_after = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
 
-    # Should be different (or at least set if it was None)
-    if initial_last_login is None:
-        assert user_after["last_login"] is not None
-    else:
-        # Timestamps should differ
-        assert (
-            user_after["last_login"] != initial_last_login
-            or user_after["last_login"] == initial_last_login
-        )
+    # Should be set (or updated) after calling update_last_login
+    assert user_after["last_login"] is not None
+    if initial_last_login is not None:
+        assert user_after["last_login"] >= initial_last_login
 
 
 def test_update_timezone_and_last_login(test_user):

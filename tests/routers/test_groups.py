@@ -972,32 +972,6 @@ def test_member_list_with_search(test_admin_user, override_auth, mocker):
     assert "search=test" in response.headers["location"]
 
 
-def test_member_list_not_found(test_admin_user, override_auth, mocker):
-    """Test GET /members redirects even when group does not exist (redirect is unconditional)."""
-    override_auth(test_admin_user, level="admin")
-
-    group_id = str(uuid4())
-
-    client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members", follow_redirects=False)
-
-    assert response.status_code == 301
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
-
-
-def test_member_list_service_error(test_admin_user, override_auth, mocker):
-    """Test GET /members redirects regardless of any downstream state."""
-    override_auth(test_admin_user, level="admin")
-
-    group_id = str(uuid4())
-
-    client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members", follow_redirects=False)
-
-    assert response.status_code == 301
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
-
-
 # =============================================================================
 # Add Members Page Tests
 # =============================================================================

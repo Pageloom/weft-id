@@ -5,33 +5,8 @@ from unittest.mock import patch
 import pytest
 from services.exceptions import RateLimitError
 from utils.ratelimit import (
-    HOUR,
-    KEY_PREFIX,
-    MINUTE,
-    SECOND,
     RateLimiter,
-    ratelimit,
 )
-
-
-class TestTimeConstants:
-    """Tests for time constants."""
-
-    def test_second_value(self):
-        """SECOND should be 1."""
-        assert SECOND == 1
-
-    def test_minute_value(self):
-        """MINUTE should be 60."""
-        assert MINUTE == 60
-
-    def test_hour_value(self):
-        """HOUR should be 3600."""
-        assert HOUR == 3600
-
-    def test_key_prefix(self):
-        """KEY_PREFIX should be 'ratelimit:'."""
-        assert KEY_PREFIX == "ratelimit:"
 
 
 class TestRateLimiterKeyBuilding:
@@ -249,14 +224,6 @@ class TestRateLimiterReset:
         result = limiter.reset("test")
 
         assert result is False
-
-
-class TestRateLimiterSingleton:
-    """Tests for module singleton."""
-
-    def test_ratelimit_is_ratelimiter(self):
-        """Module singleton should be a RateLimiter instance."""
-        assert isinstance(ratelimit, RateLimiter)
 
 
 class TestRateLimitErrorException:

@@ -607,7 +607,7 @@ def test_users_list_with_locale_collation(test_admin_user, mocker, override_auth
 
 
 def test_users_list_with_invalid_page_param(test_admin_user, mocker, override_auth):
-    """Test users list with invalid page parameter."""
+    """Test users list with invalid page parameter defaults to page 1."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user)
@@ -624,11 +624,12 @@ def test_users_list_with_invalid_page_param(test_admin_user, mocker, override_au
     response = client.get("/users/list?page=invalid")
 
     assert response.status_code == 200
-    # Should default to page 1
+    call_args = mock_list.call_args[0]
+    assert call_args[4] == 1  # page defaults to 1
 
 
 def test_users_list_with_invalid_page_size(test_admin_user, mocker, override_auth):
-    """Test users list with invalid page size parameter."""
+    """Test users list with invalid page size parameter defaults to 25."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user)
@@ -645,11 +646,12 @@ def test_users_list_with_invalid_page_size(test_admin_user, mocker, override_aut
     response = client.get("/users/list?size=invalid")
 
     assert response.status_code == 200
-    # Should default to page size 25
+    call_args = mock_list.call_args[0]
+    assert call_args[5] == 25  # page_size defaults to 25
 
 
 def test_users_list_with_nonstandard_page_size(test_admin_user, mocker, override_auth):
-    """Test users list with non-standard page size."""
+    """Test users list with non-standard page size normalizes to nearest valid size."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user)
@@ -666,11 +668,12 @@ def test_users_list_with_nonstandard_page_size(test_admin_user, mocker, override
     response = client.get("/users/list?size=35")
 
     assert response.status_code == 200
-    # Should normalize to 25
+    call_args = mock_list.call_args[0]
+    assert call_args[5] == 25  # non-standard size normalizes to 25
 
 
 def test_users_list_with_invalid_sort_order(test_admin_user, mocker, override_auth):
-    """Test users list with invalid sort order."""
+    """Test users list with invalid sort order defaults to desc."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user)
@@ -687,6 +690,8 @@ def test_users_list_with_invalid_sort_order(test_admin_user, mocker, override_au
     response = client.get("/users/list?order=invalid")
 
     assert response.status_code == 200
+    call_args = mock_list.call_args[0]
+    assert call_args[3] == "desc"  # sort_order defaults to desc
     # Should default to desc
 
 

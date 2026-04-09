@@ -89,7 +89,10 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   A certificate provided by an SP in its metadata, used by WeftID to encrypt assertions before delivery. Only the SP's private key can decrypt the assertion. Encryption is automatic when the certificate is present. See [Assertion Encryption](admin-guide/service-providers/attribute-mapping.md#assertion-encryption).
 
 **AES-256-CBC**
-:   Advanced Encryption Standard with a 256-bit key in Cipher Block Chaining mode. A symmetric encryption algorithm used by WeftID to encrypt the assertion payload. The AES key itself is encrypted with RSA-OAEP so only the SP can recover it.
+:   Advanced Encryption Standard with a 256-bit key in Cipher Block Chaining mode. The default content encryption algorithm for assertion encryption (XML Encryption 1.0). Compatible with all SAML implementations. The AES key itself is encrypted with RSA-OAEP so only the SP can recover it. See [Encryption Algorithm](admin-guide/service-providers/attribute-mapping.md#encryption-algorithm).
+
+**AES-256-GCM**
+:   Advanced Encryption Standard with a 256-bit key in Galois/Counter Mode. An authenticated encryption algorithm available as an opt-in alternative to CBC for assertion encryption (XML Encryption 1.1). Provides both confidentiality and integrity in a single pass. Requires SP support for XML Encryption 1.1. See [Encryption Algorithm](admin-guide/service-providers/attribute-mapping.md#encryption-algorithm).
 
 **RSA-OAEP**
 :   RSA encryption with Optimal Asymmetric Encryption Padding. An asymmetric encryption scheme used to wrap the AES content-encryption key during assertion encryption. The SP's encryption certificate provides the RSA public key.

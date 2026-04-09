@@ -95,4 +95,5 @@ nav:
     - api/index.md
   - Self-Hosting:
     - self-hosting/index.md
+    - Versioning Policy: VERSIONING.md
   - Glossary: glossary.md

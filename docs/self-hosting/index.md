@@ -188,7 +188,8 @@ data, and file storage).
 
 Check available versions at
 [github.com/pageloom/weft-id/releases](https://github.com/pageloom/weft-id/releases)
-before proceeding.
+before proceeding. See the [versioning policy](../VERSIONING.md) for what to expect from
+patch, minor, and major releases.
 
 ### Upgrade procedure
 
@@ -404,7 +405,7 @@ can copy `deploy/.env.example` and edit it manually.
 
 | Variable | Description |
 |----------|-------------|
-| `WEFT_VERSION` | Image tag to run (e.g., `1.0.0`). Pin to a specific version for stability. |
+| `WEFT_VERSION` | Image tag to run (e.g., `1.2.0`). Pin to a specific version for stability. |
 | `BASE_DOMAIN` | Root domain for tenant subdomains (e.g., `id.example.com`) |
 | `SECRET_KEY` | Master encryption key. Session signing, two-step verification secrets, SAML key encryption, and email verification tokens are all derived from this value via HKDF. Generate with `openssl rand -base64 32`. |
 | `POSTGRES_PASSWORD` | Password for the PostgreSQL superuser. Generate with `openssl rand -base64 32`. |

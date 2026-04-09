@@ -73,6 +73,20 @@ This runs unit tests and E2E tests separately, then uses `coverage combine` to m
 
 ## Test Code Quality Standards
 
+### Test Hygiene Audit
+
+When asked to review tests for removal candidates, check for these anti-patterns:
+
+1. **Vacuous tests** - Tests where loops iterate over zero items (stale route prefixes, empty collections), or where assertions accept any outcome (e.g., `assert status in [303, 404]` when 404 always wins). Run the test with a print statement inside the loop body to verify it actually executes.
+2. **Assert-nothing tests** - Tests that call a function and only assert `status == 200` without checking the behavior described in the docstring or comment. Compare with neighboring tests that do assert correctly.
+3. **Constant-equals-literal** - Tests like `assert MINUTE == 60`. If the constant is used by behavioral tests in the same file, these add nothing.
+4. **Logically entailed** - Tests where the assertion is a logical consequence of another test (e.g., asserting a mock wasn't called after proving the endpoint returned 429 from a rate limit exception).
+5. **Exact duplicates** - Tests with identical setup, action, and assertions as another test. Watch for unconditional code paths where "error" and "not found" variants are meaningless.
+6. **Subset assertions** - Tests where assertion A is strictly weaker than assertion B in another test covering the same code path (e.g., `not expired` vs. `expires in 10 years`).
+7. **Role duplicates** - super_admin variants of admin tests where both roles pass the same `_require_admin()` gate. Lower confidence (defensible as defense-in-depth).
+
+Use parallel agents to analyze different test file groups (routers, services, utils, API, structural). Verify high-confidence findings by reading the actual code before reporting.
+
 ### No Nested Patch Pyramids
 
 ```python

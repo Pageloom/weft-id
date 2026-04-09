@@ -7,12 +7,6 @@ import pytest
 from psycopg.types.json import Json
 
 
-def test_unscoped_constant():
-    """Test UNSCOPED constant exists and has correct representation."""
-    assert database.UNSCOPED is not None
-    assert repr(database.UNSCOPED) == "UNSCOPED"
-
-
 class TestEscapeLike:
     """Tests for escape_like helper."""
 

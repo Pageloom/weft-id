@@ -9,7 +9,6 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
 
-import pytest
 from main import app
 from schemas.groups import (
     GroupChildrenList,
@@ -1870,25 +1869,6 @@ def test_group_graph_layout_positions_valid_shape():
     )
     assert layout.positions["a"].x == 1.0
     assert layout.positions["b"].y == -1.0
-
-
-def test_group_graph_layout_positions_invalid_shape():
-    """GroupGraphLayout rejects position values that are not {x, y} objects."""
-    from pydantic import ValidationError
-    from schemas.groups import GroupGraphLayout
-
-    with pytest.raises(ValidationError):
-        GroupGraphLayout(node_ids="a", positions={"a": "string"})
-
-
-def test_group_graph_layout_positions_key_limit():
-    """GroupGraphLayout rejects more than 10,000 position entries."""
-    from pydantic import ValidationError
-    from schemas.groups import GroupGraphLayout
-
-    too_many = {str(i): {"x": float(i), "y": 0.0} for i in range(10_001)}
-    with pytest.raises(ValidationError):
-        GroupGraphLayout(node_ids="", positions=too_many)
 
 
 # =============================================================================

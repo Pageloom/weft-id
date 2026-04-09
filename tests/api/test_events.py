@@ -134,23 +134,6 @@ def test_list_events_with_invalid_tiers_ignored(
     assert response.status_code == 200
 
 
-def test_list_events_without_tiers_returns_all(
-    client, test_tenant_host, oauth2_admin_authorization_header
-):
-    """Test that omitting tiers returns all events (no filtering)."""
-    response = client.get(
-        "/api/v1/events",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-
-    # Events should include event_tier field
-    for item in data["items"]:
-        assert "event_tier" in item
-
-
 def test_list_events_response_includes_event_tier(
     client, test_tenant_host, oauth2_admin_authorization_header
 ):

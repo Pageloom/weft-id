@@ -3,8 +3,6 @@
 from unittest.mock import MagicMock
 
 from middleware.csrf import (
-    CSRF_FORM_FIELD,
-    CSRF_HEADER_NAME,
     CSRF_SESSION_KEY,
     _is_exempt,
     generate_csrf_token,
@@ -82,19 +80,3 @@ class TestIsExempt:
         assert _is_exempt("/users/new") is False
         assert _is_exempt("/admin/audit/events") is False
         assert _is_exempt("/account/profile") is False
-
-
-class TestCsrfConstants:
-    """Tests for CSRF constants."""
-
-    def test_form_field_name(self):
-        """Form field name should be 'csrf_token'."""
-        assert CSRF_FORM_FIELD == "csrf_token"
-
-    def test_header_name(self):
-        """Header name should be 'X-CSRF-Token'."""
-        assert CSRF_HEADER_NAME == "X-CSRF-Token"
-
-    def test_session_key(self):
-        """Session key should be '_csrf_token'."""
-        assert CSRF_SESSION_KEY == "_csrf_token"

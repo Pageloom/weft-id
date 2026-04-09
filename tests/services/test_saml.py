@@ -2298,18 +2298,6 @@ def test_sp_certificate_has_valid_expiry(test_tenant, test_super_admin_user):
     assert cert.expires_at < expected_expiry + timedelta(days=30)
 
 
-def test_sp_certificate_not_expired(test_tenant, test_super_admin_user):
-    """Test that newly created SP certificate is not expired."""
-    from datetime import UTC, datetime
-
-    from services import saml as saml_service
-
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
-    cert = saml_service.get_or_create_sp_certificate(requesting_user)
-
-    assert cert.expires_at > datetime.now(UTC)
-
-
 # =============================================================================
 # Metadata Refresh Error Scenario Tests
 # =============================================================================

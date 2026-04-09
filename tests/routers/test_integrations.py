@@ -203,46 +203,6 @@ def test_apps_create_with_description(test_admin_user, override_auth, mocker):
     assert mock_create.call_args[1]["description"] == "My custom description"
 
 
-def test_apps_create_stores_credentials_in_session(test_admin_user, override_auth, mocker):
-    """Test that created client credentials are stored in the session."""
-    override_auth(test_admin_user, level="admin")
-
-    mock_client = {
-        "id": str(uuid4()),
-        "client_id": "weft-id_client_sesstest",
-        "client_secret": "secret_sesstest",
-        "client_type": "normal",
-        "name": "Session Test App",
-        "description": None,
-        "redirect_uris": ["https://example.com/callback"],
-        "service_user_id": None,
-        "is_active": True,
-        "created_at": "2026-01-01T00:00:00",
-    }
-
-    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_normal_client")
-    mock_create.return_value = mock_client
-
-    mocker.patch("starlette.requests.Request.session", new_callable=dict)
-
-    client = TestClient(app)
-    response = client.post(
-        "/admin/integrations/apps/create",
-        data={
-            "name": "Session Test App",
-            "redirect_uris": "https://example.com/callback",
-            "description": "",
-            "csrf_token": "test-token",
-        },
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 303
-    # The session store happens through the actual middleware,
-    # we verify the redirect indicates success
-    assert "success=created" in response.headers["location"]
-
-
 def test_apps_create_multiple_redirect_uris(test_admin_user, override_auth, mocker):
     """Test creating an app with multiple redirect URIs parses them correctly."""
     override_auth(test_admin_user, level="admin")

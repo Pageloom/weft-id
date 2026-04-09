@@ -58,11 +58,22 @@ The NameID identifies the user in the assertion. Configure the format on the SP'
 
 ## Assertion encryption
 
-If the application provides an encryption certificate in its SAML metadata, WeftID automatically encrypts the signed assertion using AES-256-CBC with RSA-OAEP key transport. Only the application's private key can decrypt it.
+If the application provides an encryption certificate in its SAML metadata, WeftID encrypts the signed assertion using RSA-OAEP key transport. Only the application's private key can decrypt it.
 
-Encryption is fully automatic. There is nothing to configure. The **Attributes** tab shows the current encryption status:
+The **Attributes** tab shows the current encryption status:
 
 - **Encrypted** -- The application's metadata includes an encryption certificate. Assertions are encrypted before delivery.
 - **Unencrypted** -- No encryption certificate was found in the metadata. Assertions are sent in plain signed XML.
+
+### Encryption algorithm
+
+When encryption is active, a dropdown on the **Attributes** tab lets you choose the content encryption algorithm:
+
+- **AES-256-CBC** (default) -- Compatible with all SAML implementations.
+- **AES-256-GCM** -- Requires XML Encryption 1.1 support. Provides authenticated encryption (integrity and confidentiality in a single pass). Verify your application supports it before enabling.
+
+If the application's metadata advertises supported encryption methods, WeftID shows them below the dropdown. When metadata declares only GCM, WeftID auto-selects GCM on import.
+
+### Enabling encryption
 
 To enable encryption for an application that doesn't currently advertise a certificate, update the application's SAML metadata to include an encryption `KeyDescriptor`, then re-import the metadata in WeftID.

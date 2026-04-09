@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure |
-| Low | 1 | Duplication |
+| Low | 2 | Duplication, Copy |
 
 **Last security scan:** 2026-04-08 (targeted: SAML SP decryption error handling, padding oracle surface)
 **Last compliance scan:** 2026-03-19 (1 low: SendGrid client missing timeout)
@@ -19,8 +19,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last refactor scan:** 2026-03-21 (standard: new code since 2026-02-27, all categories; 5 new issues)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
-**Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
-**Last copy review:** 2026-04-02 (filter panel, audit pages, export page, email templates, terminology)
+**Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
+**Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
 
 ---
 
@@ -36,6 +36,25 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 - `idp_lifecycle.py` (~350 lines): group lifecycle and discovery
 - `idp_membership.py` (~350 lines): sync, base group membership, cross-IdP moves
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
+
+---
+
+## [COPY] Raw role values shown in user-facing templates
+
+**Found in:** 9 templates (see list below)
+**Severity:** Low
+**Description:** `{{ user.role }}`, `{{ target_user.role }}`, `{{ u.role }}`, and `{{ m.role }}` render raw database values like `super_admin` (with underscore) in user-facing text. Two templates (`integrations_b2b.html`, `integrations_b2b_detail.html`) already use `| replace('_', ' ') | title` correctly.
+**Affected templates:**
+- `user_detail_base.html:214` (role badge)
+- `users_list.html:300` (role column)
+- `dashboard.html:17` (role on dashboard)
+- `settings_profile.html:108` (role in profile)
+- `user_detail_tab_profile.html:20` (role in detail)
+- `groups_members.html:280` (role in members)
+- `groups_detail_tab_membership.html:253,339` (role in group detail)
+- `groups_members_add.html:235` (role in add members)
+**Suggested fix:** Add a Jinja2 global `display_role()` helper in `app/utils/templates.py` that maps `super_admin` to "Super Admin", `admin` to "Admin", `user` to "User". Replace all raw `{{ x.role }}` with `{{ display_role(x.role) }}`.
+**Scope:** 9 templates, 1 utility file
 
 ---
 

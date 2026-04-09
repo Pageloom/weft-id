@@ -1,5 +1,38 @@
 # Tech Writer Log
 
+## 2026-04-09 - Copy Review + Docs for GCM Encryption, Repo Reorg
+
+**Starting commit:** 106624e
+**Mode:** Both (copy review + documentation)
+
+### Copy Review Changes
+
+1. **user_detail_base.html:88** -- "the last super_admin" fixed to "the last super admin"
+   (raw DB value in error message).
+
+### Copy Review Findings (logged to ISSUES.md)
+
+1. **Raw role values in 9 templates** -- `{{ user.role }}` renders "super_admin" with underscore.
+   Needs a `display_role()` Jinja2 helper. Logged as low-severity issue.
+
+### Documentation Changes
+
+1. **admin-guide/service-providers/attribute-mapping.md** -- rewrote "Assertion encryption"
+   section. Was incorrectly described as "fully automatic" with "nothing to configure". Now
+   documents the encryption algorithm dropdown (AES-256-CBC default, AES-256-GCM opt-in),
+   SP-advertised methods hint, and auto-detection on metadata import.
+2. **admin-guide/service-providers/sso-flow.md** -- updated encryption line in "What's in
+   the assertion" to mention both CBC and GCM.
+3. **self-hosting/index.md** -- updated version examples from 1.0.0 to 1.2.0 to reflect
+   current release. Updated upgrade/rollback examples.
+
+### Not Reviewed
+
+- OAuth2 client "deactivate" vs "inactivate" terminology -- may be intentional (standard
+  OAuth2 term vs WeftID user lifecycle term). Deferred.
+
+---
+
 ## 2026-04-05 - Copy Review + Docs for Streamlined Sign-In, Bulk Ops
 
 **Starting commit:** 106624e

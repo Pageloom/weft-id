@@ -46,4 +46,4 @@ The SAML assertion contains:
 - **Attributes** -- Email, first name, last name, display name, and optionally group memberships (filtered by the effective [group assertion scope](attribute-mapping.md#group-assertion-scope))
 - **Session index** -- Unique session identifier for [Single Logout](slo.md) correlation
 - **Signature** -- Signed with the SP's per-SP signing certificate
-- **Encryption** -- If the application provides an encryption certificate, the signed assertion is encrypted (AES-256-CBC, RSA-OAEP key transport). See [Assertion Encryption](attribute-mapping.md#assertion-encryption).
+- **Encryption** -- If the application provides an encryption certificate, the signed assertion is encrypted (AES-256-CBC or AES-256-GCM, RSA-OAEP key transport). See [Assertion Encryption](attribute-mapping.md#assertion-encryption).

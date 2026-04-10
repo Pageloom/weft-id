@@ -41,3 +41,17 @@ def icon(name: str, **kwargs: str) -> Markup:
 
 
 templates.env.globals["icon"] = icon
+
+_ROLE_LABELS = {
+    "super_admin": "Super Admin",
+    "admin": "Admin",
+    "user": "User",
+}
+
+
+def display_role(role: str) -> str:
+    """Format a raw role value for display (e.g. 'super_admin' → 'Super Admin')."""
+    return _ROLE_LABELS.get(role, role.replace("_", " ").title())
+
+
+templates.env.globals["display_role"] = display_role

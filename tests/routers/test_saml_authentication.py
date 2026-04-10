@@ -772,6 +772,9 @@ def test_per_idp_acs_rate_limit_not_triggered(
     )
     assert response.status_code == 200
     mock_ratelimit.prevent.assert_called_once()
+    call_args = mock_ratelimit.prevent.call_args
+    assert "tenant:{tenant_id}" in call_args[0][0]
+    assert "tenant_id" in call_args[1]
 
 
 @patch("routers.saml.authentication.ratelimit")

@@ -236,7 +236,13 @@ def saml_acs_per_idp(
     # Rate limit ACS to prevent padding oracle queries
     client_ip = extract_remote_address(request) or "unknown"
     try:
-        ratelimit.prevent("saml_acs:ip:{ip}", limit=20, timespan=MINUTE * 5, ip=client_ip)
+        ratelimit.prevent(
+            "saml_acs:tenant:{tenant_id}:ip:{ip}",
+            limit=20,
+            timespan=MINUTE * 5,
+            tenant_id=tenant_id,
+            ip=client_ip,
+        )
     except RateLimitError:
         return templates.TemplateResponse(
             request,
@@ -379,7 +385,13 @@ def saml_acs(
     # Rate limit ACS to prevent padding oracle queries
     client_ip = extract_remote_address(request) or "unknown"
     try:
-        ratelimit.prevent("saml_acs:ip:{ip}", limit=20, timespan=MINUTE * 5, ip=client_ip)
+        ratelimit.prevent(
+            "saml_acs:tenant:{tenant_id}:ip:{ip}",
+            limit=20,
+            timespan=MINUTE * 5,
+            tenant_id=tenant_id,
+            ip=client_ip,
+        )
     except RateLimitError:
         return templates.TemplateResponse(
             request,

@@ -4847,3 +4847,14 @@ So that I can unambiguously identify groups and avoid confusion between locally-
 **Value:** High
 
 ---
+
+## Rename "Loom Identity Platform" to "WeftID" in Certificates and API Title
+
+**Status:** Complete
+
+**Resolution:** Changed the X.509 ORGANIZATION_NAME from "Loom Identity Platform" to "WeftID" in `app/utils/saml.py` (affects newly generated certificates only). Updated both FastAPI `title` occurrences in `app/main.py` and the corresponding test assertion.
+
+**Effort:** S
+**Value:** Medium
+
+---

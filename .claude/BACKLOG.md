@@ -300,27 +300,7 @@ formatting, stable JSON key ordering for metadata, and a defined null representa
 
 ---
 
-## Rename "Loom Identity Platform" to "WeftID" in Certificates and API Title
-
-**User Story:**
-As a user or service provider inspecting a SAML signing certificate or the API schema,
-I want to see "WeftID" as the issuing organization,
-So that the product name is consistent everywhere the platform identifies itself.
-
-**Context:**
-
-Three places still carry the old "Loom Identity Platform" name from before the product
-was renamed. These are the last remnants of the old name in the codebase.
-
-**Acceptance Criteria:**
-
-- [ ] `app/utils/saml.py`: Change the `ORGANIZATION_NAME` X.509 attribute from `"Loom Identity Platform"` to `"WeftID"` (affects newly generated SP signing certificates only; existing stored certificates are unchanged)
-- [ ] `app/main.py`: Change the FastAPI `title` parameter from `"Loom Identity Platform API"` to `"WeftID API"` (two occurrences)
-- [ ] `tests/test_openapi_endpoints.py`: Update the assertion to match the new title
-
-**Effort:** S
-**Value:** Medium
-**Version impact:** Patch (cosmetic/branding fix; existing certificates and SAML assertions are unaffected)
+## ~~Rename "Loom Identity Platform" to "WeftID" in Certificates and API Title~~ (Complete)
 
 ---
 

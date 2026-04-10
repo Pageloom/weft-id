@@ -52,7 +52,7 @@ if settings.BYPASS_OTP:
     logger.warning("BYPASS_OTP is enabled. Any 6-digit code will pass OTP verification.")
 
 app = FastAPI(
-    title="Loom Identity Platform API",
+    title="WeftID API",
     version="1.0.0",
     description="Multi-tenant identity platform with OAuth2 and RESTful API",
     openapi_url="/openapi.json" if settings.ENABLE_OPENAPI_DOCS else None,
@@ -151,7 +151,7 @@ def custom_openapi():
         return app.openapi_schema
 
     openapi_schema = get_openapi(
-        title="Loom Identity Platform API",
+        title="WeftID API",
         version="1.0.0",
         description="Multi-tenant identity platform with OAuth2 and RESTful API",
         routes=app.routes,

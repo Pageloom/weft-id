@@ -33,5 +33,5 @@ def test_openapi_json_accessible_when_enabled(client, test_tenant_host):
     # Verify it's a valid OpenAPI schema
     assert "openapi" in data
     assert "info" in data
-    assert data["info"]["title"] == "Loom Identity Platform API"
+    assert data["info"]["title"] == "WeftID API"
     assert "paths" in data

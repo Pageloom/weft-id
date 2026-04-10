@@ -60,7 +60,7 @@ def generate_sp_certificate(
     tenant_str = str(tenant_id)
     subject = issuer = x509.Name(
         [
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Loom Identity Platform"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "WeftID"),
             x509.NameAttribute(NameOID.COMMON_NAME, f"SP-{tenant_str[:8]}"),
         ]
     )

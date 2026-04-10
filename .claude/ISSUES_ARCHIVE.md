@@ -3145,3 +3145,26 @@ Store the SP's UUID (`sp.id`) in the session as `pending_sso_sp_id` alongside th
 - `tests/jobs/test_export_users.py` - Updated assertions
 
 ---
+
+---
+
+## [COPY] Raw role values shown in user-facing templates
+
+**Status:** Resolved (2026-04-10)
+
+**Original Severity:** Low
+
+**Description:** 9 templates rendered raw database values like `super_admin` instead of "Super Admin" in user-facing text.
+
+**Resolution:** Added a `display_role()` Jinja2 global helper in `app/utils/templates.py` with an explicit label map. Updated all 9 affected templates to use it.
+
+**Files Modified:**
+- `app/utils/templates.py` - Added `display_role()` global
+- `app/templates/user_detail_base.html`
+- `app/templates/users_list.html`
+- `app/templates/dashboard.html`
+- `app/templates/settings_profile.html`
+- `app/templates/user_detail_tab_profile.html`
+- `app/templates/groups_members.html`
+- `app/templates/groups_detail_tab_membership.html`
+- `app/templates/groups_members_add.html`

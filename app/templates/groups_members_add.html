@@ -232,7 +232,7 @@
                                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
                                         {% if u.role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
                                         {% elif u.role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
-                                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ u.role }}</span>
+                                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ display_role(u.role) }}</span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     {% if u.is_anonymized %}

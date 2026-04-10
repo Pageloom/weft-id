@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "weft-id"
-version = "1.2.0"
+version = "1.3.0"
 description = "Multi-tenant FastAPI application"
 authors = ["Jon Nylander <pellepim@gmail.com>"]
 readme = "README.md"

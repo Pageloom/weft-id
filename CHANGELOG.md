@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-04-10
+
+### Added
+
+- Per-SP AES-256-GCM assertion encryption (opt-in) for SAML IdP connections, replacing CBC where enabled
+- Auto-download of the Tailwind CSS binary on first use (no manual install required)
+
+### Changed
+
+- Renamed remaining "Loom Identity Platform" references to "WeftID" in X.509 signing certificates and the API schema title
+- Role values now display as "Super Admin" / "Admin" / "User" instead of raw database values across all templates
+- Consolidated repo root: moved compose files, shell scripts, and project management files into dedicated directories; retired shell scripts in favor of `make` targets
+
+### Security
+
+- Fixed CBC padding oracle vulnerability on SAML ACS endpoints
+- Scoped the SAML ACS rate limit key per tenant to prevent cross-tenant denial-of-service via shared egress IPs
+- Updated cryptography from 46.0.6 to 46.0.7
+
 ## [1.2.0] - 2026-04-05
 
 ### Added

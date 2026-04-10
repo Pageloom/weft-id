@@ -6,30 +6,7 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Tenant-Scope the SAML ACS Rate Limit Key
-
-**User Story:**
-As an enterprise customer using WeftID with multiple tenants,
-I want SAML ACS rate limiting to be scoped per tenant,
-So that an attack or traffic spike against one tenant cannot exhaust the rate limit counter for a different tenant sharing the same egress IP.
-
-**Context:**
-
-The SAML ACS rate limit key is currently `saml_acs:ip:{ip}`. All tenants on a WeftID instance share a single Memcached backend, so this counter is global across tenants. Enterprise customers often route SSO traffic through a corporate NAT gateway or proxy, meaning many users across different tenants share the same observed IP.
-
-Attack scenario: an attacker targeting tenant A submits 20+ ACS requests from a shared corporate IP. The counter trips. Employees at tenant B (who share the same egress IP) start receiving 429s and cannot authenticate. The attacker has caused collateral DoS across unrelated tenants.
-
-The other IP-only rate limit keys (`email_send`, `resend_code`, `pw_reset`, `pw_change`) are lower risk: they have generous windows, are harder to weaponize for cross-tenant DoS, and are email- or action-qualified in ways that reduce overlap. They can be addressed in a future sweep.
-
-**Acceptance Criteria:**
-
-- [ ] `saml_acs` rate limit key changed from `saml_acs:ip:{ip}` to `saml_acs:tenant:{tenant_id}:ip:{ip}` in both ACS handlers
-- [ ] Existing rate limit tests updated to reflect the new key pattern
-- [ ] No change to the limit (20 req / 5 min per IP per tenant) or any other behavior
-
-**Effort:** S
-**Value:** Medium
-**Version impact:** Patch (internal key rename, no visible behavior change for users who are not under attack)
+## ~~Tenant-Scope the SAML ACS Rate Limit Key~~ (Complete)
 
 ---
 

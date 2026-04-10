@@ -4858,3 +4858,14 @@ So that I can unambiguously identify groups and avoid confusion between locally-
 **Value:** Medium
 
 ---
+
+## Tenant-Scope the SAML ACS Rate Limit Key
+
+**Status:** Complete
+
+**Resolution:** Changed the ACS rate limit key from `saml_acs:ip:{ip}` to `saml_acs:tenant:{tenant_id}:ip:{ip}` in both ACS handlers. Added test assertion verifying tenant_id is included in the prevent() call. Limit unchanged at 20 req / 5 min per IP per tenant.
+
+**Effort:** S
+**Value:** Medium
+
+---

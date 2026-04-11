@@ -101,6 +101,10 @@
                 <li>The SAML response came from an unrecognized IdP</li>
                 <li>Verify the IdP Entity ID matches the configuration</li>
                 <li>The IdP may not be enabled in WeftID</li>
+                {% elif entry.error_type == 'missing_attribute' %}
+                <li>The identity provider did not send a required attribute (e.g., email) in the assertion</li>
+                <li>Check the attribute mapping in the IdP configuration and verify the IdP is releasing the expected attributes</li>
+                <li>If the IdP sends email as the NameID, verify the NameID format is set to emailAddress (not persistent or transient)</li>
                 {% elif entry.error_type == 'invalid_response' %}
                 <li>The SAML response could not be parsed or validated</li>
                 <li>Check that the ACS URL is correctly configured in the IdP</li>

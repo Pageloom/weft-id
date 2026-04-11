@@ -2017,7 +2017,8 @@ def test_process_saml_response_missing_email_attribute(
         requesting_user, data, "https://test.example.com"
     )
 
-    # Create mock auth object without email attribute
+    # Create mock auth object without email attribute.
+    # NameID is "somenameid" (no @), so NameID fallback should not apply.
     mock_auth = MagicMock()
     mock_auth.get_errors.return_value = []
     mock_auth.is_authenticated.return_value = True
@@ -2026,6 +2027,198 @@ def test_process_saml_response_missing_email_attribute(
         "lastName": ["Doe"],
     }
     mock_auth.get_nameid.return_value = "somenameid"
+    mock_auth.get_nameid_format.return_value = (
+        "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+    )
+
+    def mock_auth_constructor(request_data, settings):
+        return mock_auth
+
+    monkeypatch.setattr(
+        "onelogin.saml2.auth.OneLogin_Saml2_Auth",
+        mock_auth_constructor,
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        saml_service.process_saml_response(
+            tenant_id=test_tenant["id"],
+            idp_id=created.id,
+            saml_response="dummybase64response",
+        )
+
+    assert exc_info.value.code == "saml_missing_email"
+    assert "mapping" in exc_info.value.message
+    assert exc_info.value.details["missing_attribute"] == "email"
+    assert exc_info.value.details["mapping_key"] == "email"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_nameid_email_fallback_email_format(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test NameID email fallback when format is emailAddress."""
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # No email attribute, but NameID is email with emailAddress format
+    mock_auth = MagicMock()
+    mock_auth.get_errors.return_value = []
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_attributes.return_value = {
+        "firstName": ["Jane"],
+        "lastName": ["Smith"],
+    }
+    mock_auth.get_nameid.return_value = "jane@example.com"
+    mock_auth.get_nameid_format.return_value = (
+        "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+    )
+    mock_auth.get_session_index.return_value = "session-idx"
+
+    def mock_auth_constructor(request_data, settings):
+        return mock_auth
+
+    monkeypatch.setattr(
+        "onelogin.saml2.auth.OneLogin_Saml2_Auth",
+        mock_auth_constructor,
+    )
+
+    result = saml_service.process_saml_response(
+        tenant_id=test_tenant["id"],
+        idp_id=created.id,
+        saml_response="dummybase64response",
+    )
+
+    assert result.attributes.email == "jane@example.com"
+    assert result.attributes.first_name == "Jane"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_nameid_email_fallback_at_sign(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test NameID email fallback when NameID contains @ (unspecified format)."""
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    mock_auth = MagicMock()
+    mock_auth.get_errors.return_value = []
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_attributes.return_value = {}
+    mock_auth.get_nameid.return_value = "user@corp.example.com"
+    mock_auth.get_nameid_format.return_value = (
+        "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
+    )
+    mock_auth.get_session_index.return_value = "session-idx"
+
+    def mock_auth_constructor(request_data, settings):
+        return mock_auth
+
+    monkeypatch.setattr(
+        "onelogin.saml2.auth.OneLogin_Saml2_Auth",
+        mock_auth_constructor,
+    )
+
+    result = saml_service.process_saml_response(
+        tenant_id=test_tenant["id"],
+        idp_id=created.id,
+        saml_response="dummybase64response",
+    )
+
+    assert result.attributes.email == "user@corp.example.com"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_no_nameid_fallback_persistent(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test NameID email fallback is skipped for persistent format."""
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # NameID looks like an email but format is persistent (opaque identifier)
+    mock_auth = MagicMock()
+    mock_auth.get_errors.return_value = []
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_attributes.return_value = {}
+    mock_auth.get_nameid.return_value = "user@corp.example.com"
+    mock_auth.get_nameid_format.return_value = (
+        "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+    )
+
+    def mock_auth_constructor(request_data, settings):
+        return mock_auth
+
+    monkeypatch.setattr(
+        "onelogin.saml2.auth.OneLogin_Saml2_Auth",
+        mock_auth_constructor,
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        saml_service.process_saml_response(
+            tenant_id=test_tenant["id"],
+            idp_id=created.id,
+            saml_response="dummybase64response",
+        )
+
+    assert exc_info.value.code == "saml_missing_email"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_no_nameid_fallback_transient(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test NameID email fallback is skipped for transient format."""
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    mock_auth = MagicMock()
+    mock_auth.get_errors.return_value = []
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_attributes.return_value = {}
+    mock_auth.get_nameid.return_value = "_transient_abc123@example.com"
+    mock_auth.get_nameid_format.return_value = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 
     def mock_auth_constructor(request_data, settings):
         return mock_auth

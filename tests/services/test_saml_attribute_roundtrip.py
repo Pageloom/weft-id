@@ -169,6 +169,7 @@ class TestSAMLAttributeRoundTrip:
         assert attrs["first_name"] == "Jane"
         assert attrs["last_name"] == "Doe"
         assert attrs["name_id"] == _NAME_ID
+        assert attrs["missing_optional_attributes"] == ["groups"]
 
     def test_full_custom_mapping_azure_ad_style(self, signing_keys):
         """Azure AD long URIs round-trip correctly."""
@@ -254,3 +255,45 @@ class TestSAMLAttributeRoundTrip:
         assert attrs["first_name"] == "Jane"
         assert attrs["last_name"] == "Doe"
         assert attrs["groups"] == ["Developers", "QA"]
+        assert attrs["missing_optional_attributes"] == []
+
+    def test_missing_optional_attributes_tracked(self, signing_keys):
+        """Missing optional attributes are reported but don't cause failure."""
+        cert_pem, key_pem = signing_keys
+
+        attrs = _build_and_parse_roundtrip(
+            cert_pem=cert_pem,
+            key_pem=key_pem,
+            user_attributes={
+                "email": "jane@example.com",
+            },
+            sp_attribute_mapping=DEFAULT_ATTRIBUTE_MAPPING,
+        )
+
+        assert attrs["email"] == "jane@example.com"
+        assert attrs["first_name"] is None
+        assert attrs["last_name"] is None
+        assert attrs["groups"] == []
+        assert sorted(attrs["missing_optional_attributes"]) == [
+            "first_name",
+            "groups",
+            "last_name",
+        ]
+
+    def test_partial_optional_attributes_tracked(self, signing_keys):
+        """Only actually missing optional attributes are reported."""
+        cert_pem, key_pem = signing_keys
+
+        attrs = _build_and_parse_roundtrip(
+            cert_pem=cert_pem,
+            key_pem=key_pem,
+            user_attributes={
+                "email": "jane@example.com",
+                "firstName": "Jane",
+            },
+            sp_attribute_mapping=DEFAULT_ATTRIBUTE_MAPPING,
+        )
+
+        assert attrs["email"] == "jane@example.com"
+        assert attrs["first_name"] == "Jane"
+        assert attrs["missing_optional_attributes"] == ["last_name", "groups"]

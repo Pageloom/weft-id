@@ -161,11 +161,13 @@ def test_create_normal_client_validation_error(
 # =============================================================================
 
 
-def test_create_b2b_client_as_admin(client, test_tenant_host, oauth2_admin_authorization_header):
-    """Test that an admin can create a B2B OAuth2 client."""
+def test_create_b2b_client_as_super_admin(
+    client, test_tenant_host, oauth2_super_admin_authorization_header
+):
+    """Test that a super_admin can create a B2B OAuth2 client."""
     response = client.post(
         "/api/v1/oauth2/clients/b2b",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"name": "Test B2B Client", "role": "member"},
     )
 
@@ -181,13 +183,26 @@ def test_create_b2b_client_as_admin(client, test_tenant_host, oauth2_admin_autho
     assert data["client_id"].startswith("weft-id_b2b_")  # B2B prefix
 
 
-def test_create_b2b_client_with_admin_role(
+def test_create_b2b_client_as_admin_forbidden(
     client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Test that an admin cannot create B2B clients (requires super_admin)."""
+    response = client.post(
+        "/api/v1/oauth2/clients/b2b",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Unauthorized B2B", "role": "member"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_create_b2b_client_with_admin_role(
+    client, test_tenant_host, oauth2_super_admin_authorization_header
 ):
     """Test creating a B2B client with admin role."""
     response = client.post(
         "/api/v1/oauth2/clients/b2b",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"name": "Admin Service Client", "role": "admin"},
     )
 
@@ -213,12 +228,12 @@ def test_create_b2b_client_as_member_forbidden(
 
 
 def test_create_b2b_client_validation_error(
-    client, test_tenant_host, oauth2_admin_authorization_header
+    client, test_tenant_host, oauth2_super_admin_authorization_header
 ):
     """Test creating a B2B client with invalid data returns 422."""
     response = client.post(
         "/api/v1/oauth2/clients/b2b",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={
             "name": "Invalid B2B Client",
             # Missing role
@@ -229,12 +244,12 @@ def test_create_b2b_client_validation_error(
 
 
 def test_create_b2b_client_invalid_role(
-    client, test_tenant_host, oauth2_admin_authorization_header
+    client, test_tenant_host, oauth2_super_admin_authorization_header
 ):
     """Test creating a B2B client with invalid role returns 422."""
     response = client.post(
         "/api/v1/oauth2/clients/b2b",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"name": "Invalid Role Client", "role": "superuser"},  # Invalid role
     )
 
@@ -465,12 +480,12 @@ def test_create_normal_client_with_description(
 
 
 def test_create_b2b_client_with_description(
-    client, test_tenant_host, oauth2_admin_authorization_header
+    client, test_tenant_host, oauth2_super_admin_authorization_header
 ):
     """Test creating a B2B client with a description."""
     response = client.post(
         "/api/v1/oauth2/clients/b2b",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={
             "name": "Described B2B",
             "role": "member",
@@ -570,12 +585,12 @@ def test_normal_client_response_has_redirect_uris(
 
 
 def test_b2b_client_response_has_service_user_id(
-    client, test_tenant_host, oauth2_admin_authorization_header
+    client, test_tenant_host, oauth2_super_admin_authorization_header
 ):
     """Test that B2B client response includes service_user_id."""
     response = client.post(
         "/api/v1/oauth2/clients/b2b",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"name": "Service User Test", "role": "member"},
     )
 
@@ -618,7 +633,7 @@ def test_create_normal_client_handles_validation_error(
 
 
 def test_create_b2b_client_handles_validation_error(
-    client, test_tenant_host, oauth2_admin_authorization_header, monkeypatch
+    client, test_tenant_host, oauth2_super_admin_authorization_header, monkeypatch
 ):
     """Test that ValidationError from service is properly translated to HTTP 400."""
     from services import oauth2 as oauth2_service
@@ -632,7 +647,7 @@ def test_create_b2b_client_handles_validation_error(
 
     response = client.post(
         "/api/v1/oauth2/clients/b2b",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"name": "Test B2B Client", "role": "member"},
     )
 
@@ -773,12 +788,12 @@ def test_update_client_redirect_uris_as_admin(
 
 
 def test_update_b2b_client_redirect_uris_fails(
-    client, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+    client, test_tenant_host, oauth2_super_admin_authorization_header, b2b_oauth2_client
 ):
     """Test that updating redirect URIs on a B2B client fails."""
     response = client.patch(
         f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"redirect_uris": ["https://example.com/callback"]},
     )
 
@@ -815,13 +830,13 @@ def test_update_client_as_member_forbidden(
 # =============================================================================
 
 
-def test_update_b2b_client_role_as_admin(
-    client, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+def test_update_b2b_client_role_as_super_admin(
+    client, test_tenant_host, oauth2_super_admin_authorization_header, b2b_oauth2_client
 ):
-    """Test that an admin can update a B2B client's service role."""
+    """Test that a super_admin can update a B2B client's service role."""
     response = client.patch(
         f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}/role",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"role": "admin"},
     )
 
@@ -830,13 +845,26 @@ def test_update_b2b_client_role_as_admin(
     assert data["client_id"] == b2b_oauth2_client["client_id"]
 
 
+def test_update_b2b_client_role_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+):
+    """Test that an admin cannot update B2B client roles (requires super_admin)."""
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}/role",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 403
+
+
 def test_update_normal_client_role_fails(
-    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+    client, test_tenant_host, oauth2_super_admin_authorization_header, normal_oauth2_client
 ):
     """Test that updating role on a normal client fails."""
     response = client.patch(
         f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/role",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"role": "admin"},
     )
 
@@ -845,12 +873,12 @@ def test_update_normal_client_role_fails(
 
 
 def test_update_client_role_invalid_role(
-    client, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+    client, test_tenant_host, oauth2_super_admin_authorization_header, b2b_oauth2_client
 ):
     """Test that invalid role values are rejected."""
     response = client.patch(
         f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}/role",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"role": "superuser"},  # Invalid role
     )
 
@@ -986,23 +1014,23 @@ def test_reactivate_client_as_member_forbidden(
 
 
 def test_deactivated_client_cannot_get_token(
-    client, test_tenant_host, oauth2_admin_authorization_header
+    client, test_tenant_host, oauth2_super_admin_authorization_header
 ):
     """Test that a deactivated B2B client cannot get access tokens."""
-    # Create a B2B client
+    # Create a B2B client (requires super_admin)
     create_response = client.post(
         "/api/v1/oauth2/clients/b2b",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"name": "Deactivate Token Test", "role": "member"},
     )
     created_client = create_response.json()
     client_id = created_client["client_id"]
     client_secret = created_client["client_secret"]
 
-    # Deactivate the client
+    # Deactivate the client (requires super_admin for B2B)
     client.post(
         f"/api/v1/oauth2/clients/{client_id}/deactivate",
-        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
     )
 
     # Try to get a token using client credentials

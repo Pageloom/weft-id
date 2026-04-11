@@ -541,6 +541,43 @@ def oauth2_admin_authorization_header(oauth2_admin_access_token):
     return {"Authorization": f"Bearer {oauth2_admin_access_token}"}
 
 
+@pytest.fixture
+def oauth2_super_admin_access_token(test_tenant, normal_oauth2_client, test_super_admin_user):
+    """
+    Create an OAuth2 access token for a super_admin user.
+
+    Returns the plain text access token.
+    """
+    import database
+
+    refresh_token, refresh_token_id = database.oauth2.create_refresh_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_super_admin_user["id"],
+    )
+
+    access_token = database.oauth2.create_access_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_super_admin_user["id"],
+        parent_token_id=refresh_token_id,
+    )
+
+    yield access_token
+
+
+@pytest.fixture
+def oauth2_super_admin_authorization_header(oauth2_super_admin_access_token):
+    """
+    Create an Authorization header with Bearer token for a super_admin user.
+
+    Returns a dict suitable for TestClient headers parameter.
+    """
+    return {"Authorization": f"Bearer {oauth2_super_admin_access_token}"}
+
+
 # ============================================================================
 # MFA E2E Test Fixtures
 # ============================================================================

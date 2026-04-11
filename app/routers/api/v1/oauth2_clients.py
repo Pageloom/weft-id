@@ -3,7 +3,7 @@
 from typing import Annotated
 
 import services.oauth2 as oauth2_service
-from api_dependencies import require_admin_api
+from api_dependencies import require_admin_api, require_super_admin_api
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, HTTPException
 from schemas.oauth2 import (
@@ -41,6 +41,14 @@ def _client_to_response(
         data["client_secret"] = client["client_secret"]
         return ClientWithSecret(**data)
     return ClientResponse(**data)
+
+
+def _require_super_admin_for_b2b(client: dict, user: dict) -> None:
+    """Raise 403 if the target client is B2B and the caller is not super_admin."""
+    if client.get("client_type") == "b2b" and user.get("role") != "super_admin":
+        raise HTTPException(
+            status_code=403, detail="B2B client management requires super_admin role"
+        )
 
 
 @router.get("", response_model=list[ClientResponse])
@@ -102,7 +110,7 @@ def create_normal_client(
 @router.post("/b2b", response_model=ClientWithSecret, status_code=201)
 def create_b2b_client(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(require_admin_api)],
+    user: Annotated[dict, Depends(require_super_admin_api)],
     client_data: B2BClientCreate,
 ):
     """
@@ -110,7 +118,7 @@ def create_b2b_client(
 
     This creates a service user with the specified role and links it to the client.
 
-    Requires admin role.
+    Requires super_admin role.
 
     Request Body:
         name: Client name (used as service user first_name)
@@ -157,10 +165,13 @@ def delete_client(
     Returns:
         204 No Content on success
     """
-    rows_deleted = oauth2_service.delete_client(tenant_id, client_id, str(user["id"]))
-
-    if rows_deleted == 0:
+    # Check B2B access before deletion
+    client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    _require_super_admin_for_b2b(client, user)
+
+    oauth2_service.delete_client(tenant_id, client_id, str(user["id"]))
 
     return None  # 204 No Content
 
@@ -192,6 +203,7 @@ def regenerate_client_secret(
 
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    _require_super_admin_for_b2b(client, user)
 
     # Regenerate secret
     new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id, str(user["id"]))
@@ -222,6 +234,7 @@ def get_client(
 
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    _require_super_admin_for_b2b(client, user)
 
     return _client_to_response(client)
 
@@ -249,6 +262,12 @@ def update_client(
     Returns:
         Updated client details
     """
+    # Check B2B access before update
+    existing = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Client not found")
+    _require_super_admin_for_b2b(existing, user)
+
     try:
         client = oauth2_service.update_client(
             tenant_id=tenant_id,
@@ -270,14 +289,14 @@ def update_client(
 @router.patch("/{client_id}/role", response_model=ClientResponse)
 def update_client_role(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(require_admin_api)],
+    user: Annotated[dict, Depends(require_super_admin_api)],
     client_id: str,
     role_data: ClientRoleUpdate,
 ):
     """
     Update the service user role for a B2B OAuth2 client.
 
-    Requires admin role.
+    Requires super_admin role.
 
     Path Parameters:
         client_id: The client_id (e.g., "weft-id_b2b_abc123")
@@ -315,7 +334,7 @@ def deactivate_client(
 
     Deactivated clients cannot request new tokens. All existing tokens are revoked.
 
-    Requires admin role.
+    Requires admin role. B2B clients require super_admin role.
 
     Path Parameters:
         client_id: The client_id (e.g., "weft-id_client_abc123")
@@ -323,6 +342,12 @@ def deactivate_client(
     Returns:
         Updated client details
     """
+    # Check B2B access before deactivation
+    existing = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Client not found")
+    _require_super_admin_for_b2b(existing, user)
+
     client = oauth2_service.deactivate_client(tenant_id, client_id, str(user["id"]))
 
     if not client:
@@ -340,7 +365,7 @@ def reactivate_client(
     """
     Reactivate a deactivated OAuth2 client.
 
-    Requires admin role.
+    Requires admin role. B2B clients require super_admin role.
 
     Path Parameters:
         client_id: The client_id (e.g., "weft-id_client_abc123")
@@ -348,6 +373,12 @@ def reactivate_client(
     Returns:
         Updated client details
     """
+    # Check B2B access before reactivation
+    existing = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Client not found")
+    _require_super_admin_for_b2b(existing, user)
+
     client = oauth2_service.reactivate_client(tenant_id, client_id, str(user["id"]))
 
     if not client:

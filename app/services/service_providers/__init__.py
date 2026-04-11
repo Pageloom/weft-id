@@ -85,6 +85,7 @@ from services.service_providers.sso import (
     get_service_provider_by_id,
     get_sp_by_entity_id,
     get_user_consent_info,
+    preview_assertion,
 )
 
 # Re-export from trust module
@@ -121,6 +122,7 @@ __all__ = [
     "get_service_provider_by_id",
     "get_sp_by_entity_id",
     "get_user_consent_info",
+    "preview_assertion",
     # Metadata
     "get_sp_idp_metadata_xml",
     # Signing certificates

@@ -64,6 +64,13 @@ def _load_hibp_check() -> Any:
     return check_hibp_breaches()
 
 
+def _load_saml_debug_cleanup() -> Any:
+    """Import and run the SAML debug entry cleanup job."""
+    from jobs.cleanup_saml_debug import cleanup_saml_debug_entries
+
+    return cleanup_saml_debug_entries()
+
+
 class PeriodicJob:
     """A periodic background job with interval-based scheduling."""
 
@@ -125,6 +132,11 @@ class Worker:
                 "HIBP breach check",
                 _load_hibp_check,
                 timedelta(hours=hibp_check_interval_hours),
+            ),
+            PeriodicJob(
+                "SAML debug cleanup",
+                _load_saml_debug_cleanup,
+                timedelta(hours=1),
             ),
         ]
 

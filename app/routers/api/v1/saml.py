@@ -269,6 +269,56 @@ def disable_identity_provider(
         raise translate_to_http_exception(exc)
 
 
+@router.post("/idps/{idp_id}/verbose-logging/enable", response_model=IdPConfig)
+def enable_verbose_logging(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+):
+    """
+    Enable verbose assertion logging for a SAML Identity Provider.
+
+    Requires super_admin role.
+
+    Temporarily logs raw SAML assertions (XML and parsed attributes) for both
+    successful and failed authentications from this IdP. Auto-expires after
+    24 hours from activation.
+
+    Path parameters:
+    - idp_id: UUID of the IdP
+
+    Returns updated IdP configuration.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return saml_service.enable_verbose_logging(requesting_user, idp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/idps/{idp_id}/verbose-logging/disable", response_model=IdPConfig)
+def disable_verbose_logging(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+):
+    """
+    Disable verbose assertion logging for a SAML Identity Provider.
+
+    Requires super_admin role.
+
+    Path parameters:
+    - idp_id: UUID of the IdP
+
+    Returns updated IdP configuration.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return saml_service.disable_verbose_logging(requesting_user, idp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
 @router.post("/idps/{idp_id}/set-default", response_model=IdPConfig)
 def set_default_identity_provider(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],

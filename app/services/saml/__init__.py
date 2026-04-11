@@ -42,6 +42,7 @@ from services.saml.auth import (
     get_enabled_idps_for_login,
     get_idp_by_issuer,
     get_idp_for_saml_login,
+    is_verbose_logging_active,
     process_saml_response,
     process_saml_test_response,
 )
@@ -103,6 +104,8 @@ from services.saml.metadata import (
 from services.saml.providers import (
     create_identity_provider,
     delete_identity_provider,
+    disable_verbose_logging,
+    enable_verbose_logging,
     establish_idp_trust,
     get_identity_provider,
     get_provider_presets,
@@ -137,6 +140,7 @@ __all__ = [
     "get_idp_for_saml_login",
     "process_saml_response",
     "process_saml_test_response",
+    "is_verbose_logging_active",
     # Certificates
     "get_or_create_sp_certificate",
     # IdP Certificates
@@ -180,6 +184,8 @@ __all__ = [
     "list_identity_providers",
     "set_idp_default",
     "set_idp_enabled",
+    "enable_verbose_logging",
+    "disable_verbose_logging",
     "update_identity_provider",
     # Provisioning
     "authenticate_via_saml",

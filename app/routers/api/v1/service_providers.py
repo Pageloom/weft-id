@@ -6,6 +6,7 @@ from api_dependencies import get_current_user_api, require_admin_api, require_su
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request, UploadFile, status
 from schemas.service_providers import (
+    AssertionPreview,
     SPConfig,
     SPCreate,
     SPEstablishTrustManual,
@@ -564,6 +565,37 @@ def delete_sp_logo(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         branding_service.delete_sp_logo(requesting_user, sp_id=sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Assertion Preview
+# =============================================================================
+
+
+@router.get("/{sp_id}/assertion-preview/{user_id}", response_model=AssertionPreview)
+def preview_assertion(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+    user_id: str,
+):
+    """Preview what a SAML assertion would contain for a specific user.
+
+    Requires super_admin role.
+
+    Returns the identity attributes, NameID, group claims, and access status
+    that would be included in a SAML assertion to this SP for this user,
+    without building or signing actual XML.
+
+    Path parameters:
+    - sp_id: UUID of the Service Provider
+    - user_id: UUID of the target user
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.preview_assertion(requesting_user, sp_id, user_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

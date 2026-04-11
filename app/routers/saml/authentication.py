@@ -255,6 +255,9 @@ def saml_acs_per_idp(
     expected_request_id = request.session.pop("saml_request_id", None)
     request.session.pop("saml_idp_id", None)
 
+    # Check if verbose assertion logging is active for this IdP
+    verbose_logging = saml_service.is_verbose_logging_active(tenant_id, idp_id)
+
     # Build request data for python3-saml
     forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
     request_data: dict[str, str | dict[str, str]] = {
@@ -283,6 +286,7 @@ def saml_acs_per_idp(
             error_detail=str(e),
             saml_response_b64=SAMLResponse,
             idp_id=idp_id,
+            verbose_event_logging=verbose_logging,
         )
     except NotFoundError as e:
         if "user" in e.code.lower():
@@ -294,6 +298,7 @@ def saml_acs_per_idp(
                 error_detail=email_detail,
                 saml_response_b64=SAMLResponse,
                 idp_id=idp_id,
+                verbose_event_logging=verbose_logging,
             )
         return store_saml_debug_and_respond(
             request=request,
@@ -302,6 +307,7 @@ def saml_acs_per_idp(
             error_detail=str(e),
             saml_response_b64=SAMLResponse,
             idp_id=idp_id,
+            verbose_event_logging=verbose_logging,
         )
     except ServiceError as e:
         return store_saml_debug_and_respond(
@@ -311,6 +317,7 @@ def saml_acs_per_idp(
             error_detail=str(e),
             saml_response_b64=SAMLResponse,
             idp_id=idp_id,
+            verbose_event_logging=verbose_logging,
         )
 
     # Check if MFA is required
@@ -437,6 +444,9 @@ def saml_acs(
             saml_response_b64=SAMLResponse,
         )
 
+    # Check if verbose assertion logging is active for this IdP
+    verbose_logging = saml_service.is_verbose_logging_active(tenant_id, idp_id)
+
     # Verify IdP matches session (prevent response injection from different IdP)
     if stored_idp_id and stored_idp_id != idp_id:
         return store_saml_debug_and_respond(
@@ -447,6 +457,7 @@ def saml_acs(
             saml_response_b64=SAMLResponse,
             idp_id=idp_id,
             idp_name=idp_name,
+            verbose_event_logging=verbose_logging,
         )
 
     # Build request data for python3-saml
@@ -483,6 +494,7 @@ def saml_acs(
             saml_response_b64=SAMLResponse,
             idp_id=idp_id,
             idp_name=idp_name,
+            verbose_event_logging=verbose_logging,
         )
     except NotFoundError as e:
         if "user" in e.code.lower():
@@ -495,6 +507,7 @@ def saml_acs(
                 saml_response_b64=SAMLResponse,
                 idp_id=idp_id,
                 idp_name=idp_name,
+                verbose_event_logging=verbose_logging,
             )
         return store_saml_debug_and_respond(
             request=request,
@@ -504,6 +517,7 @@ def saml_acs(
             saml_response_b64=SAMLResponse,
             idp_id=idp_id,
             idp_name=idp_name,
+            verbose_event_logging=verbose_logging,
         )
     except ServiceError as e:
         if "disabled" in str(e).lower():
@@ -515,6 +529,7 @@ def saml_acs(
                 saml_response_b64=SAMLResponse,
                 idp_id=idp_id,
                 idp_name=idp_name,
+                verbose_event_logging=verbose_logging,
             )
         return store_saml_debug_and_respond(
             request=request,
@@ -524,6 +539,7 @@ def saml_acs(
             saml_response_b64=SAMLResponse,
             idp_id=idp_id,
             idp_name=idp_name,
+            verbose_event_logging=verbose_logging,
         )
 
     # Check if MFA is required

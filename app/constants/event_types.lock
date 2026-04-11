@@ -1,4 +1,5 @@
 account_recovery_requested
+assertion_preview_viewed
 branding_logo_deleted
 branding_logo_uploaded
 branding_settings_updated
@@ -71,6 +72,8 @@ privileged_domain_deleted
 reactivation_approved
 reactivation_denied
 reactivation_requested
+saml_assertion_failed
+saml_assertion_received
 saml_domain_bound
 saml_domain_rebound
 saml_domain_unbound
@@ -86,6 +89,8 @@ saml_idp_sp_certificate_created
 saml_idp_sp_certificate_rotated
 saml_idp_trust_established
 saml_idp_updated
+saml_idp_verbose_logging_disabled
+saml_idp_verbose_logging_enabled
 saml_sp_certificate_created
 saml_sp_certificate_rotated
 service_provider_created

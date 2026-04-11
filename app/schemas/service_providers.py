@@ -60,7 +60,7 @@ class SPUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = Field(None, max_length=2000)
     acs_url: str | None = Field(None, min_length=1, max_length=2048)
-    slo_url: str | None = Field(None, min_length=1, max_length=2048)
+    slo_url: str | None = Field(None, max_length=2048)
     nameid_format: Literal["emailAddress", "persistent", "transient", "unspecified"] | None = Field(
         None, max_length=50
     )
@@ -300,3 +300,32 @@ class UserAccessibleAppList(BaseModel):
 
     items: list[UserAccessibleApp]
     total: int
+
+
+# ============================================================================
+# Assertion Preview Schemas
+# ============================================================================
+
+
+class AssertionPreview(BaseModel):
+    """Preview of what a SAML assertion would contain for a user + SP pair.
+
+    Used by super admins to debug attribute mapping and access without
+    performing an actual SSO flow.
+    """
+
+    user_id: str
+    user_email: str
+    user_first_name: str
+    user_last_name: str
+    name_id: str
+    name_id_format: str
+    attributes: dict[str, str | list[str]]
+    attribute_mapping: dict[str, str] | None = None
+    group_names: list[str]
+    group_assertion_scope: str
+    has_access: bool
+    assertion_encrypted: bool
+    encryption_algorithm: str | None = None
+    sp_name: str
+    sp_entity_id: str | None = None

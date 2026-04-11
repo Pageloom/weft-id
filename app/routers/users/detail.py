@@ -231,6 +231,7 @@ def user_detail_apps(
             active_tab="apps",
             group_count=common["group_count"],
             app_count=common["app_count"],
+            is_super_admin=requesting_user["role"] == "super_admin",
             success=common["success"],
             error=common["error"],
         ),

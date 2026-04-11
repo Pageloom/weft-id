@@ -278,7 +278,12 @@ def saml_acs_per_idp(
         )
         user = saml_service.authenticate_via_saml(tenant_id, saml_result)
     except ValidationError as e:
-        error_type = "expired" if "expired" in str(e).lower() else "auth_failed"
+        if "expired" in str(e).lower():
+            error_type = "expired"
+        elif e.code == "saml_missing_email":
+            error_type = "missing_attribute"
+        else:
+            error_type = "auth_failed"
         return store_saml_debug_and_respond(
             request=request,
             tenant_id=tenant_id,
@@ -485,7 +490,12 @@ def saml_acs(
         user = saml_service.authenticate_via_saml(tenant_id, saml_result)
 
     except ValidationError as e:
-        error_type = "expired" if "expired" in str(e).lower() else "auth_failed"
+        if "expired" in str(e).lower():
+            error_type = "expired"
+        elif e.code == "saml_missing_email":
+            error_type = "missing_attribute"
+        else:
+            error_type = "auth_failed"
         return store_saml_debug_and_respond(
             request=request,
             tenant_id=tenant_id,

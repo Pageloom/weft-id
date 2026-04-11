@@ -12,6 +12,11 @@ import logging
 from typing import TYPE_CHECKING
 
 import database
+from constants.nameid_formats import (
+    NAMEID_FORMAT_EMAIL,
+    NAMEID_FORMAT_PERSISTENT,
+    NAMEID_FORMAT_TRANSIENT,
+)
 
 if TYPE_CHECKING:
     from onelogin.saml2.auth import OneLogin_Saml2_Auth
@@ -37,6 +42,8 @@ def _store_verbose_success(
     idp_name: str,
     saml_response_b64: str,
     attrs: dict,
+    *,
+    email_from_nameid: bool = False,
 ) -> None:
     """Store a debug entry and log an event for a successful verbose assertion.
 
@@ -72,23 +79,30 @@ def _store_verbose_success(
         for k, v in (attrs.get("raw_attributes") or {}).items():
             raw_attrs[k] = v if isinstance(v, list) else [v]
 
+        metadata: dict = {
+            "idp_name": idp_name,
+            "email": attrs.get("email"),
+            "first_name": attrs.get("first_name"),
+            "last_name": attrs.get("last_name"),
+            "groups": attrs.get("groups", []),
+            "name_id": attrs.get("name_id"),
+            "name_id_format": attrs.get("name_id_format"),
+            "unmapped_attributes": raw_attrs,
+            "debug_entry_id": debug_entry_id,
+        }
+        missing_optional = attrs.get("missing_optional_attributes", [])
+        if missing_optional:
+            metadata["missing_optional_attributes"] = missing_optional
+        if email_from_nameid:
+            metadata["email_from_nameid"] = True
+
         log_event(
             tenant_id=tenant_id,
             actor_user_id=SYSTEM_ACTOR_ID,
             artifact_type="saml_identity_provider",
             artifact_id=idp_id,
             event_type="saml_assertion_received",
-            metadata={
-                "idp_name": idp_name,
-                "email": attrs.get("email"),
-                "first_name": attrs.get("first_name"),
-                "last_name": attrs.get("last_name"),
-                "groups": attrs.get("groups", []),
-                "name_id": attrs.get("name_id"),
-                "name_id_format": attrs.get("name_id_format"),
-                "unmapped_attributes": raw_attrs,
-                "debug_entry_id": debug_entry_id,
-            },
+            metadata=metadata,
         )
     except Exception:
         logger.warning("Failed to store verbose assertion log", exc_info=True)
@@ -209,6 +223,14 @@ def _extract_mapped_attributes(
     last_name = get_saml_attribute(raw_attributes, mapping.get("last_name", "lastName"))
     groups = get_saml_group_attributes(raw_attributes, mapping.get("groups", "groups"))
 
+    missing_optional = []
+    if not first_name:
+        missing_optional.append("first_name")
+    if not last_name:
+        missing_optional.append("last_name")
+    if not groups:
+        missing_optional.append("groups")
+
     return {
         "email": email,
         "first_name": first_name,
@@ -217,6 +239,7 @@ def _extract_mapped_attributes(
         "name_id": name_id,
         "name_id_format": name_id_format,
         "raw_attributes": raw_attributes,
+        "missing_optional_attributes": missing_optional,
     }
 
 
@@ -398,15 +421,43 @@ def process_saml_response(
     # Extract and map attributes
     attrs = _extract_mapped_attributes(auth, idp)
 
+    # NameID email fallback: if email attribute is missing, try using the NameID
+    # when the format is emailAddress or the value looks like an email.
+    # Skip persistent/transient formats (opaque identifiers, not emails).
+    email_from_nameid = False
     if not attrs["email"]:
+        name_id = attrs.get("name_id")
+        name_id_format = attrs.get("name_id_format")
+        if name_id and name_id_format not in (NAMEID_FORMAT_PERSISTENT, NAMEID_FORMAT_TRANSIENT):
+            if name_id_format == NAMEID_FORMAT_EMAIL or "@" in name_id:
+                attrs["email"] = name_id
+                email_from_nameid = True
+
+    if not attrs["email"]:
+        mapping_key = idp.attribute_mapping.get("email", "email")
         raise ValidationError(
-            message="SAML response missing email attribute",
+            message=(
+                f"Required attribute 'email' was not found in the assertion"
+                f" (mapping: '{mapping_key}')"
+            ),
             code="saml_missing_email",
+            details={
+                "missing_attribute": "email",
+                "mapping_key": mapping_key,
+                "missing_optional_attributes": attrs.get("missing_optional_attributes", []),
+            },
         )
 
     # Verbose assertion logging (when enabled and not expired)
     if idp.verbose_logging_active:
-        _store_verbose_success(tenant_id, idp_id, idp.name, saml_response, attrs)
+        _store_verbose_success(
+            tenant_id,
+            idp_id,
+            idp.name,
+            saml_response,
+            attrs,
+            email_from_nameid=email_from_nameid,
+        )
 
     return SAMLAuthResult(
         attributes=SAMLAttributes(

@@ -835,6 +835,41 @@ def test_saml_acs_validation_error_expired(acs_test_setup, test_tenant_host, mon
 
 
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_missing_email_attribute(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint maps saml_missing_email to missing_attribute error type."""
+    from routers.saml import authentication as saml_router
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    idp = acs_test_setup["idp"]
+
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    def mock_process_response(*args, **kwargs):
+        raise ValidationError(
+            message="Required attribute 'email' was not found in the assertion (mapping: 'email')",
+            code="saml_missing_email",
+            details={"missing_attribute": "email", "mapping_key": "email"},
+        )
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+    content_lower = response.text.lower()
+    assert "missing required attribute" in content_lower
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_user_not_found(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint handles user not found in database."""
     from routers.saml import authentication as saml_router

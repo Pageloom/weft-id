@@ -21,6 +21,8 @@
                     Identity Provider Not Found
                 {% elif error_type == 'idp_disabled' %}
                     Identity Provider Disabled
+                {% elif error_type == 'missing_attribute' %}
+                    Missing Required Attribute
                 {% elif error_type == 'configuration_error' %}
                     Configuration Error
                 {% elif error_type == 'expired' %}
@@ -43,6 +45,8 @@
                     Identity provider not found. It may have been removed.
                 {% elif error_type == 'idp_disabled' %}
                     Identity provider disabled. Contact your administrator.
+                {% elif error_type == 'missing_attribute' %}
+                    A required attribute was not found in the identity provider's response. Check the attribute mapping in the IdP configuration.
                 {% elif error_type == 'configuration_error' %}
                     Identity provider configuration error. Contact your administrator.
                 {% elif error_type == 'expired' %}

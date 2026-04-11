@@ -4,6 +4,51 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Downstream SP Assertion Preview
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Super admin only (not admin role)
+- [x] Accessible from the user detail page (apps tab)
+- [x] Shows the user's effective group memberships and the SPs accessible via those groups
+- [x] For a selected user + SP combination, shows a preview of the identity attributes (name, email, groups, custom attribute mappings) that would be asserted
+- [x] Clearly labeled as a debug preview. No actual SP session or authentication occurs.
+- [x] Event logged in audit trail (`assertion_preview_viewed`) with actor, target user, and SP
+- [x] API endpoint: `GET /api/v1/service-providers/{sp_id}/assertion-preview/{user_id}`
+
+---
+
+## Upstream IdP Verbose Assertion Logging
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+*Toggle and expiry:*
+- [x] Per-IdP "verbose assertion logging" toggle, accessible from the IdP configuration page
+- [x] Admin and super admin roles can enable/disable
+- [x] Auto-expires after 24 hours from activation (checked via `verbose_logging_enabled_at` timestamp)
+- [x] Clear visual indicator on the IdP page when verbose mode is active, showing remaining time
+- [x] Enabling/disabling verbose mode logs an audit event (`saml_idp_verbose_logging_enabled` / `saml_idp_verbose_logging_disabled`)
+
+*What gets logged when verbose mode is active:*
+- [x] Successful assertions create `saml_assertion_received` event with NameID, mapped attributes, and raw assertion reference
+- [x] Failed assertions create `saml_assertion_failed` event with error type, error detail, and raw assertion reference
+- [x] Raw assertion XML stored via existing `saml_debug_entries` table
+- [x] All verbose entries associated with the IdP and authenticating user
+
+*Viewing verbose logs:*
+- [x] Verbose assertion events appear in the standard audit log
+- [x] Admin can drill into a verbose event to see full assertion details
+
+*Cleanup:*
+- [x] Raw assertion data follows the same 24-hour cleanup lifecycle as existing debug entries
+- [x] Event log entries persist as audit records
+
+---
+
 ## Per-SP AES-256-GCM Assertion Encryption (opt-in)
 
 **Status:** Complete

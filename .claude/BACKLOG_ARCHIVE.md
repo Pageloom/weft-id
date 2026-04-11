@@ -4,6 +4,34 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML Assertion Attribute Resilience and Diagnostic Clarity
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+*NameID email fallback:*
+- [x] If the mapped email attribute is missing from the assertion, check if the NameID format is `emailAddress` or if the NameID value contains `@`
+- [x] If so, use the NameID value as the email
+- [x] Log a note in verbose mode metadata indicating the fallback was used (`email_from_nameid: true`)
+- [x] No fallback if NameID format is `persistent` or `transient`
+
+*Required attribute diagnostics:*
+- [x] The SAML error page names the specific missing attribute ("Missing Required Attribute" with guidance)
+- [x] The debug entry `error_detail` includes the missing attribute name and the mapping that was checked
+- [x] The `saml_missing_email` error includes `missing_attribute` and `mapping_key` in details
+
+*Optional attribute diagnostics:*
+- [x] Missing optional attributes (first_name, last_name, groups) tracked in `missing_optional_attributes` list
+- [x] In verbose mode, the `saml_assertion_received` event metadata includes `missing_optional_attributes`
+- [x] Missing optional attributes do NOT cause authentication failure
+
+*Debug list improvements:*
+- [x] Debug list error type column uses standard blue link styling (matching project list conventions)
+- [x] Debug detail page includes troubleshooting tips for `missing_attribute` error type
+
+---
+
 ## Downstream SP Assertion Preview
 
 **Status:** Complete

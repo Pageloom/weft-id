@@ -123,6 +123,7 @@ tenant_certificate_rotation_window_updated
 tenant_settings_updated
 totp_setup_initiated
 user_anonymized
+user_attributes_synced
 user_auto_inactivated
 user_created
 user_created_jit

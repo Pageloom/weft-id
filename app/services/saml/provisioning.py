@@ -214,6 +214,32 @@ def authenticate_via_saml(
         )
 
     user_id = str(user["id"])
+    attrs = saml_result.attributes
+
+    # Sync first_name and last_name from assertion if they differ.
+    # Skip if the assertion attribute is missing/empty (preserve existing value).
+    changes: dict = {}
+    if attrs.first_name and attrs.first_name != user.get("first_name"):
+        changes["first_name"] = {"old": user.get("first_name"), "new": attrs.first_name}
+    if attrs.last_name and attrs.last_name != user.get("last_name"):
+        changes["last_name"] = {"old": user.get("last_name"), "new": attrs.last_name}
+
+    if changes:
+        new_first = changes["first_name"]["new"] if "first_name" in changes else user["first_name"]
+        new_last = changes["last_name"]["new"] if "last_name" in changes else user["last_name"]
+        database.users.update_user_profile(tenant_id, user_id, new_first, new_last)
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=user_id,
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="user_attributes_synced",
+            metadata={
+                "changes": changes,
+                "source": "saml_assertion",
+                "idp_id": saml_result.idp_id,
+            },
+        )
 
     # Password is preserved but unusable while saml_idp_id is set
     # MFA info is preserved - IdP may require additional platform MFA

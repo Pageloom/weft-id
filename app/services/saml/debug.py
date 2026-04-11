@@ -72,9 +72,19 @@ def store_saml_debug_entry(
         )
         debug_entry_id = str(entry["id"]) if entry else None
 
-        if verbose_event_logging and debug_entry_id and idp_id:
+        # Always log failed assertions to the event log when we know the IdP.
+        # Verbose mode adds the debug_entry_id for raw XML drill-through.
+        if idp_id:
             try:
                 from services.event_log import SYSTEM_ACTOR_ID, log_event
+
+                metadata: dict = {
+                    "idp_name": idp_name,
+                    "error_type": error_type,
+                    "error_detail": error_detail[:500] if error_detail else None,
+                }
+                if verbose_event_logging and debug_entry_id:
+                    metadata["debug_entry_id"] = debug_entry_id
 
                 log_event(
                     tenant_id=tenant_id,
@@ -82,15 +92,10 @@ def store_saml_debug_entry(
                     artifact_type="saml_identity_provider",
                     artifact_id=idp_id,
                     event_type="saml_assertion_failed",
-                    metadata={
-                        "idp_name": idp_name,
-                        "error_type": error_type,
-                        "error_detail": error_detail[:500] if error_detail else None,
-                        "debug_entry_id": debug_entry_id,
-                    },
+                    metadata=metadata,
                 )
             except Exception as e:
-                logger.warning(f"Failed to log verbose assertion failure event: {e}")
+                logger.warning(f"Failed to log assertion failure event: {e}")
 
         return debug_entry_id
     except Exception as e:

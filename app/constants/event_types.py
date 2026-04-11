@@ -325,7 +325,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "idp_group_member_removed": "operational",
     "idp_group_relationship_created": "operational",
     "saml_assertion_received": "operational",
-    "saml_assertion_failed": "operational",
+    "saml_assertion_failed": "security",
     "domain_group_auto_assigned": "operational",
     "saml_idp_sp_certificate_auto_rotated": "operational",
     "saml_idp_sp_certificate_cleanup_completed": "operational",

@@ -9,6 +9,7 @@ This module handles the core SAML authentication flow:
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import database
@@ -17,6 +18,7 @@ from constants.nameid_formats import (
     NAMEID_FORMAT_PERSISTENT,
     NAMEID_FORMAT_TRANSIENT,
 )
+from utils import cache
 
 if TYPE_CHECKING:
     from onelogin.saml2.auth import OneLogin_Saml2_Auth
@@ -34,6 +36,58 @@ from services.saml.idp_certificates import get_certificates_for_validation
 from utils.saml import build_saml_settings, decrypt_private_key, make_sp_entity_id
 
 logger = logging.getLogger(__name__)
+
+# Prefix for assertion replay cache keys
+_ASSERTION_CACHE_PREFIX = "saml_assertion:"
+
+# Default TTL when the assertion has no NotOnOrAfter (5 minutes)
+_DEFAULT_REPLAY_TTL = 300
+
+# Maximum TTL cap to prevent unbounded cache entries (10 minutes)
+_MAX_REPLAY_TTL = 600
+
+
+def _check_assertion_replay(auth: OneLogin_Saml2_Auth, tenant_id: str) -> None:
+    """Reject replayed SAML assertions using a Memcached cache.
+
+    After python3-saml validates the assertion (signature, expiry, etc.),
+    this function checks whether the assertion ID has already been processed.
+    If so, the assertion is a replay and is rejected.
+
+    Uses cache.add() for atomic check-and-set: only the first caller for a
+    given assertion ID succeeds. The TTL is derived from the assertion's
+    NotOnOrAfter timestamp (capped at _MAX_REPLAY_TTL). If Memcached is
+    unavailable, the request is allowed through (fail-open).
+    """
+    assertion_id = auth.get_last_assertion_id()
+    if not assertion_id:
+        return
+
+    key = f"{_ASSERTION_CACHE_PREFIX}{tenant_id}:{assertion_id}"
+
+    # Determine TTL from the assertion's NotOnOrAfter
+    not_on_or_after = auth.get_last_assertion_not_on_or_after()
+    if not_on_or_after:
+        remaining = int(not_on_or_after - datetime.now(UTC).timestamp())
+        ttl = max(1, min(remaining, _MAX_REPLAY_TTL))
+    else:
+        ttl = _DEFAULT_REPLAY_TTL
+
+    # add() returns True only if the key did not already exist (first use)
+    added = cache.add(key, b"1", ttl=ttl)
+    if added:
+        return
+
+    # add() returned False: either the assertion was already processed
+    # (replay) or Memcached is unavailable. Check which case it is.
+    if cache.get(key) is not None:
+        raise ValidationError(
+            message="SAML assertion has already been processed",
+            code="saml_assertion_replay",
+        )
+
+    # Memcached unavailable (both add and get returned falsy). Fail open.
+    logger.warning("Assertion replay cache unavailable, allowing request through")
 
 
 def _store_verbose_success(
@@ -417,6 +471,9 @@ def process_saml_response(
             message="SAML authentication failed",
             code="saml_auth_failed",
         )
+
+    # Reject replayed assertions (same assertion ID used twice)
+    _check_assertion_replay(auth, tenant_id)
 
     # Extract and map attributes
     attrs = _extract_mapped_attributes(auth, idp)

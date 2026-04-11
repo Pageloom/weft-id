@@ -3213,3 +3213,22 @@ Store the SP's UUID (`sp.id`) in the session as `pending_sso_sp_id` alongside th
 - `app/templates/groups_members.html`
 - `app/templates/groups_detail_tab_membership.html`
 - `app/templates/groups_members_add.html`
+
+---
+
+## [SECURITY] Assertion Replay: No SAML assertion ID cache
+
+**Status:** Resolved (2026-04-11)
+
+**Original Severity:** Medium
+**OWASP Category:** A07:2021 - Identification and Authentication Failures
+
+**Description:** The SAML SP had no assertion ID replay cache. For IdP-initiated flows, `request_id` is `None` (skipping InResponseTo validation), so a captured SAML response could be replayed within the 5-minute `NotOnOrAfter` window.
+
+**Resolution:** Added `_check_assertion_replay()` in `app/services/saml/auth.py`. After python3-saml validates the assertion, the function stores the assertion ID in Memcached using atomic `cache.add()`. Duplicate IDs are rejected with `saml_assertion_replay` error. TTL is derived from the assertion's `NotOnOrAfter` (capped at 10 minutes, default 5 minutes). Fails open if Memcached is unavailable. Cache keys are tenant-scoped.
+
+**Files Modified:**
+- `app/services/saml/auth.py` - Added `_check_assertion_replay()`, called from `process_saml_response()`
+
+**Files Created:**
+- `tests/services/test_saml_assertion_replay.py` - 12 tests (unit + integration)

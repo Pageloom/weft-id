@@ -15,7 +15,6 @@ from schemas.api import UserDetail
 from services.auth import require_admin, require_super_admin
 from services.event_log import log_event
 from services.exceptions import (
-    ForbiddenError,
     NotFoundError,
     ValidationError,
 )
@@ -171,73 +170,6 @@ def reactivate_user(
     )
 
     return get_user(requesting_user, user_id)
-
-
-def self_reactivate_super_admin(
-    tenant_id: str,
-    user_id: str,
-    request_metadata: dict | None = None,
-) -> None:
-    """
-    Self-reactivate an inactivated super admin account.
-
-    Allows super admins to reactivate themselves after proving email
-    possession. Regular users/admins must use admin-approval flow.
-
-    Authorization: User must be super admin (verified via DB).
-    Email possession must be proven before calling.
-
-    Args:
-        tenant_id: Tenant ID
-        user_id: User ID to reactivate
-        request_metadata: Request metadata for event logging
-
-    Raises:
-        NotFoundError: User not found
-        ForbiddenError: User is not a super admin
-        ValidationError: User not inactivated or is anonymized
-    """
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise NotFoundError(
-            message="User not found",
-            code="user_not_found",
-            details={"user_id": user_id},
-        )
-
-    if user["role"] != "super_admin":
-        raise ForbiddenError(
-            message="Only super admins can self-reactivate",
-            code="super_admin_required",
-            required_role="super_admin",
-        )
-
-    if not user.get("is_inactivated"):
-        raise ValidationError(
-            message="User is not inactivated",
-            code="not_inactivated",
-        )
-
-    if user.get("is_anonymized"):
-        raise ValidationError(
-            message="Cannot reactivate anonymized user",
-            code="user_anonymized",
-        )
-
-    # Reactivate
-    database.users.reactivate_user(tenant_id, user_id)
-    database.users.clear_reactivation_denied(tenant_id, user_id)
-
-    # Log event
-    log_event(
-        tenant_id=tenant_id,
-        actor_user_id=user_id,
-        artifact_type="user",
-        artifact_id=user_id,
-        event_type="super_admin_self_reactivated",
-        metadata={"role": "super_admin"},
-        request_metadata=request_metadata,
-    )
 
 
 def anonymize_user(

@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 2 | Access Control |
+| High | 1 | Access Control |
 | Medium | 7 | Auth, Input Validation, Deployment, SAML |
 | Low | 8 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
@@ -24,19 +24,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
-
----
-
-## [SECURITY] Broken Access Control: Super admin self-reactivation requires no proof of identity
-
-**Found in:** `app/routers/auth/reactivation.py:50-84`
-**Severity:** High
-**OWASP Category:** A01:2021 - Broken Access Control
-**Description:** The `POST /login/super-admin-reactivate` endpoint accepts only a `user_id` form field and immediately reactivates the account. The service layer docstring (`app/services/users/state.py:188`) states "Email possession must be proven before calling", but the router enforces no such proof. CSRF protects against cross-site form submission, but anyone who navigates to the page directly gets a valid CSRF token. The GET endpoint also discloses user PII (first name, last name) to unauthenticated visitors who know the UUID.
-**Attack Scenario:** An attacker who obtains or guesses an inactivated super admin's UUID visits the page, sees their info, and submits the form to reactivate the account.
-**Evidence:** `reactivation.py:50-56` accepts `user_id: Annotated[str, Form()]` with no authentication or email verification.
-**Impact:** Account takeover of inactivated super admin accounts.
-**Remediation:** Require email possession proof (verification code flow) before allowing the POST to execute. Gate the GET page behind the same proof.
 
 ---
 

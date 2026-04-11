@@ -39,6 +39,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "user_reactivated": "User account reactivated",
     "user_auto_inactivated": "User automatically inactivated due to inactivity",
     "user_anonymized": "User data anonymized for privacy",
+    "user_reactivated_cli": "User account reactivated via CLI",
     "super_admin_self_reactivated": "Super admin self-reactivated their account",
     "invitation_resent": "Invitation email resent to user who has not completed onboarding",
     # Email Management
@@ -226,6 +227,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "user_reactivated": "security",
     "user_auto_inactivated": "security",
     "user_anonymized": "security",
+    "user_reactivated_cli": "security",
     "super_admin_self_reactivated": "security",
     "mfa_totp_enabled": "security",
     "mfa_email_enabled": "security",

@@ -133,6 +133,7 @@ user_groups_bulk_added
 user_inactivated
 user_profile_updated
 user_reactivated
+user_reactivated_cli
 user_saml_idp_assigned
 user_signed_in
 user_signed_in_saml

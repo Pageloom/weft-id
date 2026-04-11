@@ -277,7 +277,8 @@ class TestAccountRecovery:
         assert "Account Inactivated" in response.text
         assert "Request Reactivation" in response.text
 
-    def test_get_inactivated_super_admin_shows_self_reactivation(self, mocker):
+    def test_get_inactivated_super_admin_shows_reactivation_request(self, mocker):
+        """Inactivated super admins see the same request form as regular users."""
         _setup(mocker)
         user_id = str(uuid4())
         mock_svc = mocker.patch(f"{AUTH_PW_RESET}.users_service")
@@ -294,7 +295,8 @@ class TestAccountRecovery:
         response = client.get("/account-recovery/valid-token")
 
         assert response.status_code == 200
-        assert "Reactivate My Account" in response.text
+        assert "Account Inactivated" in response.text
+        assert "Request Reactivation" in response.text
 
     def test_get_invalid_token(self, mocker):
         _setup(mocker)

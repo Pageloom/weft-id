@@ -66,7 +66,7 @@ So that the interface is more readable for me without affecting other users.
 
 ---
 
-## Admin: Super Admin Debug Impersonation
+## Downstream SP Assertion Preview
 
 **User Story:**
 As a super admin
@@ -92,6 +92,58 @@ the User-App Access Query item, which answers "does this user have access?".
 
 **Effort:** M
 **Value:** Low
+
+---
+
+## Upstream IdP Verbose Assertion Logging
+
+**User Story:**
+As an admin or super admin,
+I want to temporarily enable verbose assertion logging on an upstream IdP,
+So that I can see exactly what the IdP sends (including raw XML and parsed attributes) for both successful and failed authentications, helping me debug attribute mapping, group sync, and configuration issues.
+
+**Context:**
+
+WeftID already captures full assertion details for **failed** SAML authentications in the
+`saml_debug_entries` table (raw XML, error type, error detail). These are auto-cleaned after
+24 hours and accessible to super admins at `/debug/saml`.
+
+However, **successful** authentications log only minimal metadata to the event log (IdP ID,
+email, password_preserved). When debugging attribute mapping or group sync issues, the
+frustrating scenario is: "the user can log in, but their name is wrong or groups aren't
+syncing." The assertion succeeded, so no debug entry exists. You have to guess what the IdP
+actually sent.
+
+This feature adds a per-IdP toggle that temporarily enables verbose logging for all
+assertions (both successful and failed) processed from that IdP. It auto-expires after 24
+hours to prevent unbounded data accumulation.
+
+**Acceptance Criteria:**
+
+*Toggle and expiry:*
+- [ ] Per-IdP "verbose assertion logging" toggle, accessible from the IdP configuration page
+- [ ] Admin and super admin roles can enable/disable
+- [ ] Auto-expires after exactly 24 hours from activation. No renewal, must be re-enabled.
+- [ ] Clear visual indicator on the IdP page when verbose mode is active, showing remaining time
+- [ ] Enabling/disabling verbose mode logs an audit event (`saml_idp_debug_enabled` / `saml_idp_debug_disabled`) with actor and IdP
+
+*What gets logged when verbose mode is active:*
+- [ ] **Successful assertions** create a detailed event log entry (new event type, e.g. `saml_assertion_received`) with metadata containing: NameID, NameID format, all mapped attribute values (first name, last name, email, groups), any unmapped attributes the IdP sent, and a reference to the stored raw assertion
+- [ ] **Failed assertions** also create an event log entry (new event type, e.g. `saml_assertion_failed`) with error type, error detail, and a reference to the stored raw assertion. This surfaces failures that currently only appear in the debug table.
+- [ ] Raw assertion XML (both base64 and decoded) is stored for both successes and failures
+- [ ] All verbose entries clearly associated with the IdP and (where known) the authenticating user
+
+*Viewing verbose logs:*
+- [ ] Verbose assertion events appear in the standard audit log alongside other events
+- [ ] Admin can drill into a verbose event to see the full assertion details (parsed attributes and raw XML)
+
+*Cleanup:*
+- [ ] Raw assertion data stored during verbose mode follows the same 24-hour cleanup lifecycle as existing debug entries
+- [ ] Event log entries themselves persist (they are audit records) but the raw XML references may expire
+
+**Effort:** L
+**Value:** Medium
+**Version impact:** Minor (new feature, no breaking changes)
 
 ---
 

@@ -147,6 +147,62 @@ hours to prevent unbounded data accumulation.
 
 ---
 
+## SAML Assertion Attribute Resilience and Diagnostic Clarity
+
+**User Story:**
+As an admin configuring an upstream IdP,
+I want WeftID to handle missing attributes gracefully and tell me exactly what's wrong,
+So that I can fix IdP configuration issues without reading raw XML.
+
+**Context:**
+
+Today, if the IdP sends a valid SAML response but omits the email attribute, WeftID
+rejects the assertion with a generic "Authentication Failed" page. The admin has to
+dig through raw XML to figure out what's missing. Meanwhile, the NameID is often the
+email itself (especially with the `emailAddress` format), but WeftID doesn't use it
+as a fallback.
+
+Three improvements:
+
+1. **NameID email fallback.** When the email attribute is missing but the NameID format
+   is `emailAddress` (or the NameID value looks like an email), use the NameID as the
+   email. This covers the common case where IdPs send email as NameID but don't
+   configure separate attribute statements.
+
+2. **Clear error for missing required attributes.** When a required attribute (currently
+   only email) is missing and can't be resolved from NameID, the error page and debug
+   entry should explicitly say which required attribute is missing, not just
+   "Authentication Failed."
+
+3. **Warnings for missing optional attributes.** When optional attributes (first_name,
+   last_name, groups) are absent, surface that clearly in the debug entry and (when
+   verbose mode is on) in the event metadata. Not a failure, but a clear signal that
+   the IdP isn't sending everything it could.
+
+**Acceptance Criteria:**
+
+*NameID email fallback:*
+- [ ] If the mapped email attribute is missing from the assertion, check if the NameID format is `emailAddress` or if the NameID value contains `@`
+- [ ] If so, use the NameID value as the email
+- [ ] Log a note in verbose mode metadata indicating the fallback was used
+- [ ] No fallback if NameID format is `persistent` or `transient`
+
+*Required attribute diagnostics:*
+- [ ] The SAML error page names the specific missing attribute (e.g., "Required attribute 'email' was not found in the assertion")
+- [ ] The debug entry `error_detail` includes the missing attribute name and the mapping that was checked
+- [ ] The `saml_assertion_failed` event metadata includes `missing_required_attributes`
+
+*Optional attribute diagnostics:*
+- [ ] When optional attributes (first_name, last_name, groups) are missing, the debug entry notes which are absent
+- [ ] In verbose mode, the `saml_assertion_received` event metadata includes `missing_optional_attributes`
+- [ ] Missing optional attributes do NOT cause authentication failure
+
+**Effort:** S
+**Value:** High
+**Version impact:** Patch (improved diagnostics, no breaking changes)
+
+---
+
 ## ~~Contextual Documentation Links~~ (Complete)
 
 ---

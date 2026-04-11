@@ -1035,6 +1035,172 @@ def test_authenticate_via_saml_skips_group_sync_when_no_groups(
 
 
 # =============================================================================
+# Attribute Sync on Login Tests
+# =============================================================================
+
+
+def test_authenticate_via_saml_syncs_changed_name(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that changed first_name and last_name are synced from assertion."""
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # SAML assertion has different name than stored
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=test_user["email"],
+            first_name="NewFirst",
+            last_name="NewLast",
+            name_id=test_user["email"],
+        ),
+        idp_id=created.id,
+        requires_mfa=False,
+    )
+
+    saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
+    # Verify the user record was updated
+    updated_user = database.users.get_user_by_id(test_tenant["id"], str(test_user["id"]))
+    assert updated_user["first_name"] == "NewFirst"
+    assert updated_user["last_name"] == "NewLast"
+
+    # Verify sync event was logged
+    _verify_event_logged(test_tenant["id"], "user_attributes_synced", str(test_user["id"]))
+
+
+def test_authenticate_via_saml_no_sync_when_unchanged(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test no update or event when assertion attributes match stored values."""
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Assertion matches stored values exactly
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=test_user["email"],
+            first_name=test_user["first_name"],
+            last_name=test_user["last_name"],
+            name_id=test_user["email"],
+        ),
+        idp_id=created.id,
+        requires_mfa=False,
+    )
+
+    saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
+    # Verify no sync event was logged (only sign-in event)
+    events = database.event_log.list_events(test_tenant["id"], limit=10)
+    sync_events = [e for e in events if e["event_type"] == "user_attributes_synced"]
+    assert len(sync_events) == 0
+
+
+def test_authenticate_via_saml_skips_sync_when_attrs_missing(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that missing assertion attributes don't overwrite stored values."""
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    original_first = test_user["first_name"]
+    original_last = test_user["last_name"]
+
+    # Assertion has no first_name or last_name (IdP didn't send them)
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=test_user["email"],
+            first_name=None,
+            last_name=None,
+            name_id=test_user["email"],
+        ),
+        idp_id=created.id,
+        requires_mfa=False,
+    )
+
+    saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
+    # Verify stored values are preserved
+    updated_user = database.users.get_user_by_id(test_tenant["id"], str(test_user["id"]))
+    assert updated_user["first_name"] == original_first
+    assert updated_user["last_name"] == original_last
+
+    # Verify no sync event was logged
+    events = database.event_log.list_events(test_tenant["id"], limit=10)
+    sync_events = [e for e in events if e["event_type"] == "user_attributes_synced"]
+    assert len(sync_events) == 0
+
+
+def test_authenticate_via_saml_partial_sync(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that only changed attributes are synced (one changed, one same)."""
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    original_first = test_user["first_name"]
+
+    # Only last_name changed
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=test_user["email"],
+            first_name=original_first,
+            last_name="MarriedName",
+            name_id=test_user["email"],
+        ),
+        idp_id=created.id,
+        requires_mfa=False,
+    )
+
+    saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
+    updated_user = database.users.get_user_by_id(test_tenant["id"], str(test_user["id"]))
+    assert updated_user["first_name"] == original_first
+    assert updated_user["last_name"] == "MarriedName"
+
+    # Verify sync event metadata only has last_name change
+    events = database.event_log.list_events(test_tenant["id"], limit=10)
+    sync_events = [e for e in events if e["event_type"] == "user_attributes_synced"]
+    assert len(sync_events) == 1
+    metadata = sync_events[0]["metadata"]
+    assert "last_name" in metadata["changes"]
+    assert "first_name" not in metadata["changes"]
+    assert metadata["source"] == "saml_assertion"
+
+
+# =============================================================================
 # Connection Testing Tests
 # =============================================================================
 

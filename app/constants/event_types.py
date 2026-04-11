@@ -33,6 +33,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "user_created_jit": "User created via SAML just-in-time provisioning",
     "user_updated": "User account updated",
     "user_profile_updated": "User profile updated",
+    "user_attributes_synced": "User attributes synced from upstream IdP assertion",
     "user_deleted": "User account deleted",
     "user_inactivated": "User account deactivated",
     "user_reactivated": "User account reactivated",
@@ -240,6 +241,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     # Admin tier
     "user_updated": "admin",
     "user_profile_updated": "admin",
+    "user_attributes_synced": "operational",
     "invitation_resent": "admin",
     "email_added": "admin",
     "email_deleted": "admin",

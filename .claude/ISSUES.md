@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | Access Control |
+| High | 0 | |
 | Medium | 7 | Auth, Input Validation, Deployment, SAML |
 | Low | 8 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
@@ -24,19 +24,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
-
----
-
-## [SECURITY] Privilege Escalation: Admin can create super_admin B2B OAuth2 client
-
-**Found in:** `app/routers/api/v1/oauth2_clients.py:102-134`
-**Severity:** High
-**OWASP Category:** A01:2021 - Broken Access Control
-**Description:** The `POST /api/v1/oauth2/b2b` endpoint requires only `admin` role (`require_admin_api`), but the `B2BClientCreate` schema accepts `role: "super_admin"`. The service layer (`app/services/oauth2.py:256`) passes the role through with no privilege check. The `update_client_role` endpoint (line 271) has the same gap.
-**Attack Scenario:** Admin creates a B2B client with `{"name": "my-tool", "role": "super_admin"}`, receives `client_secret`, authenticates via client credentials as super_admin.
-**Evidence:** Router uses `require_admin_api`, schema allows `role: "super_admin"`, service layer does no role comparison.
-**Impact:** Full privilege escalation from admin to super_admin.
-**Remediation:** Either require `super_admin` for B2B client creation, or enforce that the requested role cannot exceed the caller's role.
 
 ---
 

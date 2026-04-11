@@ -5,6 +5,20 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Privilege Escalation: Admin can create super_admin B2B OAuth2 client
+
+**Status:** Resolved (2026-04-11)
+**Found in:** `app/routers/api/v1/oauth2_clients.py`, `app/pages.py`
+**Severity:** High
+**Fix:** Removed admin access to B2B OAuth2 functionality entirely. B2B page permission
+changed from ADMIN to SUPER_ADMIN (hides nav item and blocks all web routes for admins).
+B2B-specific API endpoints (create, update role) switched to `require_super_admin_api`.
+Shared API endpoints (get, update, delete, regenerate-secret, deactivate, reactivate) now
+check client type and reject non-super_admin callers for B2B clients. Admins retain full
+access to normal OAuth2 app management.
+
+---
+
 ### [SECURITY] Broken Access Control: Super admin self-reactivation requires no proof of identity
 
 **Status:** Resolved (2026-04-11)

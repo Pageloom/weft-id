@@ -21,17 +21,6 @@
                 </p>
             </div>
 
-            {% if role == 'super_admin' %}
-            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    As a super admin, you can reactivate your own account.
-                </p>
-                <a href="/login/super-admin-reactivate?user_id={{ user_id }}"
-                   class="block w-full text-center bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 font-medium py-2 px-4 rounded-md transition duration-150">
-                    Reactivate My Account
-                </a>
-            </div>
-            {% else %}
             <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
                 <form method="post" action="/request-reactivation">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -42,7 +31,6 @@
                     </button>
                 </form>
             </div>
-            {% endif %}
 
             <div class="mt-6 text-center">
                 <a href="/login" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">

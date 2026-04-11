@@ -59,7 +59,6 @@ from services.users.state import (
     anonymize_user,
     inactivate_user,
     reactivate_user,
-    self_reactivate_super_admin,
 )
 
 # Re-export from utilities module
@@ -110,7 +109,6 @@ __all__ = [
     "anonymize_user",
     "inactivate_user",
     "reactivate_user",
-    "self_reactivate_super_admin",
     # Utilities
     "add_unverified_email_with_nonce",
     "add_verified_email_with_nonce",

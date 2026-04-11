@@ -1,7 +1,6 @@
 """Shared helpers for auth router modules."""
 
 import services.saml as saml_service
-import services.users as users_service
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
@@ -44,15 +43,6 @@ def _route_after_email_verification(
         )
 
     if result.route_type == "inactivated":
-        # Check if super admin - allow self-reactivation
-        if result.user_id:
-            user = users_service.get_user_by_id_raw(tenant_id, result.user_id)
-            if user and user.get("role") == "super_admin":
-                return RedirectResponse(
-                    url=f"/login/super-admin-reactivate?user_id={result.user_id}&prefill_email={quote(email)}",
-                    status_code=303,
-                )
-        # Regular users/admins see inactivation error
         return RedirectResponse(
             url=f"/login?error=account_inactivated&prefill_email={quote(email)}",
             status_code=303,

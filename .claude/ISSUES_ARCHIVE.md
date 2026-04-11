@@ -5,6 +5,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Broken Access Control: Super admin self-reactivation requires no proof of identity
+
+**Status:** Resolved (2026-04-11)
+**Found in:** `app/routers/auth/reactivation.py`, `app/services/users/state.py`, `app/routers/auth/_helpers.py`
+**Severity:** High
+**Fix:** Removed the super admin self-reactivation feature entirely. The GET/POST
+`/login/super-admin-reactivate` endpoints, the `self_reactivate_super_admin` service function,
+and the template were deleted. Inactivated super admins now go through the same admin-approval
+reactivation request flow as regular users. The `_route_after_email_verification` helper no longer
+special-cases super admins. For the lockout scenario (all super admins inactivated), a new CLI
+command `python -m app.cli.reactivate_user --subdomain <sub> --email <email>` provides an
+out-of-band escape hatch that requires server/Docker access. The `super_admin_self_reactivated`
+event type is preserved in the registry for historical audit log entries.
+
+---
+
 ### [SECURITY] CBC Padding Oracle: ACS error responses leak decryption failure details
 
 **Status:** Resolved (2026-04-08)

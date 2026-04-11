@@ -20,13 +20,6 @@ def _call_route_after_email_verification(tenant_id, email, route_type, **kwargs)
     mock_request = MagicMock()
 
     with patch("routers.auth._helpers.saml_service.determine_auth_route", return_value=mock_result):
-        if route_type == "inactivated" and kwargs.get("user_id"):
-            mock_user = kwargs.get("mock_user")
-            with patch(
-                "routers.auth._helpers.users_service.get_user_by_id_raw",
-                return_value=mock_user,
-            ):
-                return _route_after_email_verification(mock_request, tenant_id, email)
         return _route_after_email_verification(mock_request, tenant_id, email)
 
 
@@ -60,30 +53,24 @@ def test_route_idp_jit():
 
 
 def test_route_inactivated_super_admin():
-    """Inactivated super_admin gets self-reactivation redirect."""
-    user_id = str(uuid4())
+    """Inactivated super_admin sees inactivation error (same as regular users)."""
     response = _call_route_after_email_verification(
         str(uuid4()),
         "admin@example.com",
         "inactivated",
-        user_id=user_id,
-        mock_user={"role": "super_admin"},
+        user_id=str(uuid4()),
     )
     assert response.status_code == 303
-    location = response.headers["location"]
-    assert "/login/super-admin-reactivate" in location
-    assert f"user_id={user_id}" in location
+    assert "error=account_inactivated" in response.headers["location"]
 
 
 def test_route_inactivated_regular_user():
     """Inactivated regular user sees inactivation error."""
-    user_id = str(uuid4())
     response = _call_route_after_email_verification(
         str(uuid4()),
         "user@example.com",
         "inactivated",
-        user_id=user_id,
-        mock_user={"role": "member"},
+        user_id=str(uuid4()),
     )
     assert response.status_code == 303
     assert "error=account_inactivated" in response.headers["location"]
@@ -143,13 +130,11 @@ def test_route_unknown_fallback():
 
 def test_route_inactivated_user_not_found_in_db():
     """Inactivated route where user lookup returns None shows inactivation error."""
-    user_id = str(uuid4())
     response = _call_route_after_email_verification(
         str(uuid4()),
         "user@example.com",
         "inactivated",
-        user_id=user_id,
-        mock_user=None,
+        user_id=str(uuid4()),
     )
     assert response.status_code == 303
     assert "error=account_inactivated" in response.headers["location"]

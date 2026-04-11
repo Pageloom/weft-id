@@ -203,6 +203,35 @@ Three improvements:
 
 ---
 
+## Sync User Attributes from Upstream IdP on Login
+
+**User Story:**
+As an admin,
+I want user attributes (name, email) to stay in sync with the upstream IdP,
+So that changes made in Okta, Entra ID, or Google Workspace are reflected in WeftID automatically.
+
+**Context:**
+
+Today, `authenticate_via_saml()` verifies the email, links the user to the IdP,
+and syncs group memberships, but never updates `first_name` or `last_name`. JIT
+provisioning sets them at creation time, but subsequent logins ignore the assertion
+attributes entirely. If someone's name changes in the IdP (e.g., marriage, legal
+name change), WeftID shows the old name indefinitely.
+
+**Acceptance Criteria:**
+
+- [ ] On each SAML login, compare `first_name` and `last_name` from the assertion with the stored values
+- [ ] If either differs, update the user record
+- [ ] Log a `user_updated` event (or a new `user_attributes_synced` event) when attributes change, with metadata showing old and new values
+- [ ] Do not update if the assertion attribute is missing/empty (preserve existing value)
+- [ ] Primary email sync: if the assertion email differs from the stored primary email, consider whether to update (this may warrant a separate item due to SP assertion impact)
+
+**Effort:** S
+**Value:** High
+**Version impact:** Patch (no breaking changes)
+
+---
+
 ## ~~Contextual Documentation Links~~ (Complete)
 
 ---

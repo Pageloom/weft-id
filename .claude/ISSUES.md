@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 7 | Auth, Input Validation, Deployment, SAML |
+| Medium | 6 | Auth, Input Validation, Deployment, SAML |
 | Low | 8 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -26,17 +26,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
 
 ---
-
-## [SECURITY] User Enumeration: Unauthenticated check-email API without rate limiting
-
-**Found in:** `app/routers/api/v1/saml.py:753-786`
-**Severity:** Medium
-**OWASP Category:** A07:2021 - Identification and Authentication Failures
-**Description:** `POST /api/v1/saml/auth/check-email` is unauthenticated and has no rate limiting. It returns distinct `route_type` values (`password`, `idp`, `not_found`, `inactivated`, etc.) that reveal account existence and state. The equivalent web flow at `/login` has rate limiting (30/5min), but this API endpoint bypasses it entirely.
-**Attack Scenario:** Automated email enumeration at full speed against the API endpoint.
-**Evidence:** No `Depends(...)` for auth or rate limiting on the endpoint. Response distinguishes 8 account states.
-**Impact:** Organizational membership disclosure, account state enumeration.
-**Remediation:** Add rate limiting matching the web login flow. Consider collapsing response states to reduce information leakage.
 
 ---
 

@@ -11,8 +11,6 @@ from schemas.saml import (
     DomainBinding,
     DomainBindingCreate,
     DomainBindingList,
-    EmailCheckRequest,
-    EmailCheckResponse,
     IdPConfig,
     IdPCreate,
     IdPListResponse,
@@ -45,11 +43,12 @@ def _get_base_url(request: Request) -> str:
 @router.get("/provider-presets/{provider_type}", response_model=ProviderPresets)
 def get_provider_presets(
     provider_type: str,
+    _user: Annotated[dict, Depends(require_super_admin_api)],
 ):
     """
     Get provider-specific attribute mapping presets and setup guide.
 
-    No authentication required (helper for IdP configuration).
+    Requires super_admin role (IdP configuration is a super admin operation).
 
     Returns known-good attribute mappings for common IdP providers.
     These presets help configure attribute mapping correctly for:
@@ -741,46 +740,5 @@ def get_unbound_domains(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return saml_service.get_unbound_domains(requesting_user)
-    except ServiceError as exc:
-        raise translate_to_http_exception(exc)
-
-
-# =============================================================================
-# Authentication Routing Endpoints (Phase 3)
-# =============================================================================
-
-
-@router.post("/auth/check-email", response_model=EmailCheckResponse)
-def check_email_auth_route(
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    check_request: EmailCheckRequest,
-):
-    """
-    Determine authentication route for an email address.
-
-    No authentication required (used on login page).
-
-    This is the first step of the email-first login flow. Based on the
-    email address, returns whether the user should:
-    - Show password form (route_type: "password")
-    - Redirect to IdP (route_type: "idp" or "idp_jit")
-    - Show error (route_type: "not_found", "inactivated", etc.)
-
-    Request body:
-    - email: Email address to check
-
-    Returns:
-    - route_type: The authentication route
-    - idp_id: IdP UUID if route_type is "idp" or "idp_jit"
-    - idp_name: IdP display name if available
-    """
-    try:
-        result = saml_service.determine_auth_route(tenant_id, check_request.email)
-        # Return public-facing response (without user_id)
-        return EmailCheckResponse(
-            route_type=result.route_type,
-            idp_id=result.idp_id,
-            idp_name=result.idp_name,
-        )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

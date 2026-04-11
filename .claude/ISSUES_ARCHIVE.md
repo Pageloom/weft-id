@@ -5,6 +5,21 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] User Enumeration: Unauthenticated check-email API without rate limiting
+
+**Status:** Resolved (2026-04-11)
+**Found in:** `app/routers/api/v1/saml.py:753-786`
+**Severity:** Medium
+**Fix:** Removed the `POST /api/v1/saml/auth/check-email` endpoint entirely. It had no
+legitimate external consumer. The web login flow calls the `determine_auth_route()` service
+function directly and collapses response states to prevent information leakage. Also removed
+the `EmailCheckRequest` and `EmailCheckResponse` schemas. Additionally, added auth
+(`require_super_admin_api`) to the `GET /api/v1/saml/provider-presets/{provider_type}`
+endpoint which was also unauthenticated. Added a new `api-auth` compliance check that flags
+any API route handler in `app/routers/api/` without an authentication dependency.
+
+---
+
 ### [SECURITY] Privilege Escalation: Admin can create super_admin B2B OAuth2 client
 
 **Status:** Resolved (2026-04-11)

@@ -629,11 +629,11 @@ def test_import_idp_from_xml_missing_fields(client, test_tenant_host, oauth2_sup
 # =============================================================================
 
 
-def test_get_provider_presets_okta(client, test_tenant_host):
-    """Get Okta provider presets (no auth required)."""
+def test_get_provider_presets_okta(client, test_tenant_host, oauth2_super_admin_header):
+    """Get Okta provider presets."""
     response = client.get(
         "/api/v1/saml/provider-presets/okta",
-        headers={"Host": test_tenant_host},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
     )
 
     assert response.status_code == 200
@@ -646,11 +646,11 @@ def test_get_provider_presets_okta(client, test_tenant_host):
     assert "setup_guide_url" in data
 
 
-def test_get_provider_presets_azure_ad(client, test_tenant_host):
+def test_get_provider_presets_azure_ad(client, test_tenant_host, oauth2_super_admin_header):
     """Get Azure AD provider presets with full URN claim names."""
     response = client.get(
         "/api/v1/saml/provider-presets/azure_ad",
-        headers={"Host": test_tenant_host},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
     )
 
     assert response.status_code == 200
@@ -660,11 +660,11 @@ def test_get_provider_presets_azure_ad(client, test_tenant_host):
     assert "setup_guide_url" in data
 
 
-def test_get_provider_presets_google(client, test_tenant_host):
+def test_get_provider_presets_google(client, test_tenant_host, oauth2_super_admin_header):
     """Get Google provider presets."""
     response = client.get(
         "/api/v1/saml/provider-presets/google",
-        headers={"Host": test_tenant_host},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
     )
 
     assert response.status_code == 200
@@ -674,11 +674,11 @@ def test_get_provider_presets_google(client, test_tenant_host):
     assert "setup_guide_url" in data
 
 
-def test_get_provider_presets_generic(client, test_tenant_host):
+def test_get_provider_presets_generic(client, test_tenant_host, oauth2_super_admin_header):
     """Get generic provider presets (fallback)."""
     response = client.get(
         "/api/v1/saml/provider-presets/generic",
-        headers={"Host": test_tenant_host},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
     )
 
     assert response.status_code == 200
@@ -686,14 +686,24 @@ def test_get_provider_presets_generic(client, test_tenant_host):
     assert data["provider_type"] == "generic"
 
 
-def test_get_provider_presets_unknown(client, test_tenant_host):
+def test_get_provider_presets_unknown(client, test_tenant_host, oauth2_super_admin_header):
     """Unknown provider type returns 404."""
     response = client.get(
         "/api/v1/saml/provider-presets/unknown_provider",
-        headers={"Host": test_tenant_host},
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
     )
 
     assert response.status_code == 404
+
+
+def test_get_provider_presets_unauthenticated(client, test_tenant_host):
+    """Provider presets requires authentication."""
+    response = client.get(
+        "/api/v1/saml/provider-presets/okta",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 401
 
 
 # =============================================================================
@@ -1015,117 +1025,6 @@ def test_get_unbound_domains_excludes_bound(
 
 
 # =============================================================================
-# Email Auth Routing API Tests (Phase 3)
-# =============================================================================
-
-
-def test_check_email_auth_route_user_not_found(client, test_tenant_host):
-    """Check auth route for non-existent user."""
-    response = client.post(
-        "/api/v1/saml/auth/check-email",
-        headers={"Host": test_tenant_host},
-        json={"email": "nonexistent@example.com"},
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["route_type"] == "not_found"
-    assert data["idp_id"] is None
-
-
-def test_check_email_auth_route_password_user(client, test_tenant_host, test_user):
-    """Check auth route for user with password."""
-    import database.user_emails
-
-    # Get the user's email
-    emails = database.user_emails.list_user_emails(test_user["tenant_id"], str(test_user["id"]))
-    user_email = emails[0]["email"]
-
-    response = client.post(
-        "/api/v1/saml/auth/check-email",
-        headers={"Host": test_tenant_host},
-        json={"email": user_email},
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["route_type"] == "password"
-    assert data["idp_id"] is None
-
-
-def test_check_email_auth_route_idp_user(
-    client, test_tenant_host, test_user, created_idp, oauth2_super_admin_header
-):
-    """Check auth route for user assigned to IdP."""
-    import database
-    import database.user_emails
-
-    # Assign user to IdP
-    database.execute(
-        test_user["tenant_id"],
-        "UPDATE users SET saml_idp_id = :idp_id WHERE id = :user_id",
-        {"idp_id": created_idp["id"], "user_id": test_user["id"]},
-    )
-
-    # Get the user's email
-    emails = database.user_emails.list_user_emails(test_user["tenant_id"], str(test_user["id"]))
-    user_email = emails[0]["email"]
-
-    response = client.post(
-        "/api/v1/saml/auth/check-email",
-        headers={"Host": test_tenant_host},
-        json={"email": user_email},
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["route_type"] == "idp"
-    assert data["idp_id"] == created_idp["id"]
-    assert data["idp_name"] == created_idp["name"]
-
-    # Clean up
-    database.execute(
-        test_user["tenant_id"],
-        "UPDATE users SET saml_idp_id = NULL WHERE id = :user_id",
-        {"user_id": test_user["id"]},
-    )
-
-
-def test_check_email_auth_route_inactivated_user(client, test_tenant_host, test_user):
-    """Check auth route for inactivated user."""
-    import database
-    import database.user_emails
-
-    # Inactivate user
-    database.execute(
-        test_user["tenant_id"],
-        "UPDATE users SET is_inactivated = true WHERE id = :user_id",
-        {"user_id": test_user["id"]},
-    )
-
-    # Get the user's email
-    emails = database.user_emails.list_user_emails(test_user["tenant_id"], str(test_user["id"]))
-    user_email = emails[0]["email"]
-
-    response = client.post(
-        "/api/v1/saml/auth/check-email",
-        headers={"Host": test_tenant_host},
-        json={"email": user_email},
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["route_type"] == "inactivated"
-
-    # Clean up
-    database.execute(
-        test_user["tenant_id"],
-        "UPDATE users SET is_inactivated = false WHERE id = :user_id",
-        {"user_id": test_user["id"]},
-    )
-
-
-# =============================================================================
 # ServiceError Handler Coverage
 # =============================================================================
 
@@ -1332,20 +1231,5 @@ class TestSamlApiServiceErrors:
             response = client.get(
                 f"/api/v1/saml/idps/{fake_id}/sp-certificate",
                 headers={"Host": test_tenant_host, **oauth2_super_admin_header},
-            )
-        assert response.status_code == 500
-
-    def test_check_email_service_error(self, client, test_tenant_host):
-        """check_email_auth_route returns 500 on ServiceError."""
-        from services.exceptions import ServiceError
-
-        with patch(
-            "routers.api.v1.saml.saml_service.determine_auth_route",
-            side_effect=ServiceError(message="Routing error", code="route_error"),
-        ):
-            response = client.post(
-                "/api/v1/saml/auth/check-email",
-                headers={"Host": test_tenant_host},
-                json={"email": "test@example.com"},
             )
         assert response.status_code == 500

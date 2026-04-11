@@ -336,9 +336,9 @@ def test_apps_create_non_admin_redirects(test_user, override_auth):
 # =============================================================================
 
 
-def test_b2b_list_renders(test_admin_user, override_auth, mocker):
+def test_b2b_list_renders(test_super_admin_user, override_auth, mocker):
     """Test B2B list page renders successfully."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_all_clients")
     mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
@@ -352,10 +352,21 @@ def test_b2b_list_renders(test_admin_user, override_auth, mocker):
     response = client.get("/admin/integrations/b2b")
 
     assert response.status_code == 200
-    mock_get.assert_called_once_with(str(test_admin_user["tenant_id"]), client_type="b2b")
+    mock_get.assert_called_once_with(str(test_super_admin_user["tenant_id"]), client_type="b2b")
     mock_tmpl.assert_called_once()
     template_name = mock_tmpl.call_args[0][1]
     assert template_name == "integrations_b2b.html"
+
+
+def test_b2b_list_admin_redirects(test_admin_user, override_auth):
+    """Test admin user gets redirected from B2B list (requires super_admin)."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.get("/admin/integrations/b2b", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
 
 
 def test_b2b_list_non_admin_redirects(test_user, override_auth):
@@ -374,9 +385,9 @@ def test_b2b_list_non_admin_redirects(test_user, override_auth):
 # =============================================================================
 
 
-def test_b2b_create_success(test_admin_user, override_auth, mocker):
+def test_b2b_create_success(test_super_admin_user, override_auth, mocker):
     """Test creating a B2B client succeeds."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_client = {
         "id": str(uuid4()),
@@ -411,17 +422,17 @@ def test_b2b_create_success(test_admin_user, override_auth, mocker):
     assert "success=created" in response.headers["location"]
 
     mock_create.assert_called_once_with(
-        tenant_id=str(test_admin_user["tenant_id"]),
+        tenant_id=str(test_super_admin_user["tenant_id"]),
         name="New B2B Client",
         role="admin",
-        created_by=str(test_admin_user["id"]),
+        created_by=str(test_super_admin_user["id"]),
         description=None,
     )
 
 
-def test_b2b_create_with_description(test_admin_user, override_auth, mocker):
+def test_b2b_create_with_description(test_super_admin_user, override_auth, mocker):
     """Test creating a B2B client with description passes it through."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_client = {
         "id": str(uuid4()),
@@ -456,9 +467,9 @@ def test_b2b_create_with_description(test_admin_user, override_auth, mocker):
     assert mock_create.call_args[1]["description"] == "Service for syncing"
 
 
-def test_b2b_create_empty_name_redirects_with_error(test_admin_user, override_auth):
+def test_b2b_create_empty_name_redirects_with_error(test_super_admin_user, override_auth):
     """Test creating a B2B client with empty name returns error."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     client = TestClient(app)
     response = client.post(
@@ -476,9 +487,9 @@ def test_b2b_create_empty_name_redirects_with_error(test_admin_user, override_au
     assert "error=name_required" in response.headers["location"]
 
 
-def test_b2b_create_invalid_role_redirects_with_error(test_admin_user, override_auth):
+def test_b2b_create_invalid_role_redirects_with_error(test_super_admin_user, override_auth):
     """Test creating a B2B client with invalid role returns error."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     client = TestClient(app)
     response = client.post(
@@ -496,9 +507,9 @@ def test_b2b_create_invalid_role_redirects_with_error(test_admin_user, override_
     assert "error=invalid_role" in response.headers["location"]
 
 
-def test_b2b_create_service_error(test_admin_user, override_auth, mocker):
+def test_b2b_create_service_error(test_super_admin_user, override_auth, mocker):
     """Test that service errors during B2B creation are handled gracefully."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     from services.exceptions import ValidationError
 
@@ -569,9 +580,9 @@ def test_apps_list_pops_pending_credentials(test_admin_user, override_auth, mock
     assert "pending_credentials" in ctx_kwargs
 
 
-def test_b2b_list_pops_pending_credentials(test_admin_user, override_auth, mocker):
+def test_b2b_list_pops_pending_credentials(test_super_admin_user, override_auth, mocker):
     """Test that B2B list page pops pending credentials from session."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_all_clients")
     mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
@@ -875,9 +886,9 @@ def test_app_reactivate_success(test_admin_user, override_auth, mocker):
 # =============================================================================
 
 
-def test_b2b_detail_renders(test_admin_user, override_auth, mocker):
+def test_b2b_detail_renders(test_super_admin_user, override_auth, mocker):
     """Test B2B detail page renders successfully."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_client = {
         "id": str(uuid4()),
@@ -909,9 +920,9 @@ def test_b2b_detail_renders(test_admin_user, override_auth, mocker):
     assert template_name == "integrations_b2b_detail.html"
 
 
-def test_b2b_detail_not_found_redirects(test_admin_user, override_auth, mocker):
+def test_b2b_detail_not_found_redirects(test_super_admin_user, override_auth, mocker):
     """Test B2B detail page redirects when client not found."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
     mock_get.return_value = None
@@ -928,9 +939,9 @@ def test_b2b_detail_not_found_redirects(test_admin_user, override_auth, mocker):
 # =============================================================================
 
 
-def test_b2b_edit_success(test_admin_user, override_auth, mocker):
+def test_b2b_edit_success(test_super_admin_user, override_auth, mocker):
     """Test editing a B2B client succeeds."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_updated = {
         "id": str(uuid4()),
@@ -967,9 +978,9 @@ def test_b2b_edit_success(test_admin_user, override_auth, mocker):
 # =============================================================================
 
 
-def test_b2b_role_change_success(test_admin_user, override_auth, mocker):
+def test_b2b_role_change_success(test_super_admin_user, override_auth, mocker):
     """Test changing B2B client role succeeds."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_updated = {
         "id": str(uuid4()),
@@ -1001,9 +1012,9 @@ def test_b2b_role_change_success(test_admin_user, override_auth, mocker):
     assert "success=role_changed" in response.headers["location"]
 
 
-def test_b2b_role_change_invalid_role(test_admin_user, override_auth):
+def test_b2b_role_change_invalid_role(test_super_admin_user, override_auth):
     """Test changing to invalid role returns error."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     client = TestClient(app)
     response = client.post(
@@ -1024,9 +1035,9 @@ def test_b2b_role_change_invalid_role(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_b2b_regenerate_secret_success(test_admin_user, override_auth, mocker):
+def test_b2b_regenerate_secret_success(test_super_admin_user, override_auth, mocker):
     """Test regenerating B2B client secret succeeds."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_client = {
         "id": str(uuid4()),
@@ -1056,9 +1067,9 @@ def test_b2b_regenerate_secret_success(test_admin_user, override_auth, mocker):
     assert "success=secret_regenerated" in response.headers["location"]
 
 
-def test_b2b_deactivate_success(test_admin_user, override_auth, mocker):
+def test_b2b_deactivate_success(test_super_admin_user, override_auth, mocker):
     """Test deactivating a B2B client succeeds."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_deactivated = {
         "id": str(uuid4()),
@@ -1083,9 +1094,9 @@ def test_b2b_deactivate_success(test_admin_user, override_auth, mocker):
     assert "success=deactivated" in response.headers["location"]
 
 
-def test_b2b_reactivate_success(test_admin_user, override_auth, mocker):
+def test_b2b_reactivate_success(test_super_admin_user, override_auth, mocker):
     """Test reactivating a B2B client succeeds."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_reactivated = {
         "id": str(uuid4()),
@@ -1199,9 +1210,9 @@ def test_app_reactivate_not_found(test_admin_user, override_auth, mocker):
     assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_edit_empty_name(test_admin_user, override_auth):
+def test_b2b_edit_empty_name(test_super_admin_user, override_auth):
     """Test editing B2B client with empty name returns error."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     client = TestClient(app)
     response = client.post(
@@ -1218,9 +1229,9 @@ def test_b2b_edit_empty_name(test_admin_user, override_auth):
     assert "error=name_required" in response.headers["location"]
 
 
-def test_b2b_edit_not_found(test_admin_user, override_auth, mocker):
+def test_b2b_edit_not_found(test_super_admin_user, override_auth, mocker):
     """Test editing B2B client that returns None redirects with not_found error."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
     mock_update.return_value = None
@@ -1240,9 +1251,9 @@ def test_b2b_edit_not_found(test_admin_user, override_auth, mocker):
     assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_edit_service_error(test_admin_user, override_auth, mocker):
+def test_b2b_edit_service_error(test_super_admin_user, override_auth, mocker):
     """Test editing B2B client when service raises error."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     from services.exceptions import ServiceError
 
@@ -1264,9 +1275,9 @@ def test_b2b_edit_service_error(test_admin_user, override_auth, mocker):
     assert "error=update_failed" in response.headers["location"]
 
 
-def test_b2b_role_change_not_found(test_admin_user, override_auth, mocker):
+def test_b2b_role_change_not_found(test_super_admin_user, override_auth, mocker):
     """Test role change for B2B client that returns None."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_b2b_client_role")
     mock_update.return_value = None
@@ -1285,9 +1296,9 @@ def test_b2b_role_change_not_found(test_admin_user, override_auth, mocker):
     assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_role_change_service_error(test_admin_user, override_auth, mocker):
+def test_b2b_role_change_service_error(test_super_admin_user, override_auth, mocker):
     """Test role change when service raises error."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     from services.exceptions import ServiceError
 
@@ -1308,9 +1319,9 @@ def test_b2b_role_change_service_error(test_admin_user, override_auth, mocker):
     assert "error=role_change_failed" in response.headers["location"]
 
 
-def test_b2b_regenerate_secret_wrong_type(test_admin_user, override_auth, mocker):
+def test_b2b_regenerate_secret_wrong_type(test_super_admin_user, override_auth, mocker):
     """Test regenerating secret for B2B client that's actually normal type."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_client = {
         "id": str(uuid4()),
@@ -1338,9 +1349,9 @@ def test_b2b_regenerate_secret_wrong_type(test_admin_user, override_auth, mocker
     assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_regenerate_secret_not_found(test_admin_user, override_auth, mocker):
+def test_b2b_regenerate_secret_not_found(test_super_admin_user, override_auth, mocker):
     """Test regenerating secret for non-existent B2B client."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
     mock_get.return_value = None
@@ -1356,9 +1367,9 @@ def test_b2b_regenerate_secret_not_found(test_admin_user, override_auth, mocker)
     assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_deactivate_not_found(test_admin_user, override_auth, mocker):
+def test_b2b_deactivate_not_found(test_super_admin_user, override_auth, mocker):
     """Test deactivating non-existent B2B client."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_deact = mocker.patch(f"{SERVICES_OAUTH2}.deactivate_client")
     mock_deact.return_value = None
@@ -1374,9 +1385,9 @@ def test_b2b_deactivate_not_found(test_admin_user, override_auth, mocker):
     assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_reactivate_not_found(test_admin_user, override_auth, mocker):
+def test_b2b_reactivate_not_found(test_super_admin_user, override_auth, mocker):
     """Test reactivating non-existent B2B client."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_react = mocker.patch(f"{SERVICES_OAUTH2}.reactivate_client")
     mock_react.return_value = None
@@ -1392,9 +1403,9 @@ def test_b2b_reactivate_not_found(test_admin_user, override_auth, mocker):
     assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_detail_wrong_type(test_admin_user, override_auth, mocker):
+def test_b2b_detail_wrong_type(test_super_admin_user, override_auth, mocker):
     """Test B2B detail page redirects when client is normal type."""
-    override_auth(test_admin_user, level="admin")
+    override_auth(test_super_admin_user, level="super_admin")
 
     mock_client = {
         "id": str(uuid4()),

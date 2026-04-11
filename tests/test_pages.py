@@ -418,7 +418,7 @@ def test_integrations_b2b_page_exists():
     page = get_page_by_path("/admin/integrations/b2b")
     assert page is not None
     assert page.title == "B2B"
-    assert page.permission == PagePermission.ADMIN
+    assert page.permission == PagePermission.SUPER_ADMIN
     assert page.show_in_nav is True
 
 
@@ -430,10 +430,10 @@ def test_integrations_page_access_member():
 
 
 def test_integrations_page_access_admin():
-    """Test that admins can access integration pages."""
+    """Test that admins can access integration pages (except B2B)."""
     assert has_page_access("/admin/integrations", "admin")
     assert has_page_access("/admin/integrations/apps", "admin")
-    assert has_page_access("/admin/integrations/b2b", "admin")
+    assert not has_page_access("/admin/integrations/b2b", "admin")
 
 
 def test_integrations_page_access_super_admin():

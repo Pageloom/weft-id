@@ -570,7 +570,7 @@ PAGES = [
                     Page(
                         path="/admin/integrations/b2b",
                         title="B2B",
-                        permission=PagePermission.ADMIN,
+                        permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=True,
                         docs_path="/docs/admin-guide/integrations/b2b/",
                     ),

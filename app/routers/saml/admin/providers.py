@@ -469,6 +469,34 @@ def edit_idp_name(
 
 
 @router.post(
+    "/admin/settings/identity-providers/{idp_id}/edit-slo-url",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_idp_slo_url(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+    slo_url: Annotated[str, Form()] = "",
+):
+    """Update IdP SLO URL (inline edit from details tab)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.update_identity_provider(
+            requesting_user, idp_id, IdPUpdate(slo_url=slo_url.strip())
+        )
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
+        )
+
+    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details?success=updated", status_code=303)
+
+
+@router.post(
     "/admin/settings/identity-providers/{idp_id}/edit-settings",
     dependencies=[Depends(require_super_admin)],
 )
@@ -515,6 +543,41 @@ def edit_idp_settings(
     return RedirectResponse(
         url=f"{IDP_LIST_URL}/{idp_id}/details?success=settings_updated", status_code=303
     )
+
+
+@router.post(
+    "/admin/settings/identity-providers/{idp_id}/verbose-logging",
+    dependencies=[Depends(require_super_admin)],
+)
+def toggle_verbose_logging(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+    action: Annotated[str, Form()],
+):
+    """Enable or disable verbose assertion logging for an IdP."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        if action == "enable":
+            saml_service.enable_verbose_logging(requesting_user, idp_id)
+            return RedirectResponse(
+                url=f"{IDP_LIST_URL}/{idp_id}/details?success=verbose_logging_enabled",
+                status_code=303,
+            )
+        else:
+            saml_service.disable_verbose_logging(requesting_user, idp_id)
+            return RedirectResponse(
+                url=f"{IDP_LIST_URL}/{idp_id}/details?success=verbose_logging_disabled",
+                status_code=303,
+            )
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
+        )
 
 
 @router.post(

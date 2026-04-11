@@ -67,6 +67,8 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "saml_idp_disabled": "SAML identity provider disabled",
     "saml_idp_set_default": "SAML identity provider set as default",
     "saml_idp_metadata_refreshed": "SAML IdP metadata refreshed from URL",
+    "saml_idp_verbose_logging_enabled": "Verbose assertion logging enabled for IdP",
+    "saml_idp_verbose_logging_disabled": "Verbose assertion logging disabled for IdP",
     "idp_certificate_added": "Deprecated: IdP certificate added manually",
     "idp_certificate_activated": "Deprecated: IdP certificate activation",
     "idp_certificate_deactivated": "Deprecated: IdP certificate deactivation",
@@ -162,6 +164,12 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # SAML IdP / SSO
     "sso_assertion_issued": "SAML SSO assertion issued to downstream service provider",
     "sso_consent_denied": "User denied SSO consent for downstream service provider",
+    "assertion_preview_viewed": (
+        "Super admin previewed assertion attributes for user and service provider"
+    ),
+    # SAML Verbose Assertion Logging
+    "saml_assertion_received": "SAML assertion received from upstream IdP (verbose mode)",
+    "saml_assertion_failed": "SAML assertion failed from upstream IdP (verbose mode)",
     # SAML IdP / SLO
     "slo_sp_initiated": "SP-initiated single logout processed",
     "slo_idp_propagated": "Logout propagated to downstream service providers",
@@ -254,6 +262,8 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "saml_idp_disabled": "admin",
     "saml_idp_set_default": "admin",
     "saml_idp_metadata_refreshed": "admin",
+    "saml_idp_verbose_logging_enabled": "admin",
+    "saml_idp_verbose_logging_disabled": "admin",
     "saml_idp_trust_established": "admin",
     "saml_idp_sp_certificate_created": "admin",
     "saml_idp_sp_certificate_rotated": "admin",
@@ -303,6 +313,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "sp_logo_uploaded": "admin",
     "sp_logo_removed": "admin",
     "sso_consent_denied": "admin",
+    "assertion_preview_viewed": "admin",
     # Operational tier
     "sso_assertion_issued": "operational",
     "slo_sp_initiated": "operational",
@@ -313,6 +324,8 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "idp_group_member_added": "operational",
     "idp_group_member_removed": "operational",
     "idp_group_relationship_created": "operational",
+    "saml_assertion_received": "operational",
+    "saml_assertion_failed": "operational",
     "domain_group_auto_assigned": "operational",
     "saml_idp_sp_certificate_auto_rotated": "operational",
     "saml_idp_sp_certificate_cleanup_completed": "operational",

@@ -25,7 +25,8 @@ def store_saml_debug_entry(
     saml_response_b64: str | None = None,
     request_ip: str | None = None,
     user_agent: str | None = None,
-) -> None:
+    verbose_event_logging: bool = False,
+) -> str | None:
     """
     Store a SAML authentication failure for debugging.
 
@@ -43,6 +44,10 @@ def store_saml_debug_entry(
         saml_response_b64: Raw base64-encoded SAML response
         request_ip: Client IP address
         user_agent: Client user agent
+        verbose_event_logging: When True, also log a saml_assertion_failed event
+
+    Returns:
+        Debug entry ID string, or None on failure.
     """
     # Try to decode the XML for easier viewing
     saml_response_xml = None
@@ -53,7 +58,7 @@ def store_saml_debug_entry(
             pass  # Keep XML as None if decoding fails
 
     try:
-        database.saml.store_debug_entry(
+        entry = database.saml.store_debug_entry(
             tenant_id=tenant_id,
             tenant_id_value=tenant_id,
             error_type=error_type,
@@ -65,9 +70,33 @@ def store_saml_debug_entry(
             request_ip=request_ip,
             user_agent=user_agent,
         )
+        debug_entry_id = str(entry["id"]) if entry else None
+
+        if verbose_event_logging and debug_entry_id and idp_id:
+            try:
+                from services.event_log import SYSTEM_ACTOR_ID, log_event
+
+                log_event(
+                    tenant_id=tenant_id,
+                    actor_user_id=SYSTEM_ACTOR_ID,
+                    artifact_type="saml_identity_provider",
+                    artifact_id=idp_id,
+                    event_type="saml_assertion_failed",
+                    metadata={
+                        "idp_name": idp_name,
+                        "error_type": error_type,
+                        "error_detail": error_detail[:500] if error_detail else None,
+                        "debug_entry_id": debug_entry_id,
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log verbose assertion failure event: {e}")
+
+        return debug_entry_id
     except Exception as e:
         # Don't let debug storage failures affect authentication
         logger.warning(f"Failed to store SAML debug entry: {e}")
+        return None
 
 
 def list_saml_debug_entries(

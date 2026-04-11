@@ -7,10 +7,13 @@ and building signed SAML responses.
 import logging
 
 import database
-from schemas.service_providers import SPConfig
+from schemas.service_providers import AssertionPreview, SPConfig
+from services.activity import track_activity
+from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.service_providers._converters import _row_to_config
+from services.types import RequestingUser
 from utils.saml_idp import make_idp_entity_id
 
 logger = logging.getLogger(__name__)
@@ -249,3 +252,121 @@ def build_sso_response(
     )
 
     return saml_response_b64, sp_row["acs_url"], session_index
+
+
+def preview_assertion(
+    requesting_user: RequestingUser,
+    sp_id: str,
+    target_user_id: str,
+) -> AssertionPreview:
+    """Preview what a SAML assertion would contain for a user + SP pair.
+
+    Reuses the same attribute building, group resolution, and NameID logic
+    as build_sso_response(), but does not build, sign, or encrypt XML.
+
+    Authorization: Requires super_admin role.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # 1. Look up SP
+    sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if sp_row is None:
+        raise NotFoundError(message="Service provider not found", code="sp_not_found")
+
+    # 2. Look up target user
+    user = database.users.get_user_by_id(tenant_id, target_user_id)
+    if user is None:
+        raise NotFoundError(message="User not found", code="user_not_found")
+
+    primary_email_row = database.user_emails.get_primary_email(tenant_id, target_user_id)
+    if primary_email_row is None:
+        raise ValidationError(message="User has no primary email", code="user_no_email")
+
+    email = primary_email_row["email"]
+    first_name = user.get("first_name", "")
+    last_name = user.get("last_name", "")
+
+    # 3. Build user attributes (same logic as build_sso_response)
+    sp_id_str = str(sp_row["id"])
+    user_attributes: dict[str, str | list[str]] = {
+        "email": email,
+        "firstName": first_name,
+        "lastName": last_name,
+        "displayName": f"{first_name} {last_name}".strip(),
+    }
+
+    # 4. Compute group claims
+    group_names = get_groups_for_assertion(tenant_id, target_user_id, sp_id_str, sp_row)
+    if group_names:
+        user_attributes["groups"] = group_names
+
+    # 5. Resolve NameID
+    from services.service_providers.nameid import resolve_name_id
+
+    name_id_format = sp_row.get(
+        "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+    )
+    name_id, resolved_format = resolve_name_id(
+        tenant_id=tenant_id,
+        user_id=target_user_id,
+        sp_id=sp_id_str,
+        nameid_format=name_id_format,
+        user_email=email,
+    )
+
+    # 6. Apply per-SP attribute mapping (for display)
+    attribute_mapping = sp_row.get("attribute_mapping")
+
+    # 7. Check access
+    from services.service_providers.group_assignments import check_user_sp_access
+
+    has_access = bool(sp_row.get("available_to_all", False)) or check_user_sp_access(
+        tenant_id, target_user_id, sp_id_str
+    )
+
+    # 8. Encryption status
+    encryption_cert = sp_row.get("encryption_certificate_pem")
+    assertion_encrypted = encryption_cert is not None
+    encryption_algorithm = (
+        sp_row.get("assertion_encryption_algorithm", "aes256-cbc") if assertion_encrypted else None
+    )
+
+    # 9. Group assertion scope
+    scope = sp_row.get("group_assertion_scope") or (
+        database.security.get_group_assertion_scope(tenant_id) or "access_relevant"
+    )
+
+    # 10. Log event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="service_provider",
+        artifact_id=sp_id_str,
+        event_type="assertion_preview_viewed",
+        metadata={
+            "sp_name": sp_row["name"],
+            "target_user_id": target_user_id,
+            "target_user_email": email,
+        },
+    )
+
+    return AssertionPreview(
+        user_id=target_user_id,
+        user_email=email,
+        user_first_name=first_name,
+        user_last_name=last_name,
+        name_id=name_id,
+        name_id_format=resolved_format,
+        attributes=user_attributes,
+        attribute_mapping=attribute_mapping,
+        group_names=group_names,
+        group_assertion_scope=scope,
+        has_access=has_access,
+        assertion_encrypted=assertion_encrypted,
+        encryption_algorithm=encryption_algorithm,
+        sp_name=sp_row["name"],
+        sp_entity_id=sp_row.get("entity_id"),
+    )

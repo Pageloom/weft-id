@@ -34,13 +34,15 @@ def store_saml_debug_and_respond(
     saml_response_b64: str | None,
     idp_id: str | None = None,
     idp_name: str | None = None,
+    verbose_event_logging: bool = False,
 ) -> Response:
     """
     Store a SAML debug entry and return an error template response.
 
     This is a helper that:
     1. Stores the debug entry for super admin review
-    2. Returns the appropriate error page to the user
+    2. Optionally logs a verbose assertion failure event
+    3. Returns the appropriate error page to the user
     """
     # Get request metadata for debug entry
     request_ip = request.client.host if request.client else None
@@ -56,6 +58,7 @@ def store_saml_debug_and_respond(
         saml_response_b64=saml_response_b64,
         request_ip=request_ip,
         user_agent=user_agent,
+        verbose_event_logging=verbose_event_logging,
     )
 
     # Decode XML for display in dev mode

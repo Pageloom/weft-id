@@ -257,7 +257,9 @@ def update_identity_provider(
             code="idp_not_found",
         )
 
-    # Build update kwargs from non-None fields
+    # Build update kwargs from non-None fields.
+    # For slo_url, empty string means "clear" (set to NULL in database).
+    nullable_url_fields = {"slo_url"}
     update_kwargs: dict[str, Any] = {}
     for field in [
         "name",
@@ -271,7 +273,11 @@ def update_identity_provider(
     ]:
         value = getattr(data, field, None)
         if value is not None:
-            update_kwargs[field] = value
+            # Convert empty strings to None for nullable URL fields
+            if field in nullable_url_fields and isinstance(value, str) and not value:
+                update_kwargs[field] = None
+            else:
+                update_kwargs[field] = value
 
     if not update_kwargs:
         return idp_row_to_config(existing)
@@ -578,6 +584,81 @@ def set_idp_default(
         artifact_id=idp_id,
         event_type="saml_idp_set_default",
         metadata={"name": existing["name"]},
+    )
+
+    return idp_row_to_config(row)
+
+
+# ============================================================================
+# Verbose Assertion Logging
+# ============================================================================
+
+
+def enable_verbose_logging(
+    requesting_user: RequestingUser,
+    idp_id: str,
+) -> IdPConfig:
+    """Enable verbose assertion logging for an IdP. Auto-expires after 24 hours.
+
+    Authorization: Requires super_admin role.
+    """
+    require_super_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.saml.get_identity_provider(tenant_id, idp_id)
+    if existing is None:
+        raise NotFoundError(message="Identity provider not found", code="idp_not_found")
+
+    from datetime import UTC, datetime
+
+    row = database.saml.set_verbose_logging(tenant_id, idp_id, datetime.now(UTC))
+    if row is None:
+        raise ValidationError(
+            message="Failed to enable verbose logging",
+            code="verbose_logging_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="saml_identity_provider",
+        artifact_id=idp_id,
+        event_type="saml_idp_verbose_logging_enabled",
+        metadata={"idp_name": existing["name"]},
+    )
+
+    return idp_row_to_config(row)
+
+
+def disable_verbose_logging(
+    requesting_user: RequestingUser,
+    idp_id: str,
+) -> IdPConfig:
+    """Disable verbose assertion logging for an IdP.
+
+    Authorization: Requires super_admin role.
+    """
+    require_super_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.saml.get_identity_provider(tenant_id, idp_id)
+    if existing is None:
+        raise NotFoundError(message="Identity provider not found", code="idp_not_found")
+
+    row = database.saml.set_verbose_logging(tenant_id, idp_id, None)
+    if row is None:
+        raise ValidationError(
+            message="Failed to disable verbose logging",
+            code="verbose_logging_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="saml_identity_provider",
+        artifact_id=idp_id,
+        event_type="saml_idp_verbose_logging_disabled",
+        metadata={"idp_name": existing["name"]},
     )
 
     return idp_row_to_config(row)

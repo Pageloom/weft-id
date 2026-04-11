@@ -230,9 +230,16 @@
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SSO URL</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ idp.sso_url }}</dd>
         </div>
-        <div>
-            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SLO URL</dt>
-            <dd class="mt-1 text-sm text-gray-{% if idp.slo_url %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ idp.slo_url or 'Not configured' }}</dd>
+        <div class="flex items-start justify-between">
+            <div class="min-w-0 flex-1">
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SLO URL</dt>
+                <dd class="mt-1 text-sm text-gray-{% if idp.slo_url %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ idp.slo_url or 'Not configured' }}</dd>
+            </div>
+            <button type="button" id="edit-slo-btn"
+                    class="ml-2 mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                    title="Edit SLO URL">
+                {{ icon("pencil", class="w-4 h-4") }}
+            </button>
         </div>
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>
@@ -325,6 +332,49 @@
     </p>
 </div>
 
+{# Verbose Assertion Logging #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Verbose Assertion Logging</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Temporarily log raw SAML assertions (XML and parsed attributes) for both successful
+        and failed authentications from this IdP. Auto-expires after 24 hours.
+    </p>
+
+    {% if idp.verbose_logging_active %}
+    <div class="flex items-center gap-3 mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+        {{ icon("information-circle", class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0") }}
+        <div>
+            <p class="text-sm font-medium text-amber-800 dark:text-amber-200">Verbose logging is active</p>
+            <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                Enabled {{ fmt_relative(idp.verbose_logging_enabled_at)[0] }}.
+                Assertions are being logged to the audit log and debug entries.
+            </p>
+        </div>
+    </div>
+    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/verbose-logging">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="disable">
+        <button type="submit"
+                class="px-4 py-2 text-sm font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 focus:outline-none focus:ring-2 focus:ring-red-500">
+            Disable Verbose Logging
+        </button>
+    </form>
+    {% else %}
+    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/verbose-logging">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="enable">
+        <button type="submit"
+                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            {{ icon("cursor-arrow-rays", class="w-4 h-4 inline-block mr-2 -mt-0.5") }}
+            Enable Verbose Logging
+        </button>
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Will auto-expire after 24 hours. You must re-enable to extend.
+        </p>
+    </form>
+    {% endif %}
+</div>
+
 {# Domain Bindings #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Domain Bindings</h2>
@@ -397,6 +447,32 @@
         </form>
     </div>
 </div>
+
+{# Edit SLO URL Modal #}
+<div id="edit-slo-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit SLO URL</h3>
+        <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/edit-slo-url">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label for="edit-slo-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Single Logout Service URL</label>
+                <input type="url" id="edit-slo-input" name="slo_url" value="{{ idp.slo_url or '' }}" placeholder="https://idp.example.com/slo"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Leave empty to remove. This is the IdP's logout endpoint for SP-initiated Single Logout.</p>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-slo-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endif %}
 {% endblock %}
 
@@ -443,6 +519,8 @@
     const { idpId } = JSON.parse(document.getElementById('page-data').textContent);
     document.getElementById('edit-name-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-name-modal'); });
     document.getElementById('cancel-name-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-name-modal'); });
+    document.getElementById('edit-slo-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-slo-modal'); });
+    document.getElementById('cancel-slo-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-slo-modal'); });
     document.getElementById('test-connection-btn')?.addEventListener('click', () => {
         window.open(`/admin/settings/identity-providers/${idpId}/test`, 'saml_test', 'width=600,height=700');
     });

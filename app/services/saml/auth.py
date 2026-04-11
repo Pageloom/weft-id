@@ -31,6 +31,87 @@ from utils.saml import build_saml_settings, decrypt_private_key, make_sp_entity_
 logger = logging.getLogger(__name__)
 
 
+def _store_verbose_success(
+    tenant_id: str,
+    idp_id: str,
+    idp_name: str,
+    saml_response_b64: str,
+    attrs: dict,
+) -> None:
+    """Store a debug entry and log an event for a successful verbose assertion.
+
+    Swallows all errors to avoid disrupting the authentication flow.
+    """
+    import base64
+
+    from services.event_log import SYSTEM_ACTOR_ID, log_event
+
+    try:
+        # Decode the XML for storage
+        saml_response_xml = None
+        try:
+            saml_response_xml = base64.b64decode(saml_response_b64).decode("utf-8")
+        except Exception:
+            pass
+
+        entry = database.saml.store_debug_entry(
+            tenant_id=tenant_id,
+            tenant_id_value=tenant_id,
+            error_type="verbose_success",
+            error_detail=None,
+            idp_id=idp_id,
+            idp_name=idp_name,
+            saml_response_b64=saml_response_b64,
+            saml_response_xml=saml_response_xml,
+        )
+
+        debug_entry_id = str(entry["id"]) if entry else None
+
+        # Serialize raw_attributes safely (list values to strings)
+        raw_attrs = {}
+        for k, v in (attrs.get("raw_attributes") or {}).items():
+            raw_attrs[k] = v if isinstance(v, list) else [v]
+
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=SYSTEM_ACTOR_ID,
+            artifact_type="saml_identity_provider",
+            artifact_id=idp_id,
+            event_type="saml_assertion_received",
+            metadata={
+                "idp_name": idp_name,
+                "email": attrs.get("email"),
+                "first_name": attrs.get("first_name"),
+                "last_name": attrs.get("last_name"),
+                "groups": attrs.get("groups", []),
+                "name_id": attrs.get("name_id"),
+                "name_id_format": attrs.get("name_id_format"),
+                "unmapped_attributes": raw_attrs,
+                "debug_entry_id": debug_entry_id,
+            },
+        )
+    except Exception:
+        logger.warning("Failed to store verbose assertion log", exc_info=True)
+
+
+def is_verbose_logging_active(tenant_id: str, idp_id: str) -> bool:
+    """Check if verbose assertion logging is currently active for an IdP.
+
+    No authorization required (used during authentication flow).
+    Returns False on any error to avoid disrupting authentication.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    try:
+        row = database.saml.get_identity_provider(tenant_id, idp_id)
+        if not row or not row.get("verbose_logging_enabled_at"):
+            return False
+        enabled_at = row["verbose_logging_enabled_at"]
+        return bool(enabled_at > datetime.now(UTC) - timedelta(hours=24))
+    except Exception:
+        return False
+
+
 def _prepare_saml_auth(
     tenant_id: str,
     idp_id: str,
@@ -322,6 +403,10 @@ def process_saml_response(
             message="SAML response missing email attribute",
             code="saml_missing_email",
         )
+
+    # Verbose assertion logging (when enabled and not expired)
+    if idp.verbose_logging_active:
+        _store_verbose_success(tenant_id, idp_id, idp.name, saml_response, attrs)
 
     return SAMLAuthResult(
         attributes=SAMLAttributes(

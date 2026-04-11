@@ -12,13 +12,22 @@
         <div class="space-y-3">
             {% for app in accessible_apps.items %}
             <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-md">
-                <div class="flex items-center gap-2">
-                    <a href="/admin/settings/service-providers/{{ app.id }}"
-                       class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">{{ app.name }}</a>
-                    {% if app.available_to_all %}
-                    <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 rounded-full">
-                        Available to all
-                    </span>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <a href="/admin/settings/service-providers/{{ app.id }}"
+                           class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">{{ app.name }}</a>
+                        {% if app.available_to_all %}
+                        <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 rounded-full">
+                            Available to all
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if is_super_admin %}
+                    <button type="button"
+                            class="preview-assertion-btn px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+                            data-sp-id="{{ app.id }}" data-user-id="{{ target_user.id }}">
+                        Preview Assertion
+                    </button>
                     {% endif %}
                 </div>
                 {% if app.description %}
@@ -35,6 +44,8 @@
                     {% endfor %}
                 </div>
                 {% endif %}
+                {# Preview result area (populated via JS) #}
+                <div class="assertion-preview hidden mt-3" data-sp-id="{{ app.id }}"></div>
             </div>
             {% endfor %}
         </div>
@@ -48,4 +59,86 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if is_super_admin and accessible_apps and accessible_apps.items %}
+<script nonce="{{ csp_nonce }}">
+    document.querySelectorAll('.preview-assertion-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const spId = btn.dataset.spId;
+            const userId = btn.dataset.userId;
+            const previewEl = document.querySelector(`.assertion-preview[data-sp-id="${spId}"]`);
+
+            // Toggle off if already visible
+            if (!previewEl.classList.contains('hidden')) {
+                previewEl.classList.add('hidden');
+                btn.textContent = 'Preview Assertion';
+                return;
+            }
+
+            btn.textContent = 'Loading...';
+            btn.disabled = true;
+
+            try {
+                const resp = await WeftUtils.apiFetch(`/api/v1/service-providers/${spId}/assertion-preview/${userId}`);
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    previewEl.innerHTML = `<p class="text-xs text-red-600 dark:text-red-400">${err.detail || 'Failed to load preview'}</p>`;
+                    previewEl.classList.remove('hidden');
+                    return;
+                }
+
+                const data = await resp.json();
+                let attrsHtml = '';
+                for (const [key, val] of Object.entries(data.attributes)) {
+                    const display = Array.isArray(val) ? val.join(', ') : val;
+                    attrsHtml += `<tr><td class="pr-4 py-1 text-xs text-gray-500 dark:text-gray-400 font-mono whitespace-nowrap align-top">${key}</td><td class="py-1 text-xs text-gray-900 dark:text-gray-100 break-all">${display}</td></tr>`;
+                }
+
+                const accessBadge = data.has_access
+                    ? '<span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 rounded-full">Has access</span>'
+                    : '<span class="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300 rounded-full">No access</span>';
+
+                const encBadge = data.assertion_encrypted
+                    ? `<span class="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300 rounded-full">Encrypted (${data.encryption_algorithm})</span>`
+                    : '<span class="px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full">Not encrypted</span>';
+
+                previewEl.innerHTML = `
+                    <div class="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-md p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Assertion Preview (Debug)</span>
+                            <div class="flex gap-1.5">${accessBadge}${encBadge}</div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">NameID</span>
+                                <p class="text-xs font-mono text-gray-900 dark:text-gray-100">${data.name_id}</p>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Format</span>
+                                <p class="text-xs font-mono text-gray-900 dark:text-gray-100">${data.name_id_format}</p>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Group Scope</span>
+                                <p class="text-xs font-mono text-gray-900 dark:text-gray-100">${data.group_assertion_scope}</p>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Attributes</span>
+                            <table class="w-full">${attrsHtml}</table>
+                        </div>
+                    </div>`;
+                previewEl.classList.remove('hidden');
+                btn.textContent = 'Hide Preview';
+            } catch (e) {
+                previewEl.innerHTML = `<p class="text-xs text-red-600 dark:text-red-400">Error: ${e.message}</p>`;
+                previewEl.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    });
+</script>
+{% endif %}
 {% endblock %}

@@ -33,6 +33,7 @@ def idp_row_to_config(row: dict) -> IdPConfig:
         require_platform_mfa=row["require_platform_mfa"],
         jit_provisioning=row["jit_provisioning"],
         trust_established=row.get("trust_established", True),
+        verbose_logging_enabled_at=row.get("verbose_logging_enabled_at"),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

@@ -412,7 +412,10 @@ def update_service_provider(
     if data.acs_url is not None:
         update_fields["acs_url"] = data.acs_url
     if data.slo_url is not None:
-        update_fields["slo_url"] = data.slo_url
+        # Empty string means "clear" (set to NULL)
+        update_fields["slo_url"] = data.slo_url or None
+    elif "slo_url" in data.model_fields_set:
+        update_fields["slo_url"] = None
     if data.nameid_format is not None:
         from constants.nameid_formats import NAMEID_FORMAT_LABELS
 

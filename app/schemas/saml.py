@@ -1,9 +1,9 @@
 """Pydantic schemas for SAML IdP management and authentication."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 # ============================================================================
 # Provider Type Constants
@@ -123,8 +123,17 @@ class IdPConfig(BaseModel):
     require_platform_mfa: bool
     jit_provisioning: bool
     trust_established: bool
+    verbose_logging_enabled_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def verbose_logging_active(self) -> bool:
+        """Whether verbose logging is currently active (enabled within last 24h)."""
+        if self.verbose_logging_enabled_at is None:
+            return False
+        return self.verbose_logging_enabled_at > datetime.now(UTC) - timedelta(hours=24)
 
 
 class IdPListItem(BaseModel):

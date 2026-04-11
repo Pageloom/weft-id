@@ -53,6 +53,7 @@ from database.saml.providers import (
     set_idp_metadata_error,
     set_idp_trust_established,
     set_user_idp,
+    set_verbose_logging,
     update_identity_provider,
     update_idp_metadata_fields,
 )
@@ -94,6 +95,7 @@ __all__ = [
     "get_default_identity_provider",
     "get_user_assigned_idp",
     "set_user_idp",
+    "set_verbose_logging",
     "get_idps_with_metadata_url",
     # domains
     "get_domain_bindings_for_idp",

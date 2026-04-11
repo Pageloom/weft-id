@@ -21,7 +21,8 @@ def list_identity_providers(tenant_id: TenantArg) -> list[dict]:
                certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
-               trust_established, created_by, created_at, updated_at
+               trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
         from saml_identity_providers
         order by created_at desc
         """,
@@ -43,7 +44,8 @@ def get_identity_provider(tenant_id: TenantArg, idp_id: str) -> dict | None:
                certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
-               trust_established, created_by, created_at, updated_at
+               trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
         from saml_identity_providers
         where id = :idp_id
         """,
@@ -65,7 +67,8 @@ def get_identity_provider_by_entity_id(tenant_id: TenantArg, entity_id: str) -> 
                certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
-               trust_established, created_by, created_at, updated_at
+               trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
         from saml_identity_providers
         where entity_id = :entity_id
         """,
@@ -124,7 +127,8 @@ def create_identity_provider(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  trust_established, created_by, created_at, updated_at
+                  trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
         """,
         {
             "tenant_id": tenant_id_value,
@@ -194,15 +198,21 @@ def update_identity_provider(
         "sp_entity_id",
     }
 
+    # Fields that can be explicitly set to NULL (cleared)
+    nullable_fields = {"slo_url"}
+
     set_clauses = []
     params: dict[str, Any] = {"idp_id": idp_id}
 
     for field, value in kwargs.items():
-        if field in allowed_fields and value is not None:
-            if field == "attribute_mapping":
-                value = json.dumps(value)
-            set_clauses.append(f"{field} = :{field}")
-            params[field] = value
+        if field not in allowed_fields:
+            continue
+        if value is None and field not in nullable_fields:
+            continue
+        if field == "attribute_mapping" and value is not None:
+            value = json.dumps(value)
+        set_clauses.append(f"{field} = :{field}")
+        params[field] = value
 
     if not set_clauses:
         # Nothing to update, just return current state
@@ -216,7 +226,8 @@ def update_identity_provider(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  trust_established, created_by, created_at, updated_at
+                  trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
     """
 
     return fetchone(tenant_id, query, params)
@@ -256,7 +267,8 @@ def update_idp_metadata_fields(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  trust_established, created_by, created_at, updated_at
+                  trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
         """,
         {
             "idp_id": idp_id,
@@ -312,7 +324,8 @@ def set_idp_enabled(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  trust_established, created_by, created_at, updated_at
+                  trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
         """,
         {"idp_id": idp_id, "is_enabled": is_enabled},
     )
@@ -340,7 +353,8 @@ def set_idp_default(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  trust_established, created_by, created_at, updated_at
+                  trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
         """,
         {"idp_id": idp_id},
     )
@@ -396,7 +410,8 @@ def set_idp_trust_established(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  trust_established, created_by, created_at, updated_at
+                  trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
         """,
         {
             "idp_id": idp_id,
@@ -408,6 +423,39 @@ def set_idp_trust_established(
             "metadata_xml": metadata_xml,
             "has_metadata_url": metadata_url is not None,
         },
+    )
+
+
+def set_verbose_logging(
+    tenant_id: TenantArg,
+    idp_id: str,
+    enabled_at: datetime | None,
+) -> dict | None:
+    """
+    Set or clear verbose assertion logging for an IdP.
+
+    Args:
+        tenant_id: Tenant context for RLS
+        idp_id: IdP UUID
+        enabled_at: Timestamp (now() to enable, None to disable)
+
+    Returns:
+        Dict with updated IdP details, or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        update saml_identity_providers
+        set verbose_logging_enabled_at = :enabled_at
+        where id = :idp_id
+        returning id, tenant_id, name, provider_type, entity_id, sso_url, slo_url,
+                  certificate_pem, metadata_url, metadata_last_fetched_at,
+                  metadata_fetch_error, sp_entity_id, attribute_mapping,
+                  is_enabled, is_default, require_platform_mfa, jit_provisioning,
+                  trust_established, verbose_logging_enabled_at,
+                  created_by, created_at, updated_at
+        """,
+        {"idp_id": idp_id, "enabled_at": enabled_at},
     )
 
 
@@ -469,7 +517,8 @@ def get_default_identity_provider(tenant_id: TenantArg) -> dict | None:
                certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
-               trust_established, created_by, created_at, updated_at
+               trust_established, verbose_logging_enabled_at,
+               created_by, created_at, updated_at
         from saml_identity_providers
         where is_default = true and is_enabled = true
         """,
@@ -492,7 +541,8 @@ def get_user_assigned_idp(tenant_id: TenantArg, user_id: str) -> dict | None:
                idp.metadata_xml, idp.metadata_last_fetched_at, idp.metadata_fetch_error,
                idp.sp_entity_id, idp.attribute_mapping,
                idp.is_enabled, idp.is_default, idp.require_platform_mfa,
-               idp.jit_provisioning, idp.created_by, idp.created_at, idp.updated_at
+               idp.jit_provisioning, idp.verbose_logging_enabled_at,
+               idp.created_by, idp.created_at, idp.updated_at
         from users u
         join saml_identity_providers idp on u.saml_idp_id = idp.id
         where u.id = :user_id

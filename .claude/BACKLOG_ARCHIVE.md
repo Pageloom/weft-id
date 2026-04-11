@@ -4,6 +4,20 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Sync User Attributes from Upstream IdP on Login
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] On each SAML login, compare `first_name` and `last_name` from the assertion with the stored values
+- [x] If either differs, update the user record
+- [x] Log a `user_attributes_synced` event when attributes change, with metadata showing old and new values
+- [x] Do not update if the assertion attribute is missing/empty (preserve existing value)
+- [x] Primary email sync deferred to separate item (SP assertion impact)
+
+---
+
 ## SAML Assertion Attribute Resilience and Diagnostic Clarity
 
 **Status:** Complete

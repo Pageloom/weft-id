@@ -27,7 +27,6 @@ from app.schemas.oauth2 import (
 )
 from app.schemas.saml import (
     DomainBindingCreate,
-    EmailCheckRequest,
     IdPCreate,
     IdPMetadataImport,
     IdPMetadataImportXML,
@@ -296,12 +295,6 @@ class TestIdPMetadataImportXML:
     def test_metadata_xml_max_length(self):
         with pytest.raises(ValidationError):
             IdPMetadataImportXML(name="Test", provider_type="generic", metadata_xml="x" * 1000001)
-
-
-class TestEmailCheckRequest:
-    def test_email_max_length(self):
-        with pytest.raises(ValidationError):
-            EmailCheckRequest(email="x" * 321)
 
 
 class TestDomainBindingCreate:

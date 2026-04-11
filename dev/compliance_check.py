@@ -30,6 +30,8 @@ Principles checked:
                         timeouts to prevent indefinite hangs
    12. job-context      - Job handlers that call log_event() must use
                         system_context() to provide request context
+   13. api-auth         - All API route handlers must require authentication
+                        (no unauthenticated /api/ endpoints)
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -2470,6 +2472,172 @@ def check_job_system_context_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# Principle 13: API Authentication (No Unauthenticated API Endpoints)
+# =============================================================================
+
+# Auth dependencies that count as "authenticated"
+_API_AUTH_DEPS = frozenset(
+    {
+        "get_current_user_api",
+        "require_admin_api",
+        "require_super_admin_api",
+    }
+)
+
+
+def check_api_auth_violations(report: ComplianceReport) -> None:
+    """
+    Check that all API route handlers require authentication.
+
+    Every function decorated with @router.get/post/put/patch/delete in
+    app/routers/api/ must have at least one parameter whose default is
+    Depends(get_current_user_api | require_admin_api | require_super_admin_api),
+    OR the router itself must declare one of those as a router-level dependency.
+
+    Unauthenticated API endpoints are a security risk (user enumeration,
+    data leakage, abuse).
+    """
+    api_path = get_app_path() / "routers" / "api"
+    if not api_path.exists():
+        return
+
+    http_methods = {"get", "post", "put", "patch", "delete"}
+
+    for py_file in sorted(api_path.rglob("*.py")):
+        if py_file.name.startswith("__"):
+            continue
+
+        report.files_scanned += 1
+
+        try:
+            with open(py_file) as f:
+                source = f.read()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        # Check for router-level auth dependencies:
+        # router = APIRouter(..., dependencies=[Depends(require_admin_api)])
+        has_router_level_auth = _has_router_level_auth(tree)
+
+        # Check each route handler function
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+
+            # Check if function is a route handler (has @router.<method> decorator)
+            if not _is_api_route_handler(node, http_methods):
+                continue
+
+            report.functions_analyzed += 1
+
+            # If router has auth at the router level, all routes are covered
+            if has_router_level_auth:
+                continue
+
+            # Check if the function itself has an auth dependency parameter
+            if _has_function_auth_dep(node):
+                continue
+
+            # No auth at router or function level
+            report.add(
+                Violation(
+                    principle="API Authentication",
+                    severity="high",
+                    file_path=str(py_file.relative_to(get_project_root())),
+                    line_number=node.lineno,
+                    function_name=node.name,
+                    description="API route handler has no authentication dependency",
+                    evidence=f"def {node.name}(...) has no Depends(require_*_api) "
+                    f"or Depends(get_current_user_api)",
+                    suggested_fix="Add an auth dependency parameter: "
+                    "user: Annotated[dict, Depends(require_admin_api)]",
+                )
+            )
+
+
+def _has_router_level_auth(tree: ast.Module) -> bool:
+    """Check if any APIRouter() call has an auth dependency in its dependencies list."""
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        # Look for APIRouter(..., dependencies=[...])
+        func = node.func
+        if isinstance(func, ast.Name) and func.id == "APIRouter":
+            for kw in node.keywords:
+                if kw.arg == "dependencies" and isinstance(kw.value, ast.List):
+                    for elt in kw.value.elts:
+                        if _is_auth_depends_call(elt):
+                            return True
+        if isinstance(func, ast.Attribute) and func.attr == "APIRouter":
+            for kw in node.keywords:
+                if kw.arg == "dependencies" and isinstance(kw.value, ast.List):
+                    for elt in kw.value.elts:
+                        if _is_auth_depends_call(elt):
+                            return True
+    return False
+
+
+def _is_api_route_handler(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, http_methods: set[str]
+) -> bool:
+    """Check if a function has a @router.<method>(...) decorator."""
+    for decorator in node.decorator_list:
+        call = decorator if isinstance(decorator, ast.Call) else None
+        attr_node = call.func if call and isinstance(call.func, ast.Attribute) else None
+        if attr_node is None and isinstance(decorator, ast.Attribute):
+            attr_node = decorator
+        if attr_node and attr_node.attr in http_methods:
+            # Check it's on a router-like variable (router.get, my_apps_router.post, etc.)
+            if isinstance(attr_node.value, ast.Name) and "router" in attr_node.value.id.lower():
+                return True
+    return False
+
+
+def _has_function_auth_dep(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """Check if a function has a parameter with Depends(auth_function)."""
+    for arg in node.args.args:
+        annotation = arg.annotation
+        if annotation is None:
+            continue
+        # Check Annotated[dict, Depends(require_admin_api)] pattern
+        if isinstance(annotation, ast.Subscript) and _annotation_has_auth_dep(annotation):
+            return True
+        # Check bare Depends(require_admin_api) as default
+        # (less common but valid)
+    # Also check defaults
+    # In FastAPI, auth deps can be parameter defaults: param = Depends(require_admin_api)
+    all_defaults = node.args.defaults + node.args.kw_defaults
+    for default in all_defaults:
+        if default is not None and _is_auth_depends_call(default):
+            return True
+    return False
+
+
+def _annotation_has_auth_dep(subscript: ast.Subscript) -> bool:
+    """Check if an Annotated[..., Depends(auth)] subscript has an auth dependency."""
+    # Annotated[dict, Depends(require_admin_api)]
+    if not isinstance(subscript.slice, ast.Tuple):
+        return False
+    for elt in subscript.slice.elts:
+        if _is_auth_depends_call(elt):
+            return True
+    return False
+
+
+def _is_auth_depends_call(node: ast.expr) -> bool:
+    """Check if node is Depends(get_current_user_api) or similar."""
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if isinstance(func, ast.Name) and func.id == "Depends":
+        for arg in node.args:
+            if isinstance(arg, ast.Name) and arg.id in _API_AUTH_DEPS:
+                return True
+    return False
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -2504,6 +2672,7 @@ def run_compliance_check(
         "template-links",
         "outbound-timeouts",
         "job-context",
+        "api-auth",
     ]
     if principles is None:
         principles = all_principles
@@ -2544,6 +2713,9 @@ def run_compliance_check(
 
     if "job-context" in principles:
         check_job_system_context_violations(report)
+
+    if "api-auth" in principles:
+        check_api_auth_violations(report)
 
     return report
 
@@ -2609,6 +2781,8 @@ def main() -> int:
             "migration-safety",
             "template-links",
             "outbound-timeouts",
+            "job-context",
+            "api-auth",
             "all",
         ],
         default="all",

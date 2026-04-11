@@ -395,20 +395,6 @@ class AuthRouteResult(BaseModel):
     user_id: str | None = Field(None, description="User UUID if user exists (internal use)")
 
 
-class EmailCheckRequest(BaseModel):
-    """Request to check authentication route for email."""
-
-    email: str = Field(..., min_length=1, max_length=320, description="Email address to check")
-
-
-class EmailCheckResponse(BaseModel):
-    """Response with authentication route info (public-facing, no user_id)."""
-
-    route_type: str
-    idp_id: str | None = None
-    idp_name: str | None = None
-
-
 # ============================================================================
 # User IdP Assignment Schemas (Phase 3)
 # ============================================================================

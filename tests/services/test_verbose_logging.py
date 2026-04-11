@@ -262,13 +262,8 @@ def test_store_debug_entry_with_verbose_event_logging(test_tenant, test_idp):
     _verify_event_logged(test_tenant["id"], "saml_assertion_failed", test_idp.id)
 
 
-def test_store_debug_entry_without_verbose_no_event(test_tenant, test_idp):
-    import database
+def test_store_debug_entry_always_logs_event_when_idp_known(test_tenant, test_idp):
     from services import saml as saml_service
-
-    # Get event count before
-    events_before = database.event_log.list_events(test_tenant["id"], limit=100)
-    failed_before = [e for e in events_before if e["event_type"] == "saml_assertion_failed"]
 
     saml_service.store_saml_debug_entry(
         tenant_id=test_tenant["id"],
@@ -279,7 +274,50 @@ def test_store_debug_entry_without_verbose_no_event(test_tenant, test_idp):
         verbose_event_logging=False,
     )
 
-    # No new saml_assertion_failed events should have been created
+    # Event should be logged even without verbose mode
+    _verify_event_logged(test_tenant["id"], "saml_assertion_failed", test_idp.id)
+
+
+def test_store_debug_entry_verbose_includes_debug_entry_id(test_tenant, test_idp):
+    import database
+    from services import saml as saml_service
+
+    entry_id = saml_service.store_saml_debug_entry(
+        tenant_id=test_tenant["id"],
+        error_type="auth_failed",
+        error_detail="Test with verbose",
+        idp_id=test_idp.id,
+        idp_name=test_idp.name,
+        verbose_event_logging=True,
+    )
+
+    # With verbose, the event metadata should include debug_entry_id
+    events = database.event_log.list_events(test_tenant["id"], limit=10)
+    matching = [
+        e
+        for e in events
+        if e["event_type"] == "saml_assertion_failed"
+        and (e.get("metadata") or {}).get("debug_entry_id") == entry_id
+    ]
+    assert len(matching) > 0
+
+
+def test_store_debug_entry_no_event_without_idp(test_tenant):
+    import database
+    from services import saml as saml_service
+
+    events_before = database.event_log.list_events(test_tenant["id"], limit=100)
+    failed_before = [e for e in events_before if e["event_type"] == "saml_assertion_failed"]
+
+    saml_service.store_saml_debug_entry(
+        tenant_id=test_tenant["id"],
+        error_type="invalid_response",
+        error_detail="Could not extract Issuer",
+        idp_id=None,
+        idp_name=None,
+    )
+
+    # No event when idp_id is unknown
     events_after = database.event_log.list_events(test_tenant["id"], limit=100)
     failed_after = [e for e in events_after if e["event_type"] == "saml_assertion_failed"]
     assert len(failed_after) == len(failed_before)

@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 6 | Auth, Input Validation, Deployment, SAML |
+| Medium | 5 | Input Validation, Deployment, SAML |
 | Low | 8 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -28,17 +28,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 ---
 
 ---
-
-## [SECURITY] Assertion Replay: No SAML assertion ID cache
-
-**Found in:** `app/services/saml/auth.py:370-420`
-**Severity:** Medium
-**OWASP Category:** A07:2021 - Identification and Authentication Failures
-**Description:** The SAML SP does not maintain an assertion ID replay cache. For IdP-initiated flows, `request_id` is `None` (skipping InResponseTo validation), so a captured SAML response can be replayed freely within the 5-minute `NotOnOrAfter` window. SAML 2.0 recommends SPs track processed assertion IDs to prevent this.
-**Attack Scenario:** Attacker captures a valid signed SAML response (from logs, verbose mode, or network interception) and replays it within 5 minutes to create multiple authenticated sessions.
-**Evidence:** No assertion ID tracking in `process_saml_response()`. `request_id` is popped from session and may be `None`.
-**Impact:** Session hijacking via assertion replay within validity window.
-**Remediation:** Store processed assertion IDs in Memcached with a TTL matching the assertion validity window. Reject duplicate IDs.
 
 ---
 

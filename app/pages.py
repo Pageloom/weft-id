@@ -530,6 +530,21 @@ PAGES = [
                         ],
                     ),
                     Page(
+                        path="/admin/audit/saml-debug",
+                        title="SAML Debug Log",
+                        permission=PagePermission.SUPER_ADMIN,
+                        show_in_nav=True,
+                        children=[
+                            Page(
+                                path="/admin/audit/saml-debug/entry",
+                                title="Debug Entry",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                        ],
+                    ),
+                    Page(
                         path="/admin/audit/user-export",
                         title="User Export",
                         permission=PagePermission.ADMIN,

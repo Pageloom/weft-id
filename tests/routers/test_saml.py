@@ -1674,7 +1674,7 @@ def test_debug_list_as_super_admin_success(
     monkeypatch.setattr(saml_service, "list_saml_debug_entries", lambda *args, **kwargs: [])
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/debug",
+        "/admin/audit/saml-debug",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1685,7 +1685,7 @@ def test_debug_list_as_super_admin_success(
 def test_debug_list_as_admin_forbidden(admin_session, test_tenant_host):
     """Test debug list as admin is forbidden."""
     response = admin_session.get(
-        "/admin/settings/identity-providers/debug",
+        "/admin/audit/saml-debug",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1702,7 +1702,7 @@ def test_debug_list_unauthenticated_redirects(client, test_tenant_host):
     app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant-id"
 
     response = client.get(
-        "/admin/settings/identity-providers/debug",
+        "/admin/audit/saml-debug",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1744,7 +1744,7 @@ def test_debug_list_shows_entries(
     )
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/debug",
+        "/admin/audit/saml-debug",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1780,7 +1780,7 @@ def test_debug_detail_as_super_admin_success(
     monkeypatch.setattr(saml_service, "get_saml_debug_entry", lambda *args, **kwargs: mock_entry)
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/debug/entry-123",
+        "/admin/audit/saml-debug/entry-123",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1800,7 +1800,7 @@ def test_debug_detail_not_found_redirects(super_admin_session, test_tenant_host,
     monkeypatch.setattr(saml_service, "get_saml_debug_entry", mock_get_entry)
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/debug/nonexistent-id",
+        "/admin/audit/saml-debug/nonexistent-id",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1813,7 +1813,7 @@ def test_debug_detail_not_found_redirects(super_admin_session, test_tenant_host,
 def test_debug_detail_as_admin_forbidden(admin_session, test_tenant_host):
     """Test debug detail as admin is forbidden."""
     response = admin_session.get(
-        "/admin/settings/identity-providers/debug/some-entry-id",
+        "/admin/audit/saml-debug/some-entry-id",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1848,7 +1848,7 @@ def test_debug_detail_shows_saml_xml(
     monkeypatch.setattr(saml_service, "get_saml_debug_entry", lambda *args, **kwargs: mock_entry)
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/debug/entry-xml",
+        "/admin/audit/saml-debug/entry-xml",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )

@@ -20,7 +20,7 @@ router = APIRouter()
 
 
 @router.get(
-    "/admin/settings/identity-providers/debug",
+    "/admin/audit/saml-debug",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -46,7 +46,7 @@ def saml_debug_list(
 
 
 @router.get(
-    "/admin/settings/identity-providers/debug/{entry_id}",
+    "/admin/audit/saml-debug/{entry_id}",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -63,7 +63,7 @@ def saml_debug_detail(
         entry = saml_service.get_saml_debug_entry(requesting_user, entry_id)
     except NotFoundError:
         return RedirectResponse(
-            url="/admin/settings/identity-providers/debug?error=entry_not_found",
+            url="/admin/audit/saml-debug?error=entry_not_found",
             status_code=303,
         )
 

@@ -52,6 +52,9 @@ def verify_email_public(
         # Already verified - check if user has password
         user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
         if user and not user.get("password_hash"):
+            # IdP users don't need a password. Redirect to login.
+            if user.get("saml_idp_id"):
+                return RedirectResponse(url="/login?success=email_verified_idp", status_code=303)
             # User verified but no password set - redirect to set password
             sp_nonce = email["set_password_nonce"]
             return RedirectResponse(
@@ -71,6 +74,9 @@ def verify_email_public(
     # Get user to check if they have a password
     user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
     if user and not user.get("password_hash"):
+        # IdP users don't need a password. Redirect to login.
+        if user.get("saml_idp_id"):
+            return RedirectResponse(url="/login?success=email_verified_idp", status_code=303)
         # New user without password - redirect to set password page
         sp_nonce = email["set_password_nonce"]
         return RedirectResponse(
@@ -112,10 +118,12 @@ def set_password_page(
     if email["set_password_nonce"] != nonce:
         return RedirectResponse(url="/login?error=invalid_link", status_code=303)
 
-    # Check if user already has a password
+    # Check if user already has a password or is assigned to an IdP
     user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
     if not user or user.get("password_hash"):
         return RedirectResponse(url="/login", status_code=303)
+    if user.get("saml_idp_id"):
+        return RedirectResponse(url="/login?success=email_verified_idp", status_code=303)
 
     # Load password policy for this tenant
     policy = settings_service.get_password_policy(tenant_id)
@@ -169,10 +177,12 @@ def set_password(
     if email["set_password_nonce"] != nonce:
         return RedirectResponse(url="/login?error=invalid_link", status_code=303)
 
-    # Check if user already has a password
+    # Check if user already has a password or is assigned to an IdP
     user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
     if not user or user.get("password_hash"):
         return RedirectResponse(url="/login", status_code=303)
+    if user.get("saml_idp_id"):
+        return RedirectResponse(url="/login?success=email_verified_idp", status_code=303)
 
     # Validate passwords match
     if password != password_confirm:

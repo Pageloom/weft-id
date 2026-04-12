@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 1 | Input Validation |
+| Medium | 0 | |
 | Low | 8 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -33,17 +33,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 
 ---
-
-## [SECURITY] Input Validation: Unbounded grace_period_days on certificate rotation
-
-**Found in:** `app/routers/api/v1/saml.py:491-507`
-**Severity:** Medium
-**OWASP Category:** A04:2021 - Insecure Design
-**Description:** The `grace_period_days` query parameter on certificate rotation accepts any integer with no bounds. Values like 999999 make old certs valid indefinitely. Negative values set grace period end dates in the past.
-**Attack Scenario:** Compromised super admin token sets `grace_period_days=999999`, keeping a compromised certificate valid for ~2740 years.
-**Evidence:** `grace_period_days: int = 7` with no `ge`/`le` constraints. Passed to `timedelta(days=grace_period_days)`.
-**Impact:** Undermines certificate rotation security controls.
-**Remediation:** Add bounds: `grace_period_days: int = Query(default=7, ge=0, le=90)`.
 
 ---
 

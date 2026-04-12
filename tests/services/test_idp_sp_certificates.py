@@ -262,6 +262,60 @@ ADsT4qF3dPQ8QfQq9Y7q8f5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K
         with pytest.raises(ForbiddenError):
             saml_service.rotate_idp_sp_certificate(requesting_user, str(uuid4()))
 
+    @pytest.mark.parametrize("days", [-1, 91, 999999])
+    def test_rotate_rejects_out_of_bounds_grace_period(
+        self, test_tenant, test_super_admin_user, days
+    ):
+        """Grace period outside 0-90 is rejected."""
+        from services import saml as saml_service
+
+        tenant_id = str(test_tenant["id"])
+        requesting_user = _make_requesting_user(test_super_admin_user, tenant_id)
+
+        with pytest.raises(ValidationError) as exc_info:
+            saml_service.rotate_idp_sp_certificate(
+                requesting_user, str(uuid4()), grace_period_days=days
+            )
+        assert exc_info.value.code == "invalid_grace_period"
+
+    def test_rotate_accepts_boundary_grace_periods(
+        self, test_tenant, test_super_admin_user, fast_sp_certificate
+    ):
+        """Grace period of 0 and 90 are accepted."""
+        from schemas.saml import IdPCreate
+        from services import saml as saml_service
+
+        tenant_id = str(test_tenant["id"])
+        requesting_user = _make_requesting_user(test_super_admin_user, tenant_id)
+
+        idp = saml_service.create_identity_provider(
+            requesting_user,
+            IdPCreate(
+                name="Grace Boundary IdP",
+                provider_type="okta",
+                entity_id="https://grace-boundary.example.com/entity",
+                sso_url="https://grace-boundary.example.com/sso",
+                certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+ZZK9p7a2W3F8V3fVT3Z7m7bZa5W3WwJGfGQ7Pt6aQcBK9TN9bvG3a5mV6K9CQGZV
+8Qm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3
+F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5
+Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Y
+n3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQAgMBAAEwDQYJKoZIhvcNAQELBQADggEB
+ADsT4qF3dPQ8QfQq9Y7q8f5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K
+-----END CERTIFICATE-----""",
+            ),
+            "https://test.example.com",
+        )
+
+        # 0 days should work (immediate cutover)
+        result = saml_service.rotate_idp_sp_certificate(
+            requesting_user, idp.id, grace_period_days=0
+        )
+        assert result.grace_period_ends_at is not None
+
     def test_rotation_logs_event(self, test_tenant, test_super_admin_user, fast_sp_certificate):
         """Rotation emits a saml_idp_sp_certificate_rotated event."""
         import database

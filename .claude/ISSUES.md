@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 5 | Input Validation, Deployment, SAML |
+| Medium | 4 | Deployment, SAML, Input Validation |
 | Low | 8 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -31,18 +31,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [SECURITY] Input Validation Bypass: Unvalidated JSON in web bulk primary email route
-
-**Found in:** `app/routers/users/bulk_ops.py:290-327`
-**Severity:** Medium
-**OWASP Category:** A08:2021 - Software and Data Integrity Failures
-**Description:** The web route `POST /bulk-ops/primary-emails/apply` accepts raw `items_json` as a form field, deserializes with `json.loads()`, and passes to the service layer without schema validation. The API equivalent uses `BulkChangePrimaryEmailApplyRequest` Pydantic model. Unexpected keys or missing fields are stored in the database and could cause unhandled exceptions in the worker. The `preview_job_id` form field also has no length constraint (the API schema constrains it to 50 chars).
-**Attack Scenario:** Admin submits crafted `items_json` with missing keys or extra payload, causing worker-side KeyError exceptions or bloating job storage.
-**Evidence:** `json.loads(items_json)` at line 307 passed directly to `create_bulk_primary_email_apply_task`.
-**Impact:** Worker errors, potential storage exhaustion from oversized payloads.
-**Remediation:** Validate deserialized items against the same Pydantic schema used by the API endpoint.
-
----
 
 ## [SECURITY] Deployment: Unrestricted on-demand TLS certificate issuance
 

@@ -5,6 +5,23 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Input Validation Bypass: Unvalidated JSON in web bulk primary email route
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/routers/users/bulk_ops.py`
+**Severity:** Medium
+**OWASP Category:** A08:2021 - Software and Data Integrity Failures
+**Fix:** Added `BulkChangePrimaryEmailApplyRequest` Pydantic validation to the web form route
+`POST /bulk-ops/primary-emails/apply`, matching the validation already applied by the API route.
+After JSON parsing, the deserialized items and `preview_job_id` are validated against the schema
+before reaching the service layer. This enforces `user_id` presence, `EmailStr` format on
+`new_primary_email`, the `^(keep|switch|remove)$` constraint on `idp_disposition`, the 10,000-item
+list cap, and the 50-char limit on `preview_job_id`. Typed items extracted from the validated model
+are passed to the service, eliminating the path to worker `KeyError`/`AttributeError` crashes.
+Three new route tests cover missing required key, invalid email format, and invalid disposition.
+
+---
+
 ### [SECURITY] User Enumeration: Unauthenticated check-email API without rate limiting
 
 **Status:** Resolved (2026-04-11)

@@ -12,6 +12,8 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import ValidationError as PydanticValidationError
+from schemas.api import BulkChangePrimaryEmailApplyRequest
 from services import bg_tasks as bg_tasks_service
 from services import emails as emails_service
 from services.exceptions import ServiceError
@@ -304,16 +306,33 @@ def apply_bulk_primary_emails(
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
-        items = json.loads(items_json)
+        raw_items = json.loads(items_json)
     except (json.JSONDecodeError, TypeError):
         return JSONResponse({"error": "Invalid items data"}, status_code=400)
 
-    if not items:
+    if not raw_items:
         return JSONResponse({"error": "No items specified"}, status_code=400)
 
     try:
+        validated = BulkChangePrimaryEmailApplyRequest(
+            items=raw_items,
+            preview_job_id=preview_job_id,
+        )
+    except PydanticValidationError:
+        return JSONResponse({"error": "Invalid request data"}, status_code=400)
+
+    items = [
+        {
+            "user_id": item.user_id,
+            "new_primary_email": item.new_primary_email,
+            "idp_disposition": item.idp_disposition,
+        }
+        for item in validated.items
+    ]
+
+    try:
         result = bg_tasks_service.create_bulk_primary_email_apply_task(
-            requesting_user, items, preview_job_id
+            requesting_user, items, validated.preview_job_id
         )
         if result:
             return JSONResponse(

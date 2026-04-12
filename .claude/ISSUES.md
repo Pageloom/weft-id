@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 7 | Rate Limiting, Config, Input Validation |
+| Low | 6 | Rate Limiting, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -37,17 +37,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 ---
 
 ---
-
-## [SECURITY] Container Security: Docker containers run as root
-
-**Found in:** `Dockerfile` (no `USER` directive)
-**Severity:** Low
-**OWASP Category:** A05:2021 - Security Misconfiguration
-**Description:** Neither the production nor dev Dockerfile creates a non-root user. All processes (uvicorn, worker, migration) run as root. If RCE is achieved, the attacker has root privileges inside the container.
-**Attack Scenario:** Application vulnerability leads to RCE with root privileges, maximizing container escape risk.
-**Evidence:** No `USER` or `RUN useradd` directives in either Dockerfile.
-**Impact:** Increased blast radius of any RCE vulnerability.
-**Remediation:** Add a non-root user and switch to it after installing dependencies.
 
 ---
 

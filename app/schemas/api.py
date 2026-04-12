@@ -1,6 +1,7 @@
 """Pydantic schemas for common API models (user profile, errors, etc)."""
 
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -177,14 +178,16 @@ class BulkChangePrimaryEmailApplyRequest(BaseModel):
 class BulkUserIdsRequest(BaseModel):
     """Request to perform a bulk operation on a list of users by ID."""
 
-    user_ids: list[str] = Field(..., min_length=1, max_length=10000)
+    user_ids: list[Annotated[str, Field(max_length=36)]] = Field(
+        ..., min_length=1, max_length=10000
+    )
 
 
 class BulkGroupAssignmentRequest(BaseModel):
     """Request to assign multiple users to a group."""
 
     group_id: str = Field(..., min_length=1, max_length=36, description="Target group UUID")
-    user_ids: list[str] = Field(
+    user_ids: list[Annotated[str, Field(max_length=36)]] = Field(
         ..., min_length=1, max_length=10000, description="List of user UUIDs to add"
     )
 

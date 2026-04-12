@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Input Validation: Missing max_length on BulkUserIdsRequest elements
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/schemas/api.py:180`
+**Severity:** Low
+**Resolution:** Added `max_length=36` per-element constraint on `user_ids` in both `BulkUserIdsRequest` and `BulkGroupAssignmentRequest`.
+
+---
+
 ### [SECURITY] Information Disclosure: Export encryption password in database
 
 **Status:** Accepted (2026-04-12)

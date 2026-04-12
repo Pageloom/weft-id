@@ -129,8 +129,9 @@ jobs:
         run: poetry run playwright install --with-deps chromium
 
       - name: Run E2E tests
+        env:
+          FILTER: ${{ github.event.inputs.test_filter }}
         run: |
-          FILTER="${{ github.event.inputs.test_filter }}"
           if [ -n "$FILTER" ]; then
             poetry run python -m pytest tests/e2e/ -n 0 -v --tb=short -k "$FILTER"
           else

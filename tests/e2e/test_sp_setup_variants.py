@@ -7,6 +7,8 @@ Tests:
 Uses the two-tenant testbed for both tests.
 """
 
+from uuid import uuid4
+
 # Minimal SP metadata with a unique entity ID for manual config testing.
 # This entity_id must not conflict with any testbed-registered SPs.
 _MANUAL_ENTITY_ID = "https://manual-test-sp.example.com/saml/metadata"
@@ -34,7 +36,7 @@ class TestSpRegistrationViaUrl:
         # metadata endpoint serves valid XML immediately.
         login(mid_base, mid_config["admin_email"])
         page.goto(f"{mid_base}/admin/settings/identity-providers/new")
-        page.locator("#name").fill("URL Import Source IdP")
+        page.locator("#name").fill(f"URL Import Source IdP {uuid4().hex[:8]}")
         page.locator("#provider_type").select_option("generic")
         page.get_by_role("button", name="Create Identity Provider").click()
 
@@ -51,7 +53,8 @@ class TestSpRegistrationViaUrl:
         # Step 2: At IdP tenant, create a new SP and import from that URL
         login(idp_base, idp_config["admin_email"])
         page.goto(f"{idp_base}/admin/settings/service-providers/new")
-        page.locator("#sp-name").fill("SP Metadata Import Test")
+        sp_name = f"SP Metadata Import Test {uuid4().hex[:8]}"
+        page.locator("#sp-name").fill(sp_name)
         page.get_by_role("button", name="Create").click()
 
         page.wait_for_url(
@@ -73,7 +76,7 @@ class TestSpRegistrationViaUrl:
 
         # Verify SP appears in the list
         page.goto(f"{idp_base}/admin/settings/service-providers")
-        assert page.locator("text=SP Metadata Import Test").is_visible()
+        assert page.locator(f"text={sp_name}").is_visible()
 
 
 class TestSpManualConfiguration:
@@ -92,7 +95,8 @@ class TestSpManualConfiguration:
 
         # Step 1: Create SP with name only
         page.goto(f"{idp_base}/admin/settings/service-providers/new")
-        page.locator("#sp-name").fill("Manual Config Test SP")
+        sp_name = f"Manual Config Test SP {uuid4().hex[:8]}"
+        page.locator("#sp-name").fill(sp_name)
         page.get_by_role("button", name="Create").click()
 
         page.wait_for_url(
@@ -115,4 +119,4 @@ class TestSpManualConfiguration:
 
         # Verify SP appears in the list
         page.goto(f"{idp_base}/admin/settings/service-providers")
-        assert page.locator("text=Manual Config Test SP").is_visible()
+        assert page.locator(f"text={sp_name}").is_visible()

@@ -7,6 +7,8 @@ Tests:
     verify an unknown user with that domain gets JIT-provisioned via SSO.
 """
 
+from uuid import uuid4
+
 
 class TestIdpRegistrationViaUrl:
     """SP admin registers an IdP via metadata URL import."""
@@ -27,7 +29,8 @@ class TestIdpRegistrationViaUrl:
         # --- Step 1: Create a new SP at upstream tenant to get a metadata URL ---
         login(upstream_base, upstream_config["admin_email"])
         page.goto(f"{upstream_base}/admin/settings/service-providers/new")
-        page.locator("#sp-name").fill("URL Import Test SP")
+        run_id = uuid4().hex[:8]
+        page.locator("#sp-name").fill(f"URL Import Test SP {run_id}")
         page.get_by_role("button", name="Create").click()
 
         # Extract SP ID from redirect URL
@@ -44,7 +47,8 @@ class TestIdpRegistrationViaUrl:
         # --- Step 2: Create a new IdP at SP tenant and import from URL ---
         login(sp_base, sp_config["admin_email"])
         page.goto(f"{sp_base}/admin/settings/identity-providers/new")
-        page.locator("#name").fill("URL Import Test IdP")
+        idp_name = f"URL Import Test IdP {run_id}"
+        page.locator("#name").fill(idp_name)
         page.locator("#provider_type").select_option("generic")
         page.get_by_role("button", name="Create Identity Provider").click()
 
@@ -67,7 +71,7 @@ class TestIdpRegistrationViaUrl:
 
         # Verify IdP appears in the list
         page.goto(f"{sp_base}/admin/settings/identity-providers")
-        assert page.locator("text=URL Import Test IdP").is_visible()
+        assert page.locator(f"text={idp_name}").is_visible()
 
 
 class TestDomainBasedRouting:

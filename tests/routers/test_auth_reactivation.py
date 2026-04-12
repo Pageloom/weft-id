@@ -323,3 +323,28 @@ def test_request_reactivation_no_email(client, test_tenant_host, test_tenant):
 
     assert response.status_code == 303
     assert "error=no_email" in response.headers["location"]
+
+
+def test_request_reactivation_rate_limited(client, test_tenant_host):
+    """Test reactivation request is rate limited by IP + tenant."""
+    from services.exceptions import RateLimitError
+
+    fake_user_id = str(uuid4())
+
+    with patch("routers.auth.reactivation.ratelimit.prevent") as mock_prevent:
+        mock_prevent.side_effect = RateLimitError(
+            message="Too many requests",
+            code="rate_limit_exceeded",
+            retry_after=3600,
+        )
+
+        response = client.post(
+            "/request-reactivation",
+            headers={"Host": test_tenant_host},
+            data={"user_id": fake_user_id},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=invalid_request" in response.headers["location"]
+        mock_prevent.assert_called_once()

@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Missing Rate Limit: Reactivation request enables email flooding
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/routers/auth/reactivation.py`
+**Severity:** Low
+**OWASP Category:** A04:2021 - Insecure Design
+**Fix:** Added rate limiting (10 requests/hour per IP+tenant) to `POST /request-reactivation`.
+The business logic already prevents duplicate requests per user (pending check), so the rate
+limit protects against scanning many user_ids from one IP to trigger admin email floods. On
+rate limit hit, redirects to the login page with a generic error to avoid information disclosure.
+
+---
+
 ### [SECURITY] Weak Tokens: Predictable sequential nonces for email verification
 
 **Status:** Resolved (2026-04-12)

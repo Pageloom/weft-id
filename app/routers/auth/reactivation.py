@@ -8,8 +8,11 @@ from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from middleware.csrf import make_csrf_token_func
+from routers.auth._helpers import _get_client_ip
+from services.exceptions import RateLimitError
 from utils.csp_nonce import get_csp_nonce
 from utils.email import send_reactivation_request_admin_notification
+from utils.ratelimit import HOUR, ratelimit
 from utils.request_metadata import extract_request_metadata
 from utils.templates import templates
 
@@ -28,6 +31,19 @@ def request_reactivation(
     Sends verification email, then creates reactivation request after verification.
     """
     from services import reactivation as reactivation_service
+
+    # Rate limit by IP + tenant to prevent scanning user_ids
+    client_ip = _get_client_ip(request)
+    try:
+        ratelimit.prevent(
+            "reactivation:ip:{ip}:tenant:{tenant}",
+            limit=10,
+            timespan=HOUR,
+            ip=client_ip,
+            tenant=tenant_id,
+        )
+    except RateLimitError:
+        return RedirectResponse(url="/login?error=invalid_request", status_code=303)
 
     # Verify user exists and can request reactivation
     check = reactivation_service.can_request_reactivation(tenant_id, user_id)

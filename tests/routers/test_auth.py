@@ -521,7 +521,8 @@ def test_set_password_page_invalid_nonce_redirects(test_tenant, mocker):
     mock_get_user.return_value = {"id": "user-123", "password_hash": None}
 
     client = TestClient(app)
-    response = client.get("/set-password?email_id=email-123&nonce=stale_nonce", follow_redirects=False)
+    url = "/set-password?email_id=email-123&nonce=stale_nonce"
+    response = client.get(url, follow_redirects=False)
 
     assert response.status_code == 303
     assert "error=invalid_link" in response.headers["location"]
@@ -1683,7 +1684,8 @@ def test_set_password_page_email_not_verified(test_tenant, mocker):
     }
 
     client = TestClient(app)
-    response = client.get("/set-password?email_id=email-123&nonce=abc123token", follow_redirects=False)
+    url = "/set-password?email_id=email-123&nonce=abc123token"
+    response = client.get(url, follow_redirects=False)
 
     assert response.status_code == 303
     assert "error=email_not_verified" in response.headers["location"]
@@ -1708,7 +1710,8 @@ def test_set_password_page_user_already_has_password(test_tenant, mocker):
     }
 
     client = TestClient(app)
-    response = client.get("/set-password?email_id=email-123&nonce=abc123token", follow_redirects=False)
+    url = "/set-password?email_id=email-123&nonce=abc123token"
+    response = client.get(url, follow_redirects=False)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/login"

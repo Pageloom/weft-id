@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] CI Injection: GitHub Actions script injection via workflow dispatch
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `.github/workflows/e2e-tests.yml:132-136`
+**Severity:** Low
+**Resolution:** Moved `test_filter` input from direct `${{ }}` shell interpolation to an `env:` block, preventing command injection via workflow dispatch.
+
+---
+
 ### [SECURITY] Missing Rate Limit: Reactivation request enables email flooding
 
 **Status:** Resolved (2026-04-12)

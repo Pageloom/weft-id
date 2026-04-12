@@ -155,6 +155,19 @@ def run_migration(conn: psycopg.Connection, path: Path) -> None:
         sys.exit(1)
 
 
+def sync_role_passwords(conn: psycopg.Connection) -> None:
+    """Set appuser password from environment if provided.
+
+    The schema baseline creates appuser with a default password. In production,
+    APPUSER_PASSWORD should be set to a random value so each deployment has a
+    unique credential instead of the well-known default.
+    """
+    appuser_pw = os.environ.get("APPUSER_PASSWORD")
+    if appuser_pw:
+        conn.execute("ALTER ROLE appuser PASSWORD %s", (appuser_pw,))
+        print("  appuser password synced from APPUSER_PASSWORD.", flush=True)
+
+
 def main() -> None:
     conn = connect()
 
@@ -178,6 +191,9 @@ def main() -> None:
         print(f"Found {len(migrations)} pending migration(s).", flush=True)
         for m in migrations:
             run_migration(conn, m)
+
+    # Sync role passwords from environment (idempotent, runs every startup)
+    sync_role_passwords(conn)
 
     conn.close()
     print("Done.", flush=True)

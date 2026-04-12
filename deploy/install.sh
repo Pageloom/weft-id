@@ -133,6 +133,7 @@ BASE_DOMAIN=${BASE_DOMAIN}
 # Secrets (auto-generated)
 SECRET_KEY=${SECRET_KEY}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+APPUSER_PASSWORD=${APPUSER_PASSWORD}
 
 # Email / SMTP
 EMAIL_BACKEND=smtp
@@ -178,6 +179,7 @@ main() {
     # Generate secrets
     SECRET_KEY=$(openssl rand -base64 32)
     POSTGRES_PASSWORD=$(openssl rand -base64 32)
+    APPUSER_PASSWORD=$(openssl rand -base64 32)
 
     # Interactive configuration
     prompt_domain

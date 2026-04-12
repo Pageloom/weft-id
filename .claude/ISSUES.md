@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 2 | Access control bypass, unbounded input |
+| Medium | 1 | Unbounded input |
 | Low | 2 | SSRF redirect-follow, unbounded admin forms |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -24,30 +24,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
-
----
-
-## [SECURITY] `allow_users_edit_profile` Policy Bypass via REST API
-
-**Found in:** `app/routers/api/v1/users/profile.py:53`, `app/services/users/profile.py`
-**Severity:** Medium
-**OWASP Category:** A01:2021 - Broken Access Control
-**Description:** The tenant setting `allow_users_edit_profile` is enforced by the web UI (`app/routers/account.py:84`) but is completely absent from the `PATCH /api/v1/users/me` REST endpoint and the service function `update_current_user_profile()`.
-**Attack Scenario:** A tenant admin disables self-service profile editing for compliance (e.g., names must match IdP attributes). A user sends a direct `PATCH /api/v1/users/me` request with a Bearer token or session cookie. The API accepts and applies the change, bypassing the policy.
-**Evidence:**
-```python
-# Web UI checks the setting (account.py:84):
-if not settings_service.can_user_edit_profile(tenant_id):
-    # ... blocks edit
-
-# API has no such check (api/v1/users/profile.py:53-70):
-@router.patch("/me", response_model=UserProfile)
-def update_current_user_profile(...):
-    # No can_user_edit_profile check
-    return _pkg.users_service.update_current_user_profile(requesting_user, profile_update)
-```
-**Impact:** Policy bypass. Limited to users editing their own name/timezone/locale/theme. Does not affect role, email, or other users.
-**Remediation:** Add `can_user_edit_profile(tenant_id)` check in the service function `update_current_user_profile()`. Exempt admins and super admins from the restriction (same as the web UI does).
 
 ---
 

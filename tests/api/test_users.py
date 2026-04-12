@@ -1873,3 +1873,24 @@ def test_update_current_user_profile_service_error(make_user_dict, override_api_
         )
 
         assert response.status_code == 400
+
+
+def test_update_current_user_profile_blocked_by_policy(make_user_dict, override_api_auth):
+    """API returns 403 when profile editing is disabled and user updates name."""
+    user = make_user_dict(role="member")
+
+    override_api_auth(user, level="user")
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.update_current_user_profile.side_effect = ForbiddenError(
+            message="Profile editing is disabled by your organization",
+            code="profile_editing_disabled",
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.patch(
+            "/api/v1/users/me",
+            json={"first_name": "Blocked"},
+        )
+
+        assert response.status_code == 403

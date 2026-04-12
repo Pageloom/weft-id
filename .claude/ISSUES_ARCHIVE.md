@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] `allow_users_edit_profile` Policy Bypass via REST API
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/services/users/profile.py`
+**Severity:** Medium
+**Resolution:** Added `can_user_edit_profile()` check to the service function `update_current_user_profile()`, enforcing the tenant policy for name changes. Super admins are exempt. Preference-only updates (timezone, locale, theme) are unaffected. Tests at service and API layers.
+
+---
+
 ### [SECURITY] Open Redirect via Unvalidated SAML RelayState
 
 **Status:** Resolved (2026-04-12)

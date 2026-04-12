@@ -1318,6 +1318,111 @@ def test_update_current_user_profile_tracks_changes(
         assert call_kwargs["metadata"]["changes"]["first_name"]["new"] == "TrackedChange"
 
 
+def test_update_profile_blocked_when_editing_disabled(make_requesting_user, make_user_dict):
+    """Non-super-admin cannot update name when allow_users_edit_profile is off."""
+    from services import users as users_service
+    from services.exceptions import ForbiddenError
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    original_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Original",
+        last_name="Name",
+        email="test@example.com",
+    )
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(first_name="NewFirst")
+
+    with patch("services.users.profile.can_user_edit_profile", return_value=False):
+        with pytest.raises(ForbiddenError, match="Profile editing is disabled"):
+            users_service.update_current_user_profile(
+                requesting_user, original_user, profile_update
+            )
+
+
+def test_update_profile_allowed_for_super_admin_when_editing_disabled(
+    make_requesting_user, make_user_dict, make_email_dict
+):
+    """Super admin can update name even when allow_users_edit_profile is off."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    original_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Original",
+        last_name="Name",
+        email="test@example.com",
+    )
+    updated_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="NewFirst",
+        last_name="Name",
+        email="test@example.com",
+    )
+    email = make_email_dict(user_id=user_id, email="test@example.com")
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="super_admin")
+    profile_update = UserProfileUpdate(first_name="NewFirst")
+
+    with (
+        patch("services.users.profile.can_user_edit_profile", return_value=False),
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, original_user, profile_update
+        )
+        assert result.first_name == "NewFirst"
+
+
+def test_update_profile_preferences_allowed_when_editing_disabled(
+    make_requesting_user, make_user_dict, make_email_dict
+):
+    """Non-super-admin can still update timezone/theme when name editing is disabled."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    original_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Original",
+        last_name="Name",
+        email="test@example.com",
+    )
+    updated_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Original",
+        last_name="Name",
+        email="test@example.com",
+        tz="Europe/London",
+    )
+    email = make_email_dict(user_id=user_id, email="test@example.com")
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(timezone="Europe/London")
+
+    with (
+        patch("services.users.profile.can_user_edit_profile", return_value=False),
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, original_user, profile_update
+        )
+        assert result is not None
+
+
 # =============================================================================
 # Auto Create Email Tests
 # =============================================================================

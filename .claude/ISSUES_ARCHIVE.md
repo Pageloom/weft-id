@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Container Security: Docker containers run as root
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `Dockerfile`, `app/Dockerfile`
+**Severity:** Low
+**OWASP Category:** A05:2021 - Security Misconfiguration
+**Fix:** Both Dockerfiles now create a `weftid` system user (UID 1000) and switch to it via
+`USER weftid` after all root-requiring operations (package installation, file copying). The
+storage volume mount point is pre-created and chowned so the non-root user can write exports.
+`PYTHONDONTWRITEBYTECODE=1` was already set, so no bytecode write issues.
+
+---
+
 ### [SECURITY] Hardcoded Credentials: appuser database password
 
 **Status:** Resolved (2026-04-12)

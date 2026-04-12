@@ -17,7 +17,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
  && apt-get install -y --no-install-recommends build-essential ca-certificates curl \
     pkg-config libxmlsec1-dev libxmlsec1-openssl libcairo2-dev \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && addgroup --system --gid 1000 weftid \
+ && adduser --system --uid 1000 --ingroup weftid weftid
 
 # Install Poetry
 RUN curl -sSL https://install.python-poetry.org | python3 - \
@@ -61,5 +63,8 @@ COPY mkdocs.yml /tmp/
 COPY docs/ /tmp/docs/
 RUN cd /tmp && zensical build && mv site /site && rm -rf /tmp/mkdocs.yml /tmp/docs
 
+RUN mkdir -p /app/storage && chown weftid:weftid /app/storage
+
+USER weftid
 EXPOSE 8000
 ENTRYPOINT ["./dev-docker-entrypoint.sh"]

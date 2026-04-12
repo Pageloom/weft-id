@@ -56,7 +56,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libxmlsec1-openssl libcairo2 \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && addgroup --system --gid 1000 weftid \
+ && adduser --system --uid 1000 --ingroup weftid weftid
 
 # Copy installed Python packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
@@ -91,5 +93,9 @@ COPY --from=docs-builder /build/site/ /site/
 # Copy migration runner
 COPY db-init/ /db-init/
 
+# Ensure the non-root user can write to storage (volume mount point)
+RUN mkdir -p /app/storage && chown weftid:weftid /app/storage
+
+USER weftid
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 1 | Unbounded input |
+| Medium | 0 | |
 | Low | 2 | SSRF redirect-follow, unbounded admin forms |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -24,23 +24,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
-
----
-
-## [SECURITY] Unbounded SAMLResponse/RelayState Form Inputs at ACS
-
-**Found in:** `app/routers/saml/authentication.py:223-224,383-384`
-**Severity:** Medium
-**OWASP Category:** Unbounded Input / Resource Exhaustion
-**Description:** The `SAMLResponse` and `RelayState` form parameters on both ACS endpoints have no `max_length` constraint. Rate limiting fires after the request body is fully read and the SAML response is decoded/parsed.
-**Attack Scenario:** An attacker POST-bombs the ACS with multi-megabyte `SAMLResponse` bodies. Each request is fully received, base64-decoded, and XML-parsed before the rate limit counter increments. With 20 requests allowed per 5 minutes, each at several MB, this wastes significant CPU.
-**Evidence:**
-```python
-SAMLResponse: Annotated[str, Form()],                    # no max_length
-RelayState: Annotated[str, Form()] = "/dashboard",       # no max_length
-```
-**Impact:** CPU/memory exhaustion on ACS endpoints. Rate limit bounds the total volume but does not prevent oversized individual requests.
-**Remediation:** Add `max_length` constraints: `SAMLResponse: Annotated[str, Form(max_length=524288)]` (512 KB, generous for encrypted assertions with group claims), `RelayState: Annotated[str, Form(max_length=2048)]`. Also apply to the SLO endpoint at `app/routers/saml/logout.py:65-66`.
 
 ---
 

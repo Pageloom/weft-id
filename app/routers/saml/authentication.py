@@ -231,8 +231,8 @@ def saml_acs_per_idp(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     idp_id: str,
-    SAMLResponse: Annotated[str, Form()],  # noqa: N803 - SAML spec parameter name
-    RelayState: Annotated[str, Form()] = "/dashboard",  # noqa: N803 - SAML spec parameter name
+    SAMLResponse: Annotated[str, Form(max_length=524288)],  # noqa: N803 - SAML spec parameter name
+    RelayState: Annotated[str, Form(max_length=2048)] = "/dashboard",  # noqa: N803 - SAML spec parameter name
 ):
     """
     Per-IdP Assertion Consumer Service (ACS).
@@ -391,8 +391,8 @@ def saml_acs_per_idp(
 def saml_acs(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    SAMLResponse: Annotated[str, Form()],  # noqa: N803 - SAML spec parameter name
-    RelayState: Annotated[str, Form()] = "/dashboard",  # noqa: N803 - SAML spec parameter name
+    SAMLResponse: Annotated[str, Form(max_length=524288)],  # noqa: N803 - SAML spec parameter name
+    RelayState: Annotated[str, Form(max_length=2048)] = "/dashboard",  # noqa: N803 - SAML spec parameter name
 ):
     """
     SAML Assertion Consumer Service (ACS).

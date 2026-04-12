@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 1 | Unbounded admin forms |
+| Low | 0 | |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -24,17 +24,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
-
----
-
-## [SECURITY] Unbounded Form Parameters in Admin Web Forms
-
-**Found in:** `app/routers/saml/admin/providers.py`, `app/routers/saml_idp/admin.py` (multiple routes)
-**Severity:** Low
-**OWASP Category:** Unbounded Input
-**Description:** Admin web form routes accept `Form()` parameters (name, metadata_url, metadata_xml, entity_id, sso_url, certificate_pem, etc.) without `max_length` constraints at the HTTP layer. Pydantic schemas downstream DO have `max_length`, but the full request body is read into memory before validation.
-**Impact:** Minimal. Requires super admin access. Pydantic catches oversized values downstream. Defense-in-depth concern only.
-**Remediation:** Add `max_length` to Form() parameters matching the downstream Pydantic limits. Priority is low since exploitation requires authenticated super admin access.
 
 ---
 

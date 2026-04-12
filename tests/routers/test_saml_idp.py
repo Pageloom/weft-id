@@ -1925,6 +1925,198 @@ class TestSPBaseNoAccessBanner:
 
 
 # =============================================================================
+# SP Edit SLO URL
+# =============================================================================
+
+
+class TestSPEditSLOUrl:
+    """Tests for SLO URL editing via admin UI."""
+
+    def test_edit_slo_url_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Successful SLO URL update redirects with success."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-slo-url",
+                data={"slo_url": "https://app.example.com/slo"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert f"/{sp_id}/details" in response.headers["location"]
+        assert "success=updated" in response.headers["location"]
+        call_args = mock_update.call_args
+        sp_update = call_args[0][2]
+        assert sp_update.slo_url == "https://app.example.com/slo"
+
+    def test_edit_slo_url_strips_whitespace(self, sp_admin_session, sp_host, sample_sp_config):
+        """SLO URL is stripped of leading/trailing whitespace."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-slo-url",
+                data={"slo_url": "  https://app.example.com/slo  "},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        sp_update = mock_update.call_args[0][2]
+        assert sp_update.slo_url == "https://app.example.com/slo"
+
+    def test_edit_slo_url_empty_clears(self, sp_admin_session, sp_host, sample_sp_config):
+        """Empty SLO URL value clears the field."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-slo-url",
+                data={"slo_url": ""},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        sp_update = mock_update.call_args[0][2]
+        assert sp_update.slo_url == ""
+
+    def test_edit_slo_url_service_error(self, sp_admin_session, sp_host):
+        """Service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            side_effect=ServiceError(message="Invalid URL format", code="validation_failed"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-slo-url",
+                data={"slo_url": "not-a-url"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert f"/{sp_id}/details" in response.headers["location"]
+        assert "error=" in response.headers["location"]
+
+    # Note: router-level require_super_admin dependency already blocks non-super-admin
+    # users, so no per-route access denied test is needed.
+
+
+# =============================================================================
+# SP Edit Attributes: GCM Encryption Algorithm
+# =============================================================================
+
+
+class TestSPEditEncryptionAlgorithm:
+    """Tests for assertion encryption algorithm in SP attribute editing."""
+
+    def test_edit_attributes_gcm_algorithm(self, sp_admin_session, sp_host, sample_sp_config):
+        """Submitting aes256-gcm sets the encryption algorithm."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={
+                    "assertion_encryption_algorithm": "aes256-gcm",
+                    "include_group_claims": "true",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=attributes_updated" in response.headers["location"]
+        sp_update = mock_update.call_args[0][2]
+        assert sp_update.assertion_encryption_algorithm == "aes256-gcm"
+
+    def test_edit_attributes_cbc_algorithm(self, sp_admin_session, sp_host, sample_sp_config):
+        """Submitting aes256-cbc sets the encryption algorithm."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={
+                    "assertion_encryption_algorithm": "aes256-cbc",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        sp_update = mock_update.call_args[0][2]
+        assert sp_update.assertion_encryption_algorithm == "aes256-cbc"
+
+    def test_edit_attributes_invalid_algorithm_ignored(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Invalid encryption algorithm value is silently ignored."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={
+                    "assertion_encryption_algorithm": "aes128-ecb",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        sp_update = mock_update.call_args[0][2]
+        assert sp_update.assertion_encryption_algorithm is None
+
+    def test_edit_attributes_empty_algorithm_ignored(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Empty encryption algorithm value is silently ignored."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={
+                    "assertion_encryption_algorithm": "",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        sp_update = mock_update.call_args[0][2]
+        assert sp_update.assertion_encryption_algorithm is None
+
+
+# =============================================================================
 # SP Edit NameID Format
 # =============================================================================
 

@@ -3367,3 +3367,84 @@ class TestMetadataSyncEncryptionAlgorithm:
         changes = _compute_metadata_diff(current, parsed, None)
         algo_changes = [c for c in changes if c.field == "Encryption Algorithm"]
         assert len(algo_changes) == 0
+
+    def test_apply_refresh_passes_detected_gcm_algorithm(self, make_requesting_user):
+        """apply_sp_metadata_refresh passes detected GCM algorithm to database layer."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            metadata_url="https://app.example.com/metadata",
+        )
+        updated_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            assertion_encryption_algorithm="aes256-gcm",
+            metadata_url="https://app.example.com/metadata",
+        )
+        parsed = {
+            "entity_id": "https://app.example.com/saml/metadata",
+            "acs_url": "https://app.example.com/saml/acs",
+            "certificate_pem": None,
+            "encryption_methods": ["http://www.w3.org/2009/xmlenc11#aes256-gcm"],
+        }
+
+        with (
+            patch("services.service_providers.metadata_sync.database") as mock_db,
+            patch("services.service_providers.metadata_sync.log_event"),
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+            mock_db.service_providers.refresh_sp_metadata_fields.return_value = updated_row
+
+            result = sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
+
+            assert result.assertion_encryption_algorithm == "aes256-gcm"
+            refresh_kwargs = mock_db.service_providers.refresh_sp_metadata_fields.call_args[1]
+            assert refresh_kwargs["assertion_encryption_algorithm"] == "aes256-gcm"
+
+    def test_apply_refresh_no_gcm_passes_none(self, make_requesting_user):
+        """apply_sp_metadata_refresh passes None when SP declares both CBC and GCM."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            metadata_url="https://app.example.com/metadata",
+        )
+        updated_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            metadata_url="https://app.example.com/metadata",
+        )
+        parsed = {
+            "entity_id": "https://app.example.com/saml/metadata",
+            "acs_url": "https://app.example.com/saml/acs",
+            "certificate_pem": None,
+            "encryption_methods": [
+                "http://www.w3.org/2001/04/xmlenc#aes256-cbc",
+                "http://www.w3.org/2009/xmlenc11#aes256-gcm",
+            ],
+        }
+
+        with (
+            patch("services.service_providers.metadata_sync.database") as mock_db,
+            patch("services.service_providers.metadata_sync.log_event"),
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+            mock_db.service_providers.refresh_sp_metadata_fields.return_value = updated_row
+
+            sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
+
+            refresh_kwargs = mock_db.service_providers.refresh_sp_metadata_fields.call_args[1]
+            assert refresh_kwargs["assertion_encryption_algorithm"] is None

@@ -11,7 +11,8 @@ import database
 from schemas.api import UserProfile, UserProfileUpdate
 from services.activity import track_activity
 from services.event_log import log_event
-from services.exceptions import NotFoundError
+from services.exceptions import ForbiddenError, NotFoundError
+from services.settings import can_user_edit_profile
 from services.types import RequestingUser
 from services.users._converters import _user_row_to_profile
 
@@ -59,6 +60,16 @@ def update_current_user_profile(
     """
     tenant_id = requesting_user["tenant_id"]
     user_id = requesting_user["id"]
+
+    # Enforce allow_users_edit_profile policy for name changes.
+    # Super admins are always allowed; other roles are blocked when disabled.
+    if profile_update.first_name or profile_update.last_name:
+        if requesting_user["role"] != "super_admin":
+            if not can_user_edit_profile(tenant_id):
+                raise ForbiddenError(
+                    message="Profile editing is disabled by your organization",
+                    code="profile_editing_disabled",
+                )
 
     # Track changes for logging
     changes: dict = {}

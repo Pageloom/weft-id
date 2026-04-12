@@ -1803,6 +1803,144 @@ def test_set_password_post_user_already_has_password(test_tenant, mocker):
 
 
 # =============================================================================
+# IdP User Onboarding: skip set-password for IdP-assigned users
+# =============================================================================
+
+
+def test_verify_email_already_verified_idp_user_redirects(test_tenant, mocker):
+    """Already-verified IdP user gets redirected to login, not set-password."""
+    from datetime import UTC, datetime
+
+    override_tenant(app, test_tenant["id"])
+
+    mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_email_for_verification")
+    mocker.patch(f"{SERVICES_EMAILS}.verify_email_by_nonce")
+    mock_get_user = mocker.patch(f"{SERVICES_USERS}.get_user_by_id_raw")
+
+    mock_get_email.return_value = {
+        "id": "email-123",
+        "user_id": "user-123",
+        "email": "idp-user@example.com",
+        "verified_at": datetime.now(UTC),
+        "verify_nonce": "abc123token",
+        "set_password_nonce": "def456token",
+    }
+    mock_get_user.return_value = {
+        "id": "user-123",
+        "email": "idp-user@example.com",
+        "password_hash": None,
+        "saml_idp_id": "okta-idp-id",
+    }
+
+    client = TestClient(app)
+    response = client.get("/verify-email/email-123/abc123token", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert "/login?success=email_verified_idp" in response.headers["location"]
+
+
+def test_verify_email_newly_verified_idp_user_redirects(test_tenant, mocker):
+    """Newly-verified IdP user gets redirected to login, not set-password."""
+    override_tenant(app, test_tenant["id"])
+
+    mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_email_for_verification")
+    mocker.patch(f"{SERVICES_EMAILS}.verify_email_by_nonce")
+    mock_get_user = mocker.patch(f"{SERVICES_USERS}.get_user_by_id_raw")
+
+    mock_get_email.return_value = {
+        "id": "email-123",
+        "user_id": "user-123",
+        "email": "idp-user@example.com",
+        "verified_at": None,
+        "verify_nonce": "abc123token",
+        "set_password_nonce": "def456token",
+    }
+    mock_get_user.return_value = {
+        "id": "user-123",
+        "email": "idp-user@example.com",
+        "password_hash": None,
+        "saml_idp_id": "entra-idp-id",
+    }
+
+    client = TestClient(app)
+    response = client.get("/verify-email/email-123/abc123token", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert "/login?success=email_verified_idp" in response.headers["location"]
+
+
+def test_set_password_page_idp_user_redirects(test_tenant, mocker):
+    """GET /set-password redirects IdP users to login instead of showing form."""
+    from datetime import UTC, datetime
+
+    override_tenant(app, test_tenant["id"])
+
+    mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_email_for_verification")
+    mock_get_user = mocker.patch(f"{SERVICES_USERS}.get_user_by_id_raw")
+
+    mock_get_email.return_value = {
+        "id": "email-123",
+        "user_id": "user-123",
+        "email": "idp-user@example.com",
+        "verified_at": datetime.now(UTC),
+        "set_password_nonce": "abc123token",
+    }
+    mock_get_user.return_value = {
+        "id": "user-123",
+        "password_hash": None,
+        "saml_idp_id": "google-workspace-idp",
+    }
+
+    client = TestClient(app)
+    response = client.get(
+        "/set-password?email_id=email-123&nonce=abc123token", follow_redirects=False
+    )
+
+    assert response.status_code == 303
+    assert "/login?success=email_verified_idp" in response.headers["location"]
+
+
+def test_set_password_post_idp_user_redirects(test_tenant, mocker):
+    """POST /set-password redirects IdP users to login instead of setting password."""
+    from datetime import UTC, datetime
+
+    override_tenant(app, test_tenant["id"])
+
+    mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_email_for_verification")
+    mock_get_user = mocker.patch(f"{SERVICES_USERS}.get_user_by_id_raw")
+    mock_update_pw = mocker.patch(f"{SERVICES_USERS}.update_password")
+
+    mock_get_email.return_value = {
+        "id": "email-123",
+        "user_id": "user-123",
+        "email": "idp-user@example.com",
+        "verified_at": datetime.now(UTC),
+        "set_password_nonce": "abc123token",
+    }
+    mock_get_user.return_value = {
+        "id": "user-123",
+        "password_hash": None,
+        "saml_idp_id": "okta-idp-id",
+    }
+
+    client = TestClient(app)
+    response = client.post(
+        "/set-password",
+        data={
+            "email_id": "email-123",
+            "nonce": "abc123token",
+            "password": "Str0ngP@ssw0rd!123",
+            "password_confirm": "Str0ngP@ssw0rd!123",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "/login?success=email_verified_idp" in response.headers["location"]
+    mock_update_pw.assert_not_called()
+
+
+# =============================================================================
 # Client IP Extraction Tests
 # =============================================================================
 

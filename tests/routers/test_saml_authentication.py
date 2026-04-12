@@ -791,3 +791,615 @@ def test_acs_test_flow_bypasses_rate_limit(mock_ratelimit, tenant_client):
 
     assert response.status_code == 200
     mock_ratelimit.prevent.assert_not_called()
+
+
+# =============================================================================
+# CBC Padding Oracle Mitigation: error_detail NOT leaked to browser
+# =============================================================================
+
+
+def test_store_saml_debug_does_not_leak_error_detail(tenant_client):
+    """Verify store_saml_debug_and_respond stores error_detail but does NOT pass it to template.
+
+    This is the CBC padding oracle mitigation: detailed error messages (which
+    could distinguish decryption failures from other errors) are stored for
+    admin review but never rendered in the user-facing error page.
+    """
+    from routers.saml._helpers import store_saml_debug_and_respond
+
+    with (
+        patch("routers.saml._helpers.saml_service.store_saml_debug_entry") as mock_store,
+        patch("routers.saml._helpers.templates.TemplateResponse") as mock_template,
+    ):
+        mock_template.return_value = HTMLResponse(content="<html>error</html>")
+        mock_request = MagicMock()
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers = {"user-agent": "test-agent"}
+
+        store_saml_debug_and_respond(
+            request=mock_request,
+            tenant_id="tenant-123",
+            error_type="auth_failed",
+            error_detail="Padding is invalid and cannot be removed",
+            saml_response_b64="base64data",
+            idp_id="idp-123",
+        )
+
+        # error_detail IS stored in debug entry for admin review
+        store_kwargs = mock_store.call_args[1]
+        assert store_kwargs["error_detail"] == "Padding is invalid and cannot be removed"
+
+        # error_detail is NOT in the template context (oracle mitigation)
+        template_context = mock_template.call_args[0][2]
+        assert "error_detail" not in template_context
+        assert template_context["error_type"] == "auth_failed"
+
+
+def test_saml_login_error_includes_error_detail_in_template(tenant_client):
+    """Login initiation errors DO include error_detail (not ACS, no oracle risk).
+
+    Login errors are from building the AuthnRequest, not from processing
+    encrypted SAML responses, so there is no padding oracle concern.
+    """
+    idp_id = str(uuid4())
+
+    with (
+        patch(
+            "routers.saml.authentication.saml_service.build_authn_request",
+            side_effect=NotFoundError("IdP config-xyz not found"),
+        ),
+        patch("routers.saml.authentication.templates.TemplateResponse") as mock_template,
+    ):
+        mock_template.return_value = HTMLResponse(content="<html>error</html>")
+        tenant_client.get(f"/saml/login/{idp_id}")
+
+        context = mock_template.call_args[0][2]
+        assert "error_detail" in context
+        assert context["error_detail"] == "IdP config-xyz not found"
+
+
+# =============================================================================
+# Per-IdP ACS: missing_attribute error type
+# =============================================================================
+
+
+@patch("routers.saml.authentication.store_saml_debug_and_respond")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+def test_per_idp_acs_missing_email_attribute(
+    mock_process,
+    mock_debug,
+    tenant_client,
+):
+    """Test ACS maps saml_missing_email code to missing_attribute error type."""
+    mock_process.side_effect = ValidationError(
+        "Email attribute not found in SAML assertion",
+        code="saml_missing_email",
+    )
+    mock_debug.return_value = HTMLResponse(content="<html>error</html>")
+
+    response = tenant_client.post(
+        f"/saml/acs/{uuid4()}",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+    )
+    assert response.status_code == 200
+    call_kwargs = mock_debug.call_args[1]
+    assert call_kwargs["error_type"] == "missing_attribute"
+
+
+# =============================================================================
+# Per-IdP ACS: session settings branches
+# =============================================================================
+
+
+@patch("routers.saml.authentication.users_service.update_last_login")
+@patch("routers.saml.authentication.regenerate_session")
+@patch("routers.saml.authentication.settings_service.get_session_settings")
+@patch("routers.saml.authentication.saml_service.authenticate_via_saml")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+def test_per_idp_acs_non_persistent_session(
+    mock_process,
+    mock_auth,
+    mock_settings,
+    mock_regen,
+    mock_login,
+    tenant_client,
+):
+    """Test ACS with non-persistent sessions sets max_age to None."""
+    mock_result = MagicMock()
+    mock_result.requires_mfa = False
+    mock_result.idp_id = str(uuid4())
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = "emailAddress"
+    mock_result.session_index = "session-123"
+    mock_result.slo_url = None
+    mock_process.return_value = mock_result
+
+    mock_auth.return_value = {"id": str(uuid4()), "mfa_method": None}
+    mock_settings.return_value = {"persistent_sessions": False}
+
+    response = tenant_client.post(
+        f"/saml/acs/{uuid4()}",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    regen_call = mock_regen.call_args
+    assert regen_call[0][2] is None  # max_age is None for non-persistent
+
+
+@patch("routers.saml.authentication.users_service.update_last_login")
+@patch("routers.saml.authentication.regenerate_session")
+@patch("routers.saml.authentication.settings_service.get_session_settings")
+@patch("routers.saml.authentication.saml_service.authenticate_via_saml")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+def test_per_idp_acs_custom_session_timeout(
+    mock_process,
+    mock_auth,
+    mock_settings,
+    mock_regen,
+    mock_login,
+    tenant_client,
+):
+    """Test ACS with custom session timeout passes it as max_age."""
+    mock_result = MagicMock()
+    mock_result.requires_mfa = False
+    mock_result.idp_id = str(uuid4())
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = "emailAddress"
+    mock_result.session_index = "session-123"
+    mock_result.slo_url = None
+    mock_process.return_value = mock_result
+
+    mock_auth.return_value = {"id": str(uuid4()), "mfa_method": None}
+    mock_settings.return_value = {"persistent_sessions": True, "session_timeout_seconds": 7200}
+
+    response = tenant_client.post(
+        f"/saml/acs/{uuid4()}",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    regen_call = mock_regen.call_args
+    assert regen_call[0][2] == 7200
+
+
+# =============================================================================
+# Per-IdP ACS: pending SSO context preservation
+# =============================================================================
+
+
+@patch("routers.saml.authentication.users_service.update_last_login")
+@patch("routers.saml.authentication.regenerate_session")
+@patch("routers.saml.authentication.settings_service.get_session_settings")
+@patch("routers.saml.authentication.saml_service.authenticate_via_saml")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+def test_per_idp_acs_preserves_pending_sso(
+    mock_process,
+    mock_auth,
+    mock_settings,
+    mock_regen,
+    mock_login,
+    tenant_client,
+    mocker,
+):
+    """Test ACS preserves pending SSO context through session regeneration."""
+    mock_result = MagicMock()
+    mock_result.requires_mfa = False
+    mock_result.idp_id = str(uuid4())
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = "emailAddress"
+    mock_result.session_index = "session-123"
+    mock_result.slo_url = None
+    mock_process.return_value = mock_result
+
+    mock_auth.return_value = {"id": str(uuid4()), "mfa_method": None}
+    mock_settings.return_value = None
+
+    # Mock the pending SSO helpers (local imports from routers.saml_idp._helpers)
+    mock_extract = mocker.patch(
+        "routers.saml_idp._helpers.extract_pending_sso",
+        return_value={"pending_sp_entity_id": "https://sp.example.com"},
+    )
+    mocker.patch(
+        "routers.saml_idp._helpers.get_post_auth_redirect",
+        return_value="/saml/idp/consent",
+    )
+
+    response = tenant_client.post(
+        f"/saml/acs/{uuid4()}",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/saml/idp/consent"
+    mock_extract.assert_called_once()
+    # Verify pending SSO data was included in session regeneration
+    regen_kwargs = mock_regen.call_args[1]
+    assert "pending_sp_entity_id" in regen_kwargs["additional_data"]
+
+
+# =============================================================================
+# Legacy ACS: missing_attribute and expired error types
+# =============================================================================
+
+
+@patch("routers.saml.authentication.store_saml_debug_and_respond")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+@patch("routers.saml.authentication.saml_service.get_idp_by_issuer")
+@patch("routers.saml.authentication.extract_issuer_from_response")
+def test_legacy_acs_missing_email_attribute(
+    mock_extract,
+    mock_get,
+    mock_process,
+    mock_debug,
+    tenant_client,
+):
+    """Test legacy ACS maps saml_missing_email to missing_attribute."""
+    mock_extract.return_value = "https://idp.example.com"
+    mock_idp = MagicMock()
+    mock_idp.id = "idp-id"
+    mock_idp.name = "Test IdP"
+    mock_get.return_value = mock_idp
+    mock_process.side_effect = ValidationError(
+        "Email attribute not found",
+        code="saml_missing_email",
+    )
+    mock_debug.return_value = HTMLResponse(content="<html>error</html>")
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+    )
+    assert response.status_code == 200
+    call_kwargs = mock_debug.call_args[1]
+    assert call_kwargs["error_type"] == "missing_attribute"
+
+
+@patch("routers.saml.authentication.store_saml_debug_and_respond")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+@patch("routers.saml.authentication.saml_service.get_idp_by_issuer")
+@patch("routers.saml.authentication.extract_issuer_from_response")
+def test_legacy_acs_generic_validation_error(
+    mock_extract,
+    mock_get,
+    mock_process,
+    mock_debug,
+    tenant_client,
+):
+    """Test legacy ACS maps generic validation errors to auth_failed."""
+    mock_extract.return_value = "https://idp.example.com"
+    mock_idp = MagicMock()
+    mock_idp.id = "idp-id"
+    mock_idp.name = "Test IdP"
+    mock_get.return_value = mock_idp
+    mock_process.side_effect = ValidationError("Invalid signature on response")
+    mock_debug.return_value = HTMLResponse(content="<html>error</html>")
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+    )
+    assert response.status_code == 200
+    call_kwargs = mock_debug.call_args[1]
+    assert call_kwargs["error_type"] == "auth_failed"
+
+
+@patch("routers.saml.authentication.store_saml_debug_and_respond")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+@patch("routers.saml.authentication.saml_service.get_idp_by_issuer")
+@patch("routers.saml.authentication.extract_issuer_from_response")
+def test_legacy_acs_expired_response(
+    mock_extract,
+    mock_get,
+    mock_process,
+    mock_debug,
+    tenant_client,
+):
+    """Test legacy ACS maps expired response to 'expired' error type."""
+    mock_extract.return_value = "https://idp.example.com"
+    mock_idp = MagicMock()
+    mock_idp.id = "idp-id"
+    mock_idp.name = "Test IdP"
+    mock_get.return_value = mock_idp
+    mock_process.side_effect = ValidationError("Response has expired")
+    mock_debug.return_value = HTMLResponse(content="<html>error</html>")
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+    )
+    assert response.status_code == 200
+    call_kwargs = mock_debug.call_args[1]
+    assert call_kwargs["error_type"] == "expired"
+
+
+# =============================================================================
+# Legacy ACS: non-user NotFoundError (idp_not_found from authenticate_via_saml)
+# =============================================================================
+
+
+@patch("routers.saml.authentication.store_saml_debug_and_respond")
+@patch("routers.saml.authentication.saml_service.authenticate_via_saml")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+@patch("routers.saml.authentication.saml_service.get_idp_by_issuer")
+@patch("routers.saml.authentication.extract_issuer_from_response")
+def test_legacy_acs_non_user_not_found_error(
+    mock_extract,
+    mock_get,
+    mock_process,
+    mock_auth,
+    mock_debug,
+    tenant_client,
+):
+    """Test legacy ACS maps non-user NotFoundError to idp_not_found."""
+    mock_extract.return_value = "https://idp.example.com"
+    mock_idp = MagicMock()
+    mock_idp.id = "idp-id"
+    mock_idp.name = "Test IdP"
+    mock_get.return_value = mock_idp
+    mock_process.return_value = MagicMock()
+    mock_auth.side_effect = NotFoundError(
+        message="IdP configuration not found",
+        code="idp_not_found",
+    )
+    mock_debug.return_value = HTMLResponse(content="<html>error</html>")
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+    )
+    assert response.status_code == 200
+    call_kwargs = mock_debug.call_args[1]
+    assert call_kwargs["error_type"] == "idp_not_found"
+
+
+# =============================================================================
+# Legacy ACS: MFA email flow
+# =============================================================================
+
+
+@patch("routers.saml.authentication.send_mfa_code_email")
+@patch("routers.saml.authentication.create_email_otp")
+@patch("routers.saml.authentication.emails_service.get_primary_email")
+@patch("routers.saml.authentication.saml_service.authenticate_via_saml")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+@patch("routers.saml.authentication.saml_service.get_idp_by_issuer")
+@patch("routers.saml.authentication.extract_issuer_from_response")
+def test_legacy_acs_mfa_email_required(
+    mock_extract,
+    mock_get,
+    mock_process,
+    mock_auth,
+    mock_email,
+    mock_otp,
+    mock_send,
+    tenant_client,
+):
+    """Test legacy ACS redirects to MFA verify and sends email OTP."""
+    mock_extract.return_value = "https://idp.example.com"
+    mock_idp = MagicMock()
+    mock_idp.id = "idp-id"
+    mock_idp.name = "Test IdP"
+    mock_get.return_value = mock_idp
+
+    mock_result = MagicMock()
+    mock_result.requires_mfa = True
+    mock_process.return_value = mock_result
+
+    user_id = str(uuid4())
+    mock_auth.return_value = {"id": user_id, "mfa_method": "email"}
+    mock_email.return_value = "user@example.com"
+    mock_otp.return_value = "654321"
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/mfa/verify"
+    mock_send.assert_called_once_with("user@example.com", "654321", tenant_id=ANY)
+
+
+# =============================================================================
+# Legacy ACS: default session settings (None -> 30 day max_age)
+# =============================================================================
+
+
+@patch("routers.saml.authentication.users_service.update_last_login")
+@patch("routers.saml.authentication.regenerate_session")
+@patch("routers.saml.authentication.settings_service.get_session_settings")
+@patch("routers.saml.authentication.saml_service.authenticate_via_saml")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+@patch("routers.saml.authentication.saml_service.get_idp_by_issuer")
+@patch("routers.saml.authentication.extract_issuer_from_response")
+def test_legacy_acs_default_session_30_days(
+    mock_extract,
+    mock_get,
+    mock_process,
+    mock_auth,
+    mock_settings,
+    mock_regen,
+    mock_login,
+    tenant_client,
+):
+    """Test legacy ACS uses 30-day max_age when no session settings configured."""
+    mock_extract.return_value = "https://idp.example.com"
+    mock_idp = MagicMock()
+    mock_idp.id = "idp-id"
+    mock_idp.name = "Test IdP"
+    mock_get.return_value = mock_idp
+
+    mock_result = MagicMock()
+    mock_result.requires_mfa = False
+    mock_result.idp_id = "idp-id"
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = "emailAddress"
+    mock_result.session_index = "session-123"
+    mock_result.slo_url = None
+    mock_process.return_value = mock_result
+
+    mock_auth.return_value = {"id": str(uuid4()), "mfa_method": None}
+    mock_settings.return_value = None  # No settings -> defaults
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    regen_call = mock_regen.call_args
+    assert regen_call[0][2] == 30 * 24 * 3600  # 30 days
+
+
+# =============================================================================
+# Legacy ACS: pending SSO context preservation
+# =============================================================================
+
+
+@patch("routers.saml.authentication.users_service.update_last_login")
+@patch("routers.saml.authentication.regenerate_session")
+@patch("routers.saml.authentication.settings_service.get_session_settings")
+@patch("routers.saml.authentication.saml_service.authenticate_via_saml")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+@patch("routers.saml.authentication.saml_service.get_idp_by_issuer")
+@patch("routers.saml.authentication.extract_issuer_from_response")
+def test_legacy_acs_preserves_pending_sso(
+    mock_extract,
+    mock_get,
+    mock_process,
+    mock_auth,
+    mock_settings,
+    mock_regen,
+    mock_login,
+    tenant_client,
+    mocker,
+):
+    """Test legacy ACS preserves pending SSO context through session regeneration."""
+    mock_extract.return_value = "https://idp.example.com"
+    mock_idp = MagicMock()
+    mock_idp.id = "idp-id"
+    mock_idp.name = "Test IdP"
+    mock_get.return_value = mock_idp
+
+    mock_result = MagicMock()
+    mock_result.requires_mfa = False
+    mock_result.idp_id = "idp-id"
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = "emailAddress"
+    mock_result.session_index = "session-123"
+    mock_result.slo_url = None
+    mock_process.return_value = mock_result
+
+    mock_auth.return_value = {"id": str(uuid4()), "mfa_method": None}
+    mock_settings.return_value = None
+
+    mock_pending = mocker.patch(
+        "routers.saml_idp._helpers.extract_pending_sso",
+        return_value={"pending_sp_entity_id": "https://downstream.example.com"},
+    )
+    mocker.patch(
+        "routers.saml_idp._helpers.get_post_auth_redirect",
+        return_value="/saml/idp/consent",
+    )
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/saml/idp/consent"
+    mock_pending.assert_called_once()
+    regen_kwargs = mock_regen.call_args[1]
+    assert "pending_sp_entity_id" in regen_kwargs["additional_data"]
+
+
+# =============================================================================
+# Test flow handler
+# =============================================================================
+
+
+@patch("routers.saml.authentication.templates.TemplateResponse")
+@patch("routers.saml.authentication.saml_service.get_idp_for_saml_login")
+@patch("routers.saml.authentication.saml_service.process_saml_test_response")
+@patch("routers.saml.authentication.ratelimit")
+def test_per_idp_acs_test_flow_invokes_handler(
+    mock_ratelimit,
+    mock_test_response,
+    mock_get_idp,
+    mock_template,
+    tenant_client,
+):
+    """Test that __test__: RelayState triggers the test flow handler."""
+    idp_id = str(uuid4())
+    mock_test_response.return_value = {"status": "success", "attributes": {}}
+    mock_idp = MagicMock()
+    mock_idp.name = "Test IdP"
+    mock_get_idp.return_value = mock_idp
+    mock_template.return_value = HTMLResponse(content="<html>test result</html>")
+
+    response = tenant_client.post(
+        f"/saml/acs/{idp_id}",
+        data={"SAMLResponse": "base64data", "RelayState": f"__test__:{idp_id}"},
+    )
+    assert response.status_code == 200
+    mock_test_response.assert_called_once()
+    # Rate limiting should not be invoked for test flows
+    mock_ratelimit.prevent.assert_not_called()
+
+
+@patch("routers.saml.authentication.templates.TemplateResponse")
+@patch("routers.saml.authentication.saml_service.get_idp_for_saml_login")
+@patch("routers.saml.authentication.saml_service.process_saml_test_response")
+@patch("routers.saml.authentication.ratelimit")
+def test_legacy_acs_test_flow_invokes_handler(
+    mock_ratelimit,
+    mock_test_response,
+    mock_get_idp,
+    mock_template,
+    tenant_client,
+):
+    """Test that legacy ACS __test__: RelayState triggers the test flow handler."""
+    idp_id = str(uuid4())
+    mock_test_response.return_value = {"status": "success", "attributes": {}}
+    mock_idp = MagicMock()
+    mock_idp.name = "Test IdP"
+    mock_get_idp.return_value = mock_idp
+    mock_template.return_value = HTMLResponse(content="<html>test result</html>")
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": f"__test__:{idp_id}"},
+    )
+    assert response.status_code == 200
+    mock_test_response.assert_called_once()
+    mock_ratelimit.prevent.assert_not_called()
+
+
+@patch("routers.saml.authentication.templates.TemplateResponse")
+@patch("routers.saml.authentication.saml_service.get_idp_for_saml_login")
+@patch("routers.saml.authentication.saml_service.process_saml_test_response")
+@patch("routers.saml.authentication.ratelimit")
+def test_test_flow_idp_name_fallback(
+    mock_ratelimit,
+    mock_test_response,
+    mock_get_idp,
+    mock_template,
+    tenant_client,
+):
+    """Test flow falls back to 'Unknown IdP' when IdP lookup fails."""
+    idp_id = str(uuid4())
+    mock_test_response.return_value = {"status": "success"}
+    mock_get_idp.side_effect = ServiceError("IdP not found")
+    mock_template.return_value = HTMLResponse(content="<html>test result</html>")
+
+    response = tenant_client.post(
+        f"/saml/acs/{idp_id}",
+        data={"SAMLResponse": "base64data", "RelayState": f"__test__:{idp_id}"},
+    )
+    assert response.status_code == 200
+    # Template should receive "Unknown IdP" as fallback name
+    call_args = mock_template.call_args
+    ctx = call_args[0][2] if len(call_args[0]) > 2 else call_args[1]
+    assert ctx.get("idp_name") == "Unknown IdP"

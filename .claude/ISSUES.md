@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 6 | Rate Limiting, Input Validation |
+| Low | 5 | Rate Limiting, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -39,17 +39,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 ---
 
 ---
-
-## [SECURITY] Weak Tokens: Predictable sequential nonces for email verification
-
-**Found in:** `db-init/schema.sql:186`, `db-init/migrations/0023_set_password_nonce.sql:7`
-**Severity:** Low
-**OWASP Category:** A02:2021 - Cryptographic Failures
-**Description:** `verify_nonce` and `set_password_nonce` are sequential integers starting at 1. If the UUID `email_id` is leaked (logs, referrer headers), the nonce provides minimal additional security since it's trivially guessable (almost always 1).
-**Attack Scenario:** Attacker who obtains an `email_id` UUID can guess the nonce (starts at 1, increments by 1).
-**Evidence:** `verify_nonce integer DEFAULT 1 NOT NULL` in schema.sql.
-**Impact:** Reduced security of email verification and password-set links if UUID is leaked.
-**Remediation:** Use `secrets.token_urlsafe()` instead of sequential integers for nonces.
 
 ---
 

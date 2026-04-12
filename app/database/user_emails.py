@@ -217,7 +217,7 @@ def get_email_with_nonce(tenant_id: TenantArg, email_id: str, user_id: str) -> d
 
 def verify_email(tenant_id: TenantArg, email_id: str) -> int:
     """
-    Mark an email as verified and increment the nonce.
+    Mark an email as verified and regenerate the nonce.
 
     Returns:
         Number of rows affected
@@ -226,30 +226,32 @@ def verify_email(tenant_id: TenantArg, email_id: str) -> int:
         tenant_id,
         """
         update user_emails
-        set verified_at = now(), verify_nonce = verify_nonce + 1
+        set verified_at = now(), verify_nonce = encode(gen_random_bytes(24), 'hex')
         where id = :email_id
         """,
         {"email_id": email_id},
     )
 
 
-def increment_set_password_nonce(tenant_id: TenantArg, email_id: str) -> int:
+def regenerate_set_password_nonce(tenant_id: TenantArg, email_id: str) -> str:
     """
-    Increment the set_password_nonce for an email, invalidating the current
+    Regenerate the set_password_nonce for an email, invalidating the current
     set-password link.
 
     Returns:
-        Number of rows affected
+        The new nonce value
     """
-    return execute(
+    result = fetchone(
         tenant_id,
         """
         update user_emails
-        set set_password_nonce = set_password_nonce + 1
+        set set_password_nonce = encode(gen_random_bytes(24), 'hex')
         where id = :email_id
+        returning set_password_nonce
         """,
         {"email_id": email_id},
     )
+    return result["set_password_nonce"] if result else ""
 
 
 def unset_primary_emails(tenant_id: TenantArg, user_id: str) -> int:
@@ -368,23 +370,25 @@ def get_primary_email_for_resend(tenant_id: TenantArg, user_id: str) -> dict | N
     )
 
 
-def increment_verify_nonce(tenant_id: TenantArg, email_id: str) -> int:
+def regenerate_verify_nonce(tenant_id: TenantArg, email_id: str) -> str:
     """
-    Increment the verify_nonce for an email, invalidating the current
+    Regenerate the verify_nonce for an email, invalidating the current
     verification link without marking the email as verified.
 
     Returns:
-        Number of rows affected
+        The new nonce value
     """
-    return execute(
+    result = fetchone(
         tenant_id,
         """
         update user_emails
-        set verify_nonce = verify_nonce + 1
+        set verify_nonce = encode(gen_random_bytes(24), 'hex')
         where id = :email_id
+        returning verify_nonce
         """,
         {"email_id": email_id},
     )
+    return result["verify_nonce"] if result else ""
 
 
 def anonymize_user_emails(tenant_id: TenantArg, user_id: str) -> int:

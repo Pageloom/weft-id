@@ -1901,7 +1901,7 @@ def test_password_set_link_format_privileged_domain(
     call_args = mock_send.call_args[0]
     password_set_url = call_args[3]  # 4th argument is password_set_url
 
-    # Verify URL format: should contain /set-password?email_id={uuid}&nonce={int}
+    # Verify URL format: should contain /set-password?email_id={uuid}&nonce={token}
     assert "/set-password?email_id=" in password_set_url
     assert "&nonce=" in password_set_url
 

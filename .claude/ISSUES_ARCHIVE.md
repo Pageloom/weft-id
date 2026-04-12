@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Weak Tokens: Predictable sequential nonces for email verification
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `db-init/schema.sql:186`, `db-init/migrations/0023_set_password_nonce.sql:7`
+**Severity:** Low
+**OWASP Category:** A02:2021 - Cryptographic Failures
+**Fix:** Migration 0030 converts `verify_nonce` and `set_password_nonce` from sequential integers
+to random 48-character hex tokens (24 bytes via `gen_random_bytes`). Existing rows get unique
+random values. The "increment" functions are replaced with "regenerate" functions that return the
+new token. All URL parameters and form fields changed from int to string.
+
+---
+
 ### [SECURITY] Container Security: Docker containers run as root
 
 **Status:** Resolved (2026-04-12)

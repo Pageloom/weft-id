@@ -345,14 +345,12 @@ def resend_invitation(
     email_id = str(primary_email["id"])
 
     if primary_email["verified_at"]:
-        # Email is verified: increment set_password_nonce, send set-password link
-        database.user_emails.increment_set_password_nonce(tenant_id, email_id)
-        nonce = primary_email["set_password_nonce"] + 1
+        # Email is verified: regenerate set_password_nonce, send set-password link
+        nonce = database.user_emails.regenerate_set_password_nonce(tenant_id, email_id)
         invitation_type = "set_password"
     else:
-        # Email is unverified: increment verify_nonce, send verification link
-        database.user_emails.increment_verify_nonce(tenant_id, email_id)
-        nonce = primary_email["verify_nonce"] + 1
+        # Email is unverified: regenerate verify_nonce, send verification link
+        nonce = database.user_emails.regenerate_verify_nonce(tenant_id, email_id)
         invitation_type = "verify"
 
     log_event(

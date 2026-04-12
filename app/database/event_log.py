@@ -216,6 +216,98 @@ def count_events(
     return result["count"] if result else 0
 
 
+def get_unredacted_verbose_events(batch_size: int = 100) -> list[dict]:
+    """
+    Find saml_assertion_received events older than 24h with un-redacted PII.
+
+    Uses UNSCOPED because this is a cross-tenant background task.
+    Detects un-redacted events by the absence of a 'pii_redacted_at' key
+    in the metadata.
+
+    Args:
+        batch_size: Maximum events to return per call
+
+    Returns:
+        List of dicts with id, metadata_hash, and metadata
+    """
+    return fetchall(
+        UNSCOPED,
+        """
+        SELECT e.id, e.metadata_hash, m.metadata
+        FROM event_logs e
+        JOIN event_log_metadata m ON e.metadata_hash = m.metadata_hash
+        WHERE e.event_type = 'saml_assertion_received'
+          AND e.created_at < now() - interval '24 hours'
+          AND NOT (m.metadata ? 'pii_redacted_at')
+        LIMIT :batch_size
+        """,
+        {"batch_size": batch_size},
+    )
+
+
+def swap_event_metadata(
+    event_id: str,
+    new_hash: str,
+    new_metadata: dict[str, Any],
+) -> None:
+    """
+    Replace an event's metadata with a redacted version.
+
+    Inserts the new metadata row (idempotent via ON CONFLICT) and updates
+    the event to reference it.
+
+    Args:
+        event_id: The event log ID to update
+        new_hash: MD5 hash of the new metadata
+        new_metadata: The redacted metadata dict
+    """
+    execute(
+        UNSCOPED,
+        """
+        INSERT INTO event_log_metadata (metadata_hash, metadata)
+        VALUES (:metadata_hash, :metadata)
+        ON CONFLICT (metadata_hash) DO NOTHING
+        """,
+        {
+            "metadata_hash": new_hash,
+            "metadata": Json(new_metadata),
+        },
+    )
+    execute(
+        UNSCOPED,
+        """
+        UPDATE event_logs SET metadata_hash = :new_hash
+        WHERE id = :event_id
+        """,
+        {"new_hash": new_hash, "event_id": event_id},
+    )
+
+
+def delete_orphaned_metadata(hashes: list[str]) -> int:
+    """
+    Delete metadata rows that are no longer referenced by any event.
+
+    Args:
+        hashes: List of metadata hashes to check for orphan status
+
+    Returns:
+        Number of orphaned rows deleted
+    """
+    if not hashes:
+        return 0
+    return execute(
+        UNSCOPED,
+        """
+        DELETE FROM event_log_metadata
+        WHERE metadata_hash = ANY(:hashes)
+          AND NOT EXISTS (
+              SELECT 1 FROM event_logs WHERE metadata_hash = event_log_metadata.metadata_hash
+          )
+        """,
+        {"hashes": hashes},
+    )
+
+
 def get_event_by_id(tenant_id: TenantArg, event_id: str) -> dict | None:
     """
     Get a single event log entry by ID.

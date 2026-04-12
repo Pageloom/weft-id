@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 2 | SAML, Input Validation |
+| Medium | 1 | Input Validation |
 | Low | 8 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -31,19 +31,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-
----
-
-## [SECURITY] Information Disclosure: Verbose assertion logging stores PII in event log
-
-**Found in:** `app/services/saml/auth.py:39-108`
-**Severity:** Medium
-**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
-**Description:** When verbose logging is enabled (24-hour window), full raw SAML responses are stored in the debug table (cleaned up after 24h). However, the event log also captures all parsed user attributes (email, name, groups, unmapped attributes) and these persist indefinitely, creating a long-lived PII store.
-**Attack Scenario:** Attacker with database read access (backup, log aggregation) obtains detailed PII for every user who authenticated during verbose logging windows.
-**Evidence:** Event metadata at `auth.py:82-93` includes email, first_name, last_name, groups, name_id, and all unmapped_attributes.
-**Impact:** PII exposure via event log persistence.
-**Remediation:** Limit event log metadata to non-PII fields (e.g., IdP name, debug_entry_id, attribute count). Keep PII only in the debug entry (which has 24h TTL).
 
 ---
 

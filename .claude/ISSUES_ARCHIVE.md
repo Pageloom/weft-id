@@ -5,6 +5,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Information Disclosure: Verbose assertion logging stores PII in event log
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/services/saml/auth.py:39-108`
+**Severity:** Medium
+**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
+**Fix:** Added a periodic worker job (`redact_verbose_event_pii`) that runs hourly and redacts
+PII from `saml_assertion_received` event log metadata older than 24h. String PII fields
+(email, name, name_id) are replaced with `[redacted]`. Collection fields (groups, unmapped
+attributes) are replaced with `{"count": N, "redacted": true}` to preserve diagnostic info.
+A `pii_redacted_at` timestamp marks redacted events. During the 24h debug window, full PII
+remains available for diagnosis. Also added a migration to allow UNSCOPED RLS access on
+`event_logs` for the worker (matching the pattern used by `export_files`).
+
+---
+
 ### [SECURITY] Deployment: .env created without restrictive permissions
 
 **Status:** Resolved (2026-04-12)

@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 2 | Input Validation |
+| Low | 1 | Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -47,17 +47,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 ---
 
 ---
-
-## [SECURITY] Input Validation: Missing max_length on BulkUserIdsRequest elements
-
-**Found in:** `app/schemas/api.py:180`
-**Severity:** Low
-**OWASP Category:** A04:2021 - Insecure Design
-**Description:** `BulkUserIdsRequest.user_ids` is `list[str]` with `max_length=10000` on the list, but no `max_length` on individual string elements. 10,000 arbitrarily long strings could exhaust memory during Pydantic validation and bloat the job payload in the database.
-**Attack Scenario:** Admin sends 10,000 user IDs of 1MB each, consuming ~10GB of server memory.
-**Evidence:** `user_ids: list[str] = Field(..., min_length=1, max_length=10000)` with no per-element constraint.
-**Impact:** Memory exhaustion, database bloat.
-**Remediation:** Add `max_length=36` to individual elements (UUIDs are 36 chars).
 
 ---
 

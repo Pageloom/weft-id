@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 3 | Open redirect, access control bypass, unbounded input |
+| Medium | 2 | Access control bypass, unbounded input |
 | Low | 2 | SSRF redirect-follow, unbounded admin forms |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -24,27 +24,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
-
----
-
-## [SECURITY] Open Redirect via Unvalidated SAML RelayState
-
-**Found in:** `app/routers/saml/authentication.py:375,612` and `:185`
-**Severity:** Medium
-**OWASP Category:** A07:2021 - Identification and Authentication Failures
-**Description:** The SAML `RelayState` parameter from the IdP POST body is used directly as a post-authentication redirect URL with no validation that it is a relative path. The `get_post_auth_redirect()` function returns `RelayState` as-is when there is no pending SSO context.
-**Attack Scenario:** An attacker crafts a phishing link `https://tenant.example.com/saml/login/{idp_id}?relay_state=https://evil.com`. After successful SAML authentication, the user is redirected to the attacker's site. The `relay_state` query parameter at login initiation (line 185) flows through the IdP and returns as `RelayState` in the ACS POST, where it becomes the redirect target.
-**Evidence:**
-```python
-# Line 375 (per-IdP ACS) and 612 (legacy ACS):
-redirect_url = get_post_auth_redirect(request.session, default=RelayState)
-return RedirectResponse(url=redirect_url, status_code=303)
-
-# Line 185 (login initiation - no validation):
-relay_state = request.query_params.get("relay_state", "/dashboard")
-```
-**Impact:** Post-authentication phishing. User trusts they just logged in, so they are more likely to enter credentials on the attacker's lookalike page.
-**Remediation:** Validate RelayState is a safe relative path before using it as a redirect. Reject any value containing `://` or starting with `//`. Apply at both ACS handlers and the login initiation endpoint. A shared helper like `_safe_relay_state(value, default="/dashboard")` that checks `value.startswith("/") and not value.startswith("//")` would cover all three call sites.
 
 ---
 

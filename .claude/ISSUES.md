@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 3 | Input Validation, Cryptographic Failures |
+| Low | 2 | Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -45,17 +45,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 ---
 
 ---
-
-## [SECURITY] Information Disclosure: Export encryption password in database
-
-**Found in:** `app/jobs/export_events.py:274-281`, `app/jobs/export_users.py:350-357`
-**Severity:** Low
-**OWASP Category:** A02:2021 - Cryptographic Failures
-**Description:** XLSX encryption passwords are stored in the `bg_tasks.result` JSONB column in plaintext between creation and expiry (24h). Redacted by the cleanup job after expiry.
-**Attack Scenario:** Database backup or read access reveals export passwords, allowing decryption of exported PII.
-**Evidence:** `"password": encrypted.password` in job result dicts.
-**Impact:** Export file decryption if database is compromised.
-**Remediation:** Consider encrypting the password at rest using the tenant's derived key, or delivering it via a separate ephemeral channel.
 
 ---
 

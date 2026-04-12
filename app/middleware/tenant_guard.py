@@ -13,7 +13,7 @@ from starlette.responses import HTMLResponse, Response
 from starlette.types import ASGIApp
 
 # Paths that bypass tenant validation (infrastructure endpoints)
-_EXEMPT_PATHS = frozenset({"/healthz"})
+_EXEMPT_PATHS = frozenset({"/healthz", "/caddy/check-domain"})
 
 _ERROR_HTML = """\
 <!DOCTYPE html>

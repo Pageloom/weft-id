@@ -6,10 +6,7 @@
 
 {
 	on_demand_tls {
-		# Caddy will only issue certs for hostnames matching the site
-		# blocks below. For additional protection, point `ask` at an
-		# endpoint that validates the subdomain exists in your database.
-		# ask http://app:8000/caddy/check-domain
+		ask http://app:8000/caddy/check-domain
 	}
 }
 

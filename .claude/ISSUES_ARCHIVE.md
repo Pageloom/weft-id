@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Unbounded SAMLResponse/RelayState Form Inputs at ACS
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/routers/saml/authentication.py`, `app/routers/saml/logout.py`
+**Severity:** Medium
+**Resolution:** Added `max_length` to all SAML Form parameters: `SAMLResponse` (512 KB), `RelayState` (2048), and SLO `SAMLRequest`/`SAMLResponse` (512 KB). FastAPI rejects oversized payloads before decoding/parsing.
+
+---
+
 ### [SECURITY] `allow_users_edit_profile` Policy Bypass via REST API
 
 **Status:** Resolved (2026-04-12)

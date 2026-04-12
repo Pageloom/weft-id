@@ -62,8 +62,8 @@ def saml_slo_get(
 def saml_slo_post(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    saml_request: Annotated[str | None, Form(alias="SAMLRequest")] = None,
-    saml_response: Annotated[str | None, Form(alias="SAMLResponse")] = None,
+    saml_request: Annotated[str | None, Form(alias="SAMLRequest", max_length=524288)] = None,
+    saml_response: Annotated[str | None, Form(alias="SAMLResponse", max_length=524288)] = None,
 ):
     """
     Handle SLO via HTTP-POST binding.

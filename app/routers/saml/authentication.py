@@ -25,6 +25,17 @@ from utils.templates import templates
 router = APIRouter()
 
 
+def _safe_relay_state(value: str, default: str = "/dashboard") -> str:
+    """Validate that a relay state value is a safe relative path.
+
+    Rejects absolute URLs, protocol-relative URLs, and non-path values
+    to prevent open redirect attacks via crafted RelayState parameters.
+    """
+    if not value or not value.startswith("/") or value.startswith("//") or "://" in value:
+        return default
+    return value
+
+
 def _handle_saml_test_response(
     request: Request,
     tenant_id: str,
@@ -182,7 +193,7 @@ def saml_login(
 
     Redirects the user to the IdP's SSO URL with an AuthnRequest.
     """
-    relay_state = request.query_params.get("relay_state", "/dashboard")
+    relay_state = _safe_relay_state(request.query_params.get("relay_state", "/dashboard"))
 
     try:
         redirect_url, request_id = saml_service.build_authn_request(tenant_id, idp_id, relay_state)
@@ -372,7 +383,7 @@ def saml_acs_per_idp(
     regenerate_session(request, str(user["id"]), max_age, additional_data=saml_session_data)
     users_service.update_last_login(tenant_id, str(user["id"]))
 
-    redirect_url = get_post_auth_redirect(request.session, default=RelayState)
+    redirect_url = get_post_auth_redirect(request.session, default=_safe_relay_state(RelayState))
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
@@ -609,5 +620,5 @@ def saml_acs(
     users_service.update_last_login(tenant_id, str(user["id"]))
 
     # Redirect to consent page if pending SSO, otherwise use RelayState
-    redirect_url = get_post_auth_redirect(request.session, default=RelayState)
+    redirect_url = get_post_auth_redirect(request.session, default=_safe_relay_state(RelayState))
     return RedirectResponse(url=redirect_url, status_code=303)

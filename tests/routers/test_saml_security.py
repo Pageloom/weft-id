@@ -330,3 +330,131 @@ def test_saml_test_mode_prevents_actual_login(client, test_tenant, test_tenant_h
         assert str(call_args[1]) == str(test_tenant["id"])
         assert call_args[2] == "fake-base64-response"
         assert call_args[3].startswith("__test__:")
+
+
+# --- Open redirect prevention via _safe_relay_state ---
+
+
+class TestSafeRelayState:
+    """Test that _safe_relay_state rejects malicious redirect values."""
+
+    def test_safe_relative_path(self):
+        from routers.saml.authentication import _safe_relay_state
+
+        assert _safe_relay_state("/dashboard") == "/dashboard"
+        assert _safe_relay_state("/users/123") == "/users/123"
+        assert _safe_relay_state("/admin/audit/events?page=2") == "/admin/audit/events?page=2"
+
+    def test_rejects_absolute_url(self):
+        from routers.saml.authentication import _safe_relay_state
+
+        assert _safe_relay_state("https://evil.com") == "/dashboard"
+        assert _safe_relay_state("http://evil.com/phish") == "/dashboard"
+
+    def test_rejects_protocol_relative_url(self):
+        from routers.saml.authentication import _safe_relay_state
+
+        assert _safe_relay_state("//evil.com") == "/dashboard"
+        assert _safe_relay_state("//evil.com/path") == "/dashboard"
+
+    def test_rejects_javascript_scheme(self):
+        from routers.saml.authentication import _safe_relay_state
+
+        assert _safe_relay_state("javascript:alert(1)") == "/dashboard"
+
+    def test_rejects_empty_and_non_path(self):
+        from routers.saml.authentication import _safe_relay_state
+
+        assert _safe_relay_state("") == "/dashboard"
+        assert _safe_relay_state("evil.com") == "/dashboard"
+
+    def test_custom_default(self):
+        from routers.saml.authentication import _safe_relay_state
+
+        assert _safe_relay_state("https://evil.com", default="/login") == "/login"
+
+    def test_rejects_scheme_embedded_in_query_string(self):
+        from routers.saml.authentication import _safe_relay_state
+
+        # Reject paths that embed a scheme in a query parameter to prevent
+        # open redirect chains (e.g., an internal redirect endpoint that
+        # blindly follows a ?url= param).
+        assert _safe_relay_state("/redir?url=http://evil.com") == "/dashboard"
+
+
+def test_saml_login_rejects_open_redirect(client, test_tenant, test_tenant_host, test_idp):
+    """Test that SAML login initiation rejects absolute URL relay_state."""
+    with patch("routers.saml.authentication.saml_service.build_authn_request") as mock_build:
+        mock_build.return_value = ("https://idp.example.com/sso", "request-123")
+
+        client.get(
+            f"/saml/login/{test_idp.id}?relay_state=https://evil.com",
+            headers={"Host": test_tenant_host},
+            follow_redirects=False,
+        )
+
+        # The relay_state passed to build_authn_request should be sanitized to /dashboard
+        call_args = mock_build.call_args[0]
+        assert call_args[2] == "/dashboard"
+
+
+def test_saml_login_allows_safe_relay_state(client, test_tenant, test_tenant_host, test_idp):
+    """Test that SAML login initiation allows safe relative paths."""
+    with patch("routers.saml.authentication.saml_service.build_authn_request") as mock_build:
+        mock_build.return_value = ("https://idp.example.com/sso", "request-123")
+
+        client.get(
+            f"/saml/login/{test_idp.id}?relay_state=/admin/audit/events",
+            headers={"Host": test_tenant_host},
+            follow_redirects=False,
+        )
+
+        call_args = mock_build.call_args[0]
+        assert call_args[2] == "/admin/audit/events"
+
+
+def test_acs_rejects_open_redirect_relay_state(
+    client, test_tenant, test_tenant_host, test_idp, test_user
+):
+    """Test that ACS rejects absolute URL in RelayState and redirects to /dashboard."""
+    with (
+        patch("routers.saml.authentication.extract_issuer_from_response") as mock_extract,
+        patch("routers.saml.authentication.saml_service.get_idp_by_issuer") as mock_get_idp,
+        patch("routers.saml.authentication.saml_service.process_saml_response") as mock_process,
+        patch("routers.saml.authentication.saml_service.authenticate_via_saml") as mock_auth,
+        patch("routers.saml.authentication.settings_service.get_session_settings") as mock_settings,
+        patch("routers.saml.authentication.regenerate_session"),
+    ):
+        mock_extract.return_value = test_idp.entity_id
+
+        idp_mock = MagicMock()
+        idp_mock.id = str(test_idp.id)
+        idp_mock.is_enabled = True
+        idp_mock.require_platform_mfa = False
+        mock_get_idp.return_value = idp_mock
+
+        saml_result_mock = MagicMock()
+        saml_result_mock.name_id = test_user["email"]
+        saml_result_mock.requires_mfa = False
+        mock_process.return_value = saml_result_mock
+
+        mock_auth.return_value = test_user
+
+        mock_settings.return_value = {
+            "persistent_sessions": False,
+            "session_timeout_seconds": None,
+        }
+
+        response = client.post(
+            "/saml/acs",
+            headers={"Host": test_tenant_host},
+            data={
+                "SAMLResponse": "fake-base64-response",
+                "RelayState": "https://evil.com/phish",
+            },
+            follow_redirects=False,
+        )
+
+        # Should redirect to /dashboard, not to the malicious URL
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"

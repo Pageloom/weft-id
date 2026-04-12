@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Open Redirect via Unvalidated SAML RelayState
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/routers/saml/authentication.py:185,375,612`
+**Severity:** Medium
+**Resolution:** Added `_safe_relay_state()` helper that validates RelayState is a safe relative path (starts with `/`, rejects `//`, `://`, and non-path values). Applied at all three call sites: login initiation, per-IdP ACS, and legacy ACS. Tests in `test_saml_security.py`.
+
+---
+
 ### [SECURITY] Input Validation: No email format validation on web bulk secondary emails
 
 **Status:** Resolved (2026-04-12)

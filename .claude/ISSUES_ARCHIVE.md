@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Input Validation: No email format validation on web bulk secondary emails
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/routers/users/bulk_ops.py:170`
+**Severity:** Low
+**Resolution:** Added email format validation (requires `@` with local and domain parts) in the web form handler, matching the pattern used by other form routes. Rejects the entire submission if any email is malformed.
+
+---
+
 ### [SECURITY] Input Validation: Missing max_length on BulkUserIdsRequest elements
 
 **Status:** Resolved (2026-04-12)

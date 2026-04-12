@@ -202,6 +202,24 @@ def test_submit_redirects_when_all_emails_blank(test_admin_user, override_auth):
     assert "no_emails_provided" in response.headers["location"]
 
 
+def test_submit_rejects_invalid_email_format(test_admin_user, override_auth):
+    """Submit endpoint rejects entries with invalid email format."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/secondary-emails",
+        data={
+            "user_ids": [str(uuid4()), str(uuid4())],
+            "emails": ["valid@example.com", "not-an-email"],
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "invalid_email_format" in response.headers["location"]
+
+
 # =============================================================================
 # POST /users/bulk-ops/primary-emails/prepare
 # =============================================================================

@@ -5,6 +5,18 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Deployment: .env created without restrictive permissions
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `deploy/install.sh:124`
+**Severity:** Medium
+**OWASP Category:** A02:2021 - Cryptographic Failures
+**Fix:** Added `chmod 600 .env` immediately after writing the file in `write_env()`. This
+restricts the file to owner read/write only, preventing other local users from reading secrets
+(`SECRET_KEY`, `POSTGRES_PASSWORD`, SMTP credentials).
+
+---
+
 ### [SECURITY] Deployment: Unrestricted on-demand TLS certificate issuance
 
 **Status:** Resolved (2026-04-12)

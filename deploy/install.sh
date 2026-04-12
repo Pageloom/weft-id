@@ -147,8 +147,9 @@ FROM_EMAIL=${FROM_EMAIL}
 ENABLE_OPENAPI_DOCS=false
 ENVEOF
 
+    chmod 600 .env
     echo ""
-    echo "  .env written"
+    echo "  .env written (mode 600)"
 }
 
 # --- Main -------------------------------------------------------------------

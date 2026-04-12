@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 2 | SSRF redirect-follow, unbounded admin forms |
+| Low | 1 | Unbounded admin forms |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -24,25 +24,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
-
----
-
-## [SECURITY] SSRF via HTTP Redirect Following in Metadata Fetch
-
-**Found in:** `app/utils/url_safety.py:170-174`
-**Severity:** Low
-**OWASP Category:** A10:2021 - Server-Side Request Forgery
-**Description:** The `validate_metadata_url()` function resolves the hostname and checks against IP blocklists before the request. However, `urllib.request.urlopen` follows HTTP 3xx redirects by default (up to 10 hops). A redirect to a blocked IP (e.g., `169.254.169.254`) happens after the initial validation, bypassing the SSRF protection (TOCTOU).
-**Attack Scenario:** A super admin configures a metadata URL pointing to their server. That server responds with `302 Location: http://169.254.169.254/latest/meta-data/`. Python follows the redirect without re-validating the destination IP. In cloud deployments, this could hit the instance metadata service. AWS IMDSv2 mitigates (requires PUT), but IMDSv1 and other clouds may be vulnerable.
-**Evidence:**
-```python
-validate_metadata_url(url)  # Validates original hostname only
-# ...
-with urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx) as response:
-    # urllib follows redirects to unvalidated destinations
-```
-**Impact:** Internal network scanning or cloud metadata exfiltration. Requires super admin access to trigger.
-**Remediation:** Disable redirect following by installing a custom opener/handler that either blocks redirects entirely or re-validates each redirect destination against the IP blocklist before following.
 
 ---
 

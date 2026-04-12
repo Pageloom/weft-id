@@ -1154,10 +1154,10 @@ SAMPLE_SP_XML = '<?xml version="1.0"?><EntityDescriptor>sp-metadata</EntityDescr
 class TestFetchSPMetadata:
     """Tests for fetch_sp_metadata (delegates to url_safety)."""
 
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.socket.getaddrinfo")
     @patch("app.utils.url_safety.settings")
-    def test_successful_fetch(self, mock_settings, mock_getaddrinfo, mock_urlopen):
+    def test_successful_fetch(self, mock_settings, mock_getaddrinfo, mock_build):
         mock_settings.IS_DEV = False
         mock_settings.BASE_DOMAIN = ""
         mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
@@ -1165,7 +1165,9 @@ class TestFetchSPMetadata:
         mock_response = MagicMock()
         mock_response.headers = {}
         mock_response.read.return_value = SAMPLE_SP_XML.encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        opener = MagicMock()
+        opener.open.return_value.__enter__.return_value = mock_response
+        mock_build.return_value = opener
 
         result = fetch_sp_metadata("https://sp.example.com/metadata")
         assert "EntityDescriptor" in result
@@ -1202,14 +1204,16 @@ class TestFetchSPMetadata:
         ],
         ids=["http_error", "network_error", "timeout"],
     )
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.socket.getaddrinfo")
     @patch("app.utils.url_safety.settings")
-    def test_fetch_errors(self, mock_settings, mock_getaddrinfo, mock_urlopen, exception, match):
+    def test_fetch_errors(self, mock_settings, mock_getaddrinfo, mock_build, exception, match):
         mock_settings.IS_DEV = False
         mock_settings.BASE_DOMAIN = ""
         mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
-        mock_urlopen.side_effect = exception
+        opener = MagicMock()
+        opener.open.side_effect = exception
+        mock_build.return_value = opener
 
         with pytest.raises(ValueError, match=match):
             fetch_sp_metadata("https://sp.example.com/metadata")

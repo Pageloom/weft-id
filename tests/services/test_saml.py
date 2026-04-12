@@ -1584,17 +1584,19 @@ def test_import_idp_from_metadata_url_success(
         lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
     )
 
-    # Mock urlopen to return valid metadata
+    # Mock build_opener to return valid metadata
     mock_response = MagicMock()
     mock_response.headers = {}
     mock_response.read.return_value = sample_idp_metadata_xml.encode()
     mock_response.__enter__ = lambda s: s
     mock_response.__exit__ = MagicMock(return_value=False)
 
-    def mock_urlopen(*args, **kwargs):
-        return mock_response
+    def mock_build_opener(*handlers):
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+        return mock_opener
 
-    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "build_opener", mock_build_opener)
 
     idp = saml_service.import_idp_from_metadata_url(
         requesting_user=requesting_user,
@@ -1618,6 +1620,7 @@ def test_import_idp_from_metadata_url_network_error(
     """Test that network errors during URL import are handled."""
     import socket
     import urllib.error
+    from unittest.mock import MagicMock
 
     from services import saml as saml_service
     from services.exceptions import ValidationError
@@ -1635,10 +1638,12 @@ def test_import_idp_from_metadata_url_network_error(
         lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
     )
 
-    def mock_urlopen(*args, **kwargs):
-        raise urllib.error.URLError("Connection refused")
+    def mock_build_opener(*handlers):
+        mock_opener = MagicMock()
+        mock_opener.open.side_effect = urllib.error.URLError("Connection refused")
+        return mock_opener
 
-    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "build_opener", mock_build_opener)
 
     with pytest.raises(ValidationError) as exc_info:
         saml_service.import_idp_from_metadata_url(
@@ -1733,17 +1738,19 @@ def test_refresh_all_idp_metadata_with_urls_success(
         lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
     )
 
-    # Mock urlopen to return valid metadata
+    # Mock build_opener to return valid metadata
     mock_response = MagicMock()
     mock_response.headers = {}
     mock_response.read.return_value = sample_idp_metadata_xml.encode()
     mock_response.__enter__ = lambda s: s
     mock_response.__exit__ = MagicMock(return_value=False)
 
-    def mock_urlopen(*args, **kwargs):
-        return mock_response
+    def mock_build_opener(*handlers):
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+        return mock_opener
 
-    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "build_opener", mock_build_opener)
 
     # Refresh all metadata
     result = saml_service.refresh_all_idp_metadata()
@@ -1792,11 +1799,15 @@ def test_refresh_all_idp_metadata_partial_failure(test_tenant, monkeypatch):
         lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
     )
 
-    # Mock urlopen to always fail
-    def mock_urlopen(*args, **kwargs):
-        raise urllib.error.URLError("Connection timeout")
+    # Mock build_opener to return an opener that always fails
+    def mock_build_opener(*handlers):
+        mock_opener = type("MockOpener", (), {})()
+        mock_opener.open = lambda *a, **kw: (_ for _ in ()).throw(
+            urllib.error.URLError("Connection timeout")
+        )
+        return mock_opener
 
-    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "build_opener", mock_build_opener)
 
     # Refresh all should not raise, even with failures
     result = saml_service.refresh_all_idp_metadata()
@@ -1877,10 +1888,12 @@ def test_refresh_all_idp_metadata_tracks_updated_fields(
     mock_response.__enter__ = lambda s: s
     mock_response.__exit__ = MagicMock(return_value=False)
 
-    def mock_urlopen(*args, **kwargs):
-        return mock_response
+    def mock_build_opener(*handlers):
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+        return mock_opener
 
-    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "build_opener", mock_build_opener)
 
     # Refresh
     result = saml_service.refresh_all_idp_metadata()
@@ -2667,11 +2680,13 @@ def test_refresh_idp_from_metadata_network_error(
 ):
     """Test refresh_idp_from_metadata handles network errors gracefully."""
     import urllib.error
-    import urllib.request
+    from unittest.mock import MagicMock
 
     from schemas.saml import IdPCreate
     from services import saml as saml_service
     from services.exceptions import ValidationError
+
+    import app.utils.url_safety
 
     requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
 
@@ -2682,11 +2697,13 @@ def test_refresh_idp_from_metadata_network_error(
         requesting_user, data, "https://test.example.com"
     )
 
-    # Mock urlopen to simulate network error
-    def mock_urlopen(*args, **kwargs):
-        raise urllib.error.URLError("Network unreachable")
+    # Mock build_opener to simulate network error
+    def mock_build_opener(*handlers):
+        mock_opener = MagicMock()
+        mock_opener.open.side_effect = urllib.error.URLError("Network unreachable")
+        return mock_opener
 
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "build_opener", mock_build_opener)
 
     with pytest.raises(ValidationError) as exc_info:
         saml_service.refresh_idp_from_metadata(requesting_user, created.id)
@@ -2698,12 +2715,13 @@ def test_refresh_idp_from_metadata_invalid_response(
     test_tenant, test_super_admin_user, test_idp_data, monkeypatch
 ):
     """Test refresh_idp_from_metadata handles invalid XML response."""
-    import urllib.request
     from unittest.mock import MagicMock
 
     from schemas.saml import IdPCreate
     from services import saml as saml_service
     from services.exceptions import ValidationError
+
+    import app.utils.url_safety
 
     requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
 
@@ -2714,16 +2732,18 @@ def test_refresh_idp_from_metadata_invalid_response(
         requesting_user, data, "https://test.example.com"
     )
 
-    # Mock urlopen to return invalid XML
+    # Mock build_opener to return invalid XML
     mock_response = MagicMock()
     mock_response.read.return_value = b"not valid xml"
     mock_response.__enter__ = lambda s: s
     mock_response.__exit__ = MagicMock(return_value=False)
 
-    def mock_urlopen(*args, **kwargs):
-        return mock_response
+    def mock_build_opener(*handlers):
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_response
+        return mock_opener
 
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "build_opener", mock_build_opener)
 
     with pytest.raises(ValidationError) as exc_info:
         saml_service.refresh_idp_from_metadata(requesting_user, created.id)
@@ -2737,11 +2757,13 @@ def test_refresh_idp_from_metadata_timeout(
     test_tenant, test_super_admin_user, test_idp_data, monkeypatch
 ):
     """Test refresh_idp_from_metadata handles timeout."""
-    import urllib.request
+    from unittest.mock import MagicMock
 
     from schemas.saml import IdPCreate
     from services import saml as saml_service
     from services.exceptions import ValidationError
+
+    import app.utils.url_safety
 
     requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
 
@@ -2752,11 +2774,13 @@ def test_refresh_idp_from_metadata_timeout(
         requesting_user, data, "https://test.example.com"
     )
 
-    # Mock urlopen to simulate timeout
-    def mock_urlopen(*args, **kwargs):
-        raise TimeoutError("Connection timed out")
+    # Mock build_opener to simulate timeout
+    def mock_build_opener(*handlers):
+        mock_opener = MagicMock()
+        mock_opener.open.side_effect = TimeoutError("Connection timed out")
+        return mock_opener
 
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "build_opener", mock_build_opener)
 
     with pytest.raises(ValidationError) as exc_info:
         saml_service.refresh_idp_from_metadata(requesting_user, created.id)

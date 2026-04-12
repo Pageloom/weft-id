@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] SSRF via HTTP Redirect Following in Metadata Fetch
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/utils/url_safety.py`
+**Severity:** Low
+**Resolution:** Added `_SafeRedirectHandler` that re-validates each HTTP redirect destination IP against the blocklist before following. Replaced bare `urlopen` with a custom opener using `build_opener`. Tests verify redirects to private IPs are blocked.
+
+---
+
 ### [SECURITY] Unbounded SAMLResponse/RelayState Form Inputs at ACS
 
 **Status:** Resolved (2026-04-12)

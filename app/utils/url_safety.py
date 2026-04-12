@@ -92,6 +92,26 @@ def validate_metadata_url(url: str) -> str:
     return ip_str
 
 
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Redirect handler that re-validates each hop against the IP blocklist."""
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        new_req = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new_req is None:
+            return None
+        # Validate the redirect destination IP
+        validate_metadata_url(newurl)
+        return new_req
+
+
 def read_response_with_limit(response: Any, max_bytes: int) -> bytes:
     """Read an HTTP response body with a size cap.
 
@@ -171,7 +191,11 @@ def fetch_metadata_xml(url: str, timeout: int = 10) -> str:
 
     try:
         req = urllib.request.Request(urlunparse(parsed), headers=headers)
-        with urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx) as response:  # noqa: S310
+        handlers: list[urllib.request.BaseHandler] = [_SafeRedirectHandler()]
+        if ssl_ctx is not None:
+            handlers.append(urllib.request.HTTPSHandler(context=ssl_ctx))
+        opener = urllib.request.build_opener(*handlers)
+        with opener.open(req, timeout=timeout) as response:  # noqa: S310
             data = read_response_with_limit(response, MAX_METADATA_BYTES)
             content = data.decode("utf-8")
 

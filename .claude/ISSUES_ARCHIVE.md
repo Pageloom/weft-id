@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Unbounded Form Parameters in Admin Web Forms
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/routers/saml/admin/providers.py`
+**Severity:** Low
+**Resolution:** Added `max_length` to all string Form() parameters matching downstream Pydantic schema limits (name 120, URLs 2048, metadata XML 1M, certificates 16K, attributes 255, actions 50).
+
+---
+
 ### [SECURITY] SSRF via HTTP Redirect Following in Metadata Fetch
 
 **Status:** Resolved (2026-04-12)

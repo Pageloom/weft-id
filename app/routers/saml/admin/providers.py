@@ -107,8 +107,8 @@ def create_idp(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    name: Annotated[str, Form()],
-    provider_type: Annotated[str, Form()],
+    name: Annotated[str, Form(max_length=120)],
+    provider_type: Annotated[str, Form(max_length=50)],
 ):
     """Create a new identity provider (name-only, two-step creation)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -144,9 +144,9 @@ def import_from_metadata(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    metadata_url: Annotated[str, Form()],
-    provider_type: Annotated[str, Form()],
-    name: Annotated[str, Form()],
+    metadata_url: Annotated[str, Form(max_length=2048)],
+    provider_type: Annotated[str, Form(max_length=50)],
+    name: Annotated[str, Form(max_length=120)],
 ):
     """Import an IdP configuration from a metadata URL."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -178,9 +178,9 @@ def import_from_metadata_xml(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    metadata_xml: Annotated[str, Form()],
-    provider_type: Annotated[str, Form()],
-    name: Annotated[str, Form()],
+    metadata_xml: Annotated[str, Form(max_length=1000000)],
+    provider_type: Annotated[str, Form(max_length=50)],
+    name: Annotated[str, Form(max_length=120)],
 ):
     """Import an IdP configuration from raw metadata XML."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -451,7 +451,7 @@ def edit_idp_name(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    name: Annotated[str, Form()],
+    name: Annotated[str, Form(max_length=120)],
 ):
     """Update IdP name (inline edit from details tab)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -477,7 +477,7 @@ def edit_idp_slo_url(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    slo_url: Annotated[str, Form()] = "",
+    slo_url: Annotated[str, Form(max_length=2048)] = "",
 ):
     """Update IdP SLO URL (inline edit from details tab)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -554,7 +554,7 @@ def toggle_verbose_logging(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    action: Annotated[str, Form()],
+    action: Annotated[str, Form(max_length=50)],
 ):
     """Enable or disable verbose assertion logging for an IdP."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -589,10 +589,10 @@ def edit_idp_attributes(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    attr_email: Annotated[str, Form()] = "email",
-    attr_first_name: Annotated[str, Form()] = "firstName",
-    attr_last_name: Annotated[str, Form()] = "lastName",
-    attr_groups: Annotated[str, Form()] = "groups",
+    attr_email: Annotated[str, Form(max_length=255)] = "email",
+    attr_first_name: Annotated[str, Form(max_length=255)] = "firstName",
+    attr_last_name: Annotated[str, Form(max_length=255)] = "lastName",
+    attr_groups: Annotated[str, Form(max_length=255)] = "groups",
 ):
     """Update IdP attribute mapping."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -631,7 +631,7 @@ def reimport_idp_metadata(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    metadata_xml: Annotated[str, Form()],
+    metadata_xml: Annotated[str, Form(max_length=1000000)],
 ):
     """Re-import IdP metadata from pasted XML."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -795,7 +795,7 @@ def establish_trust_url(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    metadata_url: Annotated[str, Form()],
+    metadata_url: Annotated[str, Form(max_length=2048)],
 ):
     """Establish trust on a pending IdP via metadata URL."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -833,7 +833,7 @@ def establish_trust_xml(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    metadata_xml: Annotated[str, Form()],
+    metadata_xml: Annotated[str, Form(max_length=1000000)],
 ):
     """Establish trust on a pending IdP via metadata XML paste."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -871,10 +871,10 @@ def establish_trust_manual(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    entity_id: Annotated[str, Form()],
-    sso_url: Annotated[str, Form()],
-    certificate_pem: Annotated[str, Form()],
-    slo_url: Annotated[str, Form()] = "",
+    entity_id: Annotated[str, Form(max_length=2048)],
+    sso_url: Annotated[str, Form(max_length=2048)],
+    certificate_pem: Annotated[str, Form(max_length=16000)],
+    slo_url: Annotated[str, Form(max_length=2048)] = "",
 ):
     """Establish trust on a pending IdP via manual configuration."""
     requesting_user = build_requesting_user(user, tenant_id, request)

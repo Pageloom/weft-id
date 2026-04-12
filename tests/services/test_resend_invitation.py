@@ -22,12 +22,14 @@ def test_resend_invitation_verified_email(make_requesting_user, make_user_dict):
 
     target_user = make_user_dict(user_id=target_id, tenant_id=tenant_id, has_password=False)
 
+    new_nonce = "abc123randomtoken"
+
     primary_email = {
         "id": email_id,
         "email": "user@example.com",
         "verified_at": "2026-01-01T00:00:00Z",
-        "verify_nonce": 1,
-        "set_password_nonce": 3,
+        "verify_nonce": "oldverifynonce",
+        "set_password_nonce": "oldspnonce",
     }
 
     with (
@@ -36,15 +38,16 @@ def test_resend_invitation_verified_email(make_requesting_user, make_user_dict):
     ):
         mock_db.users.get_user_by_id.return_value = target_user
         mock_db.user_emails.get_primary_email_for_resend.return_value = primary_email
+        mock_db.user_emails.regenerate_set_password_nonce.return_value = new_nonce
 
         result = users_service.resend_invitation(requesting_user, target_id)
 
     assert result["email_id"] == email_id
     assert result["email"] == "user@example.com"
-    assert result["nonce"] == 4  # set_password_nonce (3) + 1
+    assert result["nonce"] == new_nonce
     assert result["invitation_type"] == "set_password"
 
-    mock_db.user_emails.increment_set_password_nonce.assert_called_once_with(tenant_id, email_id)
+    mock_db.user_emails.regenerate_set_password_nonce.assert_called_once_with(tenant_id, email_id)
     mock_log.assert_called_once()
     log_kwargs = mock_log.call_args[1]
     assert log_kwargs["event_type"] == "invitation_resent"
@@ -63,12 +66,14 @@ def test_resend_invitation_unverified_email(make_requesting_user, make_user_dict
 
     target_user = make_user_dict(user_id=target_id, tenant_id=tenant_id, has_password=False)
 
+    new_nonce = "xyz789randomtoken"
+
     primary_email = {
         "id": email_id,
         "email": "user@example.com",
         "verified_at": None,
-        "verify_nonce": 2,
-        "set_password_nonce": 1,
+        "verify_nonce": "oldverifynonce",
+        "set_password_nonce": "oldspnonce",
     }
 
     with (
@@ -77,15 +82,16 @@ def test_resend_invitation_unverified_email(make_requesting_user, make_user_dict
     ):
         mock_db.users.get_user_by_id.return_value = target_user
         mock_db.user_emails.get_primary_email_for_resend.return_value = primary_email
+        mock_db.user_emails.regenerate_verify_nonce.return_value = new_nonce
 
         result = users_service.resend_invitation(requesting_user, target_id)
 
     assert result["email_id"] == email_id
     assert result["email"] == "user@example.com"
-    assert result["nonce"] == 3  # verify_nonce (2) + 1
+    assert result["nonce"] == new_nonce
     assert result["invitation_type"] == "verify"
 
-    mock_db.user_emails.increment_verify_nonce.assert_called_once_with(tenant_id, email_id)
+    mock_db.user_emails.regenerate_verify_nonce.assert_called_once_with(tenant_id, email_id)
 
 
 def test_resend_invitation_as_super_admin(make_requesting_user, make_user_dict):
@@ -102,8 +108,8 @@ def test_resend_invitation_as_super_admin(make_requesting_user, make_user_dict):
         "id": str(uuid4()),
         "email": "user@example.com",
         "verified_at": "2026-01-01T00:00:00Z",
-        "verify_nonce": 1,
-        "set_password_nonce": 1,
+        "verify_nonce": "somenonce",
+        "set_password_nonce": "somenonce",
     }
 
     with (
@@ -112,6 +118,7 @@ def test_resend_invitation_as_super_admin(make_requesting_user, make_user_dict):
     ):
         mock_db.users.get_user_by_id.return_value = target_user
         mock_db.user_emails.get_primary_email_for_resend.return_value = primary_email
+        mock_db.user_emails.regenerate_set_password_nonce.return_value = "newnonce"
 
         result = users_service.resend_invitation(requesting_user, target_id)
 

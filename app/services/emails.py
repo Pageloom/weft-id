@@ -392,7 +392,7 @@ def verify_email(
     tenant_id: str,
     email_id: str,
     user_id: str,
-    nonce: int,
+    nonce: str,
 ) -> EmailInfo:
     """
     Verify an email address using the verification nonce.
@@ -682,20 +682,23 @@ def get_user_with_primary_email(tenant_id: str, user_id: str) -> dict | None:
     return database.user_emails.get_user_with_primary_email(tenant_id, user_id)
 
 
-def increment_set_password_nonce(tenant_id: str, email_id: str) -> None:
+def regenerate_set_password_nonce(tenant_id: str, email_id: str) -> str:
     """
-    Invalidate a set-password link by incrementing its nonce.
+    Invalidate a set-password link by regenerating its nonce.
 
     Call this after a successful password set to prevent reuse of the link.
 
     Args:
         tenant_id: Tenant ID
         email_id: Email UUID
+
+    Returns:
+        The new nonce value
     """
-    database.user_emails.increment_set_password_nonce(tenant_id, email_id)
+    return database.user_emails.regenerate_set_password_nonce(tenant_id, email_id)
 
 
-def verify_email_by_nonce(tenant_id: str, email_id: str, nonce: int) -> bool:
+def verify_email_by_nonce(tenant_id: str, email_id: str, nonce: str) -> bool:
     """
     Verify an email address using its nonce (public endpoint flow).
 

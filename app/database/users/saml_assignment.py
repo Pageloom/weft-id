@@ -99,7 +99,7 @@ def unverify_user_emails(tenant_id: TenantArg, user_id: str) -> int:
         tenant_id,
         """
         update user_emails
-        set verified_at = null, verify_nonce = verify_nonce + 1
+        set verified_at = null, verify_nonce = encode(gen_random_bytes(24), 'hex')
         where user_id = :user_id and verified_at is not null
         """,
         {"user_id": user_id},
@@ -218,7 +218,7 @@ def bulk_unverify_emails(tenant_id: TenantArg, user_ids: list[str]) -> int:
         tenant_id,
         """
         update user_emails
-        set verified_at = null, verify_nonce = verify_nonce + 1
+        set verified_at = null, verify_nonce = encode(gen_random_bytes(24), 'hex')
         where user_id = any(:user_ids) and verified_at is not null
         """,
         {"user_ids": user_ids},

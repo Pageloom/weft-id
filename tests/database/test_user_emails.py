@@ -206,11 +206,12 @@ def test_get_email_for_verification(test_user):
     assert email_info["verified_at"] is None
     assert "verify_nonce" in email_info
     assert "set_password_nonce" in email_info
-    assert email_info["set_password_nonce"] == 1
+    assert isinstance(email_info["set_password_nonce"], str)
+    assert len(email_info["set_password_nonce"]) == 48  # 24 bytes hex-encoded
 
 
-def test_increment_set_password_nonce(test_user):
-    """Test incrementing the set_password_nonce to invalidate a set-password link."""
+def test_regenerate_set_password_nonce(test_user):
+    """Test regenerating the set_password_nonce produces a new random token."""
     import database
 
     # Add an email to get its ID
@@ -220,17 +221,19 @@ def test_increment_set_password_nonce(test_user):
     )
     email_id = result["id"]
 
-    # Confirm starting nonce is 1
+    # Get original nonce
     email_info = database.user_emails.get_email_for_verification(test_user["tenant_id"], email_id)
-    assert email_info["set_password_nonce"] == 1
+    original_nonce = email_info["set_password_nonce"]
 
-    # Increment the nonce
-    rows = database.user_emails.increment_set_password_nonce(test_user["tenant_id"], email_id)
-    assert rows == 1
+    # Regenerate the nonce
+    new_nonce = database.user_emails.regenerate_set_password_nonce(test_user["tenant_id"], email_id)
+    assert isinstance(new_nonce, str)
+    assert len(new_nonce) == 48
+    assert new_nonce != original_nonce
 
-    # Confirm it was incremented
+    # Confirm the DB value matches
     email_info = database.user_emails.get_email_for_verification(test_user["tenant_id"], email_id)
-    assert email_info["set_password_nonce"] == 2
+    assert email_info["set_password_nonce"] == new_nonce
 
 
 def test_add_verified_email_returns_set_password_nonce(test_user):
@@ -247,7 +250,8 @@ def test_add_verified_email_returns_set_password_nonce(test_user):
 
     assert result is not None
     assert "set_password_nonce" in result
-    assert result["set_password_nonce"] == 1
+    assert isinstance(result["set_password_nonce"], str)
+    assert len(result["set_password_nonce"]) == 48
 
 
 def test_get_email_with_nonce(test_user):

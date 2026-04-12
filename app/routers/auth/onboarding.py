@@ -33,7 +33,7 @@ def verify_email_public(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     email_id: str,
-    nonce: int,
+    nonce: str,
 ):
     """
     Verify an email address using the verification link (public endpoint).
@@ -94,15 +94,10 @@ def set_password_page(
 ):
     """Display set password page for new users who have verified their email."""
     email_id = request.query_params.get("email_id")
-    nonce_str = request.query_params.get("nonce")
+    nonce = request.query_params.get("nonce")
 
-    if not email_id or nonce_str is None:
+    if not email_id or not nonce:
         return RedirectResponse(url="/login", status_code=303)
-
-    try:
-        nonce = int(nonce_str)
-    except ValueError:
-        return RedirectResponse(url="/login?error=invalid_link", status_code=303)
 
     # Look up the email to get the user's email address
     email = emails_service.get_email_for_verification(tenant_id, email_id)
@@ -158,7 +153,7 @@ def set_password(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     email_id: Annotated[str, Form()],
-    nonce: Annotated[int, Form()],
+    nonce: Annotated[str, Form()],
     password: Annotated[str, Form()],
     password_confirm: Annotated[str, Form()],
 ):
@@ -224,7 +219,7 @@ def set_password(
     )
 
     # Invalidate the set-password link so it cannot be reused
-    emails_service.increment_set_password_nonce(tenant_id, email_id)
+    emails_service.regenerate_set_password_nonce(tenant_id, email_id)
 
     # Log the password set event
     log_event(

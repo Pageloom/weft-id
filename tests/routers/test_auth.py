@@ -297,8 +297,8 @@ def test_verify_email_public_success_new_user(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": None,
-        "verify_nonce": 1,
-        "set_password_nonce": 1,
+        "verify_nonce": "abc123token",
+        "set_password_nonce": "def456token",
     }
     mock_get_user.return_value = {
         "id": "user-123",
@@ -308,13 +308,13 @@ def test_verify_email_public_success_new_user(test_tenant, mocker):
     mock_verify.return_value = True
 
     client = TestClient(app)
-    response = client.get("/verify-email/email-123/1", follow_redirects=False)
+    response = client.get("/verify-email/email-123/abc123token", follow_redirects=False)
 
     assert response.status_code == 303
     location = response.headers["location"]
     assert "/set-password?email_id=email-123" in location
-    assert "nonce=1" in location
-    mock_verify.assert_called_once_with(test_tenant["id"], "email-123", 1)
+    assert "nonce=def456token" in location
+    mock_verify.assert_called_once_with(test_tenant["id"], "email-123", "abc123token")
 
 
 def test_verify_email_public_success_existing_user(test_tenant, mocker):
@@ -330,8 +330,8 @@ def test_verify_email_public_success_existing_user(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": None,
-        "verify_nonce": 1,
-        "set_password_nonce": 1,
+        "verify_nonce": "abc123token",
+        "set_password_nonce": "def456token",
     }
     mock_get_user.return_value = {
         "id": "user-123",
@@ -341,11 +341,11 @@ def test_verify_email_public_success_existing_user(test_tenant, mocker):
     mock_verify.return_value = True
 
     client = TestClient(app)
-    response = client.get("/verify-email/email-123/1", follow_redirects=False)
+    response = client.get("/verify-email/email-123/abc123token", follow_redirects=False)
 
     assert response.status_code == 303
     assert "/login?success=email_verified" in response.headers["location"]
-    mock_verify.assert_called_once_with(test_tenant["id"], "email-123", 1)
+    mock_verify.assert_called_once_with(test_tenant["id"], "email-123", "abc123token")
 
 
 def test_verify_email_public_already_verified_no_password(test_tenant, mocker):
@@ -363,8 +363,8 @@ def test_verify_email_public_already_verified_no_password(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": datetime.now(UTC),  # Already verified
-        "verify_nonce": 1,
-        "set_password_nonce": 1,
+        "verify_nonce": "abc123token",
+        "set_password_nonce": "def456token",
     }
     mock_get_user.return_value = {
         "id": "user-123",
@@ -373,12 +373,12 @@ def test_verify_email_public_already_verified_no_password(test_tenant, mocker):
     }
 
     client = TestClient(app)
-    response = client.get("/verify-email/email-123/1", follow_redirects=False)
+    response = client.get("/verify-email/email-123/abc123token", follow_redirects=False)
 
     assert response.status_code == 303
     location = response.headers["location"]
     assert "/set-password?email_id=email-123" in location
-    assert "nonce=1" in location
+    assert "nonce=def456token" in location
     mock_verify.assert_not_called()
 
 
@@ -397,8 +397,8 @@ def test_verify_email_public_already_verified_with_password(test_tenant, mocker)
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": datetime.now(UTC),  # Already verified
-        "verify_nonce": 1,
-        "set_password_nonce": 1,
+        "verify_nonce": "abc123token",
+        "set_password_nonce": "def456token",
     }
     mock_get_user.return_value = {
         "id": "user-123",
@@ -407,7 +407,7 @@ def test_verify_email_public_already_verified_with_password(test_tenant, mocker)
     }
 
     client = TestClient(app)
-    response = client.get("/verify-email/email-123/1", follow_redirects=False)
+    response = client.get("/verify-email/email-123/abc123token", follow_redirects=False)
 
     assert response.status_code == 303
     assert "/login?success=already_verified" in response.headers["location"]
@@ -426,12 +426,12 @@ def test_verify_email_public_invalid_nonce(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": None,
-        "verify_nonce": 2,  # Different nonce
-        "set_password_nonce": 1,
+        "verify_nonce": "correct_nonce",
+        "set_password_nonce": "def456token",
     }
 
     client = TestClient(app)
-    response = client.get("/verify-email/email-123/1", follow_redirects=False)
+    response = client.get("/verify-email/email-123/wrong_nonce", follow_redirects=False)
 
     assert response.status_code == 303
     assert "/login?error=invalid_verification_link" in response.headers["location"]
@@ -476,7 +476,7 @@ def test_set_password_page_renders(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": datetime.now(UTC),
-        "set_password_nonce": 1,
+        "set_password_nonce": "abc123token",
     }
     mock_get_user.return_value = {
         "id": "user-123",
@@ -485,7 +485,7 @@ def test_set_password_page_renders(test_tenant, mocker):
     mock_template.return_value = HTMLResponse(content="<html>Set Password</html>")
 
     client = TestClient(app)
-    response = client.get("/set-password?email_id=email-123&nonce=1")
+    response = client.get("/set-password?email_id=email-123&nonce=abc123token")
 
     assert response.status_code == 200
     mock_template.assert_called_once()
@@ -516,12 +516,12 @@ def test_set_password_page_invalid_nonce_redirects(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": datetime.now(UTC),
-        "set_password_nonce": 2,  # DB has 2, link has 1
+        "set_password_nonce": "current_nonce",  # DB has current, link has stale
     }
     mock_get_user.return_value = {"id": "user-123", "password_hash": None}
 
     client = TestClient(app)
-    response = client.get("/set-password?email_id=email-123&nonce=1", follow_redirects=False)
+    response = client.get("/set-password?email_id=email-123&nonce=stale_nonce", follow_redirects=False)
 
     assert response.status_code == 303
     assert "error=invalid_link" in response.headers["location"]
@@ -538,7 +538,7 @@ def test_set_password_success(test_tenant, mocker):
     mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_email_for_verification")
     mock_get_user = mocker.patch(f"{SERVICES_USERS}.get_user_by_id_raw")
     mock_update = mocker.patch(f"{SERVICES_USERS}.update_password")
-    mock_increment = mocker.patch(f"{SERVICES_EMAILS}.increment_set_password_nonce")
+    mock_regenerate = mocker.patch(f"{SERVICES_EMAILS}.regenerate_set_password_nonce")
     mock_hash = mocker.patch(f"{UTILS_PASSWORD}.hash_password")
     mock_create_otp = mocker.patch(f"{AUTH_ONBOARDING}.create_email_otp")
     mock_get_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
@@ -557,7 +557,7 @@ def test_set_password_success(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": datetime.now(UTC),
-        "set_password_nonce": 1,
+        "set_password_nonce": "abc123token",
     }
     mock_get_user.return_value = {
         "id": "user-123",
@@ -573,7 +573,7 @@ def test_set_password_success(test_tenant, mocker):
         "/set-password",
         data={
             "email_id": "email-123",
-            "nonce": "1",
+            "nonce": "abc123token",
             "password": "NewPassword123!",
             "password_confirm": "NewPassword123!",
         },
@@ -583,7 +583,7 @@ def test_set_password_success(test_tenant, mocker):
     assert response.status_code == 303
     assert "/mfa/verify" in response.headers["location"]
     mock_update.assert_called_once()
-    mock_increment.assert_called_once_with(test_tenant["id"], "email-123")
+    mock_regenerate.assert_called_once_with(test_tenant["id"], "email-123")
     mock_send_email.assert_called_once_with("test@example.com", "123456", tenant_id=ANY)
 
 
@@ -602,7 +602,7 @@ def test_set_password_invalid_nonce_rejected(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": datetime.now(UTC),
-        "set_password_nonce": 2,  # DB has 2, form submits 1 (stale link)
+        "set_password_nonce": "current_nonce",  # DB has current, form submits stale
     }
     mock_get_user.return_value = {"id": "user-123", "password_hash": None}
 
@@ -611,7 +611,7 @@ def test_set_password_invalid_nonce_rejected(test_tenant, mocker):
         "/set-password",
         data={
             "email_id": "email-123",
-            "nonce": "1",
+            "nonce": "stale_nonce",
             "password": "NewPassword123!",
             "password_confirm": "NewPassword123!",
         },
@@ -638,7 +638,7 @@ def test_set_password_passwords_dont_match(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": datetime.now(UTC),
-        "set_password_nonce": 1,
+        "set_password_nonce": "abc123token",
     }
     mock_get_user.return_value = {
         "id": "user-123",
@@ -650,7 +650,7 @@ def test_set_password_passwords_dont_match(test_tenant, mocker):
         "/set-password",
         data={
             "email_id": "email-123",
-            "nonce": "1",
+            "nonce": "abc123token",
             "password": "Password123!",
             "password_confirm": "DifferentPassword123!",
         },
@@ -660,7 +660,7 @@ def test_set_password_passwords_dont_match(test_tenant, mocker):
     assert response.status_code == 303
     location = response.headers["location"]
     assert "error=passwords_dont_match" in location
-    assert "nonce=1" in location  # nonce must survive the error redirect
+    assert "nonce=abc123token" in location  # nonce must survive the error redirect
     mock_update.assert_not_called()
 
 
@@ -696,7 +696,7 @@ def test_set_password_too_short(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": datetime.now(UTC),
-        "set_password_nonce": 1,
+        "set_password_nonce": "abc123token",
     }
     mock_get_user.return_value = {
         "id": "user-123",
@@ -708,7 +708,7 @@ def test_set_password_too_short(test_tenant, mocker):
         "/set-password",
         data={
             "email_id": "email-123",
-            "nonce": "1",
+            "nonce": "abc123token",
             "password": "short",
             "password_confirm": "short",
         },
@@ -718,7 +718,7 @@ def test_set_password_too_short(test_tenant, mocker):
     assert response.status_code == 303
     location = response.headers["location"]
     assert "error=" in location
-    assert "nonce=1" in location  # nonce must survive the error redirect
+    assert "nonce=abc123token" in location  # nonce must survive the error redirect
     mock_update.assert_not_called()
 
 
@@ -1428,7 +1428,7 @@ def test_set_password_logs_event(test_tenant, mocker):
         "user_id": "user-123",
         "email": "test@example.com",
         "verified_at": datetime.now(UTC),
-        "set_password_nonce": 1,
+        "set_password_nonce": "abc123token",
     }
     mock_get_user.return_value = {
         "id": "user-123",
@@ -1438,14 +1438,14 @@ def test_set_password_logs_event(test_tenant, mocker):
     mock_hash.return_value = "hashed_password"
     mock_create_otp.return_value = "123456"
     mock_get_primary.return_value = "test@example.com"
-    mocker.patch(f"{SERVICES_EMAILS}.increment_set_password_nonce")
+    mocker.patch(f"{SERVICES_EMAILS}.regenerate_set_password_nonce")
 
     client = TestClient(app)
     response = client.post(
         "/set-password",
         data={
             "email_id": "email-123",
-            "nonce": "1",
+            "nonce": "abc123token",
             "password": "NewPassword123!",
             "password_confirm": "NewPassword123!",
         },
@@ -1679,11 +1679,11 @@ def test_set_password_page_email_not_verified(test_tenant, mocker):
         "id": "email-123",
         "verified_at": None,
         "user_id": "user-123",
-        "set_password_nonce": 1,
+        "set_password_nonce": "abc123token",
     }
 
     client = TestClient(app)
-    response = client.get("/set-password?email_id=email-123&nonce=1", follow_redirects=False)
+    response = client.get("/set-password?email_id=email-123&nonce=abc123token", follow_redirects=False)
 
     assert response.status_code == 303
     assert "error=email_not_verified" in response.headers["location"]
@@ -1700,7 +1700,7 @@ def test_set_password_page_user_already_has_password(test_tenant, mocker):
         "id": "email-123",
         "verified_at": "2025-01-15T12:00:00Z",
         "user_id": "user-123",
-        "set_password_nonce": 1,
+        "set_password_nonce": "abc123token",
     }
     mock_user.return_value = {
         "id": "user-123",
@@ -1708,7 +1708,7 @@ def test_set_password_page_user_already_has_password(test_tenant, mocker):
     }
 
     client = TestClient(app)
-    response = client.get("/set-password?email_id=email-123&nonce=1", follow_redirects=False)
+    response = client.get("/set-password?email_id=email-123&nonce=abc123token", follow_redirects=False)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
@@ -1726,7 +1726,7 @@ def test_set_password_post_email_not_found(test_tenant, mocker):
         "/set-password",
         data={
             "email_id": "non-existent",
-            "nonce": "1",
+            "nonce": "sometoken",
             "password": "test123!",
             "password_confirm": "test123!",
         },
@@ -1746,7 +1746,7 @@ def test_set_password_post_email_not_verified(test_tenant, mocker):
         "id": "email-123",
         "verified_at": None,
         "user_id": "user-123",
-        "set_password_nonce": 1,
+        "set_password_nonce": "abc123token",
     }
 
     client = TestClient(app)
@@ -1754,7 +1754,7 @@ def test_set_password_post_email_not_verified(test_tenant, mocker):
         "/set-password",
         data={
             "email_id": "email-123",
-            "nonce": "1",
+            "nonce": "abc123token",
             "password": "test123!",
             "password_confirm": "test123!",
         },
@@ -1776,7 +1776,7 @@ def test_set_password_post_user_already_has_password(test_tenant, mocker):
         "id": "email-123",
         "verified_at": "2025-01-15T12:00:00Z",
         "user_id": "user-123",
-        "set_password_nonce": 1,
+        "set_password_nonce": "abc123token",
     }
     mock_user.return_value = {
         "id": "user-123",
@@ -1788,7 +1788,7 @@ def test_set_password_post_user_already_has_password(test_tenant, mocker):
         "/set-password",
         data={
             "email_id": "email-123",
-            "nonce": "1",
+            "nonce": "abc123token",
             "password": "test123!",
             "password_confirm": "test123!",
         },

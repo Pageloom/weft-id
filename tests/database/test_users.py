@@ -1042,8 +1042,8 @@ def test_unverify_user_emails_clears_verified_at(test_tenant, test_user):
     assert result is None
 
 
-def test_unverify_user_emails_increments_verify_nonce(test_tenant, test_user):
-    """Test that unverify_user_emails increments the verify_nonce."""
+def test_unverify_user_emails_regenerates_verify_nonce(test_tenant, test_user):
+    """Test that unverify_user_emails regenerates the verify_nonce."""
     import database
 
     before = database.fetchone(
@@ -1060,7 +1060,9 @@ def test_unverify_user_emails_increments_verify_nonce(test_tenant, test_user):
         "SELECT verify_nonce FROM user_emails WHERE user_id = :user_id",
         {"user_id": str(test_user["id"])},
     )
-    assert after["verify_nonce"] == nonce_before + 1
+    assert after["verify_nonce"] != nonce_before
+    assert isinstance(after["verify_nonce"], str)
+    assert len(after["verify_nonce"]) == 48
 
 
 def test_unverify_user_emails_skips_already_unverified(test_tenant, test_user):

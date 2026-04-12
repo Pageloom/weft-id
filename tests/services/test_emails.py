@@ -516,7 +516,7 @@ def test_verify_email_invalid_nonce(test_tenant, test_user):
             test_tenant["id"],
             str(added["id"]),
             str(test_user["id"]),
-            added["verify_nonce"] + 1,  # Wrong nonce
+            "wrong_nonce_value",  # Wrong nonce
         )
 
     assert exc_info.value.code == "invalid_nonce"
@@ -706,7 +706,7 @@ def test_verify_email_by_nonce_wrong_nonce(test_tenant, test_user):
     result = emails_service.verify_email_by_nonce(
         test_tenant["id"],
         str(added["id"]),
-        added["verify_nonce"] + 1,  # Wrong nonce
+        "wrong_nonce_value",  # Wrong nonce
     )
 
     assert result is False
@@ -816,12 +816,12 @@ def test_check_routing_change_no_change_same_idp(test_tenant, test_user, mocker)
 
 
 # =============================================================================
-# increment_set_password_nonce
+# regenerate_set_password_nonce
 # =============================================================================
 
 
-def test_increment_set_password_nonce(test_tenant, test_user):
-    """increment_set_password_nonce delegates to database layer."""
+def test_regenerate_set_password_nonce(test_tenant, test_user):
+    """regenerate_set_password_nonce returns a new random nonce."""
     import database
 
     tenant_id = test_tenant["id"]
@@ -832,8 +832,16 @@ def test_increment_set_password_nonce(test_tenant, test_user):
     primary = next(e for e in all_emails if e["is_primary"])
     email_id = str(primary["id"])
 
-    # Should not raise
-    emails_service.increment_set_password_nonce(tenant_id, email_id)
+    # Get current nonce
+    email_before = database.user_emails.get_email_for_verification(tenant_id, email_id)
+    old_nonce = email_before["set_password_nonce"]
+
+    # Regenerate
+    new_nonce = emails_service.regenerate_set_password_nonce(tenant_id, email_id)
+
+    assert isinstance(new_nonce, str)
+    assert len(new_nonce) == 48  # 24 bytes hex-encoded
+    assert new_nonce != old_nonce
 
 
 # =============================================================================

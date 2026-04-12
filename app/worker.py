@@ -71,6 +71,13 @@ def _load_saml_debug_cleanup() -> Any:
     return cleanup_saml_debug_entries()
 
 
+def _load_verbose_event_pii_redaction() -> Any:
+    """Import and run the verbose event PII redaction job."""
+    from jobs.redact_verbose_event_pii import redact_verbose_event_pii
+
+    return redact_verbose_event_pii()
+
+
 class PeriodicJob:
     """A periodic background job with interval-based scheduling."""
 
@@ -136,6 +143,11 @@ class Worker:
             PeriodicJob(
                 "SAML debug cleanup",
                 _load_saml_debug_cleanup,
+                timedelta(hours=1),
+            ),
+            PeriodicJob(
+                "verbose event PII redaction",
+                _load_verbose_event_pii_redaction,
                 timedelta(hours=1),
             ),
         ]

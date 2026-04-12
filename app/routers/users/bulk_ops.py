@@ -180,10 +180,21 @@ def submit_bulk_secondary_emails(
 
     # Build items list from parallel arrays, filtering out blank emails
     items = []
+    invalid_emails = []
     for uid, email in zip(user_ids, emails):
         email = email.strip()
-        if email:
-            items.append({"user_id": uid, "email": email})
+        if not email:
+            continue
+        if "@" not in email or email.startswith("@") or email.endswith("@"):
+            invalid_emails.append(email)
+            continue
+        items.append({"user_id": uid, "email": email})
+
+    if invalid_emails:
+        return RedirectResponse(
+            url="/users/list?error=invalid_email_format",
+            status_code=303,
+        )
 
     if not items:
         return RedirectResponse(

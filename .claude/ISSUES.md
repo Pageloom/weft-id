@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 1 | Input Validation |
+| Low | 0 | |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -49,17 +49,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 ---
 
 ---
-
-## [SECURITY] Input Validation: No email format validation on web bulk secondary emails
-
-**Found in:** `app/routers/users/bulk_ops.py:168-200`
-**Severity:** Low
-**OWASP Category:** A03:2021 - Injection
-**Description:** The web form route accepts `emails` as raw strings without email format validation (unlike the API endpoint which uses `EmailStr`). Malformed strings can be stored as "verified" secondary emails.
-**Attack Scenario:** Admin submits non-email strings via the form. They're stored as verified emails in the database.
-**Evidence:** `emails: Annotated[list[str], Form()]` with no validation, passed to `add_verified_email()`.
-**Impact:** Data integrity issues. Malformed email addresses in user profiles.
-**Remediation:** Validate email format before passing to the service layer. Use the same validation as the API endpoint.
 
 ---
 

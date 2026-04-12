@@ -5,6 +5,20 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Deployment: Unrestricted on-demand TLS certificate issuance
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `deploy/Caddyfile:8-13`
+**Severity:** Medium
+**OWASP Category:** A05:2021 - Security Misconfiguration
+**Fix:** Implemented a `GET /caddy/check-domain` endpoint that validates the requested hostname
+against the tenant database before Caddy issues a TLS certificate. The endpoint extracts the
+subdomain from the full hostname, checks it exists in the `tenants` table, and returns 200
+(allow) or 404 (deny). Also allows the bare `BASE_DOMAIN` and rejects multi-level subdomains.
+Enabled the `ask` directive in the production Caddyfile to point at the new endpoint.
+
+---
+
 ### [SECURITY] Input Validation Bypass: Unvalidated JSON in web bulk primary email route
 
 **Status:** Resolved (2026-04-12)

@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 4 | Deployment, SAML, Input Validation |
+| Medium | 3 | Deployment, SAML, Input Validation |
 | Low | 8 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -31,17 +31,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-
-## [SECURITY] Deployment: Unrestricted on-demand TLS certificate issuance
-
-**Found in:** `deploy/Caddyfile:8-13`
-**Severity:** Medium
-**OWASP Category:** A05:2021 - Security Misconfiguration
-**Description:** The `ask` validation endpoint is commented out. Without it, Caddy issues TLS certificates for any hostname matching the wildcard site block. An attacker can exhaust Let's Encrypt rate limits (50 certs/domain/week), preventing legitimate tenant subdomains from obtaining certificates.
-**Attack Scenario:** Attacker creates DNS records pointing to the server with arbitrary subdomains, exhausting rate limits.
-**Evidence:** `# ask http://app:8000/caddy/check-domain` is commented out in the Caddyfile.
-**Impact:** Denial of service for TLS certificate issuance on legitimate tenant subdomains.
-**Remediation:** Implement the `/caddy/check-domain` endpoint that validates subdomains against the tenant database, and uncomment the `ask` directive.
 
 ---
 

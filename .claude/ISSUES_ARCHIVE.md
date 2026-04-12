@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Information Disclosure: Export encryption password in database
+
+**Status:** Accepted (2026-04-12)
+**Found in:** `app/jobs/export_events.py`, `app/jobs/export_users.py`
+**Severity:** Low
+**Resolution:** Accepted risk. The password is stored temporarily so users can retrieve it on the download page, then redacted by the cleanup job when the export expires. The exposure window is bounded by design.
+
+---
+
 ### [SECURITY] CI Injection: GitHub Actions script injection via workflow dispatch
 
 **Status:** Resolved (2026-04-12)

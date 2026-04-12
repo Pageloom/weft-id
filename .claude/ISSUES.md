@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 3 | Deployment, SAML, Input Validation |
+| Medium | 2 | SAML, Input Validation |
 | Low | 8 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
@@ -31,19 +31,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-
----
-
-## [SECURITY] Deployment: .env created without restrictive permissions
-
-**Found in:** `deploy/install.sh:124`
-**Severity:** Medium
-**OWASP Category:** A02:2021 - Cryptographic Failures
-**Description:** `cat > .env` creates the file with default umask (typically 0644, world-readable). The file contains `SECRET_KEY`, `POSTGRES_PASSWORD`, and SMTP credentials. On a shared server, any local user can read all secrets.
-**Attack Scenario:** Local user reads `.env` and obtains `SECRET_KEY` (sufficient to forge sessions and impersonate any user).
-**Evidence:** `install.sh:124` uses plain `cat > .env` with no `umask` or `chmod`.
-**Impact:** Full secret exposure on shared servers.
-**Remediation:** Set `umask 077` before writing `.env`, or `chmod 600 .env` after creation.
 
 ---
 

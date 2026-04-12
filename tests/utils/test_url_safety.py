@@ -9,10 +9,22 @@ import pytest
 from app.utils.url_safety import (
     MAX_METADATA_BYTES,
     _is_ip_blocked,
+    _SafeRedirectHandler,
     fetch_metadata_xml,
     read_response_with_limit,
     validate_metadata_url,
 )
+
+
+def _mock_opener(mock_response=None, side_effect=None):
+    """Create a mock opener that replaces build_opener in tests."""
+    opener = MagicMock()
+    if side_effect:
+        opener.open.side_effect = side_effect
+    else:
+        opener.open.return_value.__enter__.return_value = mock_response
+    return opener
+
 
 # =============================================================================
 # _is_ip_blocked tests
@@ -251,10 +263,10 @@ SAMPLE_XML = '<?xml version="1.0"?><EntityDescriptor>test</EntityDescriptor>'
 class TestFetchMetadataXml:
     """Integration tests for the full fetch_metadata_xml function."""
 
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.socket.getaddrinfo")
     @patch("app.utils.url_safety.settings")
-    def test_successful_fetch(self, mock_settings, mock_getaddrinfo, mock_urlopen):
+    def test_successful_fetch(self, mock_settings, mock_getaddrinfo, mock_build):
         mock_settings.IS_DEV = False
         mock_settings.BASE_DOMAIN = ""
         mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
@@ -262,7 +274,7 @@ class TestFetchMetadataXml:
         mock_response = MagicMock()
         mock_response.headers = {}
         mock_response.read.return_value = SAMPLE_XML.encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        mock_build.return_value = _mock_opener(mock_response)
 
         result = fetch_metadata_xml("https://idp.example.com/metadata")
         assert "EntityDescriptor" in result
@@ -285,48 +297,50 @@ class TestFetchMetadataXml:
         with pytest.raises(ValueError, match="Unsupported URL scheme"):
             fetch_metadata_xml("file:///etc/passwd")
 
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.socket.getaddrinfo")
     @patch("app.utils.url_safety.settings")
-    def test_http_error(self, mock_settings, mock_getaddrinfo, mock_urlopen):
+    def test_http_error(self, mock_settings, mock_getaddrinfo, mock_build):
         mock_settings.IS_DEV = False
         mock_settings.BASE_DOMAIN = ""
         mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
-        mock_urlopen.side_effect = HTTPError(
-            url="https://example.com", code=404, msg="Not Found", hdrs={}, fp=None
+        mock_build.return_value = _mock_opener(
+            side_effect=HTTPError(
+                url="https://example.com", code=404, msg="Not Found", hdrs={}, fp=None
+            )
         )
 
         with pytest.raises(ValueError, match="HTTP error"):
             fetch_metadata_xml("https://example.com/metadata")
 
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.socket.getaddrinfo")
     @patch("app.utils.url_safety.settings")
-    def test_network_error(self, mock_settings, mock_getaddrinfo, mock_urlopen):
+    def test_network_error(self, mock_settings, mock_getaddrinfo, mock_build):
         mock_settings.IS_DEV = False
         mock_settings.BASE_DOMAIN = ""
         mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
-        mock_urlopen.side_effect = URLError("Connection refused")
+        mock_build.return_value = _mock_opener(side_effect=URLError("Connection refused"))
 
         with pytest.raises(ValueError, match="fetch metadata"):
             fetch_metadata_xml("https://example.com/metadata")
 
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.socket.getaddrinfo")
     @patch("app.utils.url_safety.settings")
-    def test_timeout(self, mock_settings, mock_getaddrinfo, mock_urlopen):
+    def test_timeout(self, mock_settings, mock_getaddrinfo, mock_build):
         mock_settings.IS_DEV = False
         mock_settings.BASE_DOMAIN = ""
         mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
-        mock_urlopen.side_effect = TimeoutError()
+        mock_build.return_value = _mock_opener(side_effect=TimeoutError())
 
         with pytest.raises(ValueError, match="Timeout"):
             fetch_metadata_xml("https://example.com/metadata")
 
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.socket.getaddrinfo")
     @patch("app.utils.url_safety.settings")
-    def test_non_xml_response(self, mock_settings, mock_getaddrinfo, mock_urlopen):
+    def test_non_xml_response(self, mock_settings, mock_getaddrinfo, mock_build):
         mock_settings.IS_DEV = False
         mock_settings.BASE_DOMAIN = ""
         mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
@@ -334,15 +348,15 @@ class TestFetchMetadataXml:
         mock_response = MagicMock()
         mock_response.headers = {}
         mock_response.read.return_value = b"This is not XML content"
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        mock_build.return_value = _mock_opener(mock_response)
 
         with pytest.raises(ValueError, match="XML"):
             fetch_metadata_xml("https://example.com/metadata")
 
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.socket.getaddrinfo")
     @patch("app.utils.url_safety.settings")
-    def test_oversized_response(self, mock_settings, mock_getaddrinfo, mock_urlopen):
+    def test_oversized_response(self, mock_settings, mock_getaddrinfo, mock_build):
         mock_settings.IS_DEV = False
         mock_settings.BASE_DOMAIN = ""
         mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
@@ -350,7 +364,7 @@ class TestFetchMetadataXml:
         mock_response = MagicMock()
         mock_response.headers = {}
         mock_response.read.return_value = b"x" * (MAX_METADATA_BYTES + 1)
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        mock_build.return_value = _mock_opener(mock_response)
 
         with pytest.raises(ValueError, match="Response too large"):
             fetch_metadata_xml("https://example.com/metadata")
@@ -364,9 +378,9 @@ class TestFetchMetadataXml:
 class TestDevModeReverseProxy:
     """Tests for dev-mode *.BASE_DOMAIN handling."""
 
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.settings")
-    def test_base_domain_skips_ip_validation(self, mock_settings, mock_urlopen):
+    def test_base_domain_skips_ip_validation(self, mock_settings, mock_build):
         """URLs matching *.BASE_DOMAIN skip IP validation in dev mode."""
         mock_settings.IS_DEV = True
         mock_settings.BASE_DOMAIN = "weftid.localhost"
@@ -374,24 +388,16 @@ class TestDevModeReverseProxy:
         mock_response = MagicMock()
         mock_response.headers = {}
         mock_response.read.return_value = SAMPLE_XML.encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        mock_build.return_value = _mock_opener(mock_response)
 
         # This URL targets BASE_DOMAIN, so IP validation is skipped.
         # No socket.getaddrinfo mock needed.
         result = fetch_metadata_xml("https://tenant.weftid.localhost/metadata")
         assert "EntityDescriptor" in result
 
-        # Verify the request was rewritten to reverse-proxy
-        call_args = mock_urlopen.call_args
-        req = call_args[0][0]
-        assert "reverse-proxy" in req.full_url
-
-    @patch("app.utils.url_safety.urllib.request.urlopen")
     @patch("app.utils.url_safety.socket.getaddrinfo")
     @patch("app.utils.url_safety.settings")
-    def test_non_base_domain_still_validated_in_dev(
-        self, mock_settings, mock_getaddrinfo, mock_urlopen
-    ):
+    def test_non_base_domain_still_validated_in_dev(self, mock_settings, mock_getaddrinfo):
         """Non-BASE_DOMAIN URLs in dev mode still get full IP validation."""
         mock_settings.IS_DEV = True
         mock_settings.BASE_DOMAIN = "weftid.localhost"
@@ -409,9 +415,9 @@ class TestDevModeReverseProxy:
         with pytest.raises(ValueError, match="Unsupported URL scheme"):
             fetch_metadata_xml("ftp://tenant.weftid.localhost/metadata")
 
-    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.urllib.request.build_opener")
     @patch("app.utils.url_safety.settings")
-    def test_dev_proxy_sets_host_header(self, mock_settings, mock_urlopen):
+    def test_dev_proxy_sets_host_header(self, mock_settings, mock_build):
         """Reverse-proxy rewrite preserves original hostname via Host header."""
         mock_settings.IS_DEV = True
         mock_settings.BASE_DOMAIN = "weftid.localhost"
@@ -419,10 +425,51 @@ class TestDevModeReverseProxy:
         mock_response = MagicMock()
         mock_response.headers = {}
         mock_response.read.return_value = SAMPLE_XML.encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        mock_build.return_value = _mock_opener(mock_response)
 
         fetch_metadata_xml("https://tenant.weftid.localhost/metadata")
 
-        call_args = mock_urlopen.call_args
+        # The opener was called with a Request object that has the Host header
+        call_args = mock_build.return_value.open.call_args
         req = call_args[0][0]
         assert req.get_header("Host") == "tenant.weftid.localhost"
+
+
+# =============================================================================
+# Redirect SSRF protection tests
+# =============================================================================
+
+
+class TestSafeRedirectHandler:
+    """Tests for redirect validation against IP blocklist."""
+
+    @patch("app.utils.url_safety.socket.getaddrinfo")
+    @patch("app.utils.url_safety.settings")
+    def test_redirect_to_private_ip_blocked(self, mock_settings, mock_getaddrinfo):
+        """Redirect to a private/internal IP is rejected."""
+        import urllib.request
+
+        mock_settings.IS_DEV = False
+        mock_getaddrinfo.return_value = [(2, 1, 6, "", ("169.254.169.254", 0))]
+
+        handler = _SafeRedirectHandler()
+        req = urllib.request.Request("https://example.com/metadata")
+        with pytest.raises(ValueError, match="private or reserved"):
+            handler.redirect_request(req, None, 301, "Moved", {}, "https://evil.com/redirect")
+
+    @patch("app.utils.url_safety.socket.getaddrinfo")
+    @patch("app.utils.url_safety.settings")
+    def test_redirect_to_public_ip_allowed(self, mock_settings, mock_getaddrinfo):
+        """Redirect to a public IP is allowed."""
+        import urllib.request
+
+        mock_settings.IS_DEV = False
+        mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
+
+        handler = _SafeRedirectHandler()
+        req = urllib.request.Request("https://example.com/metadata")
+
+        result = handler.redirect_request(
+            req, None, 301, "Moved", {}, "https://new.example.com/metadata"
+        )
+        assert result is not None

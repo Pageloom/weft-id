@@ -93,9 +93,17 @@ def e2e_config():
     """Provision two tenants wired for cross-tenant SAML SSO.
 
     Yields the JSON config dict with idp/sp connection details.
-    Tears down test tenants after the session.
+    Tears down before provisioning to clear stale data from prior
+    interrupted sessions, then tears down again after the session.
     """
     _flush_memcached()
+
+    # Clean up stale data from any prior interrupted session
+    try:
+        _run_testbed("--teardown")
+    except Exception:
+        pass
+
     stdout = _run_testbed("--json-output")
     config = json.loads(stdout)
 
@@ -153,18 +161,22 @@ def chain_config():
 
     upstream (IdP) → mid (IdP/SP) → leaf (SP)
 
-    Yields the JSON config dict. Tears down after session.
+    Yields the JSON config dict. Tears down before and after session.
     """
     _flush_memcached()
+
+    # Clean up stale data from any prior interrupted session
+    try:
+        _run_script("./dev/sso_chain_testbed.py", "--teardown")
+    except Exception:
+        pass
+
     stdout = _run_script(
         "./dev/sso_chain_testbed.py",
         "--json-output",
         timeout=90,
     )
     config = json.loads(stdout)
-    import pprint
-
-    pprint.pp(config)
     yield config
 
     try:

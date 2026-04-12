@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 5 | Rate Limiting, Input Validation |
+| Low | 4 | Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -41,17 +41,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 ---
 
 ---
-
-## [SECURITY] Missing Rate Limit: Reactivation request enables email flooding
-
-**Found in:** `app/routers/auth/reactivation.py:87-173`
-**Severity:** Low
-**OWASP Category:** A04:2021 - Insecure Design
-**Description:** `POST /request-reactivation` is unauthenticated, has no rate limiting, and emails all tenant admins on each call. An attacker who knows a valid `user_id` can flood admin inboxes.
-**Attack Scenario:** Repeated POST requests with a known user_id trigger unlimited admin notification emails.
-**Evidence:** No rate limit call in `request_reactivation`. Emails sent in a loop to all admins.
-**Impact:** Email flooding of admin accounts.
-**Remediation:** Add rate limiting keyed on IP and user_id.
 
 ---
 

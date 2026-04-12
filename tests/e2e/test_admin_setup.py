@@ -10,6 +10,8 @@ These tests verify the admin UI works by importing *crafted* metadata XML (with
 unique entity IDs that don't conflict with the testbed's registrations).
 """
 
+from uuid import uuid4
+
 # Minimal valid SP metadata XML template
 _SP_METADATA_XML = """\
 <?xml version="1.0"?>
@@ -84,7 +86,7 @@ class TestIdpAdminRegistersSp:
 
         # Step 1: Create SP with name only
         page.goto(f"{idp_base}/admin/settings/service-providers/new")
-        sp_name = "E2E Test SP (XML Import)"
+        sp_name = f"E2E Test SP (XML Import) {uuid4().hex[:8]}"
         page.locator("#sp-name").fill(sp_name)
         page.get_by_role("button", name="Create").click()
 
@@ -132,7 +134,7 @@ class TestSpAdminRegistersIdp:
 
         # Step 1: Create IdP with name and provider type
         page.goto(f"{sp_base}/admin/settings/identity-providers/new")
-        idp_name = "E2E Test IdP (XML Import)"
+        idp_name = f"E2E Test IdP (XML Import) {uuid4().hex[:8]}"
         page.locator("#name").fill(idp_name)
         page.locator("#provider_type").select_option("generic")
         page.get_by_role("button", name="Create Identity Provider").click()

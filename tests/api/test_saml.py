@@ -1163,6 +1163,18 @@ class TestSamlApiServiceErrors:
             )
         assert response.status_code == 404
 
+    @pytest.mark.parametrize("days", [-1, 91])
+    def test_rotate_sp_certificate_rejects_invalid_grace_period(
+        self, client, test_tenant_host, oauth2_super_admin_header, days
+    ):
+        """grace_period_days outside 0-90 returns 422."""
+        fake_id = str(uuid.uuid4())
+        response = client.post(
+            f"/api/v1/saml/idps/{fake_id}/rotate-sp-certificate?grace_period_days={days}",
+            headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        )
+        assert response.status_code == 422
+
     def test_import_idp_url_service_error(
         self, client, test_tenant_host, oauth2_super_admin_header
     ):

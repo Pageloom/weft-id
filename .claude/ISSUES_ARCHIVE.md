@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Input Validation: Unbounded grace_period_days on certificate rotation
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `app/routers/api/v1/saml.py:491-507`
+**Severity:** Medium
+**OWASP Category:** A04:2021 - Insecure Design
+**Fix:** Added `Query(default=7, ge=0, le=90)` bounds on the API parameter so FastAPI rejects
+out-of-range values with 422. Added a matching bounds check in the service layer
+(`services/saml/idp_sp_certificates.py`) as defense in depth. Tests cover -1, 91, 999999
+(rejected) and 0 (accepted boundary).
+
+---
+
 ### [SECURITY] Information Disclosure: Verbose assertion logging stores PII in event log
 
 **Status:** Resolved (2026-04-12)

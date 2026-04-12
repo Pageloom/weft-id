@@ -120,6 +120,12 @@ def rotate_idp_sp_certificate(
     require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
 
+    if not (0 <= grace_period_days <= 90):
+        raise ValidationError(
+            message="Grace period must be between 0 and 90 days",
+            code="invalid_grace_period",
+        )
+
     # Verify IdP exists
     idp = database.saml.get_identity_provider(tenant_id, idp_id)
     if not idp:

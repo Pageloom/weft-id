@@ -4,7 +4,7 @@ from typing import Annotated
 
 from api_dependencies import require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, Field
 from schemas.saml import (
     CertificateRotationResult,
@@ -492,12 +492,15 @@ def rotate_idp_sp_certificate(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_super_admin_api)],
     idp_id: str,
-    grace_period_days: int = 7,
+    grace_period_days: int = Query(default=7, ge=0, le=90),
 ):
     """
     Rotate the per-IdP SP certificate with grace period.
 
     Requires super_admin role.
+
+    Parameters:
+        grace_period_days: Number of days the old certificate remains valid (0-90, default 7).
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:

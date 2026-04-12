@@ -312,10 +312,10 @@ docker compose exec -T db \
 
 ### Configuration
 
-Your `.env` file contains `SECRET_KEY` (the master encryption key) and `POSTGRES_PASSWORD`.
-These cannot be recovered or regenerated. Losing `SECRET_KEY` invalidates all active sessions,
-two-step verification secrets, and SAML signing keys. Losing `POSTGRES_PASSWORD` locks you out
-of the database.
+Your `.env` file contains `SECRET_KEY` (the master encryption key), `POSTGRES_PASSWORD`, and
+`APPUSER_PASSWORD`. These cannot be recovered or regenerated. Losing `SECRET_KEY` invalidates
+all active sessions, two-step verification secrets, and SAML signing keys. Losing either
+database password locks you out of the database.
 
 Store a copy of `.env` somewhere secure outside the server (for example, in a password manager
 or an encrypted vault). Do not commit it to version control.
@@ -409,6 +409,7 @@ can copy `deploy/.env.example` and edit it manually.
 | `BASE_DOMAIN` | Root domain for tenant subdomains (e.g., `id.example.com`) |
 | `SECRET_KEY` | Master encryption key. Session signing, two-step verification secrets, SAML key encryption, and email verification tokens are all derived from this value via HKDF. Generate with `openssl rand -base64 32`. |
 | `POSTGRES_PASSWORD` | Password for the PostgreSQL superuser. Generate with `openssl rand -base64 32`. |
+| `APPUSER_PASSWORD` | Password for the `appuser` database role (used by the app at runtime). Generate with `openssl rand -base64 32`. Falls back to a default if not set. |
 
 #### Optional variables
 

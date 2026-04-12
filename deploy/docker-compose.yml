@@ -34,7 +34,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: apppass
+      POSTGRES_PASSWORD: ${APPUSER_PASSWORD:-apppass}
       POSTGRES_DB: appdb
       BASE_DOMAIN: ${BASE_DOMAIN}
       SECRET_KEY: ${SECRET_KEY}
@@ -73,7 +73,7 @@ services:
     command: ["python", "worker.py"]
     environment:
       POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: apppass
+      POSTGRES_PASSWORD: ${APPUSER_PASSWORD:-apppass}
       POSTGRES_DB: appdb
       BASE_DOMAIN: ${BASE_DOMAIN}
       SECRET_KEY: ${SECRET_KEY}
@@ -107,6 +107,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_HOST: db
       POSTGRES_DB: appdb
+      APPUSER_PASSWORD: ${APPUSER_PASSWORD:-}
     depends_on:
       db:
         condition: service_healthy

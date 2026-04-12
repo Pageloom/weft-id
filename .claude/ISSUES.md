@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 0 | |
-| Low | 8 | Rate Limiting, Config, Input Validation |
+| Low | 7 | Rate Limiting, Config, Input Validation |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
@@ -35,17 +35,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 ---
 
 ---
-
-## [SECURITY] Hardcoded Credentials: appuser database password
-
-**Found in:** `db-init/schema.sql:32`, `deploy/docker-compose.yml:36-37`
-**Severity:** Low
-**OWASP Category:** A07:2021 - Identification and Authentication Failures
-**Description:** The `appuser` role password is hardcoded to `apppass` in the schema baseline and deploy compose. The `install.sh` script generates a random password for `postgres` but not for `appuser`.
-**Attack Scenario:** Attacker with network access to the database port authenticates as `appuser` with the well-known password.
-**Evidence:** `CREATE ROLE appuser LOGIN PASSWORD 'apppass'` in schema.sql.
-**Impact:** Full application data access if database port is exposed.
-**Remediation:** Generate a random `APPUSER_PASSWORD` in `install.sh` and use it in both the schema and compose file.
 
 ---
 

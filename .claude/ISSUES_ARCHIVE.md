@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Hardcoded Credentials: appuser database password
+
+**Status:** Resolved (2026-04-12)
+**Found in:** `db-init/schema.sql:32`, `deploy/docker-compose.yml:36-37`
+**Severity:** Low
+**OWASP Category:** A07:2021 - Identification and Authentication Failures
+**Fix:** Added `APPUSER_PASSWORD` env var. `install.sh` generates a random value alongside the
+other secrets. `deploy/docker-compose.yml` references it with `${APPUSER_PASSWORD:-apppass}`
+fallback for backwards compatibility. `migrate.py` runs `ALTER ROLE appuser PASSWORD` on every
+startup when the var is set, so the schema baseline default is overridden before the app connects.
+
+---
+
 ### [SECURITY] Input Validation: Unbounded grace_period_days on certificate rotation
 
 **Status:** Resolved (2026-04-12)

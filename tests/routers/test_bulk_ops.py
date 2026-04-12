@@ -667,6 +667,82 @@ def test_apply_primary_null_result(test_admin_user, override_auth):
     assert "Failed" in response.json()["error"]
 
 
+def test_apply_primary_missing_required_key(test_admin_user, override_auth):
+    """Apply returns 400 when an item is missing a required key."""
+    override_auth(test_admin_user, level="admin")
+
+    import json
+
+    # user_id is missing
+    items = [{"new_primary_email": "new@example.com", "idp_disposition": "keep"}]
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/primary-emails/apply",
+        data={
+            "items_json": json.dumps(items),
+            "preview_job_id": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Invalid request data" in response.json()["error"]
+
+
+def test_apply_primary_invalid_email_format(test_admin_user, override_auth):
+    """Apply returns 400 when an item contains a malformed email address."""
+    override_auth(test_admin_user, level="admin")
+
+    import json
+
+    items = [
+        {
+            "user_id": str(uuid4()),
+            "new_primary_email": "not-an-email",
+            "idp_disposition": "keep",
+        }
+    ]
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/primary-emails/apply",
+        data={
+            "items_json": json.dumps(items),
+            "preview_job_id": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Invalid request data" in response.json()["error"]
+
+
+def test_apply_primary_invalid_idp_disposition(test_admin_user, override_auth):
+    """Apply returns 400 when an item has an unrecognised idp_disposition value."""
+    override_auth(test_admin_user, level="admin")
+
+    import json
+
+    items = [
+        {
+            "user_id": str(uuid4()),
+            "new_primary_email": "new@example.com",
+            "idp_disposition": "destroy",
+        }
+    ]
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/primary-emails/apply",
+        data={
+            "items_json": json.dumps(items),
+            "preview_job_id": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Invalid request data" in response.json()["error"]
+
+
 # =============================================================================
 # POST /users/bulk-ops/inactivate
 # =============================================================================

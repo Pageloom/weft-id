@@ -31,7 +31,7 @@ def assign_sp(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
-    sp_id: Annotated[str, Form()],
+    sp_id: Annotated[str, Form(max_length=50)],
 ):
     """Assign an SP to the group."""
     requesting_user = build_requesting_user(user, tenant_id, request)

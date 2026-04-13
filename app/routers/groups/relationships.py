@@ -59,7 +59,7 @@ def add_child(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
-    child_group_id: Annotated[str, Form()],
+    child_group_id: Annotated[str, Form(max_length=50)],
 ):
     """Add a child group."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -113,7 +113,7 @@ def add_parent(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
-    parent_group_id: Annotated[str, Form()],
+    parent_group_id: Annotated[str, Form(max_length=50)],
 ):
     """Add a parent group (by making this group a child of the parent)."""
     requesting_user = build_requesting_user(user, tenant_id, request)

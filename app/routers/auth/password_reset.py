@@ -43,7 +43,7 @@ def forgot_password_page(
 def forgot_password_submit(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    email: Annotated[str, Form()],
+    email: Annotated[str, Form(max_length=320)],
 ):
     """Process the forgot password email submission."""
     client_ip = _get_client_ip(request)
@@ -92,8 +92,8 @@ def reset_password_submit(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     token: str,
-    new_password: Annotated[str, Form()],
-    new_password_confirm: Annotated[str, Form()],
+    new_password: Annotated[str, Form(max_length=255)],
+    new_password_confirm: Annotated[str, Form(max_length=255)],
 ):
     """Process the new password submission."""
     # Re-verify token (state may have changed if password was already reset)
@@ -194,8 +194,8 @@ def account_recovery_submit(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     token: str,
-    new_password: Annotated[str, Form()] = "",
-    new_password_confirm: Annotated[str, Form()] = "",
+    new_password: Annotated[str, Form(max_length=255)] = "",
+    new_password_confirm: Annotated[str, Form(max_length=255)] = "",
 ):
     """Process account recovery form submission (password reset path)."""
     result = users_service.validate_recovery_token(tenant_id, token)

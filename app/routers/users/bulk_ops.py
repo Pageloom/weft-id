@@ -130,10 +130,10 @@ def prepare_bulk_secondary_emails(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin)],
-    selection_mode: Annotated[str, Form()],
-    user_ids: Annotated[list[str] | None, Form()] = None,
-    filter_criteria: Annotated[str | None, Form()] = None,
-    search: Annotated[str | None, Form()] = None,
+    selection_mode: Annotated[str, Form(max_length=20)],
+    user_ids: Annotated[list[str] | None, Form(max_length=50)] = None,
+    filter_criteria: Annotated[str | None, Form(max_length=2000)] = None,
+    search: Annotated[str | None, Form(max_length=255)] = None,
 ):
     """Receive selection from user list and render the bulk email action page."""
     resolved_ids = _resolve_user_ids(tenant_id, selection_mode, user_ids, filter_criteria, search)
@@ -172,8 +172,8 @@ def submit_bulk_secondary_emails(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin)],
-    user_ids: Annotated[list[str], Form()],
-    emails: Annotated[list[str], Form()],
+    user_ids: Annotated[list[str], Form(max_length=50)],
+    emails: Annotated[list[str], Form(max_length=320)],
 ):
     """Process the bulk email form submission and create a background job."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -223,10 +223,10 @@ def prepare_bulk_primary_emails(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin)],
-    selection_mode: Annotated[str, Form()],
-    user_ids: Annotated[list[str] | None, Form()] = None,
-    filter_criteria: Annotated[str | None, Form()] = None,
-    search: Annotated[str | None, Form()] = None,
+    selection_mode: Annotated[str, Form(max_length=20)],
+    user_ids: Annotated[list[str] | None, Form(max_length=50)] = None,
+    filter_criteria: Annotated[str | None, Form(max_length=2000)] = None,
+    search: Annotated[str | None, Form(max_length=255)] = None,
 ):
     """Receive selection from user list and render the bulk primary email page."""
     resolved_ids = _resolve_user_ids(tenant_id, selection_mode, user_ids, filter_criteria, search)
@@ -265,8 +265,8 @@ def preview_bulk_primary_emails(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin)],
-    user_ids: Annotated[list[str], Form()],
-    new_emails: Annotated[list[str], Form()],
+    user_ids: Annotated[list[str], Form(max_length=50)],
+    new_emails: Annotated[list[str], Form(max_length=320)],
 ):
     """Enqueue a dry-run background job for bulk primary email changes.
 
@@ -305,8 +305,8 @@ def apply_bulk_primary_emails(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin)],
-    items_json: Annotated[str, Form()],
-    preview_job_id: Annotated[str, Form()],
+    items_json: Annotated[str, Form(max_length=65535)],
+    preview_job_id: Annotated[str, Form(max_length=50)],
 ):
     """Enqueue execution background job for bulk primary email changes.
 
@@ -362,10 +362,10 @@ def submit_bulk_inactivate(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin)],
-    selection_mode: Annotated[str, Form()],
-    user_ids: Annotated[list[str] | None, Form()] = None,
-    filter_criteria: Annotated[str | None, Form()] = None,
-    search: Annotated[str | None, Form()] = None,
+    selection_mode: Annotated[str, Form(max_length=20)],
+    user_ids: Annotated[list[str] | None, Form(max_length=50)] = None,
+    filter_criteria: Annotated[str | None, Form(max_length=2000)] = None,
+    search: Annotated[str | None, Form(max_length=255)] = None,
 ):
     """Create a background job to inactivate selected users."""
     resolved_ids = _resolve_user_ids(tenant_id, selection_mode, user_ids, filter_criteria, search)
@@ -398,10 +398,10 @@ def submit_bulk_reactivate(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin)],
-    selection_mode: Annotated[str, Form()],
-    user_ids: Annotated[list[str] | None, Form()] = None,
-    filter_criteria: Annotated[str | None, Form()] = None,
-    search: Annotated[str | None, Form()] = None,
+    selection_mode: Annotated[str, Form(max_length=20)],
+    user_ids: Annotated[list[str] | None, Form(max_length=50)] = None,
+    filter_criteria: Annotated[str | None, Form(max_length=2000)] = None,
+    search: Annotated[str | None, Form(max_length=255)] = None,
 ):
     """Create a background job to reactivate selected users."""
     resolved_ids = _resolve_user_ids(tenant_id, selection_mode, user_ids, filter_criteria, search)
@@ -434,11 +434,11 @@ def submit_bulk_group_assignment(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin)],
-    group_id: Annotated[str, Form()],
-    selection_mode: Annotated[str, Form()],
-    user_ids: Annotated[list[str] | None, Form()] = None,
-    filter_criteria: Annotated[str | None, Form()] = None,
-    search: Annotated[str | None, Form()] = None,
+    group_id: Annotated[str, Form(max_length=50)],
+    selection_mode: Annotated[str, Form(max_length=20)],
+    user_ids: Annotated[list[str] | None, Form(max_length=50)] = None,
+    filter_criteria: Annotated[str | None, Form(max_length=2000)] = None,
+    search: Annotated[str | None, Form(max_length=255)] = None,
 ):
     """Create a background job to add selected users to a group."""
     resolved_ids = _resolve_user_ids(tenant_id, selection_mode, user_ids, filter_criteria, search)

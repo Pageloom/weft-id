@@ -74,8 +74,8 @@ def update_profile(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    first_name: Annotated[str, Form()],
-    last_name: Annotated[str, Form()],
+    first_name: Annotated[str, Form(max_length=255)],
+    last_name: Annotated[str, Form(max_length=255)],
 ):
     """Update user profile information."""
     # Check if user is allowed to edit their profile
@@ -100,7 +100,7 @@ def update_timezone(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    timezone: Annotated[str, Form()],
+    timezone: Annotated[str, Form(max_length=50)],
 ):
     """Update user's timezone."""
     # Validate timezone using zoneinfo
@@ -126,8 +126,8 @@ def update_regional(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    timezone: Annotated[str, Form()] = "",
-    locale: Annotated[str, Form()] = "",
+    timezone: Annotated[str, Form(max_length=50)] = "",
+    locale: Annotated[str, Form(max_length=10)] = "",
 ):
     """Update user's timezone and locale."""
     # Validate timezone using zoneinfo
@@ -161,7 +161,7 @@ def update_theme(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    theme: Annotated[str, Form()],
+    theme: Annotated[str, Form(max_length=20)],
 ):
     """Update user's theme preference."""
     # Validate theme
@@ -213,9 +213,9 @@ def change_password(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    current_password: Annotated[str, Form()],
-    new_password: Annotated[str, Form()],
-    new_password_confirm: Annotated[str, Form()],
+    current_password: Annotated[str, Form(max_length=255)],
+    new_password: Annotated[str, Form(max_length=255)],
+    new_password_confirm: Annotated[str, Form(max_length=255)],
 ):
     """Handle password change form submission."""
     if user.get("saml_idp_id"):
@@ -335,8 +335,8 @@ def mfa_setup_verify(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    code: Annotated[str, Form()],
-    method: Annotated[str, Form()],
+    code: Annotated[str, Form(max_length=100)],
+    method: Annotated[str, Form(max_length=20)],
 ):
     """Verify TOTP setup and enable MFA."""
     if method != "totp":
@@ -425,7 +425,7 @@ def mfa_downgrade_verify(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    code: Annotated[str, Form()],
+    code: Annotated[str, Form(max_length=100)],
 ):
     """Verify email code and complete downgrade to email MFA."""
     # Check if there's a pending downgrade

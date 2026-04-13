@@ -64,6 +64,10 @@
 {% block extra_scripts %}
 {% if is_super_admin and accessible_apps and accessible_apps.items %}
 <script nonce="{{ csp_nonce }}">
+    const escapeHtml = (s) => {
+        if (s == null) return '';
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    };
     document.querySelectorAll('.preview-assertion-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const spId = btn.dataset.spId;
@@ -84,7 +88,7 @@
                 const resp = await WeftUtils.apiFetch(`/api/v1/service-providers/${spId}/assertion-preview/${userId}`);
                 if (!resp.ok) {
                     const err = await resp.json().catch(() => ({}));
-                    previewEl.innerHTML = `<p class="text-xs text-red-600 dark:text-red-400">${err.detail || 'Failed to load preview'}</p>`;
+                    previewEl.innerHTML = `<p class="text-xs text-red-600 dark:text-red-400">${escapeHtml(err.detail) || 'Failed to load preview'}</p>`;
                     previewEl.classList.remove('hidden');
                     return;
                 }
@@ -93,7 +97,7 @@
                 let attrsHtml = '';
                 for (const [key, val] of Object.entries(data.attributes)) {
                     const display = Array.isArray(val) ? val.join(', ') : val;
-                    attrsHtml += `<tr><td class="pr-4 py-1 text-xs text-gray-500 dark:text-gray-400 font-mono whitespace-nowrap align-top">${key}</td><td class="py-1 text-xs text-gray-900 dark:text-gray-100 break-all">${display}</td></tr>`;
+                    attrsHtml += `<tr><td class="pr-4 py-1 text-xs text-gray-500 dark:text-gray-400 font-mono whitespace-nowrap align-top">${escapeHtml(key)}</td><td class="py-1 text-xs text-gray-900 dark:text-gray-100 break-all">${escapeHtml(display)}</td></tr>`;
                 }
 
                 const accessBadge = data.has_access
@@ -101,7 +105,7 @@
                     : '<span class="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300 rounded-full">No access</span>';
 
                 const encBadge = data.assertion_encrypted
-                    ? `<span class="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300 rounded-full">Encrypted (${data.encryption_algorithm})</span>`
+                    ? `<span class="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300 rounded-full">Encrypted (${escapeHtml(data.encryption_algorithm)})</span>`
                     : '<span class="px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full">Not encrypted</span>';
 
                 previewEl.innerHTML = `
@@ -113,15 +117,15 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                             <div>
                                 <span class="text-xs text-gray-500 dark:text-gray-400">NameID</span>
-                                <p class="text-xs font-mono text-gray-900 dark:text-gray-100">${data.name_id}</p>
+                                <p class="text-xs font-mono text-gray-900 dark:text-gray-100">${escapeHtml(data.name_id)}</p>
                             </div>
                             <div>
                                 <span class="text-xs text-gray-500 dark:text-gray-400">Format</span>
-                                <p class="text-xs font-mono text-gray-900 dark:text-gray-100">${data.name_id_format}</p>
+                                <p class="text-xs font-mono text-gray-900 dark:text-gray-100">${escapeHtml(data.name_id_format)}</p>
                             </div>
                             <div>
                                 <span class="text-xs text-gray-500 dark:text-gray-400">Group Scope</span>
-                                <p class="text-xs font-mono text-gray-900 dark:text-gray-100">${data.group_assertion_scope}</p>
+                                <p class="text-xs font-mono text-gray-900 dark:text-gray-100">${escapeHtml(data.group_assertion_scope)}</p>
                             </div>
                         </div>
                         <div>
@@ -132,7 +136,7 @@
                 previewEl.classList.remove('hidden');
                 btn.textContent = 'Hide Preview';
             } catch (e) {
-                previewEl.innerHTML = `<p class="text-xs text-red-600 dark:text-red-400">Error: ${e.message}</p>`;
+                previewEl.innerHTML = `<p class="text-xs text-red-600 dark:text-red-400">Error: ${escapeHtml(e.message)}</p>`;
                 previewEl.classList.remove('hidden');
             } finally {
                 btn.disabled = false;

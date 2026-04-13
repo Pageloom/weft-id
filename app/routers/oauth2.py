@@ -140,8 +140,8 @@ def authorize_grant(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_current_user)],
-    auth_request_id: Annotated[str, Form()],
-    action: Annotated[str, Form()],
+    auth_request_id: Annotated[str, Form(max_length=50)],
+    action: Annotated[str, Form(max_length=20)],
 ):
     """
     OAuth2 authorization endpoint - handle allow/deny.
@@ -258,13 +258,13 @@ def authorize_grant(
 def token_endpoint(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    grant_type: Annotated[str, Form()],
-    client_id: Annotated[str, Form()],
-    client_secret: Annotated[str, Form()],
-    code: Annotated[str | None, Form()] = None,
-    redirect_uri: Annotated[str | None, Form()] = None,
-    code_verifier: Annotated[str | None, Form()] = None,
-    refresh_token: Annotated[str | None, Form()] = None,
+    grant_type: Annotated[str, Form(max_length=50)],
+    client_id: Annotated[str, Form(max_length=255)],
+    client_secret: Annotated[str, Form(max_length=255)],
+    code: Annotated[str | None, Form(max_length=255)] = None,
+    redirect_uri: Annotated[str | None, Form(max_length=2048)] = None,
+    code_verifier: Annotated[str | None, Form(max_length=255)] = None,
+    refresh_token: Annotated[str | None, Form(max_length=255)] = None,
 ):
     """
     OAuth2 token endpoint - exchange authorization code or refresh token for access token.

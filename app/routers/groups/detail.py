@@ -368,9 +368,9 @@ def update_group(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
-    name: Annotated[str, Form()],
-    description: Annotated[str, Form()] = "",
-    acronym: Annotated[str, Form()] = "",
+    name: Annotated[str, Form(max_length=255)],
+    description: Annotated[str, Form(max_length=2000)] = "",
+    acronym: Annotated[str, Form(max_length=10)] = "",
 ):
     """Update group details."""
     requesting_user = build_requesting_user(user, tenant_id, request)

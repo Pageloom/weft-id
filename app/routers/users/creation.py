@@ -59,10 +59,10 @@ def create_new_user(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    email: Annotated[str, Form()] = "",
-    first_name: Annotated[str, Form()] = "",
-    last_name: Annotated[str, Form()] = "",
-    role: Annotated[str, Form()] = "member",
+    email: Annotated[str, Form(max_length=320)] = "",
+    first_name: Annotated[str, Form(max_length=255)] = "",
+    last_name: Annotated[str, Form(max_length=255)] = "",
+    role: Annotated[str, Form(max_length=20)] = "member",
 ):
     """Create a new user account."""
     # Check admin permission

@@ -93,7 +93,7 @@ def send_verification_code(
     request: Request,
     response: Response,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    email: Annotated[str, Form()],
+    email: Annotated[str, Form(max_length=320)],
 ):
     """
     Send email possession verification code (anti-enumeration step 1).
@@ -215,7 +215,7 @@ def verify_code(
     request: Request,
     response: Response,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    code: Annotated[str, Form()],
+    code: Annotated[str, Form(max_length=100)],
     email_verify_pending: Annotated[str | None, Cookie()] = None,
 ):
     """
@@ -321,10 +321,10 @@ def resend_verification_code(
 def login(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    email: Annotated[str, Form()],
-    password: Annotated[str, Form()],
-    timezone: Annotated[str, Form()] = "",
-    locale: Annotated[str, Form()] = "",
+    email: Annotated[str, Form(max_length=320)],
+    password: Annotated[str, Form(max_length=255)],
+    timezone: Annotated[str, Form(max_length=50)] = "",
+    locale: Annotated[str, Form(max_length=10)] = "",
 ):
     """Handle login form submission (step 2 after email check)."""
     # Normalize email for consistent rate limiting
@@ -503,8 +503,8 @@ def forced_password_reset_page(
 def forced_password_reset(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    new_password: Annotated[str, Form()],
-    new_password_confirm: Annotated[str, Form()],
+    new_password: Annotated[str, Form(max_length=255)],
+    new_password_confirm: Annotated[str, Form(max_length=255)],
 ):
     """Handle forced password reset form submission.
 

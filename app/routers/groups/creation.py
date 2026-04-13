@@ -57,8 +57,8 @@ def create_group(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    name: Annotated[str, Form()],
-    description: Annotated[str, Form()] = "",
+    name: Annotated[str, Form(max_length=255)],
+    description: Annotated[str, Form(max_length=2000)] = "",
 ):
     """Create a new group."""
     requesting_user = build_requesting_user(user, tenant_id, request)

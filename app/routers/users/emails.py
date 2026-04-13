@@ -35,7 +35,7 @@ def add_user_email_route(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     user_id: str,
-    email: Annotated[str, Form()],
+    email: Annotated[str, Form(max_length=320)],
 ):
     """Add a secondary email to a user (admin only, privileged domains only)."""
     # Check admin permission
@@ -135,7 +135,7 @@ def promote_user_email_route(
     user: Annotated[dict, Depends(get_current_user)],
     user_id: str,
     email_id: str,
-    confirm_routing_change: Annotated[str, Form()] = "",
+    confirm_routing_change: Annotated[str, Form(max_length=10)] = "",
 ):
     """Promote a secondary email to primary (admin only)."""
     # Check admin permission

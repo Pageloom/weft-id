@@ -23,7 +23,7 @@ router = APIRouter()
 def request_reactivation(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user_id: Annotated[str, Form()],
+    user_id: Annotated[str, Form(max_length=50)],
 ):
     """
     Initiate reactivation request flow.

@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-13
+
+### Added
+
+- SAML assertion debug log for troubleshooting authentication failures, accessible at **Audit > SAML Debug** with optional verbose logging for successful assertions
+- SAML assertion replay prevention via Memcached (each assertion ID is cached and rejected on resubmission within its validity window)
+- SAML assertion attribute resilience: missing optional attributes (first name, last name) no longer block sign-in. Existing user values are preserved.
+- Automatic user attribute sync from the upstream IdP on each SAML sign-in (first name, last name updated when they differ)
+- Failed SAML authentication attempts are now always logged with full diagnostic details
+- SLO URL editing for metadata-imported service providers (previously read-only)
+
+### Changed
+
+- IdP-assigned users skip the password-setting step during onboarding and are directed to sign in through their identity provider
+- SAML Debug Log moved from Settings to the Audit section in navigation
+- Profile editing policy (`allow_users_edit_profile`) now enforced in the service layer, covering both web UI and API
+
+### Security
+
+- Added `max_length` constraints to all `Form()` parameters to prevent oversized input attacks (e.g., CPU exhaustion via Argon2 with megabyte-length passwords)
+- Fixed XSS in assertion attribute preview where user-controlled data was interpolated via innerHTML without escaping
+- Blocked SSRF via redirect following in SAML metadata URL fetch
+- Fixed open redirect via unvalidated SAML RelayState parameter
+- Replaced sequential integer nonces with cryptographically random tokens for email verification and password-reset links
+- Removed unauthenticated check-email API endpoint (user enumeration vector)
+- Removed super admin self-reactivation bypass; all reactivations now require admin approval
+- Restricted B2B OAuth2 client management to super admins (was admin+)
+- Rate-limited the account reactivation endpoint
+- Certificate rotation grace period bounded to 0-90 days
+- PII redacted from verbose SAML assertion event log metadata
+- Docker containers now run as a non-root user
+- Install script generates a random database password for the application user
+- Install script sets `.env` file permissions to 600 (owner-only read/write)
+- On-demand TLS certificate issuance restricted to registered tenant subdomains
+
 ## [1.3.0] - 2026-04-10
 
 ### Added

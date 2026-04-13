@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-04-13
+
+### Security
+
+- Updated Pillow to 12.2.0 to fix GZIP decompression bomb vulnerability
+- Updated pytest to 9.0.3 to fix insecure tmpdir handling
+
 ## [1.4.0] - 2026-04-13
 
 ### Added

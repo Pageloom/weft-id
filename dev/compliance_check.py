@@ -32,6 +32,10 @@ Principles checked:
                         system_context() to provide request context
    13. api-auth         - All API route handlers must require authentication
                         (no unauthenticated /api/ endpoints)
+   14. form-input-length - All str Form() parameters in route handlers must
+                        have max_length to prevent resource exhaustion
+   15. template-xss      - Template innerHTML assignments with interpolation
+                        must use escapeHtml() to prevent XSS
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -266,7 +270,13 @@ class ServiceFunctionVisitor(ast.NodeVisitor):
 
         # Report violations
         if self.has_requesting_user:
-            if self.has_mutation and not self.has_log_event and not has_delegated_logging and not has_no_audit:
+            missing_log = (
+                self.has_mutation
+                and not self.has_log_event
+                and not has_delegated_logging
+                and not has_no_audit
+            )
+            if missing_log:
                 # Write operation without log_event - HIGH severity
                 self.report.add(
                     Violation(
@@ -384,7 +394,14 @@ def check_activity_logging_violations(report: ComplianceReport) -> None:
         return
 
     # Skip these files (they're infrastructure, not business logic)
-    skip_files = {"__init__.py", "activity.py", "auth.py", "event_log.py", "exceptions.py", "types.py"}
+    skip_files = {
+        "__init__.py",
+        "activity.py",
+        "auth.py",
+        "event_log.py",
+        "exceptions.py",
+        "types.py",
+    }
 
     for py_file in services_path.rglob("*.py"):
         if py_file.name in skip_files:
@@ -694,9 +711,7 @@ def check_api_doc_violations(report: ComplianceReport) -> None:
             if isinstance(node, ast.ClassDef):
                 fields = []
                 for item in node.body:
-                    if isinstance(item, ast.AnnAssign) and isinstance(
-                        item.target, ast.Name
-                    ):
+                    if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name):
                         # Skip class-level config or private attrs
                         if not item.target.id.startswith("_"):
                             fields.append(item.target.id)
@@ -729,9 +744,7 @@ def check_api_doc_violations(report: ComplianceReport) -> None:
             # Check if this function has a PATCH or PUT decorator
             is_patch_or_put = False
             for decorator in node.decorator_list:
-                if isinstance(decorator, ast.Call) and isinstance(
-                    decorator.func, ast.Attribute
-                ):
+                if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute):
                     if decorator.func.attr in ("patch", "put"):
                         is_patch_or_put = True
                         break
@@ -798,8 +811,7 @@ def check_api_doc_violations(report: ComplianceReport) -> None:
                         ),
                         evidence=f"Missing: {', '.join(missing_fields)}",
                         suggested_fix=(
-                            f"Update the docstring to document all fields: "
-                            f"{', '.join(fields)}"
+                            f"Update the docstring to document all fields: {', '.join(fields)}"
                         ),
                     )
                 )
@@ -1375,7 +1387,7 @@ def _check_sql_create_tables(
         re.DOTALL | re.IGNORECASE,
     )
 
-    lines = sql.split("\n")
+    sql.split("\n")
 
     for match in table_pattern.finditer(sql):
         table_name = match.group(1)
@@ -1420,8 +1432,7 @@ def _check_sql_create_tables(
                     line_number=line_num,
                     function_name=None,
                     description=(
-                        f"Table {table_name}.{col_name} (TEXT) has no length "
-                        f"CHECK constraint"
+                        f"Table {table_name}.{col_name} (TEXT) has no length CHECK constraint"
                     ),
                     evidence=(
                         f"Column '{col_name}' in table '{table_name}' is TEXT "
@@ -1435,9 +1446,7 @@ def _check_sql_create_tables(
             )
 
 
-def _check_sql_alter_add_column(
-    sql: str, file_path: Path, report: ComplianceReport
-) -> None:
+def _check_sql_alter_add_column(sql: str, file_path: Path, report: ComplianceReport) -> None:
     """Check ALTER TABLE ADD COLUMN for TEXT columns without length constraints."""
     # Match: ALTER TABLE [public.]tablename ADD COLUMN [IF NOT EXISTS] colname text ...
     alter_pattern = re.compile(
@@ -1447,7 +1456,7 @@ def _check_sql_alter_add_column(
         re.IGNORECASE,
     )
 
-    lines = sql.split("\n")
+    sql.split("\n")
 
     # Collect all length/enum checks in the entire migration file
     file_checked: set[str] = set()
@@ -1552,7 +1561,7 @@ def check_rls_policy_violations(report: ComplianceReport) -> None:
     with open(schema_file) as f:
         sql = f.read()
 
-    lines = sql.split("\n")
+    sql.split("\n")
 
     # 1. Find all tables with RLS enabled
     rls_enabled_pattern = re.compile(
@@ -1586,9 +1595,7 @@ def check_rls_policy_violations(report: ComplianceReport) -> None:
             re.search(r"current_setting\s*\([^)]*,\s*true\s*\)", policy_body, re.IGNORECASE)
         )
         # Check for current_setting without the true parameter
-        has_current_setting = bool(
-            re.search(r"current_setting\s*\(", policy_body, re.IGNORECASE)
-        )
+        has_current_setting = bool(re.search(r"current_setting\s*\(", policy_body, re.IGNORECASE))
 
         policies_by_table.setdefault(table_name, []).append(
             {
@@ -1613,13 +1620,9 @@ def check_rls_policy_violations(report: ComplianceReport) -> None:
                     file_path="db-init/schema.sql",
                     line_number=enable_line,
                     function_name=None,
-                    description=(
-                        f"Table '{table_name}' has RLS enabled but no CREATE POLICY"
-                    ),
+                    description=(f"Table '{table_name}' has RLS enabled but no CREATE POLICY"),
                     evidence=f"ALTER TABLE {table_name} ENABLE ROW LEVEL SECURITY",
-                    suggested_fix=(
-                        f"Add a tenant isolation policy for '{table_name}'"
-                    ),
+                    suggested_fix=(f"Add a tenant isolation policy for '{table_name}'"),
                 )
             )
             continue
@@ -1643,16 +1646,13 @@ def check_rls_policy_violations(report: ComplianceReport) -> None:
                         line_number=policy["line"],
                         function_name=None,
                         description=(
-                            f"Policy '{policy['name']}' on '{table_name}' "
-                            f"missing WITH CHECK clause"
+                            f"Policy '{policy['name']}' on '{table_name}' missing WITH CHECK clause"
                         ),
                         evidence=(
-                            f"Policy has USING but no WITH CHECK, "
-                            f"so INSERT/UPDATE bypass tenant scoping"
+                            "Policy has USING but no WITH CHECK, "
+                            "so INSERT/UPDATE bypass tenant scoping"
                         ),
-                        suggested_fix=(
-                            f"Add WITH CHECK clause matching the USING clause"
-                        ),
+                        suggested_fix=("Add WITH CHECK clause matching the USING clause"),
                     )
                 )
 
@@ -1674,9 +1674,7 @@ def check_rls_policy_violations(report: ComplianceReport) -> None:
                             "when unset; use current_setting('app.tenant_id'::text, true) "
                             "to return NULL instead"
                         ),
-                        suggested_fix=(
-                            "Change to current_setting('app.tenant_id'::text, true)"
-                        ),
+                        suggested_fix=("Change to current_setting('app.tenant_id'::text, true)"),
                     )
                 )
 
@@ -1743,7 +1741,8 @@ _MIGRATION_MEDIUM_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
             r"ALTER\s+COLUMN\s+(\w+)\s+(?:SET\s+DATA\s+)?TYPE\b",
             re.IGNORECASE,
         ),
-        "ALTER COLUMN TYPE on '{0}.{1}' acquires ACCESS EXCLUSIVE lock and may break running queries",
+        "ALTER COLUMN TYPE on '{0}.{1}' acquires ACCESS EXCLUSIVE lock"
+        " and may break running queries",
         "Consider adding a new column with the desired type, backfilling, then swapping",
     ),
     (
@@ -1882,7 +1881,8 @@ def check_migration_safety_violations(report: ComplianceReport) -> None:
                         function_name=None,
                         description=(
                             f"ADD COLUMN '{column}' on '{table}' is NOT NULL without DEFAULT. "
-                            f"Fails on non-empty tables and breaks running inserts missing this column"
+                            "Fails on non-empty tables and breaks "
+                            "running inserts missing this column"
                         ),
                         evidence=match.group(0).strip(),
                         suggested_fix=(
@@ -1973,9 +1973,7 @@ def _collect_all_routes() -> set[str]:
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
-                    if isinstance(target, ast.Name) and isinstance(
-                        node.value, ast.Call
-                    ):
+                    if isinstance(target, ast.Name) and isinstance(node.value, ast.Call):
                         call = node.value
                         # Check if it's APIRouter(...)
                         func = call.func
@@ -1984,17 +1982,13 @@ def _collect_all_routes() -> set[str]:
                         ):
                             prefix = ""
                             for kw in call.keywords:
-                                if kw.arg == "prefix" and isinstance(
-                                    kw.value, ast.Constant
-                                ):
+                                if kw.arg == "prefix" and isinstance(kw.value, ast.Constant):
                                     prefix = kw.value.value
                             prefixes[target.id] = prefix
 
         # Extract route decorator paths
         for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) or isinstance(
-                node, ast.AsyncFunctionDef
-            ):
+            if isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
                 for decorator in node.decorator_list:
                     if isinstance(decorator, ast.Call) and isinstance(
                         decorator.func, ast.Attribute
@@ -2008,9 +2002,7 @@ def _collect_all_routes() -> set[str]:
 
                             # Get the route path (first positional arg)
                             route_path = ""
-                            if decorator.args and isinstance(
-                                decorator.args[0], ast.Constant
-                            ):
+                            if decorator.args and isinstance(decorator.args[0], ast.Constant):
                                 route_path = decorator.args[0].value
 
                             # Combine prefix + route path
@@ -2163,9 +2155,7 @@ def check_template_links_violations(report: ComplianceReport) -> None:
 
     # Extract all template links
     template_links = _extract_template_links(root)
-    report.files_scanned += len(
-        {link[0] for link in template_links}
-    )
+    report.files_scanned += len({link[0] for link in template_links})
 
     for file_path, line_num, raw_value in template_links:
         if _should_skip_link(raw_value):
@@ -2355,21 +2345,17 @@ def check_outbound_timeout_violations(report: ComplianceReport) -> None:
                         line_number=line_num,
                         function_name=None,
                         description=(
-                            f"{_OUTBOUND_NEEDS_TIMEOUT[call_name]} "
-                            f"missing explicit timeout"
+                            f"{_OUTBOUND_NEEDS_TIMEOUT[call_name]} missing explicit timeout"
                         ),
                         evidence=f"{call_name}(...)",
                         suggested_fix=(
-                            "Add timeout= parameter (e.g. timeout=10) "
-                            "to prevent indefinite hangs"
+                            "Add timeout= parameter (e.g. timeout=10) to prevent indefinite hangs"
                         ),
                     )
                 )
 
             # 2. urlopen() regardless of import style
-            method_name = (
-                call_name.rsplit(".", 1)[-1] if "." in call_name else call_name
-            )
+            method_name = call_name.rsplit(".", 1)[-1] if "." in call_name else call_name
             if (
                 method_name in _OUTBOUND_METHODS_NEED_TIMEOUT
                 and call_name not in _OUTBOUND_NEEDS_TIMEOUT
@@ -2385,16 +2371,13 @@ def check_outbound_timeout_violations(report: ComplianceReport) -> None:
                         description=f"{call_name}() missing explicit timeout",
                         evidence=f"{call_name}(...)",
                         suggested_fix=(
-                            "Add timeout= parameter (e.g. timeout=10) "
-                            "to prevent indefinite hangs"
+                            "Add timeout= parameter (e.g. timeout=10) to prevent indefinite hangs"
                         ),
                     )
                 )
 
             # 3. SDK clients without built-in timeout support
-            bare_name = (
-                call_name.rsplit(".", 1)[-1] if "." in call_name else call_name
-            )
+            bare_name = call_name.rsplit(".", 1)[-1] if "." in call_name else call_name
             if bare_name in _SDK_NO_BUILTIN_TIMEOUT:
                 desc, fix = _SDK_NO_BUILTIN_TIMEOUT[bare_name]
                 report.add(
@@ -2638,6 +2621,244 @@ def _is_auth_depends_call(node: ast.expr) -> bool:
 
 
 # =============================================================================
+# Principle 14: Form Input Length Validation
+# =============================================================================
+
+
+def check_form_input_length_violations(report: ComplianceReport) -> None:
+    """
+    Check that all str Form() parameters in route handlers have max_length.
+
+    Scans app/routers/**/*.py for function parameters annotated as
+    Annotated[str, Form()] or Annotated[str | None, Form()] and checks
+    that the Form() call includes max_length. Unbounded form parameters
+    allow attackers to submit multi-megabyte strings, causing memory and
+    CPU exhaustion (especially on password fields passed to Argon2).
+    """
+    routers_path = get_app_path() / "routers"
+    if not routers_path.exists():
+        return
+
+    for py_file in sorted(routers_path.rglob("*.py")):
+        if py_file.name.startswith("__"):
+            continue
+
+        report.files_scanned += 1
+
+        try:
+            with open(py_file) as f:
+                source = f.read()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+
+            report.functions_analyzed += 1
+
+            for arg in node.args.args:
+                annotation = arg.annotation
+                if annotation is None:
+                    continue
+
+                form_call = _extract_form_call_from_annotation(annotation)
+                if form_call is None:
+                    continue
+
+                # Check if Form() has max_length keyword
+                has_max = any(kw.arg == "max_length" for kw in form_call.keywords)
+                if has_max:
+                    continue
+
+                report.add(
+                    Violation(
+                        principle="Form Input Length",
+                        severity="medium",
+                        file_path=str(py_file.relative_to(get_project_root())),
+                        line_number=arg.lineno if hasattr(arg, "lineno") else node.lineno,
+                        function_name=node.name,
+                        description=(f"Form parameter '{arg.arg}' missing max_length constraint"),
+                        evidence=f"Form() call for '{arg.arg}' has no max_length",
+                        suggested_fix=("Add max_length: Annotated[str, Form(max_length=N)]"),
+                    )
+                )
+
+
+def _extract_form_call_from_annotation(annotation: ast.expr) -> ast.Call | None:
+    """Extract a Form() call from an Annotated[str, Form(...)] annotation.
+
+    Returns the Form() AST Call node if found, or None.
+    """
+    # Must be Annotated[..., Form(...)]
+    if not isinstance(annotation, ast.Subscript):
+        return None
+
+    # Check it's Annotated
+    if isinstance(annotation.value, ast.Name) and annotation.value.id != "Annotated":
+        return None
+    if isinstance(annotation.value, ast.Attribute) and annotation.value.attr != "Annotated":
+        return None
+
+    # Get the slice elements
+    if not isinstance(annotation.slice, ast.Tuple) or len(annotation.slice.elts) < 2:
+        return None
+
+    first_elt = annotation.slice.elts[0]
+
+    # Check that the first element is str or str | None
+    if not _is_str_annotation_for_form(first_elt):
+        return None
+
+    # Find the Form() call among the remaining elements
+    for elt in annotation.slice.elts[1:]:
+        if isinstance(elt, ast.Call):
+            func = elt.func
+            if (isinstance(func, ast.Name) and func.id == "Form") or (
+                isinstance(func, ast.Attribute) and func.attr == "Form"
+            ):
+                return elt
+
+    return None
+
+
+def _is_str_annotation_for_form(annotation: ast.expr) -> bool:
+    """Check if an annotation is str or str | None for Form parameter checking."""
+    if isinstance(annotation, ast.Name) and annotation.id == "str":
+        return True
+
+    # str | None (BinOp with | operator)
+    if isinstance(annotation, ast.BinOp) and isinstance(annotation.op, ast.BitOr):
+        return _is_str_annotation_for_form(annotation.left) or _is_str_annotation_for_form(
+            annotation.right
+        )
+
+    return False
+
+
+# =============================================================================
+# Principle 15: Template XSS Prevention
+# =============================================================================
+
+# Match innerHTML assignment with template literal interpolation
+_INNERHTML_INTERP = re.compile(r"\.innerHTML\s*[+=]+\s*`[^`]*\$\{")
+
+# Match ${escapeHtml(...)} pattern (the safe version)
+_ESCAPED_INTERP = re.compile(r"\$\{escapeHtml\(")
+
+# Match ${...} interpolation that is NOT escapeHtml (potential XSS)
+_RAW_INTERP = re.compile(r"\$\{(?!escapeHtml\()")
+
+# Allowlisted patterns that are safe without escapeHtml:
+# - String literals: ${'some literal'}
+# - Boolean ternary producing only literals: ${cond ? '<span...' : '<span...'}
+# - Variables ending in Badge/Html (locally-built HTML fragments, not raw API data)
+_SAFE_INTERP_CONTENT = re.compile(
+    r"\$\{"
+    r"(?:"
+    r"'[^']*'"  # string literal
+    r"|\"[^\"]*\""  # double-quoted literal
+    r"|\w+(?:Badge|Html)"  # locally-built HTML variables (e.g. accessBadge, attrsHtml)
+    r")"
+    r"\}"
+)
+
+
+def check_template_xss_violations(report: ComplianceReport) -> None:
+    """
+    Check that innerHTML assignments with interpolation use escapeHtml().
+
+    Scans app/templates/*.html for lines that assign to innerHTML using
+    template literals with ${} interpolation. Any interpolated expression
+    that is not wrapped in escapeHtml() is flagged, since it could allow
+    XSS if the interpolated value contains user-controlled data.
+    """
+    templates_path = get_app_path() / "templates"
+    if not templates_path.exists():
+        return
+
+    for html_file in sorted(templates_path.rglob("*.html")):
+        report.files_scanned += 1
+
+        try:
+            with open(html_file) as f:
+                lines = f.readlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+
+        # We need to track multi-line innerHTML assignments.
+        # Strategy: join all lines and find innerHTML blocks, then check them.
+        content = "".join(lines)
+
+        # Find all innerHTML assignment positions with interpolation
+        for match in _INNERHTML_INTERP.finditer(content):
+            # Find the full template literal (from backtick to closing backtick)
+            start = match.start()
+            # Find the opening backtick
+            backtick_start = content.index("`", start)
+            # Find the matching closing backtick (handling escaped backticks)
+            pos = backtick_start + 1
+            depth = 0
+            while pos < len(content):
+                ch = content[pos]
+                if ch == "\\" and pos + 1 < len(content):
+                    pos += 2  # skip escaped character
+                    continue
+                if ch == "$" and pos + 1 < len(content) and content[pos + 1] == "{":
+                    depth += 1
+                    pos += 2
+                    continue
+                if ch == "}" and depth > 0:
+                    depth -= 1
+                    pos += 1
+                    continue
+                if ch == "`" and depth == 0:
+                    break
+                pos += 1
+
+            template_literal = content[backtick_start : pos + 1]
+
+            # Check for raw (unescaped) interpolations
+            if not _RAW_INTERP.search(template_literal):
+                continue
+
+            # Count raw interpolations (excluding safe patterns)
+            raw_count = 0
+            for raw_match in _RAW_INTERP.finditer(template_literal):
+                # Check if this is a safe pattern (literal string, empty string)
+                snippet = template_literal[raw_match.start() : raw_match.start() + 80]
+                if _SAFE_INTERP_CONTENT.match(snippet):
+                    continue
+                raw_count += 1
+
+            if raw_count == 0:
+                continue
+
+            # Calculate line number from character offset
+            line_number = content[:start].count("\n") + 1
+
+            report.add(
+                Violation(
+                    principle="Template XSS Prevention",
+                    severity="medium",
+                    file_path=str(html_file.relative_to(get_project_root())),
+                    line_number=line_number,
+                    function_name=None,
+                    description=(
+                        f"innerHTML assignment has {raw_count} unescaped "
+                        f"interpolation(s) without escapeHtml()"
+                    ),
+                    evidence="innerHTML with ${...} but no escapeHtml() wrapper",
+                    suggested_fix=(
+                        "Wrap interpolated values in escapeHtml(): "
+                        "${escapeHtml(value)} instead of ${value}"
+                    ),
+                )
+            )
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -2673,6 +2894,8 @@ def run_compliance_check(
         "outbound-timeouts",
         "job-context",
         "api-auth",
+        "form-input-length",
+        "template-xss",
     ]
     if principles is None:
         principles = all_principles
@@ -2716,6 +2939,12 @@ def run_compliance_check(
 
     if "api-auth" in principles:
         check_api_auth_violations(report)
+
+    if "form-input-length" in principles:
+        check_form_input_length_violations(report)
+
+    if "template-xss" in principles:
+        check_template_xss_violations(report)
 
     return report
 
@@ -2783,6 +3012,8 @@ def main() -> int:
             "outbound-timeouts",
             "job-context",
             "api-auth",
+            "form-input-length",
+            "template-xss",
             "all",
         ],
         default="all",

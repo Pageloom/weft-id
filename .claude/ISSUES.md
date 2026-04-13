@@ -11,19 +11,56 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 0 | |
-| Low | 0 | |
+| Medium | 2 | API-First |
+| Low | 1 | API-First |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 
-**Last security scan:** 2026-04-12 (broad: all code from last 60 days, all OWASP categories)
-**Last compliance scan:** 2026-03-19 (1 low: SendGrid client missing timeout)
+**Last security scan:** 2026-04-13 (broad: all code from last 90 days, all OWASP categories; 2 findings, both fixed)
+**Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
+**Last API coverage audit:** 2026-04-13 (conceptual review: 3 gaps found across ~180 API endpoints)
 **Last dependency audit:** 2026-02-23 (all clear; werkzeug upgraded to 3.1.6, pip upgraded to 26.0.1)
 **Last refactor scan:** 2026-03-21 (standard: new code since 2026-02-27, all categories; 5 new issues)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
+
+---
+
+## [API-FIRST] Missing API: Group clear all relationships
+
+**Found in:** `app/routers/api/v1/groups.py`
+**Severity:** Medium
+**Principle Violated:** API-First
+**Description:** The web UI exposes `POST /admin/groups/{group_id}/relationships/clear` which calls `groups_service.remove_all_relationships()`. The API has no equivalent. Consumers must enumerate and DELETE each parent/child relationship individually, with no atomicity.
+**Evidence:** `remove_all_relationships()` is exported from `app/services/groups/__init__.py` (line 53) but never referenced in `app/routers/api/v1/groups.py`.
+**Impact:** An API consumer reassigning a group's position in the hierarchy needs N calls instead of one, and partial failure leaves inconsistent state since individual deletes are not wrapped in a single transaction.
+**Suggested fix:** Add `DELETE /api/v1/groups/{group_id}/relationships` that calls `groups_service.remove_all_relationships(requesting_user, group_id)`. Return 204 on success.
+
+---
+
+## [API-FIRST] Missing API: IdP reimport metadata from XML
+
+**Found in:** `app/routers/api/v1/saml.py`
+**Severity:** Medium
+**Principle Violated:** API-First
+**Description:** The web UI exposes `POST /admin/settings/identity-providers/{idp_id}/reimport-metadata` which accepts pasted XML, parses it via `saml_service.parse_idp_metadata_xml_to_schema()`, and updates the IdP's SSO URL, SLO URL, and certificate. The API has no equivalent for applying XML to an existing IdP. It only has `POST /idps/import-xml` (creates new), `POST /idps/{idp_id}/refresh` (URL-based), and `PATCH /idps/{idp_id}` (manual fields).
+**Evidence:** `app/routers/saml/admin/providers.py:625-666` (web handler). No corresponding route in `app/routers/api/v1/saml.py`.
+**Impact:** When an IdP rotates its certificate and doesn't expose a metadata URL, API consumers must parse SAML metadata themselves and PATCH individual fields. This is the primary recovery path for certificate rotation. B2B/automation clients are blocked without it.
+**Suggested fix:** Add `POST /api/v1/idps/{idp_id}/reimport-xml` that accepts `metadata_xml` in the request body, parses it, and applies the extracted fields. Mirrors the web handler logic.
+
+---
+
+## [API-FIRST] Missing API: SAML debug log entries
+
+**Found in:** `app/routers/api/v1/saml.py`
+**Severity:** Low
+**Principle Violated:** API-First
+**Description:** The web UI exposes `GET /admin/audit/saml-debug` (list) and `GET /admin/audit/saml-debug/{entry_id}` (detail) via `app/routers/saml/admin/debug.py`. These call `saml_service.list_saml_debug_entries()` and `saml_service.get_saml_debug_entry()`. The API can toggle verbose logging on/off but provides no way to read the resulting entries.
+**Evidence:** `app/routers/saml/admin/debug.py:23-72` (web handlers). No corresponding routes in `app/routers/api/v1/saml.py`.
+**Impact:** B2B clients debugging SAML integration issues through the API must switch to the web UI to view failure details. Lower severity because this is primarily a setup-time concern, not ongoing operations.
+**Suggested fix:** Add `GET /api/v1/idps/{idp_id}/debug-entries` (list, with limit parameter) and `GET /api/v1/idps/{idp_id}/debug-entries/{entry_id}` (detail). Alternatively, scope under a general audit path: `GET /api/v1/saml/debug-entries`.
 
 ---
 

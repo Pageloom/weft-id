@@ -5,6 +5,24 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] XSS via innerHTML in SAML Assertion Preview
+
+**Status:** Resolved (2026-04-13)
+**Found in:** `app/templates/user_detail_tab_apps.html:87-135`
+**Severity:** Medium
+**Resolution:** Added `escapeHtml()` function and wrapped all API response data interpolations (attribute keys/values, NameID, format, encryption algorithm, error messages) in the assertion preview script. Added `template-xss` compliance check to prevent recurrence.
+
+---
+
+### [SECURITY] Unbounded Form() Parameters on Web Endpoints
+
+**Status:** Resolved (2026-04-13)
+**Found in:** 21 router files (106 Form() parameters)
+**Severity:** Medium
+**Resolution:** Added `max_length` to all 106 `Form()` string parameters across all web router files. Standard limits applied: passwords 255, emails 320, UUIDs 50, codes 100, timezone 50, locale 10, names 255, descriptions 2000, URLs 2048, enum-like 50. Added `form-input-length` compliance check to prevent recurrence.
+
+---
+
 ### [SECURITY] Unbounded Form Parameters in Admin Web Forms
 
 **Status:** Resolved (2026-04-12)

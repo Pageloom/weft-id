@@ -32,8 +32,17 @@ query = "SELECT * FROM users WHERE email = %s", (email,)
 {{ user_input }}
 ```
 
+```javascript
+// VULNERABLE - innerHTML with unescaped interpolation
+previewEl.innerHTML = `<p>${data.name}</p>`;
+
+// SAFE - escapeHtml wrapper
+previewEl.innerHTML = `<p>${escapeHtml(data.name)}</p>`;
+```
+
 **Checklist:**
 - [ ] Search templates for `| safe` usage without justification comment
+- [ ] Search templates for `innerHTML` assignments with `${` interpolation missing `escapeHtml()`
 - [ ] Review JavaScript that handles user data
 - [ ] Check API responses that reflect user input
 - [ ] Verify CSP headers are configured
@@ -87,11 +96,27 @@ def get_document(requesting_user: RequestingUser, document_id: str):
         raise ForbiddenError("Not your document")
 ```
 
+```python
+# VULNERABLE - policy check only in router, not in service
+@router.post("/profile")
+def update_profile(request: Request, ...):
+    if not settings.allow_users_edit_profile:  # Router-only check
+        raise ForbiddenError(...)
+    return service.update_profile(...)  # API route bypasses this
+
+# SAFE - policy check in service layer
+def update_profile(requesting_user, ...):
+    if not _can_user_edit_profile(requesting_user):  # Service enforces
+        raise ForbiddenError(...)
+```
+
 **Checklist:**
 - [ ] All endpoints verify resource ownership
 - [ ] IDOR prevention (can't access others' resources by changing IDs)
 - [ ] Role checks prevent privilege escalation
 - [ ] Admin functions properly restricted
+- [ ] Policy checks enforced in **service layer**, not just routers
+- [ ] CRUD lifecycle consistency (if create is super_admin-only, update/delete should be too)
 
 ### 6. Security Misconfiguration (A05:2021)
 
@@ -155,7 +180,7 @@ Use `/deps` agent for dependency scanning.
 
 **Red Flag:**
 ```python
-# VULNERABLE - no length limit
+# VULNERABLE - no length limit on schema
 class UserInput(BaseModel):
     name: str
     description: str | None = None
@@ -166,12 +191,31 @@ class UserInput(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
 ```
 
+```python
+# VULNERABLE - no length limit on form parameter
+password: Annotated[str, Form()]
+
+# SAFE - explicit limit
+password: Annotated[str, Form(max_length=255)]
+```
+
+```python
+# VULNERABLE - no bounds on numeric security parameter
+grace_period_days: int = Query(default=7)
+
+# SAFE - explicit bounds
+grace_period_days: int = Query(default=7, ge=0, le=90)
+```
+
 **Checklist:**
 - [ ] All Pydantic input schema `str` fields have `max_length`
+- [ ] All `Form()` str parameters in route handlers have `max_length`
+- [ ] Numeric parameters in security contexts have `ge`/`le` bounds
 - [ ] Database TEXT columns have `CHECK (length(...) <= N)` or use `VARCHAR(N)`
 - [ ] URL fields limited to 2048 characters
 - [ ] XML/large content fields have a reasonable upper bound (e.g., 1MB)
 - [ ] No unbounded TEXT columns accepting user input without validation
+- [ ] Web form routes and API routes to the same service use equivalent validation
 
 ## Severity Guide
 

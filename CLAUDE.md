@@ -503,7 +503,7 @@ All checks must pass before committing.
 7. **Run formatting and linting** before committing code
 8. **API-first methodology** - any functionality available in the web client must also be exposed via API endpoints under `/api/v1/`. API endpoint docstrings must document all accepted fields/parameters (not a subset).
 9. **Backlog management** - after completing a `.claude/BACKLOG.md` item, move it to `.claude/BACKLOG_ARCHIVE.md` with status marked as Complete
-10. **All string fields must have `max_length`** - every `str` field in Pydantic input schemas (Create, Update, Import) must specify `max_length`. Use these standard limits: names/titles 255, descriptions 2000, URLs 2048, enum-like fields 50, subdomains 63, domains 253. Database columns should have matching `CHECK` constraints or `VARCHAR(N)` types.
+10. **All string fields must have `max_length`** - every `str` field in Pydantic input schemas (Create, Update, Import) **and every `Form()` parameter in route handlers** must specify `max_length`. Use these standard limits: names/titles 255, descriptions 2000, URLs 2048, enum-like fields 50, subdomains 63, domains 253, passwords 255, emails 320, UUIDs/IDs 50, verification codes 100, timezone 50, locale 10. Database columns should have matching `CHECK` constraints or `VARCHAR(N)` types.
 11. **Use watch mode during development** - run `make watch-tests` in a separate terminal to get immediate feedback on code changes. It intelligently reruns only affected tests, providing fast iteration cycles (seconds instead of minutes).
 12. **State-changing fetch() calls to API endpoints must use `WeftUtils.apiFetch()`** - bare `fetch()` with `credentials: 'same-origin'` on a non-GET endpoint is a CSRF vulnerability. Bearer-token clients are unaffected.
 

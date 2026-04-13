@@ -38,7 +38,7 @@
                 {% if error_type == 'invalid_response' %}
                     Invalid SSO response from your identity provider.
                 {% elif error_type == 'auth_failed' %}
-                    SSO authentication could not be completed. Try signing in again.
+                    SSO authentication failed. Try signing in again.
                 {% elif error_type == 'user_not_found' %}
                     No account found for the email provided by your identity provider. Contact your administrator.
                 {% elif error_type == 'idp_not_found' %}

@@ -51,6 +51,14 @@ The export produces a password-encrypted XLSX workbook with three sheets:
 
 The export runs as a background job, same as event log exports. See [Background Jobs](../../user-guide/background-jobs.md) for downloading and file passwords.
 
+## SAML debug log
+
+Navigate to **Audit > SAML Debug** to view a log of SAML authentication failures. Each entry shows the error type, identity provider, timestamp, and the raw SAML response XML for troubleshooting.
+
+By default, only failures are logged. To temporarily log successful assertions (for debugging attribute mapping or encryption), enable **Verbose logging** on the identity provider's detail page.
+
+See [SAML Setup > SAML debug log](../identity-providers/saml-setup.md#saml-debug-log) for details.
+
 ## Event types
 
 Events cover all areas of the platform:

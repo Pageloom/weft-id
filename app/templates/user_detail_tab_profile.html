@@ -59,7 +59,7 @@
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Invitation</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                User has not completed onboarding. Resending generates a fresh link and invalidates any previous one.
+                User has not completed onboarding.
             </p>
             <form method="post" action="/users/{{ target_user.id }}/resend-invitation" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -103,7 +103,7 @@
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Edit Role</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Super admin only.
+                Change this user's role. You cannot change your own role.
             </p>
             <form method="post" action="/users/{{ target_user.id }}/update-role" class="space-y-4">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -132,7 +132,7 @@
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Authentication Method</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Every user must be either a password user or assigned to an IdP.
+                Each user authenticates via password or an identity provider (IdP).
             </p>
 
             <!-- Current Status -->

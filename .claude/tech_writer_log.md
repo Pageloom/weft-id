@@ -1,5 +1,55 @@
 # Tech Writer Log
 
+## 2026-04-13 - Copy Review + Docs for Security Sweep, SAML Features
+
+**Starting commit:** 106624e
+**Mode:** Both (copy review + documentation)
+
+### Changes Since Last Session
+
+~65 commits since 106624e. Major themes: April 2026 security sweep (max_length enforcement, XSS fixes, SSRF protection, open redirect fix, assertion replay prevention, non-root containers, random nonces), SAML features (assertion debug tools, SLO URL editing, attribute resilience, user attribute sync from upstream IdP), v1.3.0 release, "Loom Identity Platform" renamed to "WeftID".
+
+### Direct Copy Fixes (7 files, 11 edits)
+
+1. **saml_idp_sp_tab_attributes.html:7** -- tightened opening description ("Configure how..." -> "How...")
+2. **saml_idp_sp_tab_attributes.html:23** -- "Share group membership information to" -> "Send group memberships to"
+3. **saml_idp_sp_tab_attributes.html:26** -- help text restated label; replaced with "Group names are included in SAML assertions during sign-in."
+4. **saml_idp_sp_tab_attributes.html:33** -- "application" -> "service provider" (glossary)
+5. **saml_idp_sp_tab_attributes.html:44** -- "application" -> "SP" (glossary)
+6. **saml_error.html:41** -- "could not be completed" -> "failed" (direct, front-loaded)
+7. **saml_debug_detail.html:73** -- rewritten from "This is the raw..." to "Raw SAML response from..." (action-first)
+8. **user_detail_tab_profile.html:62** -- removed redundant "Resending generates a fresh link and invalidates any previous one." (confirmation dialog already says this)
+9. **user_detail_tab_profile.html:106** -- "Super admin only." -> "Change this user's role. You cannot change your own role." (specific, actionable)
+10. **user_detail_tab_profile.html:135** -- "Every user must be either a password user or assigned to an IdP." -> "Each user authenticates via password or an identity provider (IdP)."
+11. **groups_members_add.html:58** -- removed "Only users not already in the group are shown." (UI makes this obvious)
+12. **settings_security_tab_sessions.html:98** -- "Require email verification before sign-in routing" -> "Require email verification before sign-in" (removed jargon "routing"); help text rewritten
+
+### Issues Logged to ISSUES.md
+
+1. **email.py: generic MFA subject, "please" usage, "activate" terminology** -- MFA code email uses generic "Your verification code" subject (should be "Your two-step verification code"). ~20 "please" occurrences violate terse style. Invitation emails use "activate your account" (should be "set up your account"). All require Python code changes.
+
+### Documentation Updates (7 pages + site rebuild)
+
+1. **admin-guide/identity-providers/saml-setup.md** -- Added "Attribute resilience" section (optional first/last name, email fallback to NameID), "User attribute sync" section (auto-sync on login), "SAML debug log" section (failure diagnostics, verbose logging)
+2. **admin-guide/users/user-lifecycle.md** -- Removed "Super admin self-reactivation" (vulnerability removed in 799ad7e). Added "IdP-assigned user onboarding" section (skip password-setting for SAML JIT users)
+3. **admin-guide/audit/index.md** -- Added "SAML debug log" section with navigation and verbose logging reference
+4. **admin-guide/service-providers/sso-flow.md** -- Added "Replay prevention" section (assertion ID cached, rejected on resubmission)
+5. **admin-guide/service-providers/attribute-mapping.md** -- Added "Attribute resilience" section (inbound assertions), updated group claims label to match template
+6. **self-hosting/index.md** -- Updated version examples from 1.2.0 to 1.3.0, added non-root container note, updated APPUSER_PASSWORD description (auto-generated), added .env file permissions note (600), added on-demand TLS validation section (subdomain registry check)
+7. **site/** -- Rebuilt with `make docs`
+
+### Not Changed (Intentional)
+
+- **"Deactivate" for OAuth2/B2B clients** -- Accepted in prior session (2026-03-08). Not a user lifecycle term.
+- **"login" in URL paths and form field names** -- `/login`, `require_email_verification_for_login`, `last_login` are technical identifiers, not user-facing copy.
+- **"please" in email.py** -- Logged as issue. Requires Python code changes across ~20 locations.
+
+### Screenshots Requested
+
+None.
+
+---
+
 ## 2026-04-09 - Copy Review + Docs for GCM Encryption, Repo Reorg
 
 **Starting commit:** 106624e

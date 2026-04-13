@@ -4,9 +4,9 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">User Attribute Mapping</h2>
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        Configure how user attributes are communicated to the service provider during sign-in.
+        How user attributes are sent to the SP during sign-in.
         {% if not sp.sp_requested_attributes %}
-        This SP did not declare attribute expectations in its metadata. Default attribute names are being used.
+        This SP did not declare attribute expectations in its metadata. Default attribute names are used.
         {% endif %}
     </p>
 
@@ -20,17 +20,17 @@
                    class="mt-1 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
             <div>
                 <label for="edit-include-group-claims" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Share group membership information to the service provider
+                    Send group memberships to the service provider
                 </label>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    When enabled, the user's group memberships will be communicated to the service provider during sign-in.
+                    Group names are included in SAML assertions during sign-in.
                 </p>
             </div>
         </div>
 
         <div id="group-scope-override" class="ml-7 mb-4 {% if not sp.include_group_claims %}hidden{% endif %}">
             <label for="edit-group-assertion-scope" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Group scope for this application
+                Group scope for this service provider
             </label>
             <select id="edit-group-assertion-scope" name="group_assertion_scope"
                     class="w-full max-w-xs px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -41,7 +41,7 @@
                 <option value="all" {% if sp.group_assertion_scope == 'all' %}selected{% endif %}>All groups</option>
             </select>
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Overrides the tenant-level group assertion scope for this application only.
+                Overrides the tenant-level group assertion scope for this SP only.
             </p>
         </div>
 

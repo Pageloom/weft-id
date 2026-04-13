@@ -37,6 +37,10 @@ The consent screen shows:
 
 The groups displayed on the consent screen are the same groups that will appear in the assertion, filtered according to the effective [group assertion scope](attribute-mapping.md#group-assertion-scope).
 
+## Replay prevention
+
+Each SAML assertion is cached by its unique ID after processing. If the same assertion is submitted a second time (within its validity window, up to 10 minutes), WeftID rejects it. This prevents replay attacks where an intercepted assertion is resubmitted to gain unauthorized access.
+
 ## What's in the assertion
 
 The SAML assertion contains:

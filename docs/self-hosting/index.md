@@ -193,7 +193,7 @@ patch, minor, and major releases.
 
 ### Upgrade procedure
 
-1. Edit `.env` and set `WEFT_VERSION` to the target version (e.g., `1.2.0`).
+1. Edit `.env` and set `WEFT_VERSION` to the target version (e.g., `1.3.0`).
 
 2. Pull the new image and restart:
 
@@ -234,7 +234,7 @@ created before upgrading.
     docker volume rm "$(docker volume ls -q --filter name=_dbdata | head -1)"
     ```
 
-3. Edit `.env` and set `WEFT_VERSION` back to the previous version (e.g., `1.1.0`).
+3. Edit `.env` and set `WEFT_VERSION` back to the previous version (e.g., `1.2.0`).
 
 4. Start the database and wait for it to be ready:
 
@@ -379,7 +379,8 @@ The production stack has six services:
 | **migrate** | `ghcr.io/pageloom/weft-id` | One-shot schema migration runner |
 
 The `migrate` service runs before `app` starts and exits when done. The `app` service has a
-health check that Caddy waits for before routing traffic.
+health check that Caddy waits for before routing traffic. The `app` and `worker` containers
+run as a non-root user for defense in depth.
 
 ### Docker image
 
@@ -391,8 +392,8 @@ ghcr.io/pageloom/weft-id
 
 Available tags:
 
-* `1.2.0` -- exact version (recommended for production)
-* `1.2` -- latest patch for a minor version
+* `1.3.0` -- exact version (recommended for production)
+* `1.3` -- latest patch for a minor version
 * `1` -- latest minor for a major version
 * `latest` -- newest stable release
 
@@ -405,11 +406,11 @@ can copy `deploy/.env.example` and edit it manually.
 
 | Variable | Description |
 |----------|-------------|
-| `WEFT_VERSION` | Image tag to run (e.g., `1.2.0`). Pin to a specific version for stability. |
+| `WEFT_VERSION` | Image tag to run (e.g., `1.3.0`). Pin to a specific version for stability. |
 | `BASE_DOMAIN` | Root domain for tenant subdomains (e.g., `id.example.com`) |
 | `SECRET_KEY` | Master encryption key. Session signing, two-step verification secrets, SAML key encryption, and email verification tokens are all derived from this value via HKDF. Generate with `openssl rand -base64 32`. |
 | `POSTGRES_PASSWORD` | Password for the PostgreSQL superuser. Generate with `openssl rand -base64 32`. |
-| `APPUSER_PASSWORD` | Password for the `appuser` database role (used by the app at runtime). Generate with `openssl rand -base64 32`. Falls back to a default if not set. |
+| `APPUSER_PASSWORD` | Password for the `appuser` database role (used by the app at runtime). The install script generates this automatically. |
 
 #### Optional variables
 
@@ -428,6 +429,9 @@ from the production compose file and `.env`:
 
 If either is set to `true` with `IS_DEV=False`, the app refuses to start.
 
+The install script sets `.env` file permissions to `600` (owner read/write only) to protect
+secrets from other users on the system.
+
 ### Database
 
 #### Schema management
@@ -445,6 +449,11 @@ Caddy handles TLS automatically using Let's Encrypt HTTP-01 challenges. It uses 
 which means it obtains a separate certificate for each tenant subdomain on first access. This
 is not a wildcard certificate. The wildcard DNS record (see [Set up DNS](#1-set-up-dns)) handles
 routing only. No DNS provider API integration is needed.
+
+Before issuing a certificate, Caddy validates the requested subdomain against WeftID's tenant
+registry. Only direct subdomains of the base domain that correspond to an existing tenant are
+allowed. This prevents abuse of the on-demand TLS feature (e.g., an attacker triggering
+certificate requests for arbitrary subdomains).
 
 Requirements for automatic HTTPS:
 

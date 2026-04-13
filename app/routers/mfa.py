@@ -62,9 +62,9 @@ def mfa_verify_page(
 def mfa_verify(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    code: Annotated[str, Form()],
-    timezone: Annotated[str, Form()] = "",
-    locale: Annotated[str, Form()] = "",
+    code: Annotated[str, Form(max_length=100)],
+    timezone: Annotated[str, Form(max_length=50)] = "",
+    locale: Annotated[str, Form(max_length=10)] = "",
 ):
     """Handle MFA verification form submission."""
     pending_user_id = request.session.get("pending_mfa_user_id")

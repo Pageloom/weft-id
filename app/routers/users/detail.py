@@ -287,8 +287,8 @@ def update_user_name(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     user_id: str,
-    first_name: Annotated[str, Form()] = "",
-    last_name: Annotated[str, Form()] = "",
+    first_name: Annotated[str, Form(max_length=255)] = "",
+    last_name: Annotated[str, Form(max_length=255)] = "",
 ):
     """Update a user's name (admin only)."""
     if not has_page_access("/users/user", user.get("role")):
@@ -321,7 +321,7 @@ def update_user_role_route(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     user_id: str,
-    role: Annotated[str, Form()],
+    role: Annotated[str, Form(max_length=20)],
 ):
     """Update a user's role (super_admin only)."""
     if user.get("role") != "super_admin":
@@ -359,7 +359,7 @@ def update_user_idp_route(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     user_id: str,
-    saml_idp_id: Annotated[str, Form()] = "",
+    saml_idp_id: Annotated[str, Form(max_length=50)] = "",
 ):
     """
     Assign a user to an IdP or set them as a password-only user.

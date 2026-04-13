@@ -98,7 +98,7 @@ def add_privileged_domain(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    domain: Annotated[str, Form()],
+    domain: Annotated[str, Form(max_length=253)],
 ):
     """Add a new privileged domain."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -136,7 +136,7 @@ def link_group_to_domain(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     domain_id: str,
-    group_id: Annotated[str, Form()],
+    group_id: Annotated[str, Form(max_length=50)],
 ):
     """Link a group to a privileged domain for auto-assignment."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -184,7 +184,7 @@ def bind_domain_to_idp(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     domain_id: str,
-    idp_id: Annotated[str, Form()],
+    idp_id: Annotated[str, Form(max_length=50)],
 ):
     """Bind a privileged domain to an IdP (super_admin only)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -362,10 +362,10 @@ def update_admin_security_sessions(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    session_timeout: Annotated[str, Form()] = "",
-    persistent_sessions: Annotated[str, Form()] = "",
-    inactivity_threshold: Annotated[str, Form()] = "",
-    require_email_verification_for_login: Annotated[str, Form()] = "",
+    session_timeout: Annotated[str, Form(max_length=20)] = "",
+    persistent_sessions: Annotated[str, Form(max_length=10)] = "",
+    inactivity_threshold: Annotated[str, Form(max_length=20)] = "",
+    require_email_verification_for_login: Annotated[str, Form(max_length=10)] = "",
 ):
     """Update session security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -437,8 +437,8 @@ def update_admin_security_passwords(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    minimum_password_length: Annotated[str, Form()] = "",
-    minimum_zxcvbn_score: Annotated[str, Form()] = "",
+    minimum_password_length: Annotated[str, Form(max_length=10)] = "",
+    minimum_zxcvbn_score: Annotated[str, Form(max_length=10)] = "",
 ):
     """Update password policy security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -500,8 +500,8 @@ def update_admin_security_certificates(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    certificate_lifetime: Annotated[str, Form()] = "",
-    rotation_window: Annotated[str, Form()] = "",
+    certificate_lifetime: Annotated[str, Form(max_length=20)] = "",
+    rotation_window: Annotated[str, Form(max_length=20)] = "",
 ):
     """Update certificate security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -563,8 +563,8 @@ def update_admin_security_permissions(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    allow_users_edit_profile: Annotated[str, Form()] = "",
-    group_assertion_scope: Annotated[str, Form()] = "access_relevant",
+    allow_users_edit_profile: Annotated[str, Form(max_length=10)] = "",
+    group_assertion_scope: Annotated[str, Form(max_length=50)] = "access_relevant",
 ):
     """Update permission security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)

@@ -176,14 +176,14 @@ def add_members_submit(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
-    user_ids: Annotated[list[str], Form()],
-    return_page: Annotated[str, Form(alias="r_page")] = "1",
-    return_size: Annotated[str, Form(alias="r_size")] = "25",
-    return_sort: Annotated[str, Form(alias="r_sort")] = "name",
-    return_order: Annotated[str, Form(alias="r_order")] = "asc",
-    return_search: Annotated[str, Form(alias="r_search")] = "",
-    return_role: Annotated[str, Form(alias="r_role")] = "",
-    return_status: Annotated[str, Form(alias="r_status")] = "",
+    user_ids: Annotated[list[str], Form(max_length=65535)],
+    return_page: Annotated[str, Form(alias="r_page", max_length=10)] = "1",
+    return_size: Annotated[str, Form(alias="r_size", max_length=10)] = "25",
+    return_sort: Annotated[str, Form(alias="r_sort", max_length=50)] = "name",
+    return_order: Annotated[str, Form(alias="r_order", max_length=10)] = "asc",
+    return_search: Annotated[str, Form(alias="r_search", max_length=255)] = "",
+    return_role: Annotated[str, Form(alias="r_role", max_length=50)] = "",
+    return_status: Annotated[str, Form(alias="r_status", max_length=50)] = "",
 ):
     """Add selected users to the group."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -216,7 +216,7 @@ def bulk_remove_members(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
-    user_ids: Annotated[list[str], Form()],
+    user_ids: Annotated[list[str], Form(max_length=65535)],
 ):
     """Remove selected members from the group."""
     requesting_user = build_requesting_user(user, tenant_id, request)

@@ -25,7 +25,7 @@ def bind_domain(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    domain_id: Annotated[str, Form()],
+    domain_id: Annotated[str, Form(max_length=50)],
 ):
     """Bind a privileged domain to this IdP."""
     requesting_user = build_requesting_user(user, tenant_id, request)

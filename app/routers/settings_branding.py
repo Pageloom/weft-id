@@ -148,10 +148,10 @@ def update_branding_settings(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    logo_mode: Annotated[str, Form()],
-    use_logo_as_favicon: Annotated[str, Form()] = "",
-    tenant_name: Annotated[str, Form()] = "",
-    show_title_in_nav: Annotated[str, Form()] = "",
+    logo_mode: Annotated[str, Form(max_length=20)],
+    use_logo_as_favicon: Annotated[str, Form(max_length=10)] = "",
+    tenant_name: Annotated[str, Form(max_length=255)] = "",
+    show_title_in_nav: Annotated[str, Form(max_length=10)] = "",
 ):
     """Update global branding display settings (logo mode, favicon, title)."""
     requesting_user = build_requesting_user(user, tenant_id, request)

@@ -187,8 +187,8 @@ def trigger_export(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    start_date: Annotated[str, Form()] = "",
-    end_date: Annotated[str, Form()] = "",
+    start_date: Annotated[str, Form(max_length=20)] = "",
+    end_date: Annotated[str, Form(max_length=20)] = "",
 ):
     """Trigger event log XLSX export job with optional date range."""
     requesting_user = build_requesting_user(user, tenant_id, request)

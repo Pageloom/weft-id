@@ -152,10 +152,10 @@ def set_password_page(
 def set_password(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    email_id: Annotated[str, Form()],
-    nonce: Annotated[str, Form()],
-    password: Annotated[str, Form()],
-    password_confirm: Annotated[str, Form()],
+    email_id: Annotated[str, Form(max_length=50)],
+    nonce: Annotated[str, Form(max_length=100)],
+    password: Annotated[str, Form(max_length=255)],
+    password_confirm: Annotated[str, Form(max_length=255)],
 ):
     """Set password for a new user who has verified their email."""
     # Look up the email

@@ -29,7 +29,7 @@ def add_user_to_group(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     user_id: str,
-    group_id: Annotated[str, Form()],
+    group_id: Annotated[str, Form(max_length=50)],
 ):
     """Add a user to a single group (from user detail page)."""
     if not has_page_access("/users/user", user.get("role")):

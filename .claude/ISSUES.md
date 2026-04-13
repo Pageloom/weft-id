@@ -15,6 +15,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Low | 1 | API-First |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
+| Low | 1 | Copy |
 
 **Last security scan:** 2026-04-13 (broad: all code from last 90 days, all OWASP categories; 2 findings, both fixed)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
@@ -24,7 +25,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
-**Last copy review:** 2026-04-09 (GCM encryption feature, SAML error page, role display audit)
+**Last copy review:** 2026-04-13 (security sweep templates, SAML IdP/SP, user profile, email audit)
 
 ---
 
@@ -61,6 +62,22 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Evidence:** `app/routers/saml/admin/debug.py:23-72` (web handlers). No corresponding routes in `app/routers/api/v1/saml.py`.
 **Impact:** B2B clients debugging SAML integration issues through the API must switch to the web UI to view failure details. Lower severity because this is primarily a setup-time concern, not ongoing operations.
 **Suggested fix:** Add `GET /api/v1/idps/{idp_id}/debug-entries` (list, with limit parameter) and `GET /api/v1/idps/{idp_id}/debug-entries/{entry_id}` (detail). Alternatively, scope under a general audit path: `GET /api/v1/saml/debug-entries`.
+
+---
+
+## [COPY] email.py: generic MFA subject, "please" usage, "activate" terminology
+
+**Found in:** `app/utils/email.py`
+**Severity:** Low
+**Description:** Three copy issues in outbound emails requiring Python code changes:
+
+1. **Generic MFA subject (line 163):** Subject is "Your verification code" but should be "Your two-step verification code" to match the glossary. Heading on line 176 and body on line 177 also use generic "Verification Code" / "continue signing in" instead of mentioning two-step verification.
+
+2. **"please" usage (~20 occurrences):** The copy style guide calls for terse, direct language. Phrases like "please ignore this email", "please verify your email", "please contact your administrator" should drop "please" (e.g., "If you did not request this code, ignore this email.").
+
+3. **"activate" in invitation emails (lines 382, 398-399):** Invitation text says "activate your account" and the CTA button says "Activate Account". Per the glossary, "Activate" is not used for users. Clearer as "set up your account" / "Set Up Account".
+
+**Scope:** ~25 string changes across one file. All in `app/utils/email.py`.
 
 ---
 

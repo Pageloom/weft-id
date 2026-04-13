@@ -60,9 +60,30 @@ WeftID maps SAML assertion attributes to user fields. Default mappings are pre-f
 
 You can customize these mappings on the IdP's **Attributes** tab.
 
+### Attribute resilience
+
+WeftID handles missing or incomplete attributes gracefully:
+
+* **Email** is the only required attribute. If the assertion omits the email attribute, WeftID falls back to the NameID value (when it looks like an email address).
+* **First name** and **last name** are optional. If missing from the assertion, WeftID preserves the user's existing values.
+
+This prevents sign-in failures when an IdP omits optional fields.
+
+### User attribute sync
+
+When a SAML user signs in, WeftID compares their first and last name from the assertion against the stored values. If they differ (and the assertion provides non-empty values), the stored values are updated automatically. This keeps user profiles in sync with the upstream IdP without manual intervention.
+
+Attribute syncs are recorded as `user_attributes_synced` events in the [audit log](../audit/index.md).
+
 ## Metadata refresh
 
 If your IdP has a metadata URL configured, you can refresh it to pick up certificate rotations or configuration changes. Click **Refresh Metadata** on the IdP detail page.
+
+## SAML debug log
+
+When authentication failures occur, WeftID logs detailed diagnostics. Super admins can view these at **Audit > SAML Debug**. Each entry includes the error type, the raw SAML response XML, parsed attributes, and request metadata (IP address, user agent). Use this to troubleshoot signature errors, certificate mismatches, and attribute mapping issues.
+
+To enable logging for successful assertions (for temporary debugging), toggle **Verbose logging** on the IdP detail page.
 
 ## Deleting an IdP
 

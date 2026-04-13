@@ -46,8 +46,6 @@ Approved users can sign in immediately. Denied users cannot submit another reque
 
 Past decisions are visible in the reactivation history view (**Admin > Todo > Reactivation > View History**).
 
-**Super admin self-reactivation.** Super admins can reactivate themselves by verifying their email address. No admin approval is needed. After verification, the super admin can sign in immediately if they have a password, or must contact another admin to set one up.
-
 ### Account recovery via forgot-password
 
 Inactivated users who use the forgot-password flow will see their inactivation status after proving email ownership. From there they can request reactivation directly.
@@ -57,6 +55,10 @@ Inactivated users who use the forgot-password flow will see their inactivation s
 If configured in [Security > Sessions](../security/sessions.md), users who haven't been active for a set period are automatically inactivated. An admin must reactivate them before they can sign in again.
 
 Any authenticated action counts as activity: signing in, triggering an SSO flow, viewing pages, or making API calls.
+
+### IdP-assigned user onboarding
+
+Users created via SAML JIT provisioning skip the password-setting step during onboarding. After verifying their email address, they are redirected to sign in through their identity provider instead of being prompted to create a password.
 
 ## Anonymized
 

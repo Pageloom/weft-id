@@ -13,9 +13,18 @@ Every assertion includes these attributes:
 | `lastName` | User's last name |
 | `displayName` | First and last name combined |
 
+## Attribute resilience
+
+When processing incoming SAML assertions from upstream identity providers, WeftID handles missing attributes gracefully:
+
+* **Email** is the only required attribute. If missing, WeftID falls back to the NameID (when it looks like an email address).
+* **First name** and **last name** are optional. Missing values are preserved from the user's existing profile.
+
+This does not affect outbound assertions to service providers. Outbound assertions always include all [default attributes](#default-attributes) using the user's stored values.
+
 ## Group claims
 
-To include the user's group memberships in the assertion, enable **Share group membership information** on the SP's **Attributes** tab. When enabled, a `groups` attribute is added to the assertion.
+To include the user's group memberships in the assertion, enable **Send group memberships to the service provider** on the SP's **Attributes** tab. When enabled, a `groups` attribute is added to the assertion.
 
 ### Group assertion scope
 

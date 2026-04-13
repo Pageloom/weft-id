@@ -57,11 +57,12 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 
 ### 6. Input Length Validation
 
-**Rule:** Every `str` field in Pydantic input schemas must have `max_length`. Database TEXT columns must have matching constraints.
+**Rule:** Every `str` field in Pydantic input schemas **and every `Form()` str parameter** must have `max_length`. Database TEXT columns must have matching constraints.
 
-**Standard limits:** names/titles 255, descriptions 2000, URLs 2048, enum-like 50, subdomains 63, domains 253, IP addresses 45.
+**Standard limits:** names/titles 255, descriptions 2000, URLs 2048, enum-like 50, subdomains 63, domains 253, IP addresses 45, passwords 255, emails 320, UUIDs/IDs 50, codes 100, timezone 50, locale 10.
 
 - All Create/Update/Import schemas must enforce `max_length` on every `str` field
+- All `Form()` str parameters must specify `max_length`
 - Optional fields use `Field(default=None, max_length=N)`
 - Database should have `CHECK (length(...) <= N)` or `VARCHAR(N)` as backstop
 
@@ -144,6 +145,9 @@ Compliance-only options:
 --check template-links       # Template href/action link validity
 --check outbound-timeouts    # Outbound HTTP calls must have timeouts
 --check job-context          # Job handlers must use system_context() for log_event()
+--check api-auth             # All API routes must require authentication
+--check form-input-length    # Form() str parameters must have max_length
+--check template-xss         # innerHTML with interpolation must use escapeHtml()
 ```
 
 ### 2. Investigate Findings
@@ -190,6 +194,9 @@ Request context (IP, user agent, device, session) is handled automatically by `R
 | `urllib.request.urlopen(...)` without `timeout=` | Outbound Timeouts |
 | `smtplib.SMTP(...)` without `timeout=` | Outbound Timeouts |
 | SDK client constructor without timeout config | Outbound Timeouts |
+| `Form()` str parameter without `max_length` | Form Input Length |
+| `innerHTML` with `${...}` without `escapeHtml()` | Template XSS Prevention |
+| API handler without auth dependency | API Authentication |
 
 See `.claude/references/compliance-patterns.md` for detailed patterns and checklists.
 

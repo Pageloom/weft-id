@@ -332,6 +332,68 @@ Jinja2 autoescape is enabled globally (`autoescape=True`). Raw strings passed th
 
 ---
 
+## Form() Parameters Need max_length Like Pydantic Fields
+
+**Wrong:** `password: Annotated[str, Form()]` in a route handler
+**Right:** `password: Annotated[str, Form(max_length=255)]`
+
+The project rule "all str fields must have max_length" applies to **Form() parameters in route handlers**, not just Pydantic schema fields. Web form endpoints bypass Pydantic validation entirely, so they accept unbounded strings by default. Password fields are especially dangerous: an attacker can submit a multi-megabyte string that gets passed to Argon2, causing CPU exhaustion on a pre-auth endpoint.
+
+Standard limits: passwords 255, emails 320, UUIDs/IDs 50, codes 100, timezone 50, locale 10, names 255, descriptions 2000, URLs 2048, enum-like 50.
+
+The compliance check `form-input-length` catches these automatically.
+
+---
+
+## innerHTML Requires escapeHtml for Dynamic Data
+
+**Wrong:** `` previewEl.innerHTML = `<p>${data.name}</p>` ``
+**Right:** `` previewEl.innerHTML = `<p>${escapeHtml(data.name)}</p>` ``
+
+When inserting API response data or any non-literal value into the DOM via `innerHTML`, every interpolated expression must be wrapped in `escapeHtml()`. CSP nonces block inline `<script>` execution but do not prevent HTML injection (phishing overlays, CSS exfiltration, image-tag exfiltration).
+
+The codebase has a correct reference implementation in `users_bulk_primary_emails.html` (lines 108-110). Use that `escapeHtml()` function or add it to `WeftUtils`. For content that is purely hardcoded HTML or server-generated SVG (mandalas), innerHTML without escaping is acceptable.
+
+The compliance check `template-xss` catches these automatically.
+
+---
+
+## Security Tokens Must Be Cryptographically Random
+
+**Wrong:** Sequential integer nonces (`DEFAULT 1`, then increment on use)
+**Right:** Random hex tokens via `gen_random_bytes(24)` (DB) or `secrets.token_hex(24)` (Python)
+
+Sequential nonces are trivially guessable if the attacker can observe or predict the sequence. This applies to email verification tokens, password reset nonces, set-password links, and any other one-time-use value. Always use `secrets.token_hex()` or `secrets.token_urlsafe()` in Python, or `encode(gen_random_bytes(24), 'hex')` in PostgreSQL.
+
+---
+
+## Authorization Must Be Enforced in the Service Layer
+
+**Wrong:** Checking a tenant policy (like `allow_users_edit_profile`) only in the router
+**Right:** Check in the **service function** so all entry points (web UI, API, future CLI) are covered
+
+If a policy check exists only in the router, the API route to the same service function bypasses it. The service layer is the single enforcement point for authorization. Routers handle HTTP concerns (session, templates, redirects); services enforce business rules.
+
+---
+
+## Redirect Targets From User Input Must Be Validated
+
+**Wrong:** `return RedirectResponse(url=request.query_params.get("next", "/dashboard"))`
+**Right:** Validate the target is a safe relative path before redirecting
+
+User-controlled redirect targets (RelayState, `next` params, return URLs) can be crafted to redirect users to external phishing sites. At minimum, validate that the value starts with `/`, does not start with `//`, and does not contain `://`. See `_safe_relay_state()` in `app/routers/saml/authentication.py` for the reference pattern.
+
+---
+
+## Numeric Inputs to Security Logic Need Explicit Bounds
+
+**Wrong:** `grace_period_days: int = Query(default=7)` on a certificate rotation endpoint
+**Right:** `grace_period_days: int = Query(default=7, ge=0, le=90)`
+
+Numeric parameters that feed into security calculations (certificate lifetimes, rate limit windows, retry counts, session timeouts) must have explicit `ge`/`le` bounds. Without bounds, an attacker can pass 999999 to extend a certificate's grace period to centuries. Apply bounds at both the API parameter level and in service-layer validation (defense-in-depth).
+
+---
+
 ## psycopg Named Params Conflict with PostgreSQL Cast Syntax
 
 **Wrong:** `split_part(:email::text, '@', 2)` in a SQL query with named parameters

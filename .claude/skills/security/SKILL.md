@@ -45,22 +45,31 @@ Ask the user:
 **For Injection:**
 - Search for string formatting in SQL (`f"SELECT`, `.format(`, `%`)
 - Search templates for `| safe` without justification
+- Check `innerHTML` assignments with `${` interpolation for missing `escapeHtml()` (compliance check: `template-xss`)
 - Check API responses reflecting user input
 
 **For Authentication:**
 - Review password hashing (should be bcrypt/argon2)
-- Check token generation uses `secrets` module
+- Check token generation uses `secrets` module (never sequential integers)
 - Verify session handling and rate limiting
+- Check that unauthenticated endpoints with side effects (email sends) have rate limiting
 
 **For Access Control:**
 - Verify resource ownership checks
-- Check role enforcement in services
+- Check role enforcement in **service layer** (not just routers). If a policy check exists in a router, verify the service function also enforces it
 - Look for IDOR vulnerabilities
+- Verify CRUD lifecycle consistency (if create requires super_admin, update/delete should too)
 
 **For Configuration:**
 - Review CORS settings (not `*`)
 - Check cookie flags (HttpOnly, Secure, SameSite)
 - Verify security headers
+- Check that redirect targets from user input are validated (RelayState, next params)
+
+**For Input Validation:**
+- Check `Form()` parameters in route handlers for missing `max_length` (compliance check: `form-input-length`)
+- Check numeric parameters in security contexts for missing `ge`/`le` bounds
+- Verify that web form routes and API routes to the same service use equivalent validation
 
 ### 3. Evidence Collection
 
@@ -111,8 +120,10 @@ WeftID acts as both a SAML SP (consuming external IdPs) and a SAML IdP (issuing 
 
 **For Unbounded Input:**
 - Scan Pydantic input schemas for `str` fields without `max_length`
+- Scan `Form()` parameters in route handlers for missing `max_length` (compliance check: `form-input-length`)
 - Check database TEXT columns for missing length constraints
-- Standard limits: names 255, descriptions 2000, URLs 2048, enum-like 50
+- Standard limits: names 255, descriptions 2000, URLs 2048, enum-like 50, passwords 255, emails 320, UUIDs/IDs 50, codes 100, timezone 50, locale 10
+- Check numeric parameters in security contexts (certificate lifetimes, rate limits, retry counts) for missing `ge`/`le` bounds
 
 ## Key Patterns to Check
 

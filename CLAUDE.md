@@ -62,6 +62,7 @@ Request → Router → Service → Database → PostgreSQL
 | `app/dev/preview_emails.py` | Sends all 15 email types to MailDev for visual testing |
 | `.claude/BACKLOG.md` | Product backlog (pending items) |
 | `.claude/BACKLOG_ARCHIVE.md` | Completed backlog items with acceptance criteria |
+| `.claude/ITERATION_*.md` | Active iteration plans managed by `/lead` (gitignored) |
 | `.claude/ISSUES.md` | Active quality/security issues (goal: keep empty) |
 | `.claude/ISSUES_ARCHIVE.md` | Resolved issues with fix details |
 | `app/services/service_providers.py` | SP registration, SSO response building |
@@ -520,7 +521,8 @@ All checks must pass before committing.
 ## Agent Workflow
 
 - Use `/pm` to add items to the product backlog
-- Use `/dev` to implement items from the backlog (checks `.claude/ISSUES.md` first)
+- Use `/lead` to groom a backlog item into iterations and orchestrate implementation through subagents (for M/L/XL items)
+- Use `/dev` to implement items from the backlog (checks `.claude/ISSUES.md` first, for S/M standalone items)
 - Use `/test` to review quality and push coverage intelligently
 - Use `/compliance` to verify architectural principles are followed
 - Use `/security` to scan for OWASP Top 10 and other security vulnerabilities

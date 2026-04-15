@@ -21,5 +21,8 @@ __pycache__/
 static/css/output.css
 tailwindcss-*
 
+# Iteration planning files (managed by /lead skill, never committed)
+.claude/ITERATION_*.md
+
 # Built documentation site (built at Docker image time or via `make docs`)
 site/

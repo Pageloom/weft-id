@@ -276,6 +276,161 @@ informed without requiring them to monitor logs.
 
 ---
 
+## Passkey Authentication & Tenant Auth Policy
+
+**User Story:**
+As a super admin,
+I want to require strong authentication (TOTP or passkey) for my tenant's users,
+So that accounts are protected beyond email-based verification.
+
+As a user,
+I want to sign in with a passkey (biometric prompt) instead of typing passwords and codes,
+So that authentication is faster and phishing-resistant.
+
+**Context:**
+
+WeftID currently supports password + email OTP as the baseline, with optional TOTP upgrade.
+There is no tenant-level control over which authentication methods are required. The
+`require_platform_mfa` flag on SAML IdPs exists in the schema and admin UI but is not
+enforced in the SSO flow (bug). This feature introduces passkeys (WebAuthn/FIDO2) as a
+passwordless primary auth method and gives super admins control over minimum auth strength.
+
+**Tenant Auth Policy Model:**
+
+Super admins configure the minimum authentication strength for their tenant:
+
+* **Baseline** (default): Password + email OTP. Current behavior, no change.
+* **Enhanced**: Super admin declares email OTP insufficient. Users must set up TOTP
+  and/or passkey (admin controls which methods are allowed):
+  * TOTP and passkey (user chooses one or both)
+  * TOTP only
+  * Passkey only
+
+**Passkey Login Flow:**
+
+1. User visits login page
+2. Clicks "Sign in with passkey"
+3. Browser/OS prompts biometric (Face ID, fingerprint, Windows Hello)
+4. On success: fully authenticated. No password, no email code, no MFA step
+5. Proceeds to dashboard (or SSO consent if SP-initiated)
+
+**Passkey Registration:**
+
+* Users register passkeys in account settings (opt-in regardless of tenant policy)
+* Multiple passkeys supported (each named by the user, e.g. "MacBook", "iPhone")
+* Registration generates backup codes (same pattern as TOTP)
+* WebAuthn discoverable credentials (resident keys) with user verification required
+
+**Coexistence (TOTP + Passkey):**
+
+A user can have both TOTP and passkey registered. Login defaults to passkey when
+available. A "Can't use passkey? Use one-time code" link falls back to password +
+TOTP/email flow.
+
+**Enforcement Flow (Enhanced Policy):**
+
+When super admin enables enhanced auth and a user has not yet set up a qualifying method:
+
+1. User signs in with email two-step (baseline) as normal
+2. After successful baseline auth, redirected to setup page
+3. User must register a passkey or set up TOTP (depending on allowed methods)
+4. Cannot access dashboard, cannot complete SP-initiated IdP SSO until setup is done
+5. Follows the same redirect-and-block pattern as forced password reset
+
+**Recovery:**
+
+* Backup codes: generated at passkey registration (like TOTP). Can be used when passkey
+  device is unavailable.
+* Admin recovery: admin can reset a user back to baseline auth (email OTP), clearing
+  their enhanced auth requirement. User would need to set up again if tenant policy
+  still requires enhanced auth.
+
+**Platform MFA for IdP-Authenticated Users:**
+
+The existing `require_platform_mfa` flag on SAML identity providers must be enforced.
+When enabled, after successful SAML authentication, the user must complete their
+configured two-step verification method before proceeding:
+
+* If user has passkey: passkey prompt
+* If user has TOTP: TOTP code entry
+* Baseline: email OTP
+
+**Admin Management:**
+
+* Tenant security settings page: auth policy configuration (baseline/enhanced, allowed methods)
+* User detail view: shows registered passkeys (name, created date, last used)
+* Admin can revoke individual passkeys
+* Admin can reset user to baseline auth
+* User list: filterable by auth method (email, TOTP, passkey)
+
+**Acceptance Criteria:**
+
+*Tenant auth policy:*
+- [ ] New tenant security setting: `required_auth_strength` (`baseline` | `enhanced`)
+- [ ] New tenant security setting: `allowed_enhanced_methods` (controls which methods are available when enhanced)
+- [ ] Super admin UI to configure auth policy on tenant security settings page
+- [ ] Default: baseline (no change to existing behavior)
+- [ ] API endpoints for reading/updating tenant auth policy
+
+*Passkey registration:*
+- [ ] `webauthn_credentials` table (user_id, tenant_id, credential_id, public_key, sign_count, name, created_at, last_used_at, etc.)
+- [ ] Migration for new tables and tenant settings columns
+- [ ] Account settings page: register new passkey (WebAuthn registration ceremony)
+- [ ] Support multiple passkeys per user, each with a user-provided name
+- [ ] Backup codes generated at passkey registration (same pattern as TOTP)
+- [ ] Account settings: list registered passkeys with name, created date, last used
+- [ ] Account settings: delete individual passkeys
+- [ ] API endpoints for passkey registration, listing, and deletion
+
+*Passkey authentication:*
+- [ ] Login page: "Sign in with passkey" option (WebAuthn authentication ceremony)
+- [ ] Successful passkey auth: fully authenticated, skip password and MFA
+- [ ] Passkey bound to tenant subdomain (RP ID = tenant domain for isolation)
+- [ ] User verification required (biometric/PIN, not just presence)
+- [ ] Sign count tracked and validated to detect cloned credentials
+- [ ] `user_signed_in` event logged with `method: "passkey"` in metadata
+
+*Coexistence and fallback:*
+- [ ] Users with both TOTP and passkey: login defaults to passkey
+- [ ] "Can't use passkey? Use one-time code" falls back to password + TOTP/email flow
+- [ ] Backup codes usable as fallback for passkey-only users
+
+*Enforcement:*
+- [ ] When enhanced auth required and user lacks qualifying method: redirect to setup after baseline login
+- [ ] Setup page presents allowed methods (TOTP, passkey, or both)
+- [ ] User cannot access dashboard until setup is complete
+- [ ] User cannot complete SP-initiated SSO consent until setup is complete
+- [ ] Follows forced-password-reset redirect-and-block pattern
+
+*Recovery:*
+- [ ] Admin can reset user to baseline auth (clears enhanced auth setup)
+- [ ] Reset logs `user_auth_reset_to_baseline` event
+- [ ] User re-enters enforcement flow on next login if tenant still requires enhanced
+
+*Platform MFA enforcement (bug fix):*
+- [ ] Enforce `require_platform_mfa` flag on SAML IdPs in the SSO flow
+- [ ] After SAML auth, if flag set, require user's configured two-step method
+- [ ] Supports passkey, TOTP, and email OTP based on user's method
+
+*Admin tooling:*
+- [ ] Tenant security settings: auth policy UI (baseline/enhanced, method selection)
+- [ ] User detail: registered passkeys section (name, dates, revoke action)
+- [ ] User list: filter by auth method
+- [ ] Admin action: reset user to baseline auth
+
+*Audit:*
+- [ ] `passkey_registered`, `passkey_deleted`, `passkey_auth_success`, `passkey_auth_failure` event types
+- [ ] `tenant_auth_policy_updated` event type
+- [ ] `user_auth_reset_to_baseline` event type
+- [ ] `platform_mfa_enforced` event type (for IdP users)
+- [ ] `track_activity()` for read operations
+
+**Effort:** XL
+**Value:** High
+**Version impact:** Minor (new feature, new tables, additive settings with defaults. Platform MFA enforcement is a bug fix bundled in.)
+
+---
+
 ## HMAC-Based Export Data Verification
 
 **User Story:**

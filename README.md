@@ -4,8 +4,9 @@
 [![Tests](https://github.com/pageloom/weft-id/actions/workflows/tests.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/tests.yml)
 [![E2E Tests](https://github.com/pageloom/weft-id/actions/workflows/e2e-tests.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/e2e-tests.yml)
 
-An open-source federation layer that aggregates multiple identity providers into a single, consistent interface for your
-applications. Open source (MIT). Optimized for self-hosting. Your infra, your data.
+An open-source identity provider and federation layer. Aggregate multiple upstream IdPs into
+a single, consistent interface for your applications. Add or remove providers without touching
+downstream apps. MIT licensed. Optimized for self-hosting. Your infra, your data.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/federation-overview-dark-v2.png">
@@ -13,14 +14,12 @@ applications. Open source (MIT). Optimized for self-hosting. Your infra, your da
   <img alt="WeftID federation overview: identity providers on the left (Okta, Entra ID, Google Workspace, SAML) federated through WeftID to applications on the right (Slack, Jira, GitLab, SAML apps)" src=".github/assets/federation-overview-light-v2.png" width="100%">
 </picture>
 
-A fully capable identity provider and federation layer for your applications. Add or remove providers without touching
-downstream applications.
-
-* **SAML 2.0 federation** -- upstream IdP integration and downstream SP registration
+* **SAML 2.0 identity provider** -- upstream federation, downstream SSO with per-SP signing and optional assertion encryption
 * **Built-in authentication** -- passwords, TOTP, email codes, backup codes
-* **Hierarchical groups** -- DAG-based group model with IdP group discovery
+* **Hierarchical groups** -- DAG-based group model with IdP group sync
 * **Multi-tenant isolation** -- row-level security at the database layer
-* **Complete audit trail** -- every action logged, exportable, with an OAuth2-secured API
+* **Complete audit trail** -- every write logged and exportable
+* **OAuth2 API** -- full REST API with authorization code and client credentials grants
 * **Self-hostable** -- Docker Compose with automatic HTTPS via Caddy
 
 [Documentation](docs/) · [Self-hosting guide](docs/self-hosting/index.md) · [Product page](https://pageloom.com/products/weft-id)

@@ -234,6 +234,30 @@ log_event(
 - No test writing (that's `/test`)
 - No assumptions (ask if unclear)
 
+## Headless Mode
+
+When invoked programmatically (via Agent tool), skip all interactive workflows:
+- Do not ask about scope
+- Do not write to ISSUES.md
+
+Instead:
+1. Read `.claude/THOUGHT_ERRORS.md`
+2. Read `.claude/references/compliance-patterns.md`
+3. Run `python dev/compliance_check.py` and report results
+4. Read each changed file listed in your prompt
+5. Check manually against all principles above
+
+Report back (for each finding):
+- Principle violated
+- File and line number
+- Severity (blocking / warning)
+- Evidence and suggested fix
+
+Include compliance checker output (pass/fail). If no issues found, say so explicitly.
+Do not edit any files.
+
+---
+
 ## Start Here
 
 1. Run `python dev/compliance_check.py`

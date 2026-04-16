@@ -147,6 +147,36 @@ Before finishing, append to `.claude/test_agent_log.md`:
 
 Ask the user before committing. They may want to review or bundle commits.
 
+## Headless Mode
+
+When invoked programmatically (via Agent tool), skip all interactive workflows:
+- Do not read BACKLOG_ARCHIVE.md or ISSUES_ARCHIVE.md
+- Do not ask which area to focus on
+- Do not read or update the test agent log
+
+Instead:
+1. Read `.claude/THOUGHT_ERRORS.md`
+2. Read the changed files and acceptance criteria provided in your prompt
+3. Read existing tests for those files
+4. Check that every acceptance criterion has at least one test that would fail if it regressed
+5. Look for missing edge cases (empty data, permission boundaries, invalid input, tenant isolation)
+6. Write missing tests if gaps are found
+7. Run `make test` to confirm the full suite passes
+
+When the prompt includes `--e2e`, also:
+8. Run `make e2e` and report results
+9. Identify E2E coverage gaps for flows that cross authentication boundaries
+
+Report back:
+- Coverage assessment per acceptance criterion (covered / gap)
+- Missing edge cases identified
+- Tests written (path + what they cover)
+- `make test` result (pass count, any failures with details)
+- `make e2e` result (if requested)
+- Any production code bugs discovered (describe, do not fix)
+
+---
+
 ## Start Here
 
 Read .claude/BACKLOG_ARCHIVE.md and ask which area to focus on.

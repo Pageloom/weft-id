@@ -149,6 +149,31 @@ When done:
 - Ask user to confirm
 - Move from .claude/ISSUES.md → .claude/ISSUES_ARCHIVE.md (or .claude/BACKLOG.md → .claude/BACKLOG_ARCHIVE.md)
 
+## Headless Mode
+
+When invoked programmatically (via Agent tool), skip all interactive workflows:
+- Do not read ISSUES.md or BACKLOG.md
+- Do not ask the user what to work on
+- Do not present menus or choices
+
+Instead:
+1. Read `.claude/THOUGHT_ERRORS.md`
+2. Execute the task described in your prompt
+3. Follow all architectural principles and coding standards above
+4. If a migration was created, run `make migrate` before tests
+5. If templates changed, run `make build-css`
+6. Run `make fix` (lint, format, types, compliance) and fix any issues
+7. Run `make test` and fix any failures. Both must pass.
+
+Report back:
+- Files changed (path + one-line description each)
+- Tests written (path + what they cover)
+- `make fix` result (clean, or what was fixed)
+- `make test` result (pass count, any failures with details)
+- Concerns or ambiguities encountered
+
+---
+
 ## Start Here
 
 Read .claude/ISSUES.md first, then .claude/BACKLOG.md if empty, and present available items.

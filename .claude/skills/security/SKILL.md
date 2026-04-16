@@ -169,6 +169,29 @@ cursor.execute(query, (email,))
 - No penetration testing (code review only)
 - No assumptions (verify against actual usage)
 
+## Headless Mode
+
+When invoked programmatically (via Agent tool), skip all interactive workflows:
+- Do not ask about scope, focus, or context
+- Do not write to ISSUES.md
+
+Instead:
+1. Read `.claude/THOUGHT_ERRORS.md`
+2. Read `.claude/references/owasp-patterns.md`
+3. Read each changed file listed in your prompt
+4. Scan for all OWASP categories relevant to the changes
+5. Report findings only
+
+Report back (for each finding):
+- File and line number
+- OWASP category and severity (Critical / High / Medium / Low)
+- Attack scenario (how it could be exploited)
+- Suggested remediation
+
+If no issues found, say so explicitly. Do not edit any files.
+
+---
+
 ## Start Here
 
 Ask about scope, focus, and context, then proceed with systematic scanning.

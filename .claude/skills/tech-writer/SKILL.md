@@ -307,6 +307,41 @@ Before finishing, append to `.claude/tech_writer_log.md`:
 - No test changes
 - No assumptions about UI behavior (read the code to verify)
 
+## Headless Mode
+
+When invoked programmatically (via Agent tool), skip all interactive workflows:
+- Do not ask about mode (copy review vs documentation)
+- Do not read or update the tech-writer log
+- Do not check git history
+
+Instead:
+1. Read `.claude/THOUGHT_ERRORS.md`
+2. Read each changed template or email file listed in your prompt
+3. Review user-facing copy against the copy principles above
+4. Check terminology consistency against the glossary
+
+When the prompt includes `--docs`, also:
+5. Check what features were added or changed (from the prompt context)
+6. Update affected documentation pages in `docs/` following Mode 2 principles above
+7. Create new pages for new features following the information architecture
+8. Run `make docs` after editing
+
+Report back (for each copy finding):
+- File and line number
+- Current text
+- Suggested text
+- Reason for the change
+
+Report back (for docs, if `--docs`):
+- Pages updated or created (path + what changed)
+- Pages that need screenshots (describe what's needed)
+- Any gaps where documentation is missing
+
+If no copy issues found, say so explicitly.
+Without `--docs`: do not edit any files. With `--docs`: edit only `docs/` files.
+
+---
+
 ## Start Here
 
 1. Read `.claude/tech_writer_log.md` (create if it doesn't exist)

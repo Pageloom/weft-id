@@ -22,7 +22,7 @@ where work left off. Every decision, scope change, and lesson learned gets writt
 
 - **Reads:** `.claude/BACKLOG.md`, codebase, iteration files
 - **Writes:** `.claude/ITERATION_<slug>.md` (never committed)
-- **Delegates to:** dev agent (Sonnet), test/security/compliance/tech-writer agents (Sonnet)
+- **Delegates to:** dev, test, security, compliance, tech-writer (all Opus)
 - **Can commit:** Only when the user explicitly instructs
 
 ## Before You Start
@@ -40,6 +40,28 @@ Each feature's iteration file lives at `.claude/ITERATION_<slug>.md` where `<slu
 The slug must be stable for the lifetime of the feature. Choose it during planning (Step 3).
 
 All `ITERATION_*.md` files are gitignored and never committed.
+
+---
+
+## Subagent invocation
+
+All subagents are invoked via the **Agent tool** referencing their skill's Headless Mode section.
+Each skill file (`.claude/skills/<name>/SKILL.md`) contains the full methodology and a Headless
+Mode section that tells the agent how to operate when invoked programmatically.
+
+The prompt pattern is:
+
+```
+Read `.claude/skills/<name>/SKILL.md` and follow the Headless Mode section.
+
+[Context from the iteration file]
+
+Your task:
+[Specific assignment]
+```
+
+The skill file is the single source of truth for each agent's methodology. Do not duplicate
+architecture rules, coding standards, or review checklists in the prompt. The skill has them.
 
 ---
 
@@ -182,7 +204,6 @@ For each iteration, define:
   inspecting the app.
 - **Scope by layer**: Which layers are affected, which files, what changes
 - **Test expectations**: What tests prove this iteration works
-- **Review agents**: Which agents should run (see the table in Step 5d)
 
 ### Choose the slug
 
@@ -200,7 +221,6 @@ Present the full plan. Explain:
 - Why this iteration order
 - What each iteration delivers
 - Where you see risk
-- Which review agents run on which iterations, and why
 
 **Wait for the user to approve, modify, or reject before proceeding.**
 
@@ -208,10 +228,7 @@ Present the full plan. Explain:
 
 ## Step 5 — Execute iteration
 
-Once approved, execute **autonomously**. Do not ask the user questions during execution. Make
-judgment calls, record them in the decisions log, and report everything at the end.
-
-### 5a. Write the granular implementation plan
+### 5a. Write the implementation plan
 
 Before spawning any agent, write a step-by-step implementation recipe for the iteration.
 Append it to the current iteration's section in the iteration file.
@@ -229,44 +246,19 @@ Include:
 - Event types to register, `pages.py` entries, API endpoint paths
 - Test file paths and what each test should verify
 
-### 5b. Spawn the dev agent
+### 5b. Spawn dev
 
-Use the **Agent tool** with `model: "sonnet"`. The prompt must be self-contained. Include:
+Use the **Agent tool** with `model: "opus"`. Reference the dev skill's Headless Mode:
 
-**1. The implementation plan** from 5a (the full step-by-step recipe).
+```
+Read `.claude/skills/dev/SKILL.md` and follow the Headless Mode section.
 
-**2. Context and design decisions** from the iteration file header.
+Context:
+[Feature context and design decisions from the iteration file header]
 
-**3. Architecture rules** (inline these, don't say "go read CLAUDE.md"):
-
-- Layered architecture: Router -> Service -> Database. Routers never import database modules.
-- Every service write must call `log_event()` after successful mutation. Event types are
-  past-tense, registered in `app/constants/event_types.py`.
-- Every service read with `RequestingUser` must call `track_activity()` at function start.
-- New routes must be registered in `app/pages.py`.
-- All `str` fields in Pydantic input schemas and `Form()` parameters must have `max_length`.
-  Standard limits: names 255, descriptions 2000, URLs 2048, enum-like 50, emails 320,
-  passwords 255, UUIDs/IDs 50, codes 100, timezone 50, locale 10.
-- API-first: web UI functionality must have corresponding API endpoints in `app/routers/api/v1/`.
-- Migration safety: no `DROP COLUMN`, `RENAME`, or `ADD COLUMN NOT NULL` without `DEFAULT`.
-  Use `SET LOCAL ROLE appowner;` at top of migration files.
-- ES2020 JavaScript (`const`/`let`, arrow functions, template literals, no `var`).
-- `WeftUtils.apiFetch()` for state-changing fetch calls (CSRF protection).
-- Server values in templates go in `<script type="application/json" id="page-data">` blocks.
-  Never put `{{ }}` inside `<script>` bodies.
-- Icons: use `{{ icon("name", class="...") }}`, never paste inline SVGs.
-- Tenant isolation: all queries scoped via `tenant_id`. Use `UNSCOPED` only for system tasks.
-
-**4. Instructions:**
-
-- Read `.claude/THOUGHT_ERRORS.md` before starting implementation.
-- If a migration was created, run `make migrate` before running tests.
-- If templates were added or changed, run `make build-css`.
-- Run `make fix` (lint, format, types, compliance) and fix any issues.
-- Run `make test` and fix any failures.
-- Both must pass before reporting done.
-- Report back: files changed (with one-line description each), tests written, test results
-  (pass count, any failures with details), and any concerns or ambiguities encountered.
+Your task:
+[The implementation plan from 5a]
+```
 
 ### 5c. Review dev output
 
@@ -292,58 +284,28 @@ After the dev agent completes:
    an agent's question, deviating from the plan, accepting a trade-off) goes in the
    decisions log with context and rationale.
 
-### 5d. Spawn review agents
+### 5d. Spawn test
 
-After dev work passes your review, spawn relevant review agents **in parallel** using
-`model: "sonnet"`. The lead decides which agents to run based on iteration scope:
+After dev work passes your review, spawn the test agent via the **Agent tool** with
+`model: "opus"`. Reference the test skill's Headless Mode:
 
-| Agent | When to spawn | Focus |
-|-------|--------------|-------|
-| Test | Always | Coverage gaps, missing edge cases, acceptance criteria verification |
-| Security | Auth, user input, SAML, crypto, API endpoints | OWASP patterns on changed files |
-| Compliance | Layer boundaries, new routes, new services | Architectural compliance on changed files |
-| Tech-writer | User-facing templates, emails | Copy clarity and terminology consistency |
+```
+Read `.claude/skills/test/SKILL.md` and follow the Headless Mode section.
 
-**Agent prompts must include:**
+Changed files:
+[List of files changed in this iteration]
 
-- The list of files changed in this iteration
-- The acceptance criteria from the iteration file
-- Instructions to report findings back (severity, location, description, suggested fix)
-- **Explicit instruction: do NOT write to ISSUES.md or edit any files. Report only.**
+Acceptance criteria:
+[From the iteration file]
+```
 
-**Test agent additional instructions:**
-- Check that every acceptance criterion has at least one test that would fail if it regressed
-- Look for missing edge cases (empty data, permission boundaries, invalid input)
-- Run `make test` to confirm the full suite passes
-- Report: coverage assessment, missing tests, any failures
+### 5e. Triage test findings
 
-**Security agent additional instructions:**
-- Read `.claude/references/owasp-patterns.md` for the project's security patterns
-- Focus on the changed files, not the whole codebase
-- Check: injection, access control, input validation, configuration, SAML security (if relevant)
-- Report: findings with OWASP category, severity, attack scenario, remediation
+After the test agent completes:
 
-**Compliance agent additional instructions:**
-- Run `python dev/compliance_check.py` and report any failures
-- Focus on changed files for manual review
-- Check: architecture, event logging, activity tracking, tenant isolation, input length, API-first
-- Report: violations with principle, severity, evidence, fix
-
-**Tech-writer agent additional instructions:**
-- Review only the user-facing copy in changed templates and emails
-- Check against: terse style, consistent terminology (sign in not log in, inactivate not
-  deactivate), no jargon, front-loaded important words
-- Report: copy issues with current text, suggested text, location
-
-### 5e. Triage review findings
-
-After review agents complete:
-
-- **Valid issues**: Fix directly (small) or re-spawn dev agent with specific corrections
+- **Valid gaps**: Fix directly (small) or re-spawn dev agent with specific corrections
 - **False positives**: Note in the decisions log with reasoning
-- **Deferred items**: Note in reconceptualisations if they affect future iterations
-- **New issues for the broader codebase**: Note in reconceptualisations (the user may want
-  to log these to ISSUES.md separately)
+- **Production bugs found**: Note in reconceptualisations (the user may want to log to ISSUES.md)
 
 Re-run `make fix` and `make test` after any fixes. Both must pass.
 
@@ -356,7 +318,7 @@ Close out the current iteration in the file:
 3. Check off completed acceptance criteria
 4. Replace scope sections with **What was done** (actual files changed, what each does)
 5. Replace test expectations with **Tests added** (actual test files, what they cover)
-6. Add **Review results** (summary of each review agent's findings and resolution)
+6. Add **Test review results** (summary of test agent's findings and resolution)
 7. Add **Reconceptualisations** (anything re-thought; "None" if nothing changed)
 8. Add **Decisions log entries** (every autonomous decision with context and rationale)
 9. **Refine future iterations** based on what was learned. Adjust scope, re-order,
@@ -370,7 +332,7 @@ Present the iteration results to the user:
 
 - Summary of what was implemented (files changed, not diffs)
 - Which acceptance criteria are met
-- Review agent findings and how each was resolved
+- Test agent findings and how each was resolved
 - **Decisions log for this iteration** (every autonomous decision, with reasoning)
 - Reconceptualisations and how they affect remaining iterations
 - Test results (pass count, any notable coverage)
@@ -379,7 +341,7 @@ Present the iteration results to the user:
 
 Tell the user:
 
-> Review the changes. When ready, tell me to commit or to continue with the next iteration.
+> Review the changes. When ready, tell me to commit and continue to the next iteration.
 > You can clear context and run `/lead pickup` to resume later.
 
 ---
@@ -392,11 +354,97 @@ When the user approves:
    brief description of what and how, no Claude attributions)
 2. Verify the iteration file is fully up to date (Step 5f complete)
 3. Refine the next iteration's scope based on learnings
-4. Repeat from Step 5
+4. Clear context and resume via `/lead pickup <slug>`, or repeat from Step 5 if
+   context allows
 
-When all iterations are complete:
+---
 
-1. Set file status to "Feature complete"
+## Step 8 — Final review pass
+
+After all iterations are complete and committed, run a comprehensive review of the entire
+feature branch. This is the quality gate before the user gives final sign-off.
+
+### 8a. Gather the full scope
+
+Get the complete diff of the feature branch against main:
+
+```bash
+git diff main...HEAD --name-only
+```
+
+This is the file list all review agents receive.
+
+### 8b. Spawn review agents in parallel
+
+Use the **Agent tool** to spawn **four agents in parallel**, all with `model: "opus"`.
+All agents use Opus throughout the workflow, not just the final pass.
+Each references its skill's Headless Mode:
+
+**Test agent** (with E2E):
+```
+Read `.claude/skills/test/SKILL.md` and follow the Headless Mode section. --e2e
+
+Changed files:
+[Full file list from 8a]
+
+Acceptance criteria:
+[All acceptance criteria across all iterations]
+```
+
+**Security agent:**
+```
+Read `.claude/skills/security/SKILL.md` and follow the Headless Mode section.
+
+Changed files:
+[Full file list from 8a]
+
+Feature context:
+[Brief description of what was built]
+```
+
+**Compliance agent:**
+```
+Read `.claude/skills/compliance/SKILL.md` and follow the Headless Mode section.
+
+Changed files:
+[Full file list from 8a]
+```
+
+**Tech-writer agent** (with docs):
+```
+Read `.claude/skills/tech-writer/SKILL.md` and follow the Headless Mode section. --docs
+
+Changed files:
+[Template and email files from 8a]
+
+Feature context:
+[Brief description of what was built, for documentation updates]
+```
+
+### 8c. Present findings
+
+After all review agents complete, present a consolidated report:
+
+- **Test**: Coverage gaps, E2E results, missing edge cases
+- **Security**: Vulnerabilities with severity, attack scenarios, remediation
+- **Compliance**: Architectural violations with evidence
+- **Tech-writer**: Copy issues and documentation updates made/needed
+
+For each finding, recommend: **fix now**, **defer to ISSUES.md**, or **dismiss (false positive)**.
+
+**STOP HERE.** The user decides which findings to address.
+
+### 8d. Address findings
+
+Based on the user's decisions:
+
+- Fix accepted issues (directly or via dev agent)
+- Log deferred items to `.claude/ISSUES.md`
+- Re-run `make fix` and `make test` after changes
+
+### 8e. Close out
+
+1. Set the iteration file status to "Feature complete"
 2. Move the backlog item from `.claude/BACKLOG.md` to `.claude/BACKLOG_ARCHIVE.md` with
    status marked as Complete
 3. Ask the user if they want to clean up the iteration file
@@ -431,7 +479,6 @@ session enough context to understand the work without reading the conversation.]
 ## Iteration 1 -- [Goal]
 **Status**: Not started | In progress | Complete
 **Completed**: YYYY-MM-DD (when done)
-**Review agents**: Test, Security, Compliance (list which will run)
 
 ### Acceptance criteria
 - [ ] Criterion 1
@@ -458,11 +505,8 @@ and enough context for an agent to execute without architectural decisions.]
 [Replaces test expectations after completion.]
 - `path/to/test.py` -- what it tests
 
-### Review results
-- **Test**: [findings summary and resolution]
-- **Security**: [findings summary and resolution, or "Not run"]
-- **Compliance**: [findings summary and resolution, or "Not run"]
-- **Tech-writer**: [findings summary and resolution, or "Not run"]
+### Test review
+[Test agent findings and resolution.]
 
 ### Reconceptualisations
 [What was re-thought during this iteration that affects future iterations.
@@ -487,6 +531,16 @@ and enough context for an agent to execute without architectural decisions.]
 
 ## Future iterations
 [Less detailed outlines for later iterations. Refined as earlier iterations complete.]
+
+---
+
+## Final review
+[Populated after Step 8. Summary of findings from all review agents and resolutions.]
+
+- **Test**: [findings and resolution]
+- **Security**: [findings and resolution]
+- **Compliance**: [findings and resolution]
+- **Tech-writer**: [findings, docs updates, and resolution]
 ```
 
 ---
@@ -508,12 +562,12 @@ and enough context for an agent to execute without architectural decisions.]
 - **Surface risks early.** In planning, not during implementation.
 - **Record every autonomous decision.** The user needs visibility into your reasoning.
   This is how the workflow improves over time.
-- **Tests are not optional.** Every iteration includes tests.
+- **Tests are not optional.** Every iteration includes tests via the test agent.
 - **Refine forward.** After each iteration, update future iterations with what you learned.
 - **Branch awareness.** Record branch in the file header. Verify on pickup.
 - **Never commit without permission.** Update the file, present results, wait.
 - **Quality gate is non-negotiable.** `make fix` and `make test` must pass before presenting.
-- **Review agents report, they don't act.** Findings come back to the lead for triage.
-  This prevents conflicting changes and gives the lead full control.
-- **Escalate model, not complexity.** When Sonnet fails, try a better prompt first.
-  Then escalate to Opus. Don't add workarounds.
+- **Skills are the source of truth.** Reference skill Headless Mode sections. Never duplicate
+  methodology, architecture rules, or review checklists in agent prompts.
+- **All agents run on Opus.** If an agent fails, improve the prompt before retrying.
+  Don't add workarounds.

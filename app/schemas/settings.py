@@ -104,6 +104,14 @@ class TenantSecuritySettings(BaseModel):
             "When disabled (default), users are routed immediately after entering their email."
         ),
     )
+    required_auth_strength: Literal["baseline", "enhanced"] = Field(
+        "baseline",
+        description=(
+            "Minimum two-step verification strength required by the tenant. "
+            "'baseline' accepts email code, TOTP, or passkey. "
+            "'enhanced' requires TOTP or passkey (email code is no longer sufficient)."
+        ),
+    )
 
 
 class VersionInfo(BaseModel):
@@ -154,5 +162,12 @@ class TenantSecuritySettingsUpdate(BaseModel):
         description=(
             "Require email possession verification before routing to auth method. "
             "When disabled (default), users are routed immediately after entering their email."
+        ),
+    )
+    required_auth_strength: Literal["baseline", "enhanced"] | None = Field(
+        None,
+        description=(
+            "Minimum two-step verification strength required by the tenant "
+            "('baseline' or 'enhanced')."
         ),
     )

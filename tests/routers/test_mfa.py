@@ -279,17 +279,25 @@ def test_mfa_verify_success(test_tenant, mocker):
     mocker.patch("routers.mfa.get_totp_secret", return_value="secret")
     mocker.patch("routers.mfa.verify_totp_code", return_value=True)
     mocker.patch("services.event_log.log_event")
-    mocker.patch("routers.mfa.settings_service.get_session_settings", return_value=None)
-    mocker.patch("routers.mfa.regenerate_session")
+    mocker.patch(
+        "routers.auth._login_completion.settings_service.get_session_settings",
+        return_value=None,
+    )
+    mocker.patch("routers.auth._login_completion.regenerate_session")
     mocker.patch(
         "routers.mfa.users_service.get_user_by_id_raw",
-        return_value={"tz": None, "locale": None},
+        return_value={"tz": None, "locale": None, "mfa_method": "totp"},
     )
-    mocker.patch("routers.mfa.users_service.update_last_login")
+    mocker.patch(
+        "routers.auth._login_completion.users_service.get_user_by_id_raw",
+        return_value={"tz": None, "locale": None, "mfa_method": "totp"},
+    )
+    mocker.patch("routers.auth._login_completion.users_service.update_last_login")
+    mocker.patch("routers.mfa.users_service.user_must_enroll_enhanced", return_value=False)
 
     # Mock the saml_idp helpers
-    mocker.patch("routers.saml_idp._helpers.extract_pending_sso", return_value=None)
-    mocker.patch("routers.saml_idp._helpers.get_post_auth_redirect", return_value="/dashboard")
+    mocker.patch("routers.auth._login_completion.extract_pending_sso", return_value=None)
+    mocker.patch("routers.auth._login_completion.get_post_auth_redirect", return_value="/dashboard")
 
     client = TestClient(app)
     response = client.post(
@@ -300,3 +308,105 @@ def test_mfa_verify_success(test_tenant, mocker):
 
     assert response.status_code == 303
     assert response.headers["location"] == "/dashboard"
+
+
+def test_mfa_verify_redirects_to_enhanced_enrollment(test_tenant, mocker):
+    """Under enhanced policy, an email-MFA user is redirected to enroll-enhanced-auth.
+
+    Verifies the branching added in mfa_verify: after the code is verified but
+    before session regeneration / user_signed_in, check user_must_enroll_enhanced.
+    """
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    user_id = "test-user-id"
+    session_data: dict = {
+        "pending_mfa_user_id": user_id,
+        "pending_mfa_method": "email",
+    }
+    mocker.patch(
+        "starlette.requests.Request.session",
+        new_callable=lambda: property(lambda self: session_data),
+    )
+
+    mocker.patch("routers.mfa.ratelimit.prevent")
+    mocker.patch("routers.mfa.verify_totp_code", return_value=False)
+    mocker.patch("routers.mfa.verify_email_otp", return_value=True)
+    mocker.patch(
+        "routers.mfa.users_service.get_user_by_id_raw",
+        return_value={"id": user_id, "mfa_method": "email"},
+    )
+    # Force the branch: user must enroll.
+    mocker.patch("routers.mfa.users_service.user_must_enroll_enhanced", return_value=True)
+
+    client = TestClient(app)
+    response = client.post(
+        "/mfa/verify",
+        data={"code": "123456"},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login/enroll-enhanced-auth"
+    # Enrollment gate key should be set so GET will render the page
+    assert session_data.get("pending_enhanced_enrollment_user_id") == user_id
+
+
+def test_mfa_verify_enrollment_block_prevents_sso_completion(test_tenant, mocker):
+    """Under enhanced policy, the enrollment redirect must short-circuit before
+    complete_authenticated_login runs. This is what keeps SP-initiated SSO from
+    finalizing while the user still needs to enroll in TOTP.
+    """
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    user_id = "test-user-id"
+    # Simulate a pending SP-initiated SSO request arriving at MFA with
+    # email-only MFA under the enhanced policy.
+    session_data: dict = {
+        "pending_mfa_user_id": user_id,
+        "pending_mfa_method": "email",
+        "pending_sso_sp_id": "sp-123",
+        "pending_sso_relay_state": "state-xyz",
+    }
+    mocker.patch(
+        "starlette.requests.Request.session",
+        new_callable=lambda: property(lambda self: session_data),
+    )
+
+    mocker.patch("routers.mfa.ratelimit.prevent")
+    mocker.patch("routers.mfa.verify_totp_code", return_value=False)
+    mocker.patch("routers.mfa.verify_email_otp", return_value=True)
+    mocker.patch(
+        "routers.mfa.users_service.get_user_by_id_raw",
+        return_value={"id": user_id, "mfa_method": "email"},
+    )
+    mocker.patch("routers.mfa.users_service.user_must_enroll_enhanced", return_value=True)
+
+    # Import at call time so we can detect whether it's called. The mfa module
+    # does `from routers.auth._login_completion import complete_authenticated_login`
+    # *inside* the handler; patching the target module is safer than patching
+    # an unresolved name inside `routers.mfa`.
+    mock_complete = mocker.patch("routers.auth._login_completion.complete_authenticated_login")
+
+    client = TestClient(app)
+    response = client.post(
+        "/mfa/verify",
+        data={"code": "123456"},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    # The enrollment redirect must take precedence.
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login/enroll-enhanced-auth"
+    # The session must NOT contain the authenticated user id; SSO completion
+    # is gated by complete_authenticated_login, which must not have run.
+    mock_complete.assert_not_called()
+    assert "user_id" not in session_data
+    assert "pending_sso_user_id" not in session_data

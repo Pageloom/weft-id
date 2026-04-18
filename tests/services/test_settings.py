@@ -1611,3 +1611,86 @@ def test_update_group_assertion_scope_included_in_changes_metadata(
     assert "group_assertion_scope" in latest["metadata"]["changes"]
     scope_change = latest["metadata"]["changes"]["group_assertion_scope"]
     assert scope_change["new"] == "trunk"
+
+
+# =============================================================================
+# Required Auth Strength Tests (tenant auth policy)
+# =============================================================================
+
+
+def test_get_security_settings_defaults_to_baseline(test_tenant, test_super_admin_user):
+    """required_auth_strength defaults to 'baseline' when no setting exists."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    result = settings_service.get_security_settings(requesting_user)
+
+    assert result.required_auth_strength == "baseline"
+
+
+def test_update_required_auth_strength_to_enhanced(test_tenant, test_super_admin_user):
+    """Updating the policy to 'enhanced' persists and is returned."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    result = settings_service.update_security_settings(
+        requesting_user, TenantSecuritySettingsUpdate(required_auth_strength="enhanced")
+    )
+
+    assert result.required_auth_strength == "enhanced"
+
+    fresh = settings_service.get_security_settings(requesting_user)
+    assert fresh.required_auth_strength == "enhanced"
+
+
+def test_update_required_auth_strength_logs_dedicated_event(test_tenant, test_super_admin_user):
+    """Changing required_auth_strength logs tenant_auth_policy_updated."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    settings_service.update_security_settings(
+        requesting_user, TenantSecuritySettingsUpdate(required_auth_strength="enhanced")
+    )
+
+    events = database.event_log.list_events(test_tenant["id"], limit=5)
+    policy_events = [e for e in events if e["event_type"] == "tenant_auth_policy_updated"]
+    assert len(policy_events) >= 1
+    latest = policy_events[0]
+    assert latest["metadata"]["old_policy"] == "baseline"
+    assert latest["metadata"]["new_policy"] == "enhanced"
+
+
+def test_update_required_auth_strength_same_value_no_dedicated_event(
+    test_tenant, test_super_admin_user
+):
+    """Setting the same value does not emit tenant_auth_policy_updated."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Default is 'baseline'; setting it explicitly to 'baseline' should not log.
+    settings_service.update_security_settings(
+        requesting_user, TenantSecuritySettingsUpdate(required_auth_strength="baseline")
+    )
+
+    events = database.event_log.list_events(test_tenant["id"], limit=10)
+    policy_events = [e for e in events if e["event_type"] == "tenant_auth_policy_updated"]
+    assert len(policy_events) == 0
+
+
+def test_update_required_auth_strength_forbidden_for_non_super_admin(test_tenant, test_admin_user):
+    """Only super_admins can change required_auth_strength."""
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+    with pytest.raises(ForbiddenError):
+        settings_service.update_security_settings(
+            requesting_user, TenantSecuritySettingsUpdate(required_auth_strength="enhanced")
+        )
+
+
+def test_get_required_auth_strength_utility(test_tenant, test_super_admin_user):
+    """The utility getter returns the stored policy (or 'baseline' default)."""
+    # Default
+    assert settings_service.get_required_auth_strength(test_tenant["id"]) == "baseline"
+
+    # Flip to enhanced and re-query
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    settings_service.update_security_settings(
+        requesting_user, TenantSecuritySettingsUpdate(required_auth_strength="enhanced")
+    )
+    assert settings_service.get_required_auth_strength(test_tenant["id"]) == "enhanced"

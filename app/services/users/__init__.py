@@ -27,6 +27,11 @@ from services.users._converters import (
 # Re-export validation helpers for backwards compatibility
 from services.users._validation import _validate_role_change
 
+# Re-export from auth_policy module
+from services.users.auth_policy import (
+    user_must_enroll_enhanced,
+)
+
 # Re-export from crud module
 from services.users.crud import (
     create_user,
@@ -87,6 +92,8 @@ from services.users.utilities import (
 )
 
 __all__ = [
+    # Auth policy
+    "user_must_enroll_enhanced",
     # CRUD
     "create_user",
     "delete_user",

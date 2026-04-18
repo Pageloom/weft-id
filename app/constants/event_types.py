@@ -104,6 +104,10 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "password_policy_updated": "Password strength policy settings changed",
     "tenant_settings_updated": "Tenant settings updated",
     "group_assertion_scope_updated": "Group assertion scope setting changed",
+    "tenant_auth_policy_updated": "Tenant authentication strength policy changed",
+    "user_enhanced_auth_enrolled": (
+        "User enrolled in a strong authentication method under enhanced policy"
+    ),
     "domain_group_link_created": "Group linked to privileged domain for auto-assignment",
     "domain_group_link_deleted": "Group unlinked from privileged domain",
     "domain_group_auto_assigned": "User auto-assigned to groups based on email domain",
@@ -235,6 +239,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "mfa_disabled": "security",
     "mfa_backup_codes_regenerated": "security",
     "mfa_reset_by_admin": "security",
+    "user_enhanced_auth_enrolled": "security",
     "oauth2_user_tokens_revoked": "security",
     "oauth2_client_secret_regenerated": "security",
     "reactivation_requested": "security",
@@ -306,6 +311,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "password_policy_updated": "admin",
     "tenant_settings_updated": "admin",
     "group_assertion_scope_updated": "admin",
+    "tenant_auth_policy_updated": "admin",
     "domain_group_link_created": "admin",
     "domain_group_link_deleted": "admin",
     "branding_logo_uploaded": "admin",

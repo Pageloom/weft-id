@@ -388,6 +388,55 @@ def test_update_tenant_security_partial(client, test_tenant_host, oauth2_super_a
     assert data["persistent_sessions"] is True  # Unchanged
 
 
+def test_get_tenant_security_includes_required_auth_strength(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """GET /tenant-security returns required_auth_strength (default 'baseline')."""
+    response = client.get(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "required_auth_strength" in data
+    assert data["required_auth_strength"] in ("baseline", "enhanced")
+
+
+def test_update_tenant_security_required_auth_strength(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """PATCH /tenant-security accepts required_auth_strength and persists it."""
+    response = client.patch(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"required_auth_strength": "enhanced"},
+    )
+    assert response.status_code == 200
+    assert response.json()["required_auth_strength"] == "enhanced"
+
+    # Revert to baseline via the same endpoint
+    response = client.patch(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"required_auth_strength": "baseline"},
+    )
+    assert response.status_code == 200
+    assert response.json()["required_auth_strength"] == "baseline"
+
+
+def test_update_tenant_security_rejects_invalid_auth_strength(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """Invalid required_auth_strength values are rejected by the schema."""
+    response = client.patch(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"required_auth_strength": "bogus"},
+    )
+    assert response.status_code == 422
+
+
 def test_update_tenant_security_as_admin_forbidden(
     client, test_tenant_host, oauth2_admin_authorization_header
 ):

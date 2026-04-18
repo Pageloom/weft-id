@@ -71,6 +71,20 @@ PAGES = [
         creates_nav_level=False,
     ),
     Page(
+        path="/login/passkey/begin",
+        title="Passkey Sign-in (Begin)",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
+        path="/login/passkey/complete",
+        title="Passkey Sign-in (Complete)",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
         path="/dashboard",
         title="Dashboard",
         permission=PagePermission.AUTHENTICATED,

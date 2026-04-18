@@ -72,3 +72,45 @@ class RenamePasskeyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., min_length=1, max_length=100)
+
+
+class BeginAuthenticationRequest(BaseModel):
+    """Payload the browser posts to start a passkey login ceremony."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(..., min_length=1, max_length=320)
+
+
+class BeginAuthenticationResponse(BaseModel):
+    """Envelope for the ``PublicKeyCredentialRequestOptions`` returned to the browser.
+
+    The browser's ``navigator.credentials.get()`` expects its input under
+    ``publicKey``; we keep the alias for Web IDL compatibility while storing
+    the field internally as ``public_key``.
+    """
+
+    public_key: dict = Field(
+        ...,
+        alias="publicKey",
+        description="WebAuthn PublicKeyCredentialRequestOptions",
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CompleteAuthenticationRequest(BaseModel):
+    """Payload the browser posts back after ``navigator.credentials.get()``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    response: dict = Field(
+        ...,
+        description="PublicKeyCredential JSON produced by navigator.credentials.get()",
+    )
+
+
+class CompleteAuthenticationResponse(BaseModel):
+    """Response for a successful passkey authentication."""
+
+    redirect_url: str = Field(..., max_length=2048)

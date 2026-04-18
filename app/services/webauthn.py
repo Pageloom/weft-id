@@ -21,7 +21,9 @@ from typing import Any
 import database
 from fastapi import Request
 from schemas.webauthn import (
+    BeginAuthenticationResponse,
     BeginRegistrationResponse,
+    CompleteAuthenticationRequest,
     CompleteRegistrationRequest,
     CompleteRegistrationResponse,
     PasskeyResponse,
@@ -33,10 +35,12 @@ from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
 from utils.webauthn import (
     WebAuthnError,
+    generate_authentication_options_for_user,
     generate_registration_options_for_user,
     origin_for_request,
     rp_id_for_request,
     rp_name_for_tenant,
+    verify_authentication,
     verify_registration,
 )
 
@@ -47,6 +51,12 @@ _REGISTRATION_CHALLENGE_TTL_S = 300
 # Session keys for the registration ceremony.
 _SESSION_CHALLENGE_KEY = "webauthn_reg_challenge"
 _SESSION_CHALLENGE_AT_KEY = "webauthn_reg_challenge_at"
+
+# Session keys for the login (authentication) ceremony. TTL mirrors registration.
+_LOGIN_CHALLENGE_KEY = "webauthn_login_challenge"
+_LOGIN_CHALLENGE_AT_KEY = "webauthn_login_challenge_at"
+_LOGIN_PENDING_USER_KEY = "pending_passkey_user_id"
+_LOGIN_CHALLENGE_TTL_S = 300
 
 
 # =============================================================================
@@ -338,3 +348,302 @@ def delete_credential(
             "backup_eligible": bool(existing.get("backup_eligible", False)),
         },
     )
+
+
+# =============================================================================
+# Passkey login (authentication ceremony)
+# =============================================================================
+
+
+def user_has_passkey_for_email(tenant_id: str, email: str) -> bool:
+    """Return True iff an email maps to a passkey-eligible user.
+
+    Convenience wrapper on ``_resolve_eligible_user`` for callers (the login
+    page renderer) that only need to know whether to show the passkey-first
+    variant. Anti-enumeration: False on any failing check.
+    """
+    return _resolve_eligible_user(tenant_id, email.strip().lower()) is not None
+
+
+def _clear_login_session(session: dict) -> None:
+    """Remove all passkey-login session keys in one place."""
+    session.pop(_LOGIN_CHALLENGE_KEY, None)
+    session.pop(_LOGIN_CHALLENGE_AT_KEY, None)
+    session.pop(_LOGIN_PENDING_USER_KEY, None)
+
+
+def _emit_passkey_failure(
+    tenant_id: str,
+    user_id: str | None,
+    reason: str,
+    credential_uuid: str | None = None,
+) -> None:
+    """Emit ``passkey_auth_failure`` with a stable reason code.
+
+    If ``user_id`` is None (user lookup failed before any ceremony state was
+    bound), the tenant id is used as the artifact to keep the event record
+    consistent with the anti-enumeration pattern in ``login_failed``.
+    """
+    actor = user_id or tenant_id
+    artifact_type = "webauthn_credential" if credential_uuid else "user"
+    artifact_id = credential_uuid or actor
+    metadata: dict[str, Any] = {"reason": reason}
+    if user_id is None:
+        metadata["anonymous"] = True
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(actor),
+        artifact_type=artifact_type,
+        artifact_id=str(artifact_id),
+        event_type="passkey_auth_failure",
+        metadata=metadata,
+    )
+
+
+def _resolve_eligible_user(tenant_id: str, email: str) -> dict | None:
+    """Return the user dict iff they are eligible for passkey login.
+
+    Eligible means: the user exists with a verified email, is NOT linked to a
+    SAML IdP, is NOT inactivated, and has at least one registered passkey.
+    Anti-enumeration: returns None for every failing case (the caller never
+    distinguishes the reason).
+    """
+    user = database.users.get_user_auth_info(tenant_id, email)
+    if not user:
+        return None
+    if user.get("saml_idp_id"):
+        return None
+    if user.get("is_inactivated"):
+        return None
+    count = database.webauthn_credentials.count_credentials(tenant_id, str(user["id"]))
+    if count <= 0:
+        return None
+    return user
+
+
+def begin_authentication(
+    request: Request,
+    tenant_id: str,
+    email: str,
+) -> BeginAuthenticationResponse | None:
+    """Start a passkey authentication ceremony for an identified user.
+
+    Returns None if the user is not eligible for passkey login. Callers treat
+    None as "fall through to password". Anti-enumeration: identical None
+    return for nonexistent user, IdP user, inactivated user, and zero-passkey
+    user.
+    """
+    normalized = email.strip().lower()
+    user = _resolve_eligible_user(tenant_id, normalized)
+    if user is None:
+        return None
+
+    user_id = str(user["id"])
+    credentials = database.webauthn_credentials.list_credentials(tenant_id, user_id)
+    credential_ids = [bytes(row["credential_id"]) for row in credentials]
+    if not credential_ids:
+        return None
+
+    rp_id = rp_id_for_request(request)
+    options_dict, challenge_bytes = generate_authentication_options_for_user(
+        rp_id=rp_id,
+        allowed_credential_ids=credential_ids,
+    )
+
+    request.session[_LOGIN_CHALLENGE_KEY] = challenge_bytes.hex()
+    request.session[_LOGIN_CHALLENGE_AT_KEY] = int(time.time())
+    request.session[_LOGIN_PENDING_USER_KEY] = user_id
+
+    return BeginAuthenticationResponse(public_key=options_dict)
+
+
+def complete_authentication(
+    request: Request,
+    tenant_id: str,
+    payload: CompleteAuthenticationRequest,
+) -> str:
+    """Verify an assertion, update auth state, and finalize login.
+
+    Returns the redirect URL to follow on success. Raises ``ValidationError``
+    with a stable ``code`` on any failure so callers can translate to an
+    appropriate response.
+    """
+    from webauthn.helpers import base64url_to_bytes
+
+    session = request.session
+    pending_user_id = session.get(_LOGIN_PENDING_USER_KEY)
+    challenge_hex = session.get(_LOGIN_CHALLENGE_KEY)
+    challenge_at = session.get(_LOGIN_CHALLENGE_AT_KEY)
+
+    if not pending_user_id or not challenge_hex or not challenge_at:
+        _clear_login_session(session)
+        _emit_passkey_failure(tenant_id, None, "no_challenge")
+        raise ValidationError(
+            message="No passkey sign-in in progress",
+            code="no_challenge",
+        )
+
+    # TTL check
+    try:
+        age = int(time.time()) - int(challenge_at)
+    except (TypeError, ValueError):
+        age = _LOGIN_CHALLENGE_TTL_S + 1
+    if age > _LOGIN_CHALLENGE_TTL_S:
+        _clear_login_session(session)
+        _emit_passkey_failure(tenant_id, str(pending_user_id), "expired_challenge")
+        raise ValidationError(
+            message="Passkey sign-in expired. Please start over.",
+            code="expired_challenge",
+        )
+
+    try:
+        challenge_bytes = bytes.fromhex(str(challenge_hex))
+    except ValueError as exc:
+        _clear_login_session(session)
+        _emit_passkey_failure(tenant_id, str(pending_user_id), "corrupt_challenge")
+        raise ValidationError(
+            message="Passkey session corrupt",
+            code="corrupt_challenge",
+        ) from exc
+
+    # Resolve the specific credential the browser used. We match the returned
+    # rawId (base64url) bytes against the user's registered credential_id
+    # bytes. This is defence-in-depth on top of the allowCredentials we sent
+    # at begin time.
+    raw = payload.response if isinstance(payload.response, dict) else {}
+    raw_id_b64 = raw.get("rawId") or raw.get("id")
+    if not raw_id_b64 or not isinstance(raw_id_b64, str):
+        _clear_login_session(session)
+        _emit_passkey_failure(tenant_id, str(pending_user_id), "unknown_credential")
+        raise ValidationError(
+            message="Unknown credential",
+            code="unknown_credential",
+        )
+
+    try:
+        returned_id_bytes = base64url_to_bytes(raw_id_b64)
+    except Exception as exc:
+        _clear_login_session(session)
+        _emit_passkey_failure(tenant_id, str(pending_user_id), "unknown_credential")
+        raise ValidationError(
+            message="Unknown credential",
+            code="unknown_credential",
+        ) from exc
+
+    rows = database.webauthn_credentials.list_credentials(tenant_id, str(pending_user_id))
+    stored = next((r for r in rows if bytes(r["credential_id"]) == returned_id_bytes), None)
+    if stored is None:
+        _clear_login_session(session)
+        _emit_passkey_failure(tenant_id, str(pending_user_id), "unknown_credential")
+        raise ValidationError(
+            message="Unknown credential",
+            code="unknown_credential",
+        )
+
+    credential_uuid = str(stored["id"])
+    stored_sign_count = int(stored["sign_count"])
+    backup_eligible = bool(stored.get("backup_eligible", False))
+
+    # For synced platform authenticators (backup_eligible=True), the sign
+    # counter may legitimately reset or stay at 0 on every assertion. We pass
+    # 0 to the verifier so the library's strict-monotonic check does not
+    # reject synced credentials. Clone detection for BE=false credentials
+    # still trips the library's check (sign-count regression = clone).
+    effective_current = 0 if backup_eligible else stored_sign_count
+
+    rp_id = rp_id_for_request(request)
+    origin = origin_for_request(request)
+
+    try:
+        verified = verify_authentication(
+            response=raw,
+            expected_challenge=challenge_bytes,
+            expected_rp_id=rp_id,
+            expected_origin=origin,
+            credential_public_key=bytes(stored["public_key"]),
+            credential_current_sign_count=effective_current,
+        )
+    except WebAuthnError as exc:
+        msg = str(exc).lower()
+        # Sign-count regression for a non-synced credential suggests a clone.
+        # (We bypass the check for BE=true above, so hitting it means BE=false.)
+        if "sign count" in msg or "counter" in msg:
+            _clear_login_session(session)
+            database.webauthn_credentials.delete_credential(
+                tenant_id, credential_uuid, str(pending_user_id)
+            )
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=str(pending_user_id),
+                artifact_type="webauthn_credential",
+                artifact_id=credential_uuid,
+                event_type="passkey_deleted",
+                metadata={
+                    "reason": "clone_suspected",
+                    "credential_name": stored.get("name"),
+                },
+            )
+            _emit_passkey_failure(
+                tenant_id,
+                str(pending_user_id),
+                "clone_suspected",
+                credential_uuid=credential_uuid,
+            )
+            raise ValidationError(
+                message="Passkey sign-in failed",
+                code="clone_suspected",
+            ) from exc
+
+        _clear_login_session(session)
+        _emit_passkey_failure(
+            tenant_id,
+            str(pending_user_id),
+            "bad_signature",
+            credential_uuid=credential_uuid,
+        )
+        raise ValidationError(
+            message="Passkey sign-in failed",
+            code="bad_signature",
+        ) from exc
+
+    # Success: persist the new sign count and refreshed backup_state.
+    new_sign_count = int(getattr(verified, "new_sign_count", 0))
+    new_backup_state = bool(
+        getattr(verified, "credential_backed_up", stored.get("backup_state", False))
+    )
+    database.webauthn_credentials.update_auth_state(
+        tenant_id=tenant_id,
+        credential_uuid=credential_uuid,
+        user_id=str(pending_user_id),
+        sign_count=new_sign_count,
+        backup_state=new_backup_state,
+    )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(pending_user_id),
+        artifact_type="webauthn_credential",
+        artifact_id=credential_uuid,
+        event_type="passkey_auth_success",
+        metadata={
+            "credential_id": credential_uuid,
+            "credential_name": stored.get("name"),
+        },
+    )
+
+    # Clear ceremony state before the shared completion helper regenerates
+    # the session.
+    _clear_login_session(session)
+
+    # Finalize login via the shared helper (emits ``user_signed_in``,
+    # regenerates session, binds SSO context, updates last_login/tz/locale,
+    # returns a redirect to dashboard or SSO consent).
+    from routers.auth._login_completion import complete_authenticated_login
+
+    redirect = complete_authenticated_login(
+        request=request,
+        tenant_id=tenant_id,
+        user_id=str(pending_user_id),
+        mfa_method="passkey",
+    )
+    return redirect.headers["location"]

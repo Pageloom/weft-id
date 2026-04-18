@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import database
 import pytest
-from schemas.webauthn import CompleteRegistrationRequest
+from schemas.webauthn import CompleteAuthenticationRequest, CompleteRegistrationRequest
 from services import webauthn as webauthn_service
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
@@ -521,3 +521,558 @@ def test_list_credentials_ordering(test_user):
     assert passkeys[1].name == "First"
     assert passkeys[1].transports == ["internal"]
     assert passkeys[1].backup_eligible is True
+
+
+# =============================================================================
+# Passkey login (iteration 3)
+# =============================================================================
+
+
+def _seed_passkey(
+    test_user_dict,
+    *,
+    credential_id: bytes,
+    sign_count: int = 0,
+    backup_eligible: bool = False,
+    backup_state: bool = False,
+    name: str = "Key",
+) -> dict:
+    return database.webauthn_credentials.create_credential(
+        tenant_id=test_user_dict["tenant_id"],
+        tenant_id_value=str(test_user_dict["tenant_id"]),
+        user_id=test_user_dict["id"],
+        credential_id=credential_id,
+        public_key=b"pk-login",
+        name=name,
+        sign_count=sign_count,
+        aaguid=None,
+        transports=None,
+        backup_eligible=backup_eligible,
+        backup_state=backup_state,
+    )
+
+
+def test_begin_authentication_eligible_user(test_user, mocker):
+    _seed_passkey(test_user, credential_id=b"login-cred-1")
+
+    mocker.patch(
+        "services.webauthn.generate_authentication_options_for_user",
+        return_value=(
+            {"rpId": "host", "allowCredentials": [{"id": "abc"}]},
+            b"\xaa\xbb\xcc",
+        ),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+
+    req = _fake_request()
+    result = webauthn_service.begin_authentication(
+        req, str(test_user["tenant_id"]), test_user["email"]
+    )
+
+    assert result is not None
+    assert result.public_key["rpId"] == "host"
+    assert req.session["pending_passkey_user_id"] == str(test_user["id"])
+    assert req.session["webauthn_login_challenge"] == b"\xaa\xbb\xcc".hex()
+    assert isinstance(req.session["webauthn_login_challenge_at"], int)
+
+
+def test_begin_authentication_nonexistent_email_returns_none(test_user):
+    req = _fake_request()
+    result = webauthn_service.begin_authentication(
+        req, str(test_user["tenant_id"]), "nobody-here@example.com"
+    )
+    assert result is None
+    assert "pending_passkey_user_id" not in req.session
+
+
+def test_begin_authentication_idp_user_returns_none(test_user, mocker):
+    _seed_passkey(test_user, credential_id=b"login-cred-idp")
+    # Simulate an IdP-linked user
+    mocker.patch(
+        "services.webauthn.database.users.get_user_auth_info",
+        return_value={
+            "id": test_user["id"],
+            "email": test_user["email"],
+            "has_password": True,
+            "saml_idp_id": "11111111-1111-1111-1111-111111111111",
+            "is_inactivated": False,
+        },
+    )
+    req = _fake_request()
+    result = webauthn_service.begin_authentication(
+        req, str(test_user["tenant_id"]), test_user["email"]
+    )
+    assert result is None
+
+
+def test_begin_authentication_inactivated_user_returns_none(test_user, mocker):
+    _seed_passkey(test_user, credential_id=b"login-cred-inactive")
+    mocker.patch(
+        "services.webauthn.database.users.get_user_auth_info",
+        return_value={
+            "id": test_user["id"],
+            "email": test_user["email"],
+            "has_password": True,
+            "saml_idp_id": None,
+            "is_inactivated": True,
+        },
+    )
+    req = _fake_request()
+    result = webauthn_service.begin_authentication(
+        req, str(test_user["tenant_id"]), test_user["email"]
+    )
+    assert result is None
+
+
+def test_begin_authentication_zero_passkeys_returns_none(test_user):
+    # No passkeys seeded
+    req = _fake_request()
+    result = webauthn_service.begin_authentication(
+        req, str(test_user["tenant_id"]), test_user["email"]
+    )
+    assert result is None
+
+
+class _FakeVerifiedAuth:
+    def __init__(self, new_sign_count=1, credential_backed_up=False):
+        self.new_sign_count = new_sign_count
+        self.credential_backed_up = credential_backed_up
+        self.credential_id = b"returned-id"
+        self.user_verified = True
+
+
+def _seed_login_session(cred_raw_id_bytes: bytes, user_id: str) -> dict:
+    import base64
+    import time as _time
+
+    raw_b64 = base64.urlsafe_b64encode(cred_raw_id_bytes).rstrip(b"=").decode()
+    session = {
+        "pending_passkey_user_id": user_id,
+        "webauthn_login_challenge": b"chal".hex(),
+        "webauthn_login_challenge_at": int(_time.time()),
+    }
+    return {"session": session, "raw_b64": raw_b64}
+
+
+def test_complete_authentication_happy_path(test_user, mocker):
+    row = _seed_passkey(
+        test_user,
+        credential_id=b"happy-cred",
+        sign_count=3,
+        backup_eligible=True,
+        backup_state=False,
+    )
+    state = _seed_login_session(b"happy-cred", str(test_user["id"]))
+
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        return_value=_FakeVerifiedAuth(new_sign_count=42, credential_backed_up=True),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    # Mock the shared login completion helper to return a canonical redirect
+    from fastapi.responses import RedirectResponse
+
+    fake_redirect = RedirectResponse(url="/dashboard", status_code=303)
+    mocker.patch(
+        "routers.auth._login_completion.complete_authenticated_login",
+        return_value=fake_redirect,
+    )
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={
+            "id": state["raw_b64"],
+            "rawId": state["raw_b64"],
+            "type": "public-key",
+            "response": {
+                "clientDataJSON": "x",
+                "authenticatorData": "y",
+                "signature": "z",
+                "userHandle": None,
+            },
+        }
+    )
+
+    url = webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+
+    assert url == "/dashboard"
+
+    # DB state updated
+    fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    assert fresh is not None
+    assert fresh["sign_count"] == 42
+    assert fresh["backup_state"] is True
+    assert fresh["last_used_at"] is not None
+
+    # Success event emitted
+    success_calls = [
+        c for c in log_event.call_args_list if c.kwargs.get("event_type") == "passkey_auth_success"
+    ]
+    assert len(success_calls) == 1
+    meta = success_calls[0].kwargs["metadata"]
+    assert meta["credential_id"] == str(row["id"])
+    assert meta["credential_name"] == "Key"
+
+    # Session keys cleared
+    assert "pending_passkey_user_id" not in req.session
+    assert "webauthn_login_challenge" not in req.session
+
+
+def test_complete_authentication_no_session(test_user, mocker):
+    log_event = mocker.patch("services.webauthn.log_event")
+    req = _fake_request({})
+    payload = CompleteAuthenticationRequest(response={"id": "x", "rawId": "x"})
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "no_challenge"
+
+    # A failure event was emitted
+    assert any(
+        c.kwargs.get("event_type") == "passkey_auth_failure"
+        and c.kwargs["metadata"]["reason"] == "no_challenge"
+        for c in log_event.call_args_list
+    )
+
+
+def test_complete_authentication_expired_challenge(test_user, mocker):
+    _seed_passkey(test_user, credential_id=b"exp-cred")
+    session = {
+        "pending_passkey_user_id": str(test_user["id"]),
+        "webauthn_login_challenge": b"old".hex(),
+        "webauthn_login_challenge_at": 1,  # epoch start
+    }
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    req = _fake_request(session)
+    import base64 as _b64
+
+    raw = _b64.urlsafe_b64encode(b"exp-cred").rstrip(b"=").decode()
+    payload = CompleteAuthenticationRequest(response={"id": raw, "rawId": raw})
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "expired_challenge"
+
+    # Session cleared
+    assert "pending_passkey_user_id" not in req.session
+    # Failure event recorded with reason
+    assert any(
+        c.kwargs.get("event_type") == "passkey_auth_failure"
+        and c.kwargs["metadata"]["reason"] == "expired_challenge"
+        for c in log_event.call_args_list
+    )
+
+
+def test_complete_authentication_unknown_credential(test_user, mocker):
+    _seed_passkey(test_user, credential_id=b"stored-cred")
+    state = _seed_login_session(b"stored-cred", str(test_user["id"]))
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    import base64 as _b64
+
+    # Return a different id than any stored credential
+    other_id = _b64.urlsafe_b64encode(b"other-bytes").rstrip(b"=").decode()
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(response={"id": other_id, "rawId": other_id})
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "unknown_credential"
+    assert any(
+        c.kwargs.get("event_type") == "passkey_auth_failure"
+        and c.kwargs["metadata"]["reason"] == "unknown_credential"
+        for c in log_event.call_args_list
+    )
+
+
+def test_complete_authentication_bad_signature(test_user, mocker):
+    row = _seed_passkey(
+        test_user,
+        credential_id=b"badsig-cred",
+        sign_count=5,
+        backup_eligible=False,
+    )
+    state = _seed_login_session(b"badsig-cred", str(test_user["id"]))
+    log_event = mocker.patch("services.webauthn.log_event")
+    from utils.webauthn import WebAuthnError
+
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        side_effect=WebAuthnError("invalid signature"),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "bad_signature"
+
+    # Credential must NOT be deleted on bad_signature
+    fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    assert fresh is not None
+    # Failure event emitted with reason
+    assert any(
+        c.kwargs.get("event_type") == "passkey_auth_failure"
+        and c.kwargs["metadata"]["reason"] == "bad_signature"
+        for c in log_event.call_args_list
+    )
+
+
+def test_complete_authentication_clone_suspected_be_false(test_user, mocker):
+    row = _seed_passkey(
+        test_user,
+        credential_id=b"clone-cred",
+        sign_count=10,
+        backup_eligible=False,
+    )
+    state = _seed_login_session(b"clone-cred", str(test_user["id"]))
+    log_event = mocker.patch("services.webauthn.log_event")
+    from utils.webauthn import WebAuthnError
+
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        side_effect=WebAuthnError("Counter has not increased"),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "clone_suspected"
+
+    # Credential deleted
+    fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    assert fresh is None
+
+    # Both passkey_deleted and passkey_auth_failure events emitted
+    event_types = [c.kwargs.get("event_type") for c in log_event.call_args_list]
+    assert "passkey_deleted" in event_types
+    assert "passkey_auth_failure" in event_types
+    # Deletion carries clone_suspected reason
+    deleted_call = next(
+        c for c in log_event.call_args_list if c.kwargs.get("event_type") == "passkey_deleted"
+    )
+    assert deleted_call.kwargs["metadata"]["reason"] == "clone_suspected"
+    # Failure event has clone_suspected reason and credential_uuid
+    failure_call = next(
+        c for c in log_event.call_args_list if c.kwargs.get("event_type") == "passkey_auth_failure"
+    )
+    assert failure_call.kwargs["metadata"]["reason"] == "clone_suspected"
+    assert failure_call.kwargs["artifact_type"] == "webauthn_credential"
+    assert failure_call.kwargs["artifact_id"] == str(row["id"])
+
+
+def test_complete_authentication_sign_count_regression_be_true_allowed(test_user, mocker):
+    """Synced platform authenticators (BE=true) may reset sign_count; we must allow it."""
+    row = _seed_passkey(
+        test_user,
+        credential_id=b"synced-cred",
+        sign_count=5,
+        backup_eligible=True,
+        backup_state=True,
+    )
+    state = _seed_login_session(b"synced-cred", str(test_user["id"]))
+
+    # Library returns success with new_sign_count=0 (reset)
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        return_value=_FakeVerifiedAuth(new_sign_count=0, credential_backed_up=True),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.log_event")
+
+    from fastapi.responses import RedirectResponse
+
+    mocker.patch(
+        "routers.auth._login_completion.complete_authenticated_login",
+        return_value=RedirectResponse(url="/dashboard", status_code=303),
+    )
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
+    )
+    url = webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert url == "/dashboard"
+
+    fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    assert fresh is not None
+    assert fresh["sign_count"] == 0
+
+
+def test_complete_authentication_backup_state_refreshed(test_user, mocker):
+    """backup_state is written from the verified assertion (not static)."""
+    row = _seed_passkey(
+        test_user,
+        credential_id=b"bs-cred",
+        sign_count=1,
+        backup_eligible=True,
+        backup_state=False,
+    )
+    state = _seed_login_session(b"bs-cred", str(test_user["id"]))
+
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        return_value=_FakeVerifiedAuth(new_sign_count=2, credential_backed_up=True),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.log_event")
+
+    from fastapi.responses import RedirectResponse
+
+    mocker.patch(
+        "routers.auth._login_completion.complete_authenticated_login",
+        return_value=RedirectResponse(url="/dashboard", status_code=303),
+    )
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
+    )
+    webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+
+    fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    assert fresh["backup_state"] is True
+
+
+def test_user_has_passkey_for_email_true(test_user):
+    _seed_passkey(test_user, credential_id=b"flag-cred")
+    assert webauthn_service.user_has_passkey_for_email(
+        str(test_user["tenant_id"]), test_user["email"]
+    )
+
+
+def test_user_has_passkey_for_email_false_without_passkey(test_user):
+    assert not webauthn_service.user_has_passkey_for_email(
+        str(test_user["tenant_id"]), test_user["email"]
+    )
+
+
+def test_user_has_passkey_for_email_false_unknown_email(test_user):
+    assert not webauthn_service.user_has_passkey_for_email(
+        str(test_user["tenant_id"]), "nobody@example.com"
+    )
+
+
+def test_complete_authentication_corrupt_challenge_clears_session(test_user, mocker):
+    """A non-hex challenge string clears ceremony state and emits a failure event."""
+    _seed_passkey(test_user, credential_id=b"corrupt-cred")
+    session = {
+        "pending_passkey_user_id": str(test_user["id"]),
+        "webauthn_login_challenge": "not-valid-hex-ZZZ",
+        "webauthn_login_challenge_at": int(__import__("time").time()),
+    }
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    req = _fake_request(session)
+    import base64 as _b64
+
+    raw = _b64.urlsafe_b64encode(b"corrupt-cred").rstrip(b"=").decode()
+    payload = CompleteAuthenticationRequest(response={"id": raw, "rawId": raw})
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "corrupt_challenge"
+
+    # Session must be fully cleared on every error exit
+    assert "pending_passkey_user_id" not in req.session
+    assert "webauthn_login_challenge" not in req.session
+    assert "webauthn_login_challenge_at" not in req.session
+
+    assert any(
+        c.kwargs.get("event_type") == "passkey_auth_failure"
+        and c.kwargs["metadata"]["reason"] == "corrupt_challenge"
+        for c in log_event.call_args_list
+    )
+
+
+def test_complete_authentication_clone_detection_clears_session(test_user, mocker):
+    """Clone-detected path must also clear the ceremony session keys."""
+    _seed_passkey(
+        test_user,
+        credential_id=b"clone-session-cred",
+        sign_count=10,
+        backup_eligible=False,
+    )
+    state = _seed_login_session(b"clone-session-cred", str(test_user["id"]))
+    mocker.patch("services.webauthn.log_event")
+    from utils.webauthn import WebAuthnError
+
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        side_effect=WebAuthnError("Response sign count of 5 was not greater than current count"),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "clone_suspected"
+
+    # All three ceremony keys cleared
+    assert "pending_passkey_user_id" not in req.session
+    assert "webauthn_login_challenge" not in req.session
+    assert "webauthn_login_challenge_at" not in req.session
+
+
+def test_complete_authentication_preserves_backup_eligible(test_user, mocker):
+    """A successful assertion must never change backup_eligible (immutable)."""
+    row = _seed_passkey(
+        test_user,
+        credential_id=b"be-immutable-cred",
+        sign_count=1,
+        backup_eligible=False,  # Start as non-backup-eligible
+        backup_state=False,
+    )
+    state = _seed_login_session(b"be-immutable-cred", str(test_user["id"]))
+
+    # Library reports backup_eligible-looking state in the assertion, but we
+    # must NOT echo that back into backup_eligible.
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        return_value=_FakeVerifiedAuth(new_sign_count=2, credential_backed_up=True),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.log_event")
+
+    from fastapi.responses import RedirectResponse
+
+    mocker.patch(
+        "routers.auth._login_completion.complete_authenticated_login",
+        return_value=RedirectResponse(url="/dashboard", status_code=303),
+    )
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
+    )
+    webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+
+    fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    # backup_eligible stays what it was at registration time
+    assert fresh["backup_eligible"] is False
+    # backup_state reflects the refreshed value from the assertion
+    assert fresh["backup_state"] is True

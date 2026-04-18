@@ -7,6 +7,7 @@ from routers.auth.enhanced_enrollment import router as enhanced_enrollment_route
 from routers.auth.login import router as login_router
 from routers.auth.logout import router as logout_router
 from routers.auth.onboarding import router as onboarding_router
+from routers.auth.passkey_login import router as passkey_login_router
 from routers.auth.password_reset import router as password_reset_router
 from routers.auth.reactivation import router as reactivation_router
 
@@ -19,3 +20,4 @@ router.include_router(dashboard_router)
 router.include_router(onboarding_router)
 router.include_router(password_reset_router)
 router.include_router(enhanced_enrollment_router)
+router.include_router(passkey_login_router)

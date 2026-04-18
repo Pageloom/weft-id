@@ -13,6 +13,7 @@ import services.emails as emails_service
 import services.saml as saml_service
 import services.settings as settings_service
 import services.users as users_service
+import services.webauthn as webauthn_service
 import settings
 from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Cookie, Depends, Form, Request, Response
@@ -73,6 +74,20 @@ def login_page(
     prefill_email = request.query_params.get("prefill_email", "")
     show_password = request.query_params.get("show_password") == "true"
 
+    # When the email-first flow has landed on the password form, check whether
+    # the user has at least one registered passkey. If so, render the
+    # passkey-first variant (auto-starts the WebAuthn ceremony, falls back to
+    # the password form on abort/error). Defensive: any lookup failure
+    # degrades gracefully to the normal password form.
+    show_passkey_first = False
+    if show_password and prefill_email:
+        try:
+            show_passkey_first = webauthn_service.user_has_passkey_for_email(
+                tenant_id, prefill_email
+            )
+        except Exception:
+            show_passkey_first = False
+
     return templates.TemplateResponse(
         request,
         "login.html",
@@ -82,6 +97,9 @@ def login_page(
             "error": error,
             "prefill_email": prefill_email,
             "show_password": show_password,
+            "show_passkey_first": show_passkey_first,
+            "passkey_begin_url": "/login/passkey/begin",
+            "passkey_complete_url": "/login/passkey/complete",
             "csrf_token": make_csrf_token_func(request),
             "csp_nonce": get_csp_nonce(request),
         },

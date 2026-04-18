@@ -317,8 +317,8 @@ def test_pages_structure_account():
     assert account_page.permission == PagePermission.AUTHENTICATED
     assert account_page.icon == "user"
     assert account_page.children is not None
-    # profile, password, emails, mfa, passkeys, background-jobs
-    assert len(account_page.children) == 6
+    # profile, password, emails, mfa, background-jobs
+    assert len(account_page.children) == 5
 
 
 def test_pages_structure_mfa_workflow():

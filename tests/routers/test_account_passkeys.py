@@ -1,6 +1,5 @@
 """Tests for routers.account_passkeys (HTML)."""
 
-from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from main import app
 from schemas.webauthn import (
@@ -22,20 +21,14 @@ def _fake_passkey() -> PasskeyResponse:
     )
 
 
-def test_passkeys_page_renders(test_user, override_auth, mocker):
+def test_passkeys_page_redirects_to_mfa(test_user, override_auth):
+    """The passkey UI lives on /account/mfa; this URL redirects there."""
     override_auth(test_user)
-    mocker.patch(
-        "services.webauthn.list_credentials",
-        return_value=[_fake_passkey()],
-    )
-    mock_template = mocker.patch("routers.account_passkeys.templates.TemplateResponse")
-    mock_template.return_value = HTMLResponse(content="<html>Passkeys</html>")
-
     client = TestClient(app)
-    response = client.get("/account/passkeys")
+    response = client.get("/account/passkeys", follow_redirects=False)
 
-    assert response.status_code == 200
-    mock_template.assert_called_once()
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/mfa"
 
 
 def test_begin_registration_returns_options(test_user, override_auth, mocker):
@@ -98,7 +91,7 @@ def test_rename_passkey_redirects(test_user, override_auth, mocker):
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert response.headers["location"] == "/account/passkeys?success=renamed"
+    assert response.headers["location"] == "/account/mfa?passkey_success=renamed"
 
 
 def test_rename_passkey_not_found(test_user, override_auth, mocker):
@@ -116,7 +109,7 @@ def test_rename_passkey_not_found(test_user, override_auth, mocker):
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert response.headers["location"] == "/account/passkeys?error=not_found"
+    assert response.headers["location"] == "/account/mfa?passkey_error=not_found"
 
 
 def test_delete_passkey_redirects(test_user, override_auth, mocker):
@@ -128,7 +121,7 @@ def test_delete_passkey_redirects(test_user, override_auth, mocker):
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert response.headers["location"] == "/account/passkeys?success=deleted"
+    assert response.headers["location"] == "/account/mfa?passkey_success=deleted"
 
 
 def test_delete_passkey_not_found(test_user, override_auth, mocker):
@@ -145,7 +138,7 @@ def test_delete_passkey_not_found(test_user, override_auth, mocker):
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert response.headers["location"] == "/account/passkeys?error=not_found"
+    assert response.headers["location"] == "/account/mfa?passkey_error=not_found"
 
 
 def test_passkeys_page_requires_auth(test_tenant, test_tenant_host):

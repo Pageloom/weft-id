@@ -15,13 +15,11 @@ from dependencies import (
     require_current_user,
 )
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from schemas.webauthn import CompleteRegistrationRequest
 from services import webauthn as webauthn_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.service_errors import render_error_page
-from utils.template_context import get_template_context
-from utils.templates import templates
 
 router = APIRouter(
     prefix="/account/passkeys",
@@ -31,28 +29,12 @@ router = APIRouter(
 )
 
 
-@router.get("", response_class=HTMLResponse)
-def passkeys_page(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-):
-    """Render the user's passkey list."""
-    requesting_user = build_requesting_user(user, user["tenant_id"], request)
-    try:
-        passkeys = webauthn_service.list_credentials(requesting_user)
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    return templates.TemplateResponse(
-        request,
-        "settings_passkeys.html",
-        get_template_context(
-            request,
-            tenant_id,
-            passkeys=passkeys,
-        ),
-    )
+@router.get("")
+def passkeys_page():
+    """The passkey UI is rendered inline on /account/mfa. This URL is kept as a
+    redirect for backwards compatibility with any bookmarked links.
+    """
+    return RedirectResponse(url="/account/mfa", status_code=303)
 
 
 @router.post("/begin-registration")
@@ -122,13 +104,13 @@ def rename_passkey(
     try:
         webauthn_service.rename_credential(requesting_user, credential_id, name)
     except NotFoundError:
-        return RedirectResponse(url="/account/passkeys?error=not_found", status_code=303)
+        return RedirectResponse(url="/account/mfa?passkey_error=not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/account/passkeys?error={exc.code}", status_code=303)
+        return RedirectResponse(url=f"/account/mfa?passkey_error={exc.code}", status_code=303)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/account/passkeys?success=renamed", status_code=303)
+    return RedirectResponse(url="/account/mfa?passkey_success=renamed", status_code=303)
 
 
 @router.post("/{credential_id}/delete")
@@ -143,8 +125,8 @@ def delete_passkey(
     try:
         webauthn_service.delete_credential(requesting_user, credential_id)
     except NotFoundError:
-        return RedirectResponse(url="/account/passkeys?error=not_found", status_code=303)
+        return RedirectResponse(url="/account/mfa?passkey_error=not_found", status_code=303)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/account/passkeys?success=deleted", status_code=303)
+    return RedirectResponse(url="/account/mfa?passkey_success=deleted", status_code=303)

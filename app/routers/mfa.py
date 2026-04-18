@@ -9,7 +9,6 @@ and session establishment, which occurs at the router level.
 from typing import Annotated
 
 import services.emails as emails_service
-import services.settings as settings_service
 import services.users as users_service
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
@@ -25,7 +24,6 @@ from utils.mfa import (
     verify_totp_code,
 )
 from utils.ratelimit import MINUTE, ratelimit
-from utils.session import regenerate_session
 from utils.templates import templates
 
 router = APIRouter(prefix="/mfa", tags=["mfa"], include_in_schema=False)
@@ -126,79 +124,34 @@ def mfa_verify(
             },
         )
 
-    # MFA verified - complete login
-    # IMPORTANT: Extract pending data BEFORE regenerating session (clear destroys it)
-    tz_to_update = timezone or request.session.get("pending_timezone", "")
-    locale_to_update = locale or request.session.get("pending_locale", "")
-
-    # Extract pending SSO context (if user was redirected from an SP's AuthnRequest)
-    from routers.saml_idp._helpers import extract_pending_sso
-
-    pending_sso = extract_pending_sso(request.session)
-
-    # Log successful sign-in event (also updates last_activity_at via log_event)
-    from services.event_log import log_event
-
-    log_event(
-        tenant_id=tenant_id,
-        actor_user_id=pending_user_id,
-        artifact_type="user",
-        artifact_id=pending_user_id,
-        event_type="user_signed_in",
-        metadata={"mfa_method": pending_method},
-    )
-
-    # Fetch tenant security settings to configure session persistence
-    security_settings = settings_service.get_session_settings(tenant_id)
-
-    if security_settings:
-        persistent = security_settings.get("persistent_sessions", True)
-        timeout = security_settings.get("session_timeout_seconds")
-    else:
-        persistent = True
-        timeout = None
-
-    # Determine max_age for session cookie
-    if not persistent:
-        max_age = None  # Session cookie (expires on browser close)
-    elif timeout:
-        max_age = timeout  # Use configured timeout
-    else:
-        max_age = 30 * 24 * 3600  # 30 days as default for persistent
-
-    # CRITICAL: Regenerate session to prevent session fixation attacks
-    # This clears all pre-auth data and creates a fresh authenticated session
-    regenerate_session(request, pending_user_id, max_age, additional_data=pending_sso)
-
-    # Bind pending SSO context to the authenticated user so no other user
-    # can complete this flow (defense-in-depth alongside session regeneration)
-    if pending_sso:
-        request.session["pending_sso_user_id"] = pending_user_id
-
-    # Update timezone and locale if provided
+    # MFA verified. Before completing login, check whether the tenant requires
+    # enhanced auth strength and the user is still on email-only. If so, funnel
+    # them into the enrollment page instead of finalizing the session. The user
+    # is NOT yet fully signed in at this point: we deliberately do not emit
+    # user_signed_in, do not regenerate the session, and keep pending_mfa_*
+    # around so the helper can re-enter if enrollment is abandoned.
     current_user = users_service.get_user_by_id_raw(tenant_id, pending_user_id)
+    if current_user and users_service.user_must_enroll_enhanced(tenant_id, current_user):
+        # Persist tz/locale across the enrollment redirect so the completion
+        # helper can apply them once enrollment finishes.
+        if timezone:
+            request.session["pending_timezone"] = timezone
+        if locale:
+            request.session["pending_locale"] = locale
+        request.session["pending_enhanced_enrollment_user_id"] = pending_user_id
+        return RedirectResponse(url="/login/enroll-enhanced-auth", status_code=303)
 
-    tz_changed = tz_to_update and (not current_user or current_user.get("tz") != tz_to_update)
-    locale_changed = locale_to_update and (
-        not current_user or current_user.get("locale") != locale_to_update
+    # Regular MFA-satisfied login: complete via the shared helper.
+    from routers.auth._login_completion import complete_authenticated_login
+
+    return complete_authenticated_login(
+        request=request,
+        tenant_id=tenant_id,
+        user_id=pending_user_id,
+        mfa_method=pending_method or "email",
+        timezone=timezone,
+        locale=locale,
     )
-
-    if tz_changed and locale_changed:
-        users_service.update_timezone_locale_and_last_login(
-            tenant_id, pending_user_id, tz_to_update, locale_to_update
-        )
-    elif tz_changed:
-        users_service.update_timezone_and_last_login(tenant_id, pending_user_id, tz_to_update)
-    elif locale_changed:
-        users_service.update_locale_and_last_login(tenant_id, pending_user_id, locale_to_update)
-    else:
-        users_service.update_last_login(tenant_id, pending_user_id)
-
-    # Redirect to consent page if pending SSO, otherwise dashboard
-    from routers.saml_idp._helpers import get_post_auth_redirect
-
-    redirect_url = get_post_auth_redirect(request.session)
-    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post("/verify/send-email")

@@ -1935,3 +1935,67 @@ def test_update_permissions_pydantic_validation_error(test_super_admin_user, ove
 
     assert response.status_code == 400
     mock_error.assert_called_once()
+
+
+def test_tenant_security_authentication_page(test_super_admin_user, override_auth, mocker):
+    """GET /admin/settings/security/authentication renders the authentication tab."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mock_template = mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>auth</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/security/authentication")
+
+    assert response.status_code == 200
+    assert mock_template.call_args[0][1] == "settings_security_tab_authentication.html"
+
+
+def test_update_tenant_security_authentication_enhanced(
+    test_super_admin_user, override_auth, mocker
+):
+    """POST accepts required_auth_strength=enhanced and redirects with success."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mock_update = mocker.patch(f"{DB_SECURITY}.update_security_settings")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/authentication/update",
+        data={"required_auth_strength": "enhanced"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/settings/security/authentication?success=1"
+    mock_update.assert_called_once()
+    # The resolved required_auth_strength must be passed to the DB layer
+    kwargs = mock_update.call_args.kwargs
+    assert kwargs["required_auth_strength"] == "enhanced"
+
+
+def test_update_tenant_security_authentication_invalid_value(
+    test_super_admin_user, override_auth, mocker
+):
+    """Invalid required_auth_strength value renders the validation error page."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mock_error = mocker.patch(
+        f"{ROUTERS_SETTINGS}.render_error_page",
+        return_value=HTMLResponse(content="<html>error</html>", status_code=400),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/authentication/update",
+        data={"required_auth_strength": "bogus"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()

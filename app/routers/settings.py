@@ -289,6 +289,7 @@ def _get_security_template_context(
             minimum_zxcvbn_score=settings.minimum_zxcvbn_score,
             group_assertion_scope=settings.group_assertion_scope,
             require_email_verification_for_login=settings.require_email_verification_for_login,
+            required_auth_strength=settings.required_auth_strength,
             success=success,
             error=error,
         ),
@@ -354,6 +355,64 @@ def admin_security_permissions(
     """Display permissions security settings tab."""
     return _get_security_template_context(
         request, tenant_id, user, "settings_security_tab_permissions.html"
+    )
+
+
+@router.get(
+    "/security/authentication",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def admin_security_authentication(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display authentication strength policy tab."""
+    return _get_security_template_context(
+        request, tenant_id, user, "settings_security_tab_authentication.html"
+    )
+
+
+@router.post("/security/authentication/update", dependencies=[Depends(require_super_admin)])
+def update_admin_security_authentication(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    required_auth_strength: Annotated[str, Form(max_length=20)] = "baseline",
+):
+    """Update the tenant authentication strength policy."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    strength: Literal["baseline", "enhanced"]
+    if required_auth_strength == "enhanced":
+        strength = "enhanced"
+    elif required_auth_strength == "baseline":
+        strength = "baseline"
+    else:
+        exc = ValidationError(
+            message="Authentication strength must be 'baseline' or 'enhanced'",
+            code="invalid_auth_strength",
+            field="required_auth_strength",
+        )
+        return render_error_page(request, tenant_id, exc)
+
+    try:
+        settings_update = TenantSecuritySettingsUpdate(required_auth_strength=strength)
+    except PydanticValidationError as e:
+        exc = ValidationError(
+            message=str(e.errors()[0]["msg"]) if e.errors() else "Invalid input",
+            code="validation_error",
+        )
+        return render_error_page(request, tenant_id, exc)
+
+    try:
+        settings_service.update_security_settings(requesting_user, settings_update)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/settings/security/authentication?success=1", status_code=303
     )
 
 

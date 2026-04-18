@@ -21,7 +21,8 @@ def get_security_settings(tenant_id: TenantArg) -> dict | None:
                certificate_rotation_window_days,
                minimum_password_length, minimum_zxcvbn_score,
                group_assertion_scope,
-               require_email_verification_for_login
+               require_email_verification_for_login,
+               required_auth_strength
         from tenant_security_settings
         where tenant_id = :tenant_id
         """,
@@ -98,6 +99,7 @@ def update_security_settings(
     require_email_verification_for_login: bool,
     updated_by: str,
     tenant_id_value: str,
+    required_auth_strength: str = "baseline",
 ) -> int:
     """
     Update or insert security settings for a tenant.
@@ -128,7 +130,8 @@ def update_security_settings(
             inactivity_threshold_days, max_certificate_lifetime_years,
             certificate_rotation_window_days, minimum_password_length,
             minimum_zxcvbn_score, group_assertion_scope,
-            require_email_verification_for_login, updated_by
+            require_email_verification_for_login, required_auth_strength,
+            updated_by
         )
         values (
             :tenant_id, :timeout_seconds, :persistent_sessions,
@@ -136,7 +139,8 @@ def update_security_settings(
             :inactivity_threshold_days, :max_certificate_lifetime_years,
             :certificate_rotation_window_days, :minimum_password_length,
             :minimum_zxcvbn_score, :group_assertion_scope,
-            :require_email_verification_for_login, :updated_by
+            :require_email_verification_for_login, :required_auth_strength,
+            :updated_by
         )
         on conflict (tenant_id)
         do update set
@@ -150,6 +154,7 @@ def update_security_settings(
             minimum_zxcvbn_score = :minimum_zxcvbn_score,
             group_assertion_scope = :group_assertion_scope,
             require_email_verification_for_login = :require_email_verification_for_login,
+            required_auth_strength = :required_auth_strength,
             updated_at = now(),
             updated_by = :updated_by
         """,
@@ -165,6 +170,7 @@ def update_security_settings(
             "minimum_zxcvbn_score": minimum_zxcvbn_score,
             "group_assertion_scope": group_assertion_scope,
             "require_email_verification_for_login": require_email_verification_for_login,
+            "required_auth_strength": required_auth_strength,
             "updated_by": updated_by,
         },
     )
@@ -286,6 +292,27 @@ def get_group_assertion_scope(tenant_id: TenantArg) -> str:
         {"tenant_id": tenant_id},
     )
     return result["group_assertion_scope"] if result else "access_relevant"
+
+
+def get_required_auth_strength(tenant_id: TenantArg) -> str:
+    """
+    Get the required authentication strength setting for a tenant.
+
+    Lightweight getter for the login flow (no authorization required).
+
+    Returns:
+        Strength string ('baseline' or 'enhanced'), default 'baseline'
+    """
+    result = fetchone(
+        tenant_id,
+        """
+        select required_auth_strength
+        from tenant_security_settings
+        where tenant_id = :tenant_id
+        """,
+        {"tenant_id": tenant_id},
+    )
+    return result["required_auth_strength"] if result else "baseline"
 
 
 def get_all_tenant_ids() -> list[dict]:

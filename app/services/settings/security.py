@@ -30,6 +30,7 @@ _SETTINGS_FIELDS: list[tuple[str, str, Any]] = [
     ("minimum_zxcvbn_score", "minimum_zxcvbn_score", 3),
     ("group_assertion_scope", "group_assertion_scope", "access_relevant"),
     ("require_email_verification_for_login", "require_email_verification_for_login", False),
+    ("required_auth_strength", "required_auth_strength", "baseline"),
 ]
 
 
@@ -108,6 +109,7 @@ def get_security_settings(
             minimum_zxcvbn_score=3,
             group_assertion_scope="access_relevant",
             require_email_verification_for_login=False,
+            required_auth_strength="baseline",
         )
 
     return TenantSecuritySettings(
@@ -123,6 +125,7 @@ def get_security_settings(
         require_email_verification_for_login=settings.get(
             "require_email_verification_for_login", False
         ),
+        required_auth_strength=settings.get("required_auth_strength", "baseline"),
     )
 
 
@@ -248,6 +251,22 @@ def get_group_assertion_scope(tenant_id: str) -> str:
         Scope string ('all', 'trunk', or 'access_relevant')
     """
     return database.security.get_group_assertion_scope(tenant_id)
+
+
+def get_required_auth_strength(tenant_id: str) -> str:
+    """
+    Get the required authentication strength for a tenant.
+
+    Utility function without authorization, intended for use by the login
+    flow to determine whether to force enhanced enrollment.
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        Strength string ('baseline' or 'enhanced'), default 'baseline'
+    """
+    return database.security.get_required_auth_strength(tenant_id)
 
 
 def requires_email_verification_for_login(tenant_id: str) -> bool:
@@ -377,6 +396,7 @@ def update_security_settings(
         minimum_zxcvbn_score=resolved["minimum_zxcvbn_score"],
         group_assertion_scope=resolved["group_assertion_scope"],
         require_email_verification_for_login=resolved["require_email_verification_for_login"],
+        required_auth_strength=resolved["required_auth_strength"],
         updated_by=requesting_user["id"],
         tenant_id_value=tenant_id,
     )
@@ -460,6 +480,22 @@ def update_security_settings(
                 new_min_score=resolved["minimum_zxcvbn_score"],
             )
 
+    # Log dedicated event when the tenant auth strength policy changes
+    if settings_update.required_auth_strength is not None:
+        old_policy = current.get("required_auth_strength", "baseline")
+        if old_policy != resolved["required_auth_strength"]:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                artifact_type="tenant_settings",
+                artifact_id=tenant_id,
+                event_type="tenant_auth_policy_updated",
+                metadata={
+                    "old_policy": old_policy,
+                    "new_policy": resolved["required_auth_strength"],
+                },
+            )
+
     # Log dedicated event when group assertion scope changes
     if settings_update.group_assertion_scope is not None:
         old_scope = current.get("group_assertion_scope", "access_relevant")
@@ -487,4 +523,5 @@ def update_security_settings(
         minimum_zxcvbn_score=resolved["minimum_zxcvbn_score"],
         group_assertion_scope=resolved["group_assertion_scope"],
         require_email_verification_for_login=resolved["require_email_verification_for_login"],
+        required_auth_strength=resolved["required_auth_strength"],
     )

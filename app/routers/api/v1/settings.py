@@ -270,6 +270,7 @@ def update_tenant_security(
         minimum_zxcvbn_score: Minimum zxcvbn strength score (3 or 4)
         group_assertion_scope: Group scope for SAML assertions
         require_email_verification_for_login: Require email verification before login routing
+        required_auth_strength: Required two-step strength ('baseline' or 'enhanced')
 
     Returns:
         Updated security settings

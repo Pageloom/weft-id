@@ -64,6 +64,13 @@ PAGES = [
         creates_nav_level=False,
     ),
     Page(
+        path="/login/enroll-enhanced-auth",
+        title="Enroll in Enhanced Authentication",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
         path="/dashboard",
         title="Dashboard",
         permission=PagePermission.AUTHENTICATED,
@@ -232,6 +239,13 @@ PAGES = [
                                 permission=PagePermission.SUPER_ADMIN,
                                 show_in_nav=True,
                                 docs_path="/docs/admin-guide/security/permissions/",
+                            ),
+                            Page(
+                                path="/admin/settings/security/authentication",
+                                title="Authentication",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=True,
+                                docs_path="/docs/admin-guide/security/authentication/",
                             ),
                         ],
                     ),

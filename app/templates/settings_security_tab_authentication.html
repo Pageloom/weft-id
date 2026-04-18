@@ -11,27 +11,50 @@
 
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
             <div class="mb-6">
-                <label for="required_auth_strength" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <p class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Minimum two-step verification strength
-                </label>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                </p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
                     Controls which two-step methods are acceptable for sign-in.
                     Users who do not meet the required strength are forced to set up
                     an authenticator app (or, in a future release, a passkey) the next time they sign in.
                 </p>
 
-                <select
-                    name="required_auth_strength"
-                    id="required_auth_strength"
-                    class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                    <option value="baseline" {% if required_auth_strength == 'baseline' %}selected{% endif %}>
-                        Baseline. Email code, authenticator app, or passkey all accepted.
-                    </option>
-                    <option value="enhanced" {% if required_auth_strength == 'enhanced' %}selected{% endif %}>
-                        Enhanced. Require authenticator app or passkey (email code no longer accepted).
-                    </option>
-                </select>
+                <fieldset class="space-y-3 max-w-2xl">
+                    <legend class="sr-only">Minimum two-step verification strength</legend>
+
+                    <label for="required_auth_strength_baseline"
+                           class="flex items-start gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-md cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                        <input type="radio"
+                               name="required_auth_strength"
+                               id="required_auth_strength_baseline"
+                               value="baseline"
+                               class="mt-1 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                               {% if required_auth_strength == 'baseline' %}checked{% endif %}>
+                        <span class="text-sm">
+                            <span class="block font-medium text-gray-900 dark:text-gray-100">Baseline</span>
+                            <span class="block text-gray-600 dark:text-gray-400 mt-1">
+                                Email code, authenticator app, or passkey all accepted.
+                            </span>
+                        </span>
+                    </label>
+
+                    <label for="required_auth_strength_enhanced"
+                           class="flex items-start gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-md cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                        <input type="radio"
+                               name="required_auth_strength"
+                               id="required_auth_strength_enhanced"
+                               value="enhanced"
+                               class="mt-1 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                               {% if required_auth_strength == 'enhanced' %}checked{% endif %}>
+                        <span class="text-sm">
+                            <span class="block font-medium text-gray-900 dark:text-gray-100">Enhanced</span>
+                            <span class="block text-gray-600 dark:text-gray-400 mt-1">
+                                Require authenticator app or passkey. Email code is no longer accepted.
+                            </span>
+                        </span>
+                    </label>
+                </fieldset>
             </div>
         </div>
 

@@ -587,6 +587,7 @@ def check_api_first_violations(report: ComplianceReport) -> None:
     service_to_api_router = {
         "mfa": "users",
         "emails": "users",
+        "webauthn": "account_passkeys",
     }
 
     # Collect service functions

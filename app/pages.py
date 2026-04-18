@@ -173,6 +173,13 @@ PAGES = [
                 ],
             ),
             Page(
+                path="/account/passkeys",
+                title="Passkeys",
+                permission=PagePermission.AUTHENTICATED,
+                show_in_nav=True,
+                icon="shield-check",
+            ),
+            Page(
                 path="/account/background-jobs",
                 title="Background Jobs",
                 permission=PagePermission.AUTHENTICATED,

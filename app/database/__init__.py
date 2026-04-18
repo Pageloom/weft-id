@@ -19,6 +19,7 @@ from . import (
     user_activity,
     user_emails,
     users,
+    webauthn_credentials,
 )
 from ._core import (
     UNSCOPED,
@@ -59,4 +60,5 @@ __all__ = [
     "user_activity",
     "user_emails",
     "users",
+    "webauthn_credentials",
 ]

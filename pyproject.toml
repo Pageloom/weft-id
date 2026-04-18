@@ -37,6 +37,7 @@ cairosvg = "^2.7.0"
 openpyxl = "^3.1.0"
 msoffcrypto-tool = "^5.4.0"
 requests = ">=2.33.0"
+webauthn = "^2.5.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"

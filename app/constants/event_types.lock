@@ -57,6 +57,9 @@ oauth2_client_role_changed
 oauth2_client_secret_regenerated
 oauth2_client_updated
 oauth2_user_tokens_revoked
+passkey_deleted
+passkey_registered
+passkey_renamed
 password_breach_detected
 password_changed
 password_policy_compliance_enforced

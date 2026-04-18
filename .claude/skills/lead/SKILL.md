@@ -231,9 +231,26 @@ Present the full plan. Explain:
 ### 5a. Write the implementation plan
 
 Before spawning any agent, write a step-by-step implementation recipe for the iteration.
-Append it to the current iteration's section in the iteration file.
 
-For each file to change, specify:
+**Write the plan to a sibling file, not the iteration file.** The plan is a transient artifact the
+dev agent consumes once; it would otherwise become permanent noise in the iteration file (which is
+the durable handoff document). The plan file is:
+
+```
+.claude/ITERATION_<slug>_plan_<N>.md
+```
+
+where `<N>` is the iteration number. This file is gitignored and deleted when the iteration closes
+(Step 5g).
+
+In the iteration file itself, under the current iteration's section, add a one-line pointer:
+
+```
+### Implementation plan
+See `.claude/ITERATION_<slug>_plan_<N>.md` (deleted at iteration close).
+```
+
+For each file to change in the plan file, specify:
 
 - **What to change**: function/class name, what to add/modify
 - **How to change it**: which existing pattern to follow, citing specific files and line ranges
@@ -248,16 +265,16 @@ Include:
 
 ### 5b. Spawn dev
 
-Use the **Agent tool** with `model: "opus"`. Reference the dev skill's Headless Mode:
+Use the **Agent tool** with `model: "opus"`. Reference the dev skill's Headless Mode. Point the
+agent at both the iteration file (for context/design decisions) and the plan file (for the recipe):
 
 ```
 Read `.claude/skills/dev/SKILL.md` and follow the Headless Mode section.
 
-Context:
-[Feature context and design decisions from the iteration file header]
+Context: see `.claude/ITERATION_<slug>.md` -- read the top-level Context,
+Design decisions, and the current iteration's Goal + Acceptance criteria.
 
-Your task:
-[The implementation plan from 5a]
+Your task: execute the plan in `.claude/ITERATION_<slug>_plan_<N>.md` exactly.
 ```
 
 ### 5c. Review dev output
@@ -339,6 +356,10 @@ Close out the current iteration in the file:
 8. Add **Decisions log entries** (every autonomous decision with context and rationale)
 9. **Refine future iterations** based on what was learned. Adjust scope, re-order,
    add or remove iterations as needed. The plan is a living document.
+10. **Delete the iteration's plan file** (`.claude/ITERATION_<slug>_plan_<N>.md`). It was
+    a transient agent brief; now that the iteration is closed, the iteration file's
+    "What was done" section is the durable record. Keeping the plan file around would
+    drift against reality.
 
 ---
 
@@ -509,9 +530,8 @@ session enough context to understand the work without reading the conversation.]
 **Tests:** test file paths, what each tests
 
 ### Implementation plan
-[Written by lead in Step 5a before spawning dev agent.
-Granular step-by-step recipe with file paths, patterns to follow,
-and enough context for an agent to execute without architectural decisions.]
+See `.claude/ITERATION_<slug>_plan_<N>.md` (sibling file; deleted at iteration close).
+Only a pointer lives here -- the recipe itself is transient and would otherwise drift.
 
 ### What was done
 [Replaces Scope after completion. Actual files changed with descriptions.]
@@ -563,9 +583,12 @@ and enough context for an agent to execute without architectural decisions.]
 
 ## Closing and cleanup
 
-- **Feature complete**: Set status, archive backlog item, keep iteration file until user deletes
-- **Abandoned**: Set status to "Closed -- [reason]", keep file until user deletes
+- **Feature complete**: Set status, archive backlog item, keep iteration file until user deletes.
+  All `ITERATION_<slug>_plan_<N>.md` files should already be gone (deleted in Step 5g per iteration).
+- **Abandoned**: Set status to "Closed -- [reason]", keep file until user deletes. Also delete any
+  leftover plan files for un-started iterations.
 - **Cleanup**: When user asks, delete iteration files marked complete or closed. Confirm first.
+  Check for and also delete any `ITERATION_<slug>_plan_*.md` siblings.
 
 ---
 

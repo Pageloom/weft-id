@@ -24,5 +24,8 @@ tailwindcss-*
 # Iteration planning files (managed by /lead skill, never committed)
 .claude/ITERATION_*.md
 
+# Claude Code runtime state (ScheduleWakeup ownership lock)
+.claude/scheduled_tasks.lock
+
 # Built documentation site (built at Docker image time or via `make docs`)
 site/

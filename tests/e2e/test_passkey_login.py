@@ -53,8 +53,8 @@ def test_passkey_register_then_sign_in(page, idp_config):
     page.locator("#mfaVerifyForm button[type='submit']").click()
     page.wait_for_url("**/dashboard**", timeout=10000)
 
-    # 3. Register a passkey.
-    page.goto(f"{base_url}/account/passkeys")
+    # 3. Register a passkey. The UI lives on /account/mfa in the Passkeys section.
+    page.goto(f"{base_url}/account/mfa")
     page.locator("#register-passkey-btn").click()
     page.locator("#passkey-name-input").fill("E2E Virtual Key")
     page.locator("#passkey-name-confirm").click()
@@ -68,7 +68,7 @@ def test_passkey_register_then_sign_in(page, idp_config):
     except Exception:
         # Possibly redirected straight to the listing on a re-run. Continue.
         pass
-    page.wait_for_url("**/account/passkeys**", timeout=10000)
+    page.wait_for_url("**/account/mfa**", timeout=10000)
     # The registered passkey appears in the list.
     assert page.locator("text=E2E Virtual Key").count() >= 1
 
@@ -93,11 +93,11 @@ def test_passkey_register_then_sign_in(page, idp_config):
     # 6. Clean up: delete the passkey so sibling tests that log in with
     # password + MFA still see the plain password form. Tenants in the
     # session-scoped testbed are shared across tests.
-    page.goto(f"{base_url}/account/passkeys")
+    page.goto(f"{base_url}/account/mfa")
     delete_form = page.locator("form[action*='/delete']").first
     if delete_form.count() > 0:
         delete_form.evaluate("form => form.submit()")
-        page.wait_for_url("**/account/passkeys?**", timeout=10000)
+        page.wait_for_url("**/account/mfa?**", timeout=10000)
 
 
 def test_passkey_first_hidden_for_password_only_user(page, sp_config):

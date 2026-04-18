@@ -20,6 +20,7 @@ from services import exports as exports_service
 from services import mfa as mfa_service
 from services import settings as settings_service
 from services import users as users_service
+from services import webauthn as webauthn_service
 from services.exceptions import (
     NotFoundError,
     RateLimitError,
@@ -261,9 +262,14 @@ def mfa_settings(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
-    """Display and configure MFA settings."""
-    # Check if user has backup codes via service
+    """Display and configure MFA settings (TOTP/email, backup codes, passkeys)."""
     backup_codes = mfa_service.list_backup_codes_raw(tenant_id, user["id"])
+
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
+    try:
+        passkeys = webauthn_service.list_credentials(requesting_user)
+    except ServiceError:
+        passkeys = []
 
     return templates.TemplateResponse(
         request,
@@ -273,6 +279,9 @@ def mfa_settings(
             tenant_id,
             mfa_method=user.get("mfa_method", "email"),
             backup_codes=backup_codes,
+            passkeys=passkeys,
+            passkey_success=request.query_params.get("passkey_success"),
+            passkey_error=request.query_params.get("passkey_error"),
         ),
     )
 

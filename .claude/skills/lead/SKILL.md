@@ -272,7 +272,7 @@ After the dev agent completes:
    - Migration safety
    - Correct patterns (no router-to-database imports, proper tenant scoping)
 
-2. **Re-run quality checks.** `make fix` and `make test`. Trust but verify.
+2. **Re-run quality checks.** `make fix` and `make test` during iteration work. Trust but verify.
 
 3. **Check each acceptance criterion** against actual changes.
 
@@ -309,7 +309,23 @@ After the test agent completes:
 
 Re-run `make fix` and `make test` after any fixes. Both must pass.
 
-### 5f. Update the iteration file
+### 5f. Run the full quality gate
+
+Before closing the iteration, run `make quality-all` (`check && test && e2e`) and confirm all
+three stages pass. This is stricter than `make fix && make test`:
+
+- `make fix` **writes** formatting changes; `make check` **validates** they are clean. An agent
+  that edits code without re-running the formatter leaves a file that `test` accepts but `check`
+  rejects. `quality-all` uses `check`, so it catches this.
+- `quality-all` also runs E2E (`make e2e`), which `make test` excludes via `--ignore=tests/e2e`.
+  E2E requires Docker services -- start them with `make up` first if they're not running.
+
+If any stage fails, fix it before closing the iteration. Do NOT just run `make fix` and hope
+the next run passes -- investigate why the agent's workflow missed it and, if the pattern
+recurs, update the dev/test agent prompts to require `make check` (not `make fix`) and
+`make test` at minimum.
+
+### 5g. Update the iteration file
 
 Close out the current iteration in the file:
 
@@ -352,7 +368,7 @@ When the user approves:
 
 1. Commit if instructed (follow the commit conventions: short subject under 80 chars,
    brief description of what and how, no Claude attributions)
-2. Verify the iteration file is fully up to date (Step 5f complete)
+2. Verify the iteration file is fully up to date (Step 5g complete)
 3. Refine the next iteration's scope based on learnings
 4. Clear context and resume via `/lead pickup <slug>`, or repeat from Step 5 if
    context allows
@@ -440,7 +456,7 @@ Based on the user's decisions:
 
 - Fix accepted issues (directly or via dev agent)
 - Log deferred items to `.claude/ISSUES.md`
-- Re-run `make fix` and `make test` after changes
+- Re-run `make quality-all` (or at minimum `make check && make test`) after changes
 
 ### 8e. Close out
 
@@ -566,7 +582,9 @@ and enough context for an agent to execute without architectural decisions.]
 - **Refine forward.** After each iteration, update future iterations with what you learned.
 - **Branch awareness.** Record branch in the file header. Verify on pickup.
 - **Never commit without permission.** Update the file, present results, wait.
-- **Quality gate is non-negotiable.** `make fix` and `make test` must pass before presenting.
+- **Quality gate is non-negotiable.** `make quality-all` (check + test + e2e) must pass before
+  closing any iteration. `make fix` + `make test` is not sufficient: it reformats silently
+  and skips E2E.
 - **Skills are the source of truth.** Reference skill Headless Mode sections. Never duplicate
   methodology, architecture rules, or review checklists in agent prompts.
 - **All agents run on Opus.** If an agent fails, improve the prompt before retrying.

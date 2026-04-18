@@ -58,6 +58,8 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "passkey_registered": "Passkey credential registered",
     "passkey_deleted": "Passkey credential deleted",
     "passkey_renamed": "Passkey credential renamed",
+    "passkey_auth_success": "User signed in with passkey",
+    "passkey_auth_failure": "Passkey sign-in attempt failed",
     # Reactivation Requests
     "reactivation_requested": "Account reactivation requested by user",
     "reactivation_approved": "Account reactivation request approved",
@@ -245,6 +247,8 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "passkey_registered": "security",
     "passkey_deleted": "security",
     "passkey_renamed": "security",
+    "passkey_auth_success": "security",
+    "passkey_auth_failure": "security",
     "user_enhanced_auth_enrolled": "security",
     "oauth2_user_tokens_revoked": "security",
     "oauth2_client_secret_regenerated": "security",

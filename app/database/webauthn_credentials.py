@@ -136,6 +136,40 @@ def delete_credential(
     )
 
 
+def update_auth_state(
+    tenant_id: TenantArg,
+    credential_uuid: str,
+    user_id: str,
+    sign_count: int,
+    backup_state: bool,
+) -> int:
+    """
+    Update authentication state after a successful WebAuthn assertion.
+
+    Writes sign_count, backup_state, and last_used_at = now() in one UPDATE.
+    Scoped by user_id for defence in depth.
+
+    Returns:
+        Number of rows affected (0 if not found or owned by a different user).
+    """
+    return execute(
+        tenant_id,
+        """
+        update webauthn_credentials
+        set sign_count = :sign_count,
+            backup_state = :backup_state,
+            last_used_at = now()
+        where id = :id and user_id = :user_id
+        """,
+        {
+            "id": credential_uuid,
+            "user_id": user_id,
+            "sign_count": sign_count,
+            "backup_state": backup_state,
+        },
+    )
+
+
 def count_credentials(tenant_id: TenantArg, user_id: str) -> int:
     """
     Count webauthn credentials for a user.

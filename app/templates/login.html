@@ -61,8 +61,28 @@
             {% endif %}
 
             {% if show_password %}
-            {# Step 2: Password form (after email check determined password auth) #}
-            <form method="post" action="/login" id="loginForm">
+            {% if show_passkey_first %}
+            {# Passkey-first variant: auto-start a WebAuthn ceremony; reveal password form on cancel/error. #}
+            <div id="passkey-flow">
+                <div id="passkey-status" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 px-4 py-3 rounded mb-4" role="status">
+                    Follow the prompt on your device to sign in with your passkey.
+                </div>
+                <div id="passkey-error" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 px-4 py-3 rounded mb-4" role="alert"></div>
+                <div class="flex items-center justify-between">
+                    <button id="retry-passkey" type="button"
+                            class="hidden px-4 py-2 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white font-medium rounded-md">
+                        Try passkey again
+                    </button>
+                    <a href="#" id="use-password-link"
+                       class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                        Use password instead
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Password form. Hidden initially when passkey-first is active; revealed by JS on fallback. #}
+            <form method="post" action="/login" id="loginForm"{% if show_passkey_first %} class="hidden" data-passkey-first="1"{% endif %}>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" id="timezone" name="timezone" value="">
                 <input type="hidden" id="locale" name="locale" value="">
@@ -84,7 +104,7 @@
                            id="password"
                            name="password"
                            required
-                           autofocus>
+                           {% if not show_passkey_first %}autofocus{% endif %}>
                 </div>
 
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition duration-150">
@@ -124,12 +144,19 @@
         </div>
     </div>
 </div>
+
+{% if show_password and show_passkey_first %}
+<script type="application/json" id="passkey-page-data">
+{{ {"email": prefill_email, "beginUrl": passkey_begin_url, "completeUrl": passkey_complete_url} | tojson }}
+</script>
+{% endif %}
 {% endblock %}
 
 {% block extra_scripts %}
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', () => {
-    // Only set timezone/locale if we're on the password form
+    // Set timezone/locale on the password form whenever it is in the DOM
+    // (both the plain password variant and the passkey-first fallback variant).
     const tzInput = document.getElementById('timezone');
     const localeInput = document.getElementById('locale');
     if (tzInput && localeInput) {
@@ -138,4 +165,192 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 </script>
+
+{% if show_password and show_passkey_first %}
+<script nonce="{{ csp_nonce }}">
+(() => {
+    const pageData = JSON.parse(document.getElementById('passkey-page-data').textContent);
+
+    const flowEl = document.getElementById('passkey-flow');
+    const statusEl = document.getElementById('passkey-status');
+    const errorEl = document.getElementById('passkey-error');
+    const retryBtn = document.getElementById('retry-passkey');
+    const useLink = document.getElementById('use-password-link');
+    const passwordForm = document.getElementById('loginForm');
+
+    const b64urlToBuf = (b64url) => {
+        const pad = '='.repeat((4 - (b64url.length % 4)) % 4);
+        const b64 = (b64url + pad).replace(/-/g, '+').replace(/_/g, '/');
+        const bin = atob(b64);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        return buf.buffer;
+    };
+
+    const bufToB64url = (buf) => {
+        const bytes = new Uint8Array(buf);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    };
+
+    const showPasswordForm = (message) => {
+        if (statusEl) statusEl.classList.add('hidden');
+        if (message && errorEl) {
+            errorEl.textContent = message;
+            errorEl.classList.remove('hidden');
+        }
+        if (retryBtn) retryBtn.classList.remove('hidden');
+        passwordForm.classList.remove('hidden');
+        const pw = document.getElementById('password');
+        if (pw) pw.focus();
+    };
+
+    const startCeremony = async () => {
+        if (errorEl) errorEl.classList.add('hidden');
+        if (retryBtn) retryBtn.classList.add('hidden');
+        if (statusEl) statusEl.classList.remove('hidden');
+
+        if (!('credentials' in navigator) || !navigator.credentials.get) {
+            showPasswordForm('Your browser does not support passkeys. Sign in with your password.');
+            return;
+        }
+
+        let beginResp;
+        try {
+            beginResp = await WeftUtils.apiFetch(pageData.beginUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: pageData.email }),
+            });
+        } catch (err) {
+            showPasswordForm('Could not reach the server. Sign in with your password.');
+            return;
+        }
+
+        if (beginResp.status === 404) {
+            // No passkey found for this account: silently drop to password form.
+            if (flowEl) flowEl.classList.add('hidden');
+            passwordForm.classList.remove('hidden');
+            const pw = document.getElementById('password');
+            if (pw) pw.focus();
+            return;
+        }
+        if (beginResp.status === 429) {
+            showPasswordForm('Too many attempts. Please try signing in with your password.');
+            return;
+        }
+        if (!beginResp.ok) {
+            showPasswordForm('Passkey sign-in unavailable. Sign in with your password.');
+            return;
+        }
+
+        let options;
+        try {
+            const json = await beginResp.json();
+            options = json.publicKey;
+        } catch (err) {
+            showPasswordForm('Passkey sign-in failed. Sign in with your password.');
+            return;
+        }
+
+        // Decode base64url fields the browser needs as ArrayBuffers.
+        options.challenge = b64urlToBuf(options.challenge);
+        if (Array.isArray(options.allowCredentials)) {
+            options.allowCredentials = options.allowCredentials.map((c) => ({
+                ...c,
+                id: b64urlToBuf(c.id),
+            }));
+        }
+
+        let credential;
+        try {
+            credential = await navigator.credentials.get({ publicKey: options });
+        } catch (err) {
+            let msg = 'Passkey sign-in was cancelled. Sign in with your password.';
+            if (err && err.name === 'NotAllowedError') {
+                msg = 'Passkey sign-in was cancelled or timed out.';
+            } else if (err && err.message) {
+                msg = 'Passkey sign-in failed. Sign in with your password.';
+            }
+            showPasswordForm(msg);
+            return;
+        }
+
+        if (!credential) {
+            showPasswordForm('Passkey sign-in was cancelled.');
+            return;
+        }
+
+        const body = {
+            response: {
+                id: credential.id,
+                rawId: bufToB64url(credential.rawId),
+                type: credential.type,
+                clientExtensionResults: credential.getClientExtensionResults
+                    ? credential.getClientExtensionResults()
+                    : {},
+                response: {
+                    clientDataJSON: bufToB64url(credential.response.clientDataJSON),
+                    authenticatorData: bufToB64url(credential.response.authenticatorData),
+                    signature: bufToB64url(credential.response.signature),
+                    userHandle: credential.response.userHandle
+                        ? bufToB64url(credential.response.userHandle)
+                        : null,
+                },
+            },
+        };
+
+        let completeResp;
+        try {
+            completeResp = await WeftUtils.apiFetch(pageData.completeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+        } catch (err) {
+            showPasswordForm('Passkey sign-in failed. Sign in with your password.');
+            return;
+        }
+
+        if (!completeResp.ok) {
+            showPasswordForm('Passkey sign-in failed. Sign in with your password.');
+            return;
+        }
+
+        let json;
+        try {
+            json = await completeResp.json();
+        } catch (err) {
+            showPasswordForm('Passkey sign-in failed. Sign in with your password.');
+            return;
+        }
+
+        if (json && typeof json.redirect_url === 'string') {
+            window.location.assign(json.redirect_url);
+        } else {
+            showPasswordForm('Passkey sign-in failed. Sign in with your password.');
+        }
+    };
+
+    if (useLink) {
+        useLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (flowEl) flowEl.classList.add('hidden');
+            passwordForm.classList.remove('hidden');
+            const pw = document.getElementById('password');
+            if (pw) pw.focus();
+        });
+    }
+
+    if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+            startCeremony();
+        });
+    }
+
+    startCeremony();
+})();
+</script>
+{% endif %}
 {% endblock %}

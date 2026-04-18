@@ -285,6 +285,124 @@ def test_unique_credential_id_is_global(test_user, test_admin_user):
         )
 
 
+def test_update_auth_state_happy_path(test_user):
+    """update_auth_state writes sign_count, backup_state, and last_used_at."""
+    row = database.webauthn_credentials.create_credential(
+        tenant_id=test_user["tenant_id"],
+        tenant_id_value=str(test_user["tenant_id"]),
+        user_id=test_user["id"],
+        credential_id=_cred_bytes(20),
+        public_key=b"pk",
+        name="Key",
+        sign_count=0,
+        aaguid=None,
+        transports=None,
+        backup_eligible=False,
+        backup_state=False,
+    )
+
+    # Before: no last_used_at, sign_count=0
+    assert row["last_used_at"] is None
+    assert row["sign_count"] == 0
+    assert row["backup_state"] is False
+
+    rows = database.webauthn_credentials.update_auth_state(
+        tenant_id=test_user["tenant_id"],
+        credential_uuid=str(row["id"]),
+        user_id=test_user["id"],
+        sign_count=42,
+        backup_state=True,
+    )
+    assert rows == 1
+
+    fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    assert fresh is not None
+    assert fresh["sign_count"] == 42
+    assert fresh["backup_state"] is True
+    assert fresh["last_used_at"] is not None
+
+
+def test_update_auth_state_wrong_user(test_user, test_admin_user):
+    """update_auth_state must not modify a credential owned by another user."""
+    row = database.webauthn_credentials.create_credential(
+        tenant_id=test_user["tenant_id"],
+        tenant_id_value=str(test_user["tenant_id"]),
+        user_id=test_user["id"],
+        credential_id=_cred_bytes(21),
+        public_key=b"pk",
+        name="Owner",
+        sign_count=5,
+        aaguid=None,
+        transports=None,
+        backup_eligible=False,
+        backup_state=False,
+    )
+
+    rows = database.webauthn_credentials.update_auth_state(
+        tenant_id=test_user["tenant_id"],
+        credential_uuid=str(row["id"]),
+        user_id=test_admin_user["id"],
+        sign_count=999,
+        backup_state=True,
+    )
+    assert rows == 0
+
+    fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    assert fresh is not None
+    assert fresh["sign_count"] == 5
+    assert fresh["backup_state"] is False
+    assert fresh["last_used_at"] is None
+
+
+def test_update_auth_state_wrong_tenant(test_user):
+    """update_auth_state must not cross tenant boundaries."""
+    row = database.webauthn_credentials.create_credential(
+        tenant_id=test_user["tenant_id"],
+        tenant_id_value=str(test_user["tenant_id"]),
+        user_id=test_user["id"],
+        credential_id=_cred_bytes(22),
+        public_key=b"pk",
+        name="Scoped",
+        sign_count=3,
+        aaguid=None,
+        transports=None,
+        backup_eligible=False,
+        backup_state=False,
+    )
+
+    other_subdomain = f"isolated-{uuid4().hex[:8]}"
+    database.execute(
+        database.UNSCOPED,
+        "INSERT INTO tenants (subdomain, name) VALUES (:s, :n)",
+        {"s": other_subdomain, "n": "Isolated"},
+    )
+    other = database.fetchone(
+        database.UNSCOPED,
+        "SELECT id FROM tenants WHERE subdomain = :s",
+        {"s": other_subdomain},
+    )
+    assert other is not None
+    try:
+        rows = database.webauthn_credentials.update_auth_state(
+            tenant_id=other["id"],
+            credential_uuid=str(row["id"]),
+            user_id=test_user["id"],
+            sign_count=999,
+            backup_state=True,
+        )
+        assert rows == 0
+
+        fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+        assert fresh is not None
+        assert fresh["sign_count"] == 3
+    finally:
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE id = :id",
+            {"id": other["id"]},
+        )
+
+
 def test_cascade_delete_on_user(test_user):
     database.webauthn_credentials.create_credential(
         tenant_id=test_user["tenant_id"],

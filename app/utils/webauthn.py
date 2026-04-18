@@ -20,10 +20,13 @@ from typing import Any
 from dependencies import normalize_host
 from fastapi import Request
 from webauthn import (
+    generate_authentication_options,
     generate_registration_options,
     options_to_json,
+    verify_authentication_response,
     verify_registration_response,
 )
+from webauthn.authentication.verify_authentication_response import VerifiedAuthentication
 from webauthn.helpers import exceptions as webauthn_exc
 from webauthn.helpers.structs import (
     AttestationConveyancePreference,
@@ -106,6 +109,65 @@ def generate_registration_options_for_user(
     options_json_str = options_to_json(options)
     options_dict: dict[str, Any] = json.loads(options_json_str)
     return options_dict, options.challenge
+
+
+def generate_authentication_options_for_user(
+    rp_id: str,
+    allowed_credential_ids: list[bytes],
+) -> tuple[dict[str, Any], bytes]:
+    """Build WebAuthn authentication options for a user.
+
+    Returns a tuple of (options_json_dict, challenge_bytes). ``allow_credentials``
+    scopes the ceremony to the user's registered credentials (not a
+    discoverable pick-any). The raw challenge bytes should be stashed
+    server-side (session) for verification.
+    """
+    options = generate_authentication_options(
+        rp_id=rp_id,
+        allow_credentials=[PublicKeyCredentialDescriptor(id=cid) for cid in allowed_credential_ids],
+        user_verification=UserVerificationRequirement.PREFERRED,
+    )
+    options_json_str = options_to_json(options)
+    options_dict: dict[str, Any] = json.loads(options_json_str)
+    return options_dict, options.challenge
+
+
+def verify_authentication(
+    response: dict[str, Any],
+    expected_challenge: bytes,
+    expected_rp_id: str,
+    expected_origin: str,
+    credential_public_key: bytes,
+    credential_current_sign_count: int,
+    require_user_verification: bool = False,
+) -> VerifiedAuthentication:
+    """Verify a WebAuthn authentication assertion returned by the browser.
+
+    Raises:
+        WebAuthnError: on any verification failure (bad challenge, bad origin,
+            invalid signature, sign-count regression, etc.).
+
+    Note:
+        We default ``require_user_verification`` to False at this layer; the
+        service layer calls registration with PREFERRED user verification so
+        some authenticators may not set the UV flag. Phishing resistance is
+        still provided by the challenge + origin check plus the sign-count /
+        clone detection handled in the service layer.
+    """
+    try:
+        return verify_authentication_response(
+            credential=response,
+            expected_challenge=expected_challenge,
+            expected_rp_id=expected_rp_id,
+            expected_origin=expected_origin,
+            credential_public_key=credential_public_key,
+            credential_current_sign_count=credential_current_sign_count,
+            require_user_verification=require_user_verification,
+        )
+    except webauthn_exc.InvalidAuthenticationResponse as exc:
+        raise WebAuthnError(str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - defensive
+        raise WebAuthnError(f"Authentication verification failed: {exc}") from exc
 
 
 def verify_registration(

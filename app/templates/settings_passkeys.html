@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}Passkeys - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Passkeys</h1>
+            <button id="register-passkey-btn" type="button"
+                    class="bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition duration-150">
+                Register a new passkey
+            </button>
+        </div>
+
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Passkeys are a phishing-resistant sign-in method. Use your device's built-in
+            biometrics, a PIN, or a hardware security key to sign in without a password.
+        </p>
+
+        <div id="passkey-alert" class="hidden mb-4 px-4 py-3 rounded border text-sm" role="alert"></div>
+
+        <div id="passkey-list" class="space-y-3">
+            {% if passkeys %}
+            {% for pk in passkeys %}
+            <div class="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-md p-4">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        {{ icon("shield-check", class="h-5 w-5 text-blue-600 dark:text-blue-400") }}
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ pk.name }}</span>
+                        {% if pk.backup_eligible %}
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">Synced</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Added {{ pk.created_at }}{% if pk.last_used_at %}, last used {{ pk.last_used_at }}{% endif %}
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <form method="post" action="/account/passkeys/{{ pk.id }}/rename" class="flex items-center gap-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="text" name="name" value="{{ pk.name }}" maxlength="100" required
+                               class="text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-40">
+                        <button type="submit"
+                                class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                            Rename
+                        </button>
+                    </form>
+                    <form method="post" action="/account/passkeys/{{ pk.id }}/delete">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit"
+                                class="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                            Delete
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p id="passkey-empty" class="text-sm text-gray-600 dark:text-gray-400">
+                You haven't registered any passkeys yet.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Name-your-passkey modal -->
+<div id="passkey-name-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md mx-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Name your passkey</h2>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Pick a label so you can tell your passkeys apart later (for example, "MacBook Touch ID").
+        </p>
+        <input id="passkey-name-input" type="text" maxlength="100"
+               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-4"
+               placeholder="e.g. MacBook Touch ID">
+        <div class="flex items-center justify-end gap-2">
+            <button id="passkey-name-cancel" type="button"
+                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                Cancel
+            </button>
+            <button id="passkey-name-confirm" type="button"
+                    class="px-4 py-2 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white font-medium rounded-md">
+                Continue
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Backup codes modal (shown once after first passkey registration) -->
+<div id="passkey-backup-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-lg mx-4">
+        <div class="text-center mb-4">
+            <div class="inline-flex items-center justify-center w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-full mb-2">
+                {{ icon("check", class="h-6 w-6 text-green-600 dark:text-green-400") }}
+            </div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Save your backup codes</h2>
+        </div>
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-3 mb-4">
+            <p class="text-sm text-yellow-700 dark:text-yellow-300">
+                <strong>Important:</strong> Each code is single-use. Store them somewhere safe. You won't see them again.
+            </p>
+        </div>
+        <div id="passkey-backup-codes" class="grid grid-cols-2 gap-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded p-3 mb-4"></div>
+        <div class="flex items-center justify-between gap-2">
+            <button id="passkey-backup-copy" type="button"
+                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                Copy all
+            </button>
+            <button id="passkey-backup-close" type="button"
+                    class="px-4 py-2 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white font-medium rounded-md">
+                I've saved them
+            </button>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="page-data">
+{
+    "beginUrl": "/account/passkeys/begin-registration",
+    "completeUrl": "/account/passkeys/complete-registration",
+    "listUrl": "/account/passkeys"
+}
+</script>
+<script nonce="{{ csp_nonce }}">
+(() => {
+    const pageData = JSON.parse(document.getElementById('page-data').textContent);
+
+    const alertEl = document.getElementById('passkey-alert');
+    const nameModal = document.getElementById('passkey-name-modal');
+    const nameInput = document.getElementById('passkey-name-input');
+    const backupModal = document.getElementById('passkey-backup-modal');
+    const backupCodesEl = document.getElementById('passkey-backup-codes');
+
+    const showAlert = (type, msg) => {
+        alertEl.textContent = msg;
+        alertEl.classList.remove('hidden', 'bg-red-50', 'border-red-200', 'text-red-800', 'bg-green-50', 'border-green-200', 'text-green-800');
+        if (type === 'error') {
+            alertEl.classList.add('bg-red-50', 'border-red-200', 'text-red-800');
+        } else {
+            alertEl.classList.add('bg-green-50', 'border-green-200', 'text-green-800');
+        }
+    };
+
+    const hideAlert = () => alertEl.classList.add('hidden');
+
+    const b64urlToBuf = (b64url) => {
+        const pad = '='.repeat((4 - (b64url.length % 4)) % 4);
+        const b64 = (b64url + pad).replace(/-/g, '+').replace(/_/g, '/');
+        const bin = atob(b64);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        return buf.buffer;
+    };
+
+    const bufToB64url = (buf) => {
+        const bytes = new Uint8Array(buf);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    };
+
+    const openNameModal = () => {
+        hideAlert();
+        nameInput.value = '';
+        nameModal.classList.remove('hidden');
+        nameModal.classList.add('flex');
+        setTimeout(() => nameInput.focus(), 50);
+    };
+
+    const closeNameModal = () => {
+        nameModal.classList.add('hidden');
+        nameModal.classList.remove('flex');
+    };
+
+    const openBackupModal = (codes) => {
+        backupCodesEl.innerHTML = '';
+        codes.forEach((code) => {
+            const el = document.createElement('div');
+            el.className = 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded px-3 py-2 text-center';
+            const codeEl = document.createElement('code');
+            codeEl.className = 'font-mono text-sm text-gray-900 dark:text-gray-100';
+            codeEl.textContent = code;
+            el.appendChild(codeEl);
+            backupCodesEl.appendChild(el);
+        });
+        backupModal.dataset.codes = JSON.stringify(codes);
+        backupModal.classList.remove('hidden');
+        backupModal.classList.add('flex');
+    };
+
+    const closeBackupModal = () => {
+        backupModal.classList.add('hidden');
+        backupModal.classList.remove('flex');
+    };
+
+    const runCeremony = async (name) => {
+        if (!('credentials' in navigator) || !navigator.credentials.create) {
+            showAlert('error', 'Your browser does not support passkeys.');
+            return;
+        }
+        try {
+            const beginResp = await WeftUtils.apiFetch(pageData.beginUrl, { method: 'POST' });
+            if (!beginResp.ok) {
+                const err = await beginResp.json().catch(() => ({}));
+                showAlert('error', err.error || 'Could not start passkey registration.');
+                return;
+            }
+            const beginJson = await beginResp.json();
+            const publicKey = beginJson.publicKey;
+
+            publicKey.challenge = b64urlToBuf(publicKey.challenge);
+            publicKey.user.id = b64urlToBuf(publicKey.user.id);
+            if (Array.isArray(publicKey.excludeCredentials)) {
+                publicKey.excludeCredentials = publicKey.excludeCredentials.map((c) => ({
+                    ...c,
+                    id: b64urlToBuf(c.id),
+                }));
+            }
+
+            const credential = await navigator.credentials.create({ publicKey });
+            if (!credential) {
+                showAlert('error', 'Registration was cancelled.');
+                return;
+            }
+
+            const response = credential.response;
+            const body = {
+                name,
+                response: {
+                    id: credential.id,
+                    rawId: bufToB64url(credential.rawId),
+                    type: credential.type,
+                    clientExtensionResults: credential.getClientExtensionResults ? credential.getClientExtensionResults() : {},
+                    response: {
+                        clientDataJSON: bufToB64url(response.clientDataJSON),
+                        attestationObject: bufToB64url(response.attestationObject),
+                        transports: typeof response.getTransports === 'function' ? response.getTransports() : [],
+                    },
+                },
+            };
+
+            const completeResp = await WeftUtils.apiFetch(pageData.completeUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            if (!completeResp.ok) {
+                const err = await completeResp.json().catch(() => ({}));
+                showAlert('error', err.error || 'Passkey registration failed.');
+                return;
+            }
+            const completeJson = await completeResp.json();
+
+            if (Array.isArray(completeJson.backup_codes) && completeJson.backup_codes.length > 0) {
+                openBackupModal(completeJson.backup_codes);
+            } else {
+                window.location.href = pageData.listUrl + '?success=registered';
+            }
+        } catch (err) {
+            let msg = 'Passkey registration failed.';
+            if (err && err.name === 'InvalidStateError') {
+                msg = 'This authenticator is already registered.';
+            } else if (err && err.name === 'NotAllowedError') {
+                msg = 'Registration was cancelled or timed out.';
+            } else if (err && err.message) {
+                msg = err.message;
+            }
+            showAlert('error', msg);
+        }
+    };
+
+    document.getElementById('register-passkey-btn').addEventListener('click', openNameModal);
+    document.getElementById('passkey-name-cancel').addEventListener('click', closeNameModal);
+    document.getElementById('passkey-name-confirm').addEventListener('click', () => {
+        const name = (nameInput.value || '').trim();
+        if (!name) {
+            nameInput.focus();
+            return;
+        }
+        closeNameModal();
+        runCeremony(name);
+    });
+    nameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('passkey-name-confirm').click();
+        }
+    });
+
+    document.getElementById('passkey-backup-copy').addEventListener('click', (e) => {
+        const codes = JSON.parse(backupModal.dataset.codes || '[]');
+        WeftUtils.copyToClipboard(codes.join('\n'), e.currentTarget);
+    });
+    document.getElementById('passkey-backup-close').addEventListener('click', () => {
+        closeBackupModal();
+        window.location.href = pageData.listUrl + '?success=registered';
+    });
+})();
+</script>
+{% endblock %}

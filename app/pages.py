@@ -71,6 +71,20 @@ PAGES = [
         creates_nav_level=False,
     ),
     Page(
+        path="/login/enroll-enhanced-auth/passkey/begin",
+        title="Enroll in Enhanced Authentication (Passkey Begin)",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
+        path="/login/enroll-enhanced-auth/passkey/complete",
+        title="Enroll in Enhanced Authentication (Passkey Complete)",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
         path="/login/passkey/begin",
         title="Passkey Sign-in (Begin)",
         permission=PagePermission.PUBLIC,

@@ -139,6 +139,8 @@ def get_auth_method_options(tenant_id: str) -> list[dict]:
     options: list[dict] = [
         {"auth_method_key": "password_email", "auth_method_label": "Password + Email"},
         {"auth_method_key": "password_totp", "auth_method_label": "Password + TOTP"},
+        {"auth_method_key": "passkey", "auth_method_label": "Passkey"},
+        {"auth_method_key": "multiple", "auth_method_label": "Multiple methods"},
     ]
 
     idps = database.saml.list_identity_providers(tenant_id)

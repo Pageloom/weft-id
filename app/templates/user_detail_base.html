@@ -42,6 +42,8 @@
             User removed from group.
             {% elif success == 'invitation_resent' %}
             Invitation resent.
+            {% elif success == 'passkey_revoked' %}
+            Passkey revoked.
             {% else %}
             Operation completed.
             {% endif %}
@@ -110,6 +112,10 @@
             This user has already completed onboarding and set a password.
             {% elif error == 'no_primary_email' %}
             This user has no primary email address.
+            {% elif error == 'passkey_not_found' %}
+            Passkey not found.
+            {% elif error == 'cannot_revoke_own_passkey' %}
+            You cannot revoke your own passkey from the admin view. Use the account passkeys page instead.
             {% else %}
             An error occurred. Try again.
             {% endif %}

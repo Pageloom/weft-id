@@ -16,6 +16,12 @@ iterations, and orchestrate implementation through subagents.
 gets its own file. They must contain enough context that a fresh Claude session can pick up exactly
 where work left off. Every decision, scope change, and lesson learned gets written back to this file.
 
+**Context efficiency principle.** The dev agent reads CLAUDE.md (architectural rules, patterns,
+conventions) and the codebase (implementation details). The iteration file provides only what
+neither of those sources contain: the what, the why, design decisions, and non-obvious constraints.
+Never restate in the iteration file what the dev agent will learn from CLAUDE.md or from reading
+the code.
+
 ---
 
 ## Quick Reference
@@ -137,16 +143,16 @@ Proceed to **Step 5** for the current iteration.
 If the user named a backlog item, find it in `.claude/BACKLOG.md`. If they described a feature,
 search for it. If ambiguous, ask.
 
-Read the backlog item thoroughly. Then read the areas of the codebase most likely affected:
+Read the backlog item thoroughly. Then **survey** the areas of the codebase most likely affected.
+Read just enough to understand domain boundaries, data model shape, and integration points:
 
-- Relevant service modules
-- Relevant database modules
-- Relevant router modules and API endpoints
-- Related templates
-- Existing tests in the area
-- Related migration files and schema
+- Skim relevant service and database module signatures (function names, parameters)
+- Check the schema for related tables
+- Note which routers/templates exist in the area
 
-Build a mental model of the current state before planning changes.
+**Do not deep-read implementation details.** The dev agent will do that when it implements.
+Your goal is to understand the shape of the work well enough to plan iterations and define
+acceptance criteria, not to write an implementation recipe.
 
 ---
 
@@ -202,8 +208,10 @@ For each iteration, define:
 - **Goal**: One sentence
 - **Acceptance criteria**: Specific, testable. Each must be verifiable by running a test or
   inspecting the app.
-- **Scope by layer**: Which layers are affected, which files, what changes
-- **Test expectations**: What tests prove this iteration works
+- **Layers affected**: Which layers and the nature of changes (not exact file paths)
+- **Guidance**: Design constraints, non-obvious gotchas, or decisions the dev agent needs to
+  know that it won't find in CLAUDE.md or the code. If nothing non-obvious, write
+  "None -- standard patterns apply."
 
 ### Choose the slug
 
@@ -228,74 +236,46 @@ Present the full plan. Explain:
 
 ## Step 5 — Execute iteration
 
-### 5a. Write the implementation plan
+### 5a. Prepare the iteration
 
-Before spawning any agent, write a step-by-step implementation recipe for the iteration.
+Review the current iteration section in the iteration file. If anything has changed since
+planning (from prior iteration reconceptualisations, user feedback, or codebase changes),
+update the iteration section's guidance now.
 
-**Write the plan to a sibling file, not the iteration file.** The plan is a transient artifact the
-dev agent consumes once; it would otherwise become permanent noise in the iteration file (which is
-the durable handoff document). The plan file is:
-
-```
-.claude/ITERATION_<slug>_plan_<N>.md
-```
-
-where `<N>` is the iteration number. This file is gitignored and deleted when the iteration closes
-(Step 5g).
-
-In the iteration file itself, under the current iteration's section, add a one-line pointer:
-
-```
-### Implementation plan
-See `.claude/ITERATION_<slug>_plan_<N>.md` (deleted at iteration close).
-```
-
-For each file to change in the plan file, specify:
-
-- **What to change**: function/class name, what to add/modify
-- **How to change it**: which existing pattern to follow, citing specific files and line ranges
-- **Why**: enough context for the agent to judge edge cases
-
-Include:
-- Exact file paths
-- Existing functions/patterns to follow (cite examples)
-- Migration file name and SQL structure
-- Event types to register, `pages.py` entries, API endpoint paths
-- Test file paths and what each test should verify
+No separate plan file. The iteration section IS the brief: goal, acceptance criteria, layers
+affected, and guidance. The dev agent reads CLAUDE.md for architectural rules and the codebase
+for implementation details.
 
 ### 5b. Spawn dev
 
 Use the **Agent tool** with `model: "opus"`. Reference the dev skill's Headless Mode. Point the
-agent at both the iteration file (for context/design decisions) and the plan file (for the recipe):
+agent at the iteration file only:
 
 ```
 Read `.claude/skills/dev/SKILL.md` and follow the Headless Mode section.
 
 Context: see `.claude/ITERATION_<slug>.md` -- read the top-level Context,
-Design decisions, and the current iteration's Goal + Acceptance criteria.
+Design decisions, and Iteration N's Goal, Acceptance criteria, and Guidance.
 
-Your task: execute the plan in `.claude/ITERATION_<slug>_plan_<N>.md` exactly.
+Your task: implement Iteration N.
 ```
 
 ### 5c. Review dev output
 
 After the dev agent completes:
 
-1. **Read the modified files.** Verify changes match the plan. Check for:
-   - Service layer authorization and event logging
-   - `pages.py` registration for new routes
-   - API endpoints matching web endpoints (API-first)
-   - `max_length` on all str fields
-   - Migration safety
-   - Correct patterns (no router-to-database imports, proper tenant scoping)
+1. **Run quality checks.** `make fix` and `make test`. These are the primary verification.
 
-2. **Re-run quality checks.** `make fix` and `make test` during iteration work. Trust but verify.
+2. **Spot-check key concerns.** Don't re-read every changed file. Focus on:
+   - Files where the acceptance criteria hinge on a specific behavior
+   - Migration safety (if a migration was created)
+   - Authorization and event logging on new service functions
+   - Any area where the dev agent reported concerns or ambiguity
 
-3. **Check each acceptance criterion** against actual changes.
+3. **Check each acceptance criterion** against the dev agent's report and test results.
 
 4. **Fix issues.** Small problems: fix directly. Larger problems: re-spawn the dev agent
-   with specific corrections. If Sonnet can't handle it after a second attempt, escalate
-   to `model: "opus"` with full context of what went wrong.
+   with specific corrections.
 
 5. **Record decisions** in the iteration file. Every autonomous judgment call (resolving
    an agent's question, deviating from the plan, accepting a trade-off) goes in the
@@ -349,17 +329,13 @@ Close out the current iteration in the file:
 1. Update the top-level **Status** line (e.g., "In progress -- Iteration 3 of 6")
 2. Set the iteration status to `Complete` with date
 3. Check off completed acceptance criteria
-4. Replace scope sections with **What was done** (actual files changed, what each does)
-5. Replace test expectations with **Tests added** (actual test files, what they cover)
+4. Replace Layers/Guidance sections with **What was done** (actual files changed, what each does)
+5. Add **Tests added** (actual test files, what they cover)
 6. Add **Test review results** (summary of test agent's findings and resolution)
 7. Add **Reconceptualisations** (anything re-thought; "None" if nothing changed)
 8. Add **Decisions log entries** (every autonomous decision with context and rationale)
 9. **Refine future iterations** based on what was learned. Adjust scope, re-order,
    add or remove iterations as needed. The plan is a living document.
-10. **Delete the iteration's plan file** (`.claude/ITERATION_<slug>_plan_<N>.md`). It was
-    a transient agent brief; now that the iteration is closed, the iteration file's
-    "What was done" section is the durable record. Keeping the plan file around would
-    drift against reality.
 
 ---
 
@@ -521,24 +497,20 @@ session enough context to understand the work without reading the conversation.]
 - [ ] Criterion 1
 - [ ] Criterion 2
 
-### Scope
-**Database:** migration file name, tables/columns affected
-**Service:** module path, functions to add/modify, event types
-**Router:** endpoint paths, pages.py entries
-**API:** endpoint paths, schemas
-**Templates:** template paths, UI changes
-**Tests:** test file paths, what each tests
+### Layers affected
+Database, Service, Router, API, Templates, Tests (as applicable)
 
-### Implementation plan
-See `.claude/ITERATION_<slug>_plan_<N>.md` (sibling file; deleted at iteration close).
-Only a pointer lives here -- the recipe itself is transient and would otherwise drift.
+### Guidance
+[Design constraints, non-obvious gotchas, or scope boundaries specific to this
+iteration. Only include what the dev agent won't find in CLAUDE.md or the code.
+If nothing non-obvious, write "None -- standard patterns apply."]
 
 ### What was done
-[Replaces Scope after completion. Actual files changed with descriptions.]
+[Replaces Layers/Guidance after completion. Actual files changed with descriptions.]
 - `path/to/file.py` -- what changed and why
 
 ### Tests added
-[Replaces test expectations after completion.]
+[Added after completion.]
 - `path/to/test.py` -- what it tests
 
 ### Test review
@@ -560,7 +532,10 @@ Only a pointer lives here -- the recipe itself is transient and would otherwise 
 ### Acceptance criteria
 - [ ] Criterion 1
 
-### Scope
+### Layers affected
+...
+
+### Guidance
 ...
 
 ---
@@ -584,17 +559,22 @@ Only a pointer lives here -- the recipe itself is transient and would otherwise 
 ## Closing and cleanup
 
 - **Feature complete**: Set status, archive backlog item, keep iteration file until user deletes.
-  All `ITERATION_<slug>_plan_<N>.md` files should already be gone (deleted in Step 5g per iteration).
-- **Abandoned**: Set status to "Closed -- [reason]", keep file until user deletes. Also delete any
-  leftover plan files for un-started iterations.
+- **Abandoned**: Set status to "Closed -- [reason]", keep file until user deletes.
 - **Cleanup**: When user asks, delete iteration files marked complete or closed. Confirm first.
-  Check for and also delete any `ITERATION_<slug>_plan_*.md` siblings.
 
 ---
 
 ## Guidelines
 
 - **The iteration file is the handoff document.** Write it for someone reading it cold.
+- **Don't duplicate what CLAUDE.md provides.** The dev agent reads CLAUDE.md. Don't restate
+  architectural rules, patterns, or conventions in iteration guidance.
+- **Don't duplicate what the code provides.** The dev agent reads the code. Don't list exact
+  file paths, function signatures, or line ranges it will discover on its own.
+- **Lead plans, dev implements.** Lead provides what to build and why. Dev figures out how.
+  The sharper this boundary, the less context is wasted.
+- **Spot-check, don't re-read.** After dev completes, verify via quality checks and targeted
+  reads, not by re-reading every changed file. Trust the dev agent + test suite.
 - **Foundations first, polish last.** Data model and services before templates.
 - **Keep iterations small.** One subagent must handle one iteration in a single pass.
 - **Don't gold-plate.** Minimum that satisfies acceptance criteria.
@@ -606,9 +586,7 @@ Only a pointer lives here -- the recipe itself is transient and would otherwise 
 - **Branch awareness.** Record branch in the file header. Verify on pickup.
 - **Never commit without permission.** Update the file, present results, wait.
 - **Quality gate is non-negotiable.** `make quality-all` (check + test + e2e) must pass before
-  closing any iteration. `make fix` + `make test` is not sufficient: it reformats silently
-  and skips E2E.
+  closing any iteration.
 - **Skills are the source of truth.** Reference skill Headless Mode sections. Never duplicate
   methodology, architecture rules, or review checklists in agent prompts.
 - **All agents run on Opus.** If an agent fails, improve the prompt before retrying.
-  Don't add workarounds.

@@ -42,6 +42,7 @@ from routers.api.v1 import saml as saml_api  # noqa: E402
 from routers.api.v1 import service_providers as service_providers_api  # noqa: E402
 from routers.api.v1 import settings as settings_api  # noqa: E402
 from routers.api.v1 import users as users_api  # noqa: E402
+from routers.api.v1 import users_passkeys as users_passkeys_api  # noqa: E402
 from utils.crypto import derive_session_key  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -140,6 +141,7 @@ app.include_router(service_providers_api.router)
 app.include_router(service_providers_api.my_apps_router)
 app.include_router(settings_api.router)
 app.include_router(users_api.router)
+app.include_router(users_passkeys_api.router)
 
 # Dev-only router (instant login for E2E tests)
 if settings.IS_DEV:

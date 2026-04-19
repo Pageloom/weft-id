@@ -19,6 +19,7 @@ from services import saml as saml_service
 from services import service_providers as sp_service
 from services import settings as settings_service
 from services import users as users_service
+from services import webauthn as webauthn_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from starlette.responses import Response
 from utils.email import send_new_user_invitation, send_new_user_privileged_domain_notification
@@ -136,6 +137,12 @@ def user_detail_profile(
                 tenant_id, user_id, email_address
             )
 
+    passkeys: list = []
+    try:
+        passkeys = webauthn_service.admin_list_credentials(requesting_user, user_id)
+    except ServiceError:
+        pass
+
     return templates.TemplateResponse(
         request,
         "user_detail_tab_profile.html",
@@ -147,6 +154,7 @@ def user_detail_profile(
             privileged_domains=privileged_domains,
             idps=idps,
             email_impact=email_impact,
+            passkeys=passkeys,
             active_tab="profile",
             group_count=common["group_count"],
             app_count=common["app_count"],
@@ -422,6 +430,33 @@ def force_password_reset_route(
 
     return RedirectResponse(
         url=f"/users/{user_id}/danger?success=password_reset_forced", status_code=303
+    )
+
+
+@router.post("/{user_id}/revoke-passkey/{credential_id}")
+def revoke_user_passkey_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+    credential_id: str,
+):
+    """Revoke one of a user's passkeys (admin only)."""
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    try:
+        webauthn_service.admin_revoke_credential(requesting_user, user_id, credential_id)
+    except NotFoundError as exc:
+        return RedirectResponse(url=f"/users/{user_id}/profile?error={exc.code}", status_code=303)
+    except ValidationError as exc:
+        return RedirectResponse(url=f"/users/{user_id}/profile?error={exc.code}", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url=f"/users/{user_id}/profile?success=passkey_revoked", status_code=303
     )
 
 

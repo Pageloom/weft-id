@@ -190,6 +190,37 @@
         </div>
         {% endif %}
 
+        <!-- Passkeys -->
+        <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Passkeys</h2>
+            {% if passkeys %}
+            <ul class="divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-md">
+                {% for p in passkeys %}
+                <li class="flex items-center justify-between px-4 py-3">
+                    <div>
+                        <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ p.name }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Added {{ fmt_datetime(p.created_at) }}
+                            {% if p.last_used_at %} &middot; Last used {{ fmt_datetime(p.last_used_at) }}{% endif %}
+                        </div>
+                    </div>
+                    <form method="post" action="/users/{{ target_user.id }}/revoke-passkey/{{ p.id }}" class="inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit"
+                                class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 px-2 py-1"
+                                data-confirm="Revoke passkey '{{ p.name }}'?&#10;&#10;The user must re-register to use it again."
+                                data-destructive="true">
+                            Revoke
+                        </button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">No passkeys registered.</p>
+            {% endif %}
+        </div>
+
         <!-- Email Addresses -->
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Email Addresses</h2>

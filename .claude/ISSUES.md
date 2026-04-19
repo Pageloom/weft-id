@@ -16,6 +16,11 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 | Low | 2 | Copy |
+| Low | 1 | Security |
+| Medium | 3 | Security (passkey_auth review) |
+| Low | 1 | Security (passkey_auth review) |
+| Low | 1 | Docs (passkey_auth review) |
+| Low | 6 | Copy (passkey_auth review) |
 
 **Last security scan:** 2026-04-13 (broad: all code from last 90 days, all OWASP categories; 2 findings, both fixed)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
@@ -116,6 +121,148 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 - `idp_lifecycle.py` (~350 lines): group lifecycle and discovery
 - `idp_membership.py` (~350 lines): sync, base group membership, cross-IdP moves
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
+
+---
+
+## [SECURITY] Passkey clone detection relies on py_webauthn error-string substring match
+
+**Found in:** `app/services/webauthn.py::complete_authentication` (sign-count regression branch)
+**Severity:** Low
+**Description:** Clone detection rejects a WebAuthn assertion when `py_webauthn` raises `InvalidAuthenticationResponse` and the error message contains the substring `"sign count"` or `"counter"`. `py_webauthn` does not expose a typed exception for this case, so the service branches on the library's human-readable wording. A future library version that rephrases the error would fall through to the `bad_signature` branch: the assertion is still rejected, but the credential is NOT deleted and the event reason is `bad_signature` instead of `clone_suspected`. That's a weaker security posture (attacker keeps the cloned credential) and noisier audit.
+**Evidence:** `app/services/webauthn.py` (search for `"sign count"` substring). The py_webauthn 2.7.1 message today is `"Response sign count of X was not greater than..."`.
+**Impact:** Correctness bound (never let a sign-count regression slip past on `backup_eligible=false`) is preserved, but the cloned credential is not automatically deleted and the `passkey_auth_failure` event reason becomes misleading. Silent degradation on library bump.
+**Suggested fix:** Either catch a typed exception if a newer py_webauthn release adds one, or move the sign-count decision into `app/utils/webauthn.py::verify_authentication` so the service receives a typed result (`WebAuthnAuthResult(ok=False, reason="clone_suspected")`) rather than parsing a message string. Add a pin test so any library upgrade that reshapes the error wording forces the issue to the surface.
+
+---
+
+## [SECURITY] TOCTOU: passkey `complete_authentication` skips user eligibility recheck
+
+**Found in:** `app/services/webauthn.py::complete_authentication`
+**Severity:** Medium
+**Description:** `begin_authentication` runs `_resolve_eligible_user` (rejects nonexistent, IdP-linked, inactivated, zero-passkey). `complete_authentication` only fetches the credential row and verifies the signature. Within the 5 minute challenge TTL an admin can inactivate the user, reassign them to a SAML IdP, or delete their last passkey, and the pending ceremony still completes a sign-in.
+**Evidence:** `app/services/webauthn.py` around line 552+. `_resolve_eligible_user` is not called from the complete path.
+**Impact:** Inactivated user signs in successfully; IdP-linked user bypasses IdP redirect; audit log shows `passkey_auth_success` + `user_signed_in` for an account that should already be locked. Window is bounded by the 5 minute challenge TTL but the race is real under admin-triggered lockout.
+**Suggested fix:** In `complete_authentication`, after resolving the credential row and before session finalisation, re-read the user (`database.users.get_user_by_id(tenant_id, pending_user_id)`) and reject if `is_inactivated=True`, `saml_idp_id is not None`, or user not found. Emit `passkey_auth_failure(reason="eligibility_revoked")` on rejection.
+
+---
+
+## [SECURITY] Passkey registration + enhanced-enrollment TOTP verify have no rate limit
+
+**Found in:** `app/routers/auth/enhanced_enrollment.py`, `app/routers/account_passkeys.py`, `app/routers/api/v1/account_passkeys.py`
+**Severity:** Medium
+**Description:** Registration begin/complete (both HTML and API) and `POST /login/enroll-enhanced-auth` (TOTP verify) have no per-user or per-IP rate limits. Passkey login `complete` has `passkey_complete:ip:{ip}` 30/5min; registration does not. Enhanced-enrollment TOTP verify can be spammed within a single code window.
+**Evidence:**
+- `app/routers/auth/enhanced_enrollment.py` lines 171-272 (TOTP verify, passkey begin/complete) — no `ratelimit.prevent` calls.
+- `app/routers/account_passkeys.py` lines 40-91 — no rate limits.
+- `app/routers/api/v1/account_passkeys.py` lines 48-96 — no rate limits.
+**Impact:** (1) Hijacked pre-auth enrollment session can brute-force 6-digit TOTP code within the 30-second validity window. Feasible over a few minutes at 100+ req/s. (2) Authenticated session (or compromised cookie) can spam registration begin/complete, consuming expensive crypto on the server.
+**Suggested fix:**
+- `ratelimit.prevent("enroll_totp_verify:user:{user_id}", limit=5, timespan=MINUTE*5, user_id=pending_user_id)` on TOTP verify.
+- `ratelimit.prevent("passkey_enroll_complete:user:{user_id}", limit=10, timespan=MINUTE*5, user_id=...)` on both HTML and API complete-registration endpoints.
+- Similar begin-side soft cap.
+
+---
+
+## [SECURITY] `show_passkey_first` render branch is a passkey-existence oracle
+
+**Found in:** `app/routers/auth/login.py` lines 82-90
+**Severity:** Medium
+**Description:** `GET /login?prefill_email=<email>&show_password=true` calls `webauthn_service.user_has_passkey_for_email(tenant_id, email)`. If the user exists and has ≥ 1 passkey, the page auto-starts the ceremony; otherwise only the password form renders. Observable at GET time with no rate limit. Attacker can enumerate "user exists AND has passkey" without a POST.
+**Evidence:** `app/routers/auth/login.py:82-90` branches the template on the boolean.
+**Impact:** Targeted attacks can prefer/avoid passkey users (e.g., pick users with passkeys to attempt authenticator theft, or avoid them to stick with phishable MFA paths). Partial user-existence oracle.
+**Suggested fix:** (a) Add rate limiting to `GET /login` when both `show_password=true` and `prefill_email` are set; or (b) always render the passkey-first variant when `show_password=true`, letting the begin endpoint 404 silently and fall back to password.
+
+---
+
+## [SECURITY] Plain admin can revoke super_admin's passkey
+
+**Found in:** `app/services/webauthn.py::admin_revoke_credential`
+**Severity:** Low
+**Description:** `admin_revoke_credential` requires `require_admin` (admin or super_admin). A plain admin can revoke a super_admin's passkey. Combined with `/users/{user_id}/force-password-reset` (same permission level), an admin can materially degrade a super_admin's auth posture. Not direct privilege escalation but inconsistent with the usual "lower role cannot act on higher role" convention.
+**Evidence:** `app/services/webauthn.py` lines 369-442; `app/routers/users/detail.py` lines 436-460.
+**Impact:** Plain admin can kick a super_admin out of active OAuth2 sessions (via the OAuth2 token revocation coupled to passkey revoke) and force them through enhanced-enrollment again.
+**Suggested fix:** In `admin_revoke_credential`, if target user role is `super_admin` and requesting user is not `super_admin`, raise `ForbiddenError`. Apply the same guard to `force_password_reset` for consistency if not already present.
+
+---
+
+## [DOCS] authentication-policy.md: MFA reset incorrectly claims passkeys are cleared
+
+**Found in:** `docs/admin-guide/security/authentication-policy.md` Recovery section (lines 31-39)
+**Severity:** Low
+**Description:** Doc says "The user's TOTP secret and passkeys are cleared" on MFA reset. `reset_mfa` in `app/services/mfa.py:540-584` only clears TOTP secret + backup codes; passkeys are untouched (admins revoke passkeys individually via the user detail Profile tab).
+**Impact:** Admin expectations diverge from behaviour. A super_admin reading this may believe MFA reset fully resets auth; passkey-using target still signs in via passkey.
+**Suggested fix:** Replace with: "This clears the user's TOTP secret and backup codes. It does not delete any registered passkeys; those must be revoked individually from the user's Profile tab (see 'Revoking a single passkey' below). On the next sign-in the user goes through the enrollment flow again unless they still have a passkey that satisfies the enhanced policy." Also update `docs/admin-guide/security/two-step-verification.md` reset section to match. Add passkeys entry to `docs/user-guide/index.md` and `docs/admin-guide/security/index.md` nav. Add "Signing in with a passkey" subsection to `docs/user-guide/signing-in.md`. Update `docs/user-guide/two-step-verification.md` backup-codes section to mention passkey recovery.
+
+---
+
+## [COPY] settings_security_tab_authentication.html: stale "future release" passkey reference
+
+**Found in:** `app/templates/settings_security_tab_authentication.html` lines 17-21 and 73-75
+**Severity:** Low
+**Description:** Two strings still say passkey support is "in a future release":
+- Line 17-21: "forced to set up an authenticator app (or, in a future release, a passkey)".
+- Line 73-75: "redirected to set up an authenticator app the next time they sign in" (omits passkey option).
+
+Passkey enrollment is live per iteration 4 (`enroll_enhanced_auth.html` renders both TOTP and passkey cards).
+**Suggested fix:**
+- Line 17-21: "forced to set up an authenticator app or passkey the next time they sign in."
+- Line 73-75: "redirected to set up an authenticator app or a passkey the next time they sign in."
+
+---
+
+## [COPY] settings_mfa.html: backup-code description omits passkeys
+
+**Found in:** `app/templates/settings_mfa.html` line 49
+**Severity:** Low
+**Description:** Current: "Backup codes can be used once each to sign in if you lose access to your authenticator app." Backup codes are the recovery fallback for passkey users too (first passkey registration issues them).
+**Suggested fix:** "Backup codes can be used once each to sign in if you lose access to your authenticator app or all your passkeys."
+
+---
+
+## [COPY] user_detail_base.html: mfa_reset banner misleads when target has a passkey
+
+**Found in:** `app/templates/user_detail_base.html` line 36
+**Severity:** Low
+**Description:** Current: "User's two-step verification has been reset. They will use email codes on next sign-in." Wrong if the target has a passkey, since `reset_mfa` does not delete passkeys.
+**Suggested fix:** "User's two-step verification has been reset. Any TOTP secret and backup codes are cleared. Registered passkeys are not affected."
+
+---
+
+## [COPY] user_detail_base.html: self-revoke error banner gives no navigation path
+
+**Found in:** `app/templates/user_detail_base.html` lines 117-118
+**Severity:** Low
+**Description:** Current: "You cannot revoke your own passkey from the admin view. Use the account passkeys page instead."
+**Suggested fix:** "You cannot revoke your own passkey from the admin view. Go to Account > Two-Step Verification to manage your own passkeys."
+
+---
+
+## [COPY] user_detail_tab_profile.html: Verification Method row ignores passkeys
+
+**Found in:** `app/templates/user_detail_tab_profile.html` lines 33-45
+**Severity:** Low
+**Description:** "Two-Step Verification: Yes/No" and "Verification Method: TOTP/EMAIL/Not set" are driven by `mfa_enabled` and `mfa_method`. A passkey-only user shows "Verification Method: Not set" while the Passkeys section immediately below lists registered passkeys.
+**Impact:** Structural misrepresentation of user's real auth posture; not a pure copy fix.
+**Suggested fix:** Add a "Passkeys: N registered" row or rename/rescope the Verification Method section. Coordinate with `/tech-writer` on terminology.
+
+---
+
+## [COPY] login.html: "Use password instead" should be a button, not an anchor
+
+**Found in:** `app/templates/login.html` lines 76-79
+**Severity:** Low
+**Description:** `<a href="#">` with `preventDefault` for an action that does not navigate. Accessibility polish.
+**Suggested fix:** Replace with `<button type="button">`.
+
+---
+
+## [COPY] settings_mfa.html: page title "Two-Step Verification" mixed with passkey management
+
+**Found in:** `app/templates/settings_mfa.html` line 8
+**Severity:** Low
+**Description:** Page titled "Two-Step Verification" manages passkeys too. Passkeys are a first-factor replacement, not a second step.
+**Impact:** Terminology confusion; touches page title, doc filename (`docs/user-guide/two-step-verification.md`), and mkdocs nav.
+**Suggested fix:** Consider "Sign-in Methods" or "Two-Step Verification and Passkeys". Coordinate across templates, emails, docs, glossary. Ties into existing deferred copy issue (["two-step verification" wording on Authentication settings page](#copy-two-step-verification-wording-on-authentication-settings-page-is-inaccurate-once-passkeys-exist)).
 
 ---
 

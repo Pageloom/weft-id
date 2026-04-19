@@ -1037,6 +1037,266 @@ def test_complete_authentication_clone_detection_clears_session(test_user, mocke
     assert "webauthn_login_challenge_at" not in req.session
 
 
+# =============================================================================
+# Admin operations (iteration 5)
+# =============================================================================
+
+
+def _requesting_admin(user: dict) -> RequestingUser:
+    return {
+        "id": str(user["id"]),
+        "tenant_id": str(user["tenant_id"]),
+        "role": user.get("role", "admin"),
+    }
+
+
+def test_admin_list_credentials_happy_path(test_user, test_admin_user):
+    _seed_passkey(test_user, credential_id=b"admin-list-1", name="Laptop")
+    _seed_passkey(test_user, credential_id=b"admin-list-2", name="Phone")
+
+    result = webauthn_service.admin_list_credentials(
+        _requesting_admin(test_admin_user), str(test_user["id"])
+    )
+
+    names = sorted(p.name for p in result)
+    assert names == ["Laptop", "Phone"]
+
+
+def test_admin_list_credentials_forbidden_for_member(test_user):
+    from services.exceptions import ForbiddenError
+
+    with pytest.raises(ForbiddenError):
+        webauthn_service.admin_list_credentials(_requesting(test_user), str(test_user["id"]))
+
+
+def test_admin_list_credentials_cross_tenant_empty(test_user, test_admin_user):
+    # Passkey lives in test_user's tenant. An admin in a different tenant sees none.
+    _seed_passkey(test_user, credential_id=b"admin-iso-1", name="Key")
+
+    other_admin: RequestingUser = {
+        "id": str(test_admin_user["id"]),
+        "tenant_id": "00000000-0000-0000-0000-000000000099",
+        "role": "admin",
+    }
+    result = webauthn_service.admin_list_credentials(other_admin, str(test_user["id"]))
+    assert result == []
+
+
+def test_admin_revoke_credential_happy_path(test_user, test_admin_user, mocker):
+    row = _seed_passkey(test_user, credential_id=b"admin-revoke-1", name="Target key")
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    webauthn_service.admin_revoke_credential(
+        _requesting_admin(test_admin_user),
+        str(test_user["id"]),
+        str(row["id"]),
+    )
+
+    # Row gone
+    fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    assert fresh is None
+
+    # Event emitted with revoked_by_admin + target_user_id metadata
+    assert log_event.called
+    kwargs = log_event.call_args.kwargs
+    assert kwargs["event_type"] == "passkey_deleted"
+    assert kwargs["actor_user_id"] == str(test_admin_user["id"])
+    assert kwargs["metadata"]["revoked_by_admin"] is True
+    assert kwargs["metadata"]["target_user_id"] == str(test_user["id"])
+    assert kwargs["metadata"]["credential_name"] == "Target key"
+    # target_user_name survives anonymization in the audit trail
+    assert "target_user_name" in kwargs["metadata"]
+    assert kwargs["metadata"]["target_user_name"].strip() != ""
+
+
+def test_admin_revoke_credential_revokes_oauth2_tokens(test_user, test_admin_user, mocker):
+    """An admin revoke on a compromised credential must also revoke the target
+    user's OAuth2 tokens so an attacker with an active access/refresh token is
+    ejected alongside the passkey."""
+    row = _seed_passkey(test_user, credential_id=b"admin-revoke-oauth", name="Target key")
+    revoke_tokens = mocker.patch(
+        "services.webauthn.database.oauth2.revoke_all_user_tokens", return_value=2
+    )
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    webauthn_service.admin_revoke_credential(
+        _requesting_admin(test_admin_user),
+        str(test_user["id"]),
+        str(row["id"]),
+    )
+
+    revoke_tokens.assert_called_once_with(str(test_user["tenant_id"]), str(test_user["id"]))
+
+    # Two log_event calls: oauth2_user_tokens_revoked + passkey_deleted.
+    event_types = [c.kwargs["event_type"] for c in log_event.call_args_list]
+    assert "oauth2_user_tokens_revoked" in event_types
+    assert "passkey_deleted" in event_types
+    oauth_call = next(
+        c
+        for c in log_event.call_args_list
+        if c.kwargs["event_type"] == "oauth2_user_tokens_revoked"
+    )
+    assert oauth_call.kwargs["metadata"]["reason"] == "admin_revoked_passkey"
+    assert oauth_call.kwargs["metadata"]["tokens_revoked"] == 2
+
+
+def test_admin_revoke_credential_skips_token_event_when_no_tokens(
+    test_user, test_admin_user, mocker
+):
+    """No OAuth2 tokens in play -> don't emit the revoke event. Keeps the audit
+    log free of no-op entries."""
+    row = _seed_passkey(test_user, credential_id=b"admin-revoke-no-tok", name="Target key")
+    mocker.patch("services.webauthn.database.oauth2.revoke_all_user_tokens", return_value=0)
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    webauthn_service.admin_revoke_credential(
+        _requesting_admin(test_admin_user),
+        str(test_user["id"]),
+        str(row["id"]),
+    )
+
+    event_types = [c.kwargs["event_type"] for c in log_event.call_args_list]
+    assert event_types == ["passkey_deleted"]
+
+
+def test_admin_revoke_credential_unknown_user(test_admin_user):
+    """Admin passes a well-formed user_id UUID that doesn't resolve to a user."""
+    fake_user = "00000000-0000-0000-0000-0000000000ff"
+    fake_cred = "00000000-0000-0000-0000-0000000000ee"
+    with pytest.raises(NotFoundError) as exc_info:
+        webauthn_service.admin_revoke_credential(
+            _requesting_admin(test_admin_user),
+            fake_user,
+            fake_cred,
+        )
+    assert exc_info.value.code == "user_not_found"
+
+
+def test_admin_revoke_credential_wrong_user(test_user, test_admin_user):
+    """user_id in args does not match the credential's owner -> NotFoundError."""
+    row = _seed_passkey(test_user, credential_id=b"admin-revoke-wrong", name="k")
+
+    other_user_id = "00000000-0000-0000-0000-000000000042"
+    with pytest.raises(NotFoundError):
+        webauthn_service.admin_revoke_credential(
+            _requesting_admin(test_admin_user),
+            other_user_id,
+            str(row["id"]),
+        )
+
+
+def test_admin_revoke_credential_cross_tenant(test_user, test_admin_user):
+    row = _seed_passkey(test_user, credential_id=b"admin-revoke-iso", name="k")
+
+    other_tenant_admin: RequestingUser = {
+        "id": str(test_admin_user["id"]),
+        "tenant_id": "00000000-0000-0000-0000-000000000099",
+        "role": "admin",
+    }
+    with pytest.raises(NotFoundError):
+        webauthn_service.admin_revoke_credential(
+            other_tenant_admin,
+            str(test_user["id"]),
+            str(row["id"]),
+        )
+
+
+def test_admin_revoke_credential_forbidden_for_member(test_user):
+    from services.exceptions import ForbiddenError
+
+    row = _seed_passkey(test_user, credential_id=b"admin-revoke-forbid", name="k")
+    with pytest.raises(ForbiddenError):
+        webauthn_service.admin_revoke_credential(
+            _requesting(test_user),
+            str(test_user["id"]),
+            str(row["id"]),
+        )
+
+
+def test_admin_list_credentials_tracks_activity(test_user, test_admin_user, mocker):
+    """admin_list_credentials is a read, so it must call track_activity."""
+    track = mocker.patch("services.webauthn.track_activity")
+    webauthn_service.admin_list_credentials(
+        _requesting_admin(test_admin_user), str(test_user["id"])
+    )
+    # Activity is tracked for the requesting admin, not the target user.
+    track.assert_called_once_with(str(test_admin_user["tenant_id"]), str(test_admin_user["id"]))
+
+
+def test_admin_revoke_nonexistent_credential_raises_not_found(test_user, test_admin_user):
+    """Passing a well-formed UUID that doesn't exist must return NotFoundError,
+    not leak existence via a different error code or status."""
+    fake_cred = "00000000-0000-0000-0000-0000000000aa"
+    with pytest.raises(NotFoundError):
+        webauthn_service.admin_revoke_credential(
+            _requesting_admin(test_admin_user),
+            str(test_user["id"]),
+            fake_cred,
+        )
+
+
+def test_admin_revoke_credential_matches_target_user_only(test_user, test_admin_user):
+    """If two users in the same tenant each own a passkey, revoking the wrong
+    user's credential_uuid paired with the right user_id must NotFoundError
+    (defence against mistaken-UI revocations that would otherwise bypass the
+    ownership check purely at the DB DELETE step)."""
+    row_a = _seed_passkey(test_user, credential_id=b"admin-pair-a", name="UserA")
+
+    # Create a second user in the same tenant via the users table directly
+    # (matching the conftest pattern).
+    import uuid as _uuid
+
+    other_user_id = database.fetchone(
+        test_user["tenant_id"],
+        """
+        insert into users (tenant_id, first_name, last_name, role)
+        values (:tenant_id, 'Other', 'User', 'member') returning id
+        """,
+        {"tenant_id": test_user["tenant_id"]},
+    )["id"]
+
+    # Revoke with user_id=other_user_id but credential_uuid=row_a (owned by test_user)
+    with pytest.raises(NotFoundError):
+        webauthn_service.admin_revoke_credential(
+            _requesting_admin(test_admin_user),
+            str(other_user_id),
+            str(row_a["id"]),
+        )
+    # Suppress unused-variable lint if type checker complains.
+    _ = _uuid
+
+    # Row must still exist (no partial deletion happened).
+    still_there = database.webauthn_credentials.get_credential(
+        test_user["tenant_id"], str(row_a["id"])
+    )
+    assert still_there is not None
+
+
+def test_admin_revoke_self_is_rejected(test_admin_user):
+    """An admin cannot revoke their own passkey via the admin endpoint.
+
+    Self-revoke via the admin path would (1) pollute the audit trail with
+    revoked_by_admin events where actor == target, and (2) risk locking the
+    admin out if the passkey was their only remaining factor. Admins must use
+    the account passkeys page instead.
+    """
+    row = _seed_passkey(test_admin_user, credential_id=b"self-revoke", name="My key")
+
+    with pytest.raises(ValidationError) as exc_info:
+        webauthn_service.admin_revoke_credential(
+            _requesting_admin(test_admin_user),
+            str(test_admin_user["id"]),
+            str(row["id"]),
+        )
+    assert exc_info.value.code == "cannot_revoke_own_passkey"
+
+    # Credential must still exist (no partial side effect).
+    still_there = database.webauthn_credentials.get_credential(
+        test_admin_user["tenant_id"], str(row["id"])
+    )
+    assert still_there is not None
+
+
 def test_complete_authentication_preserves_backup_eligible(test_user, mocker):
     """A successful assertion must never change backup_eligible (immutable)."""
     row = _seed_passkey(

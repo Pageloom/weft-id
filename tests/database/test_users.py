@@ -793,6 +793,181 @@ def test_list_users_filter_by_unverified(test_tenant, test_user, test_admin_user
     assert len(users) == 0
 
 
+def test_list_users_filter_by_passkey(test_tenant, test_user, test_admin_user):
+    """Filter by passkey returns only users who have at least one credential."""
+    import database
+
+    # Seed one passkey on test_user; none on test_admin_user.
+    database.webauthn_credentials.create_credential(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        user_id=test_user["id"],
+        credential_id=b"listing-passkey",
+        public_key=b"pk",
+        name="Key",
+        sign_count=0,
+        aaguid=None,
+        transports=None,
+        backup_eligible=False,
+        backup_state=False,
+    )
+
+    users = database.users.list_users(
+        test_tenant["id"], auth_methods=["passkey"], page=1, page_size=10
+    )
+    ids = {str(u["id"]) for u in users}
+    assert str(test_user["id"]) in ids
+    assert str(test_admin_user["id"]) not in ids
+
+    # Negation returns the complement.
+    users_not = database.users.list_users(
+        test_tenant["id"], auth_methods=["passkey"], auth_method_negate=True, page=1, page_size=10
+    )
+    ids_not = {str(u["id"]) for u in users_not}
+    assert str(test_admin_user["id"]) in ids_not
+    assert str(test_user["id"]) not in ids_not
+
+
+def test_list_users_filter_by_multiple(test_tenant, test_user, test_admin_user):
+    """Filter by ``multiple`` returns only users with 2+ auth factors."""
+    import database
+
+    # test_user: password + passkey -> two factors.
+    database.webauthn_credentials.create_credential(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        user_id=test_user["id"],
+        credential_id=b"listing-multi-passkey",
+        public_key=b"pk",
+        name="Key",
+        sign_count=0,
+        aaguid=None,
+        transports=None,
+        backup_eligible=False,
+        backup_state=False,
+    )
+    # test_admin_user: password only -> one factor.
+
+    users = database.users.list_users(
+        test_tenant["id"], auth_methods=["multiple"], page=1, page_size=10
+    )
+    ids = {str(u["id"]) for u in users}
+    assert str(test_user["id"]) in ids
+    assert str(test_admin_user["id"]) not in ids
+
+
+def test_count_users_matches_list_users_for_passkey_filter(test_tenant, test_user, test_admin_user):
+    """count_users and list_users must agree for the passkey filter."""
+    import database
+
+    database.webauthn_credentials.create_credential(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        user_id=test_user["id"],
+        credential_id=b"count-passkey-1",
+        public_key=b"pk",
+        name="K1",
+        sign_count=0,
+        aaguid=None,
+        transports=None,
+        backup_eligible=False,
+        backup_state=False,
+    )
+
+    listed = database.users.list_users(
+        test_tenant["id"], auth_methods=["passkey"], page=1, page_size=100
+    )
+    counted = database.users.count_users(test_tenant["id"], auth_methods=["passkey"])
+    assert len(listed) == counted
+
+
+def test_count_users_matches_list_users_for_multiple_filter(
+    test_tenant, test_user, test_admin_user
+):
+    """count_users and list_users must agree for the ``multiple`` filter."""
+    import database
+
+    # Give test_user a passkey + password (two factors)
+    database.webauthn_credentials.create_credential(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        user_id=test_user["id"],
+        credential_id=b"count-multi-1",
+        public_key=b"pk",
+        name="K1",
+        sign_count=0,
+        aaguid=None,
+        transports=None,
+        backup_eligible=False,
+        backup_state=False,
+    )
+
+    listed = database.users.list_users(
+        test_tenant["id"], auth_methods=["multiple"], page=1, page_size=100
+    )
+    counted = database.users.count_users(test_tenant["id"], auth_methods=["multiple"])
+    assert len(listed) == counted
+    assert counted == 1  # only test_user qualifies
+
+
+def test_list_users_passkey_filter_is_tenant_isolated(test_tenant, test_user, test_admin_user):
+    """A passkey in tenant A must not cause users in tenant B to match the filter.
+
+    This exercises the RLS policy on webauthn_credentials -- the SQL subquery
+    for the passkey filter has no explicit tenant_id clause and relies on RLS.
+    """
+    import database
+
+    # Seed a passkey for test_user in tenant A.
+    database.webauthn_credentials.create_credential(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        user_id=test_user["id"],
+        credential_id=b"tenant-iso-passkey",
+        public_key=b"pk",
+        name="A-key",
+        sign_count=0,
+        aaguid=None,
+        transports=None,
+        backup_eligible=False,
+        backup_state=False,
+    )
+
+    # Provision a second tenant and a user there. No passkey seeded.
+    other_tenant = database.fetchone(
+        database._core.UNSCOPED,
+        """
+        insert into tenants (subdomain, name)
+        values ('iso-tenant-pk', 'Iso') returning id
+        """,
+        {},
+    )
+    try:
+        database.execute(
+            other_tenant["id"],
+            """
+            insert into users (tenant_id, first_name, last_name, role)
+            values (:tenant_id, 'Iso', 'User', 'member')
+            """,
+            {"tenant_id": other_tenant["id"]},
+        )
+
+        # Tenant B: asking for passkey users -> zero matches, because
+        # RLS hides tenant A's credentials.
+        b_listed = database.users.list_users(
+            other_tenant["id"], auth_methods=["passkey"], page=1, page_size=100
+        )
+        b_count = database.users.count_users(other_tenant["id"], auth_methods=["passkey"])
+        assert b_listed == []
+        assert b_count == 0
+    finally:
+        database.execute(
+            database._core.UNSCOPED,
+            "delete from tenants where id = :id",
+            {"id": other_tenant["id"]},
+        )
+
+
 def test_list_users_filter_auth_method_combined_with_search(
     test_tenant, test_user, test_admin_user
 ):

@@ -148,6 +148,19 @@ def test_get_auth_method_options_includes_idp_with_totp():
     assert "Okta Corp + TOTP" in labels
 
 
+def test_get_auth_method_options_includes_passkey_and_multiple():
+    """Static options now include passkey and multiple."""
+    from services.users.utilities import get_auth_method_options
+
+    with patch("services.users.utilities.database") as mock_db:
+        mock_db.saml.list_identity_providers.return_value = []
+        options = get_auth_method_options("t1")
+
+    keys = [o["auth_method_key"] for o in options]
+    assert "passkey" in keys
+    assert "multiple" in keys
+
+
 def test_get_auth_method_options_idp_without_totp():
     """get_auth_method_options omits TOTP option when IdP doesn't require it."""
     from services.users.utilities import get_auth_method_options

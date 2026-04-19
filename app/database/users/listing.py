@@ -85,6 +85,8 @@ def _build_auth_method_clauses(
     Auth method keys:
       - password_email: has password, no TOTP
       - password_totp: has password, TOTP enabled
+      - passkey: has at least one registered WebAuthn credential
+      - multiple: has two or more of {password, SAML IdP, TOTP, passkey}
       - idp:<uuid>: SAML IdP user without platform MFA
       - idp:<uuid>_totp: SAML IdP user with platform MFA TOTP
       - unverified: no password, no IdP
@@ -105,6 +107,21 @@ def _build_auth_method_clauses(
         elif method == "password_totp":
             conditions.append(
                 "(u.password_hash is not null and u.saml_idp_id is null and u.mfa_method = 'totp')"
+            )
+        elif method == "passkey":
+            conditions.append(
+                "exists (select 1 from webauthn_credentials wc where wc.user_id = u.id)"
+            )
+        elif method == "multiple":
+            conditions.append(
+                "("
+                "(case when u.password_hash is not null then 1 else 0 end)"
+                " + (case when u.saml_idp_id is not null then 1 else 0 end)"
+                " + (case when u.mfa_method = 'totp' then 1 else 0 end)"
+                " + (case when exists ("
+                "select 1 from webauthn_credentials wc where wc.user_id = u.id"
+                ") then 1 else 0 end)"
+                ") >= 2"
             )
         elif method == "unverified":
             conditions.append("(u.password_hash is null and u.saml_idp_id is null)")

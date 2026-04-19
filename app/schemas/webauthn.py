@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -47,8 +49,10 @@ class PasskeyResponse(BaseModel):
     transports: list[str] | None = None
     backup_eligible: bool
     backup_state: bool
-    created_at: str = Field(..., description="ISO-8601 timestamp")
-    last_used_at: str | None = Field(default=None, description="ISO-8601 timestamp or null")
+    created_at: datetime = Field(..., description="Registration timestamp (UTC)")
+    last_used_at: datetime | None = Field(
+        default=None, description="Last authentication timestamp (UTC) or null"
+    )
 
 
 class CompleteRegistrationResponse(BaseModel):

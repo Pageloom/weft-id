@@ -79,6 +79,7 @@ nav:
       - Certificates: admin-guide/security/certificates.md
       - Permissions: admin-guide/security/permissions.md
       - Two-Step Verification: admin-guide/security/two-step-verification.md
+      - Authentication Policy: admin-guide/security/authentication-policy.md
     - Branding:
       - admin-guide/branding/index.md
     - Audit:
@@ -89,6 +90,7 @@ nav:
     - Profile: user-guide/profile.md
     - Password: user-guide/password.md
     - Two-Step Verification: user-guide/two-step-verification.md
+    - Passkeys: user-guide/passkeys.md
     - Signing In: user-guide/signing-in.md
     - Background Jobs: user-guide/background-jobs.md
   - API:

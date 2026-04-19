@@ -30,6 +30,7 @@ from schemas.webauthn import (
 )
 from services import mfa as mfa_service
 from services.activity import track_activity
+from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
@@ -66,16 +67,14 @@ _LOGIN_CHALLENGE_TTL_S = 300
 
 def _row_to_passkey_response(row: dict) -> PasskeyResponse:
     """Convert a database row into the public-facing ``PasskeyResponse`` schema."""
-    created_at = row.get("created_at")
-    last_used_at = row.get("last_used_at")
     return PasskeyResponse(
         id=str(row["id"]),
         name=row["name"],
         transports=list(row["transports"]) if row.get("transports") else None,
         backup_eligible=bool(row.get("backup_eligible", False)),
         backup_state=bool(row.get("backup_state", False)),
-        created_at=created_at.isoformat() if created_at else "",
-        last_used_at=last_used_at.isoformat() if last_used_at else None,
+        created_at=row["created_at"],
+        last_used_at=row.get("last_used_at"),
     )
 
 
@@ -344,6 +343,97 @@ def delete_credential(
         artifact_id=str(credential_uuid),
         event_type="passkey_deleted",
         metadata={
+            "credential_name": existing.get("name"),
+            "backup_eligible": bool(existing.get("backup_eligible", False)),
+        },
+    )
+
+
+# =============================================================================
+# Admin operations (cross-user)
+# =============================================================================
+
+
+def admin_list_credentials(requesting_user: RequestingUser, user_id: str) -> list[PasskeyResponse]:
+    """List another user's passkeys. Admin role required."""
+    require_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+    track_activity(tenant_id, requesting_user["id"])
+
+    rows = database.webauthn_credentials.list_credentials(tenant_id, user_id)
+    return [_row_to_passkey_response(row) for row in rows]
+
+
+def admin_revoke_credential(
+    requesting_user: RequestingUser,
+    user_id: str,
+    credential_uuid: str,
+) -> None:
+    """Revoke another user's passkey. Admin role required.
+
+    Admin revoke is the compromised-credential path. In addition to deleting
+    the credential, all of the target user's OAuth2 tokens are revoked so an
+    attacker holding an active access/refresh token is ejected along with the
+    passkey they may have stolen.
+
+    Emits ``passkey_deleted`` with ``metadata.revoked_by_admin = True``,
+    ``metadata.target_user_id`` and ``metadata.target_user_name`` so audit
+    queries can distinguish admin revocations from self-deletions even after
+    the target account is anonymized.
+    """
+    require_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+
+    if str(requesting_user["id"]) == str(user_id):
+        raise ValidationError(
+            message="You cannot revoke your own passkey from the admin view. "
+            "Use the account passkeys page instead.",
+            code="cannot_revoke_own_passkey",
+        )
+
+    target_user = database.users.get_user_by_id(tenant_id, user_id)
+    if not target_user:
+        raise NotFoundError(message="User not found", code="user_not_found")
+
+    existing = database.webauthn_credentials.get_credential(tenant_id, credential_uuid)
+    if not existing or str(existing["user_id"]) != str(user_id):
+        raise NotFoundError(
+            message="Passkey not found",
+            code="passkey_not_found",
+        )
+
+    rows = database.webauthn_credentials.delete_credential(
+        tenant_id, credential_uuid, str(existing["user_id"])
+    )
+    if rows == 0:
+        raise NotFoundError(
+            message="Passkey not found",
+            code="passkey_not_found",
+        )
+
+    # Revoke OAuth2 tokens so any active attacker session tied to the
+    # compromised credential loses access alongside the passkey itself.
+    revoked_count = database.oauth2.revoke_all_user_tokens(tenant_id, str(user_id))
+    if revoked_count > 0:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=str(user_id),
+            event_type="oauth2_user_tokens_revoked",
+            artifact_type="user",
+            artifact_id=str(user_id),
+            metadata={"reason": "admin_revoked_passkey", "tokens_revoked": revoked_count},
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(requesting_user["id"]),
+        artifact_type="webauthn_credential",
+        artifact_id=str(credential_uuid),
+        event_type="passkey_deleted",
+        metadata={
+            "revoked_by_admin": True,
+            "target_user_id": str(user_id),
+            "target_user_name": f"{target_user['first_name']} {target_user['last_name']}",
             "credential_name": existing.get("name"),
             "backup_eligible": bool(existing.get("backup_eligible", False)),
         },

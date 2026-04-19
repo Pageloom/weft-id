@@ -2,6 +2,8 @@
 
 Every sign-in requires a verification code after your password. WeftID supports authenticator apps (TOTP) and email-based codes. Email is the default method.
 
+See also [Passkeys](passkeys.md) for phishing-resistant sign-in that replaces both password and two-step verification in a single tap.
+
 ## Setting up an authenticator app
 
 1. Go to **Account > Two-Step Verification**

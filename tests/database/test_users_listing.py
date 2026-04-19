@@ -143,6 +143,35 @@ class TestBuildAuthMethodClauses:
         _build_auth_method_clauses(["password_email"], clauses, params, negate=True)
         assert clauses[0].startswith("not ")
 
+    def test_passkey(self):
+        from database.users.listing import _build_auth_method_clauses
+
+        clauses, params = [], {}
+        _build_auth_method_clauses(["passkey"], clauses, params)
+        assert len(clauses) == 1
+        assert "webauthn_credentials" in clauses[0]
+        assert "wc.user_id = u.id" in clauses[0]
+
+    def test_multiple(self):
+        from database.users.listing import _build_auth_method_clauses
+
+        clauses, params = [], {}
+        _build_auth_method_clauses(["multiple"], clauses, params)
+        assert len(clauses) == 1
+        assert ">= 2" in clauses[0]
+        # Factors counted: password, saml_idp_id, totp, webauthn
+        assert "password_hash" in clauses[0]
+        assert "saml_idp_id" in clauses[0]
+        assert "mfa_method = 'totp'" in clauses[0]
+        assert "webauthn_credentials" in clauses[0]
+
+    def test_negated_passkey(self):
+        from database.users.listing import _build_auth_method_clauses
+
+        clauses, params = [], {}
+        _build_auth_method_clauses(["passkey"], clauses, params, negate=True)
+        assert clauses[0].startswith("not ")
+
 
 class TestBuildDomainClause:
     """Tests for _build_domain_clause."""

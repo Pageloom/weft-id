@@ -204,6 +204,7 @@ def test_user_detail_page(test_admin_user, mocker, override_auth):
     mock_domains = mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains")
     mocker.patch(f"{USERS_DETAIL}.groups_service")
     mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mocker.patch(f"{USERS_DETAIL}.webauthn_service")
 
     mock_template.return_value = HTMLResponse(content="<html>User Detail</html>")
     mock_get.return_value = target_user
@@ -3381,6 +3382,7 @@ def test_user_detail_profile_group_count_error(test_admin_user, mocker, override
     mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains", return_value=[])
     mock_groups = mocker.patch(f"{USERS_DETAIL}.groups_service.get_effective_memberships")
     mock_sp = mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mocker.patch(f"{USERS_DETAIL}.webauthn_service")
 
     mock_template.return_value = HTMLResponse(content="<html>ok</html>")
     mock_get.return_value = target_user
@@ -3430,6 +3432,7 @@ def test_user_detail_profile_app_count_error(test_admin_user, mocker, override_a
         return_value=EffectiveMembershipList(items=[]),
     )
     mock_sp = mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mocker.patch(f"{USERS_DETAIL}.webauthn_service.admin_list_credentials", return_value=[])
 
     mock_template.return_value = HTMLResponse(content="<html>ok</html>")
     mock_get.return_value = target_user
@@ -3474,6 +3477,7 @@ def test_user_detail_profile_super_admin_idp_error(test_super_admin_user, mocker
     mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains", return_value=[])
     mocker.patch(f"{USERS_DETAIL}.groups_service")
     mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mocker.patch(f"{USERS_DETAIL}.webauthn_service.admin_list_credentials", return_value=[])
     mock_idp = mocker.patch(f"{USERS_DETAIL}.saml_service.list_identity_providers")
     mock_idp.side_effect = ServiceError(message="Error", code="error")
 

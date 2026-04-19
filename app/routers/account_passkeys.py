@@ -88,7 +88,7 @@ async def complete_registration(
     except ServiceError as exc:
         return JSONResponse({"error": exc.message, "code": exc.code}, status_code=400)
 
-    return JSONResponse(result.model_dump())
+    return JSONResponse(result.model_dump(mode="json"))
 
 
 @router.post("/{credential_id}/rename")

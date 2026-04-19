@@ -467,3 +467,26 @@ formatting, stable JSON key ordering for metadata, and a defined null representa
 **Version impact:** Patch (new endpoint, no breaking changes)
 
 ---
+
+## Enforce Clean Unit/Integration Test Boundary
+
+**User Story:**
+As a developer,
+I want tests to either fully mock the database or fully use it,
+So that unit tests never leak queries to PostgreSQL, producing noisy error logs and hiding incomplete mocking.
+
+**Problem:**
+`tests/services/` and `tests/routers/` mix unit and integration patterns. Tests mock specific DB calls they care about but let side-effects (`track_activity`, `log_event`, `is_verbose_logging_active`) leak to the real database. This produced ~115 PG error log entries per test run. Temporary guards in conftest files reduce this to ~6, but the root cause is architectural.
+
+**Acceptance Criteria:**
+- [ ] Service and router conftest auto-mocks the database connection pool by default (nothing reaches PG)
+- [ ] Tests that need real DB access opt in with `@pytest.mark.integration` (restores real pool)
+- [ ] `tests/database/` remains unchanged (all integration by default, no marker needed)
+- [ ] `tests/utils/` and `tests/jobs/` remain unchanged (already clean unit tests)
+- [ ] Remove the UUID-validation guard fixtures from `tests/services/conftest.py` and `tests/routers/conftest.py` (no longer needed)
+- [ ] Zero PG error log entries from unit tests (only expected constraint errors from database integration tests)
+- [ ] All existing tests pass without modification (integration tests get the marker, unit tests work as-is)
+
+**Effort:** M
+**Value:** Medium (developer experience, test reliability, CI log clarity)
+**Version impact:** None (test infrastructure only)

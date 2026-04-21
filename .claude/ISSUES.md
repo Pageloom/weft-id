@@ -16,6 +16,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 | Low | 2 | Copy |
+| **High** | **1** | **Security (passkey_auth review)** |
 | Low | 1 | Security |
 | Medium | 3 | Security (passkey_auth review) |
 | Low | 1 | Security (passkey_auth review) |
@@ -121,6 +122,21 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 - `idp_lifecycle.py` (~350 lines): group lifecycle and discovery
 - `idp_membership.py` (~350 lines): sync, base group membership, cross-IdP moves
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
+
+---
+
+## [SECURITY] Enhanced policy bypass: passkey user can authenticate via email OTP
+
+**Found in:** `app/services/users/auth_policy.py::user_must_enroll_enhanced`, `app/routers/mfa.py::mfa_verify`
+**Severity:** High
+**Description:** Under `required_auth_strength = 'enhanced'`, a user with `mfa_method = 'email'` and at least one registered passkey can sign in via password + email OTP by abandoning the passkey ceremony. The enforcement check `user_must_enroll_enhanced` returns `False` because the user has a passkey (line 46-47 counts credentials). This conflates "has a strong method available" with "used a strong method for this login." The design decision states: "Email OTP is a valid step-up method iff tenant policy is `baseline`." Under `enhanced`, email OTP should never be the final authentication factor, regardless of what other methods the user has registered.
+**Evidence:**
+- `app/services/users/auth_policy.py:46-47` short-circuits on `count_credentials > 0`.
+- `app/routers/mfa.py:134` calls `user_must_enroll_enhanced` after email OTP succeeds; the passkey count makes it return False and the login completes.
+- E2E test `tests/e2e/test_enhanced_auth_policy.py::test_passkey_user_cannot_bypass_via_email_otp` demonstrates the bug (marked `xfail`).
+**Impact:** An attacker who phishes a password and intercepts an email OTP can authenticate as a passkey-protected user under enhanced policy. The entire point of enhanced policy is to block email OTP. This undermines the security guarantee admins expect when enabling the setting.
+**Suggested fix:** In `mfa_verify`, after successful email OTP verification, if the tenant policy is `enhanced`, always redirect to the enrollment page (or a "use your passkey" interstitial), regardless of whether the user has passkeys registered. The enrollment page already handles passkey users gracefully. Alternatively, add a new check in `user_must_enroll_enhanced` that accepts the MFA method used for the current login and rejects email OTP under enhanced policy even when passkeys exist.
+**Related cleanup:** The `mfa_method` CHECK constraint includes a `passcode` value that no code path ever sets. Remove it from the schema constraint and any service/template logic that references it. Simplifying the set of valid MFA methods makes the policy enforcement logic easier to reason about.
 
 ---
 

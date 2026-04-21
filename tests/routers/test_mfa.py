@@ -412,13 +412,66 @@ def test_mfa_verify_enrollment_block_prevents_sso_completion(test_tenant, mocker
     assert "pending_sso_user_id" not in session_data
 
 
-def test_mfa_verify_under_enhanced_with_passkey_completes_login(test_tenant, mocker):
-    """Under enhanced policy with at least one registered passkey, a user with
-    email-based MFA must still complete login after OTP -- no enrollment
-    redirect, no gate key set.
+def test_mfa_verify_backup_code_satisfies_enhanced_with_passkey(test_tenant, mocker):
+    """A passkey user who uses a backup code satisfies enhanced policy.
 
-    This is the iteration-4 behaviour: a registered passkey satisfies the
-    policy even when ``mfa_method`` is still ``email``.
+    Backup codes are a legitimate recovery mechanism: the user already
+    enrolled in a strong method.  The service returns False and login
+    completes normally.
+    """
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    user_id = "test-user-id"
+    session_data: dict = {
+        "pending_mfa_user_id": user_id,
+        "pending_mfa_method": "email",
+    }
+    mocker.patch(
+        "starlette.requests.Request.session",
+        new_callable=lambda: property(lambda self: session_data),
+    )
+
+    mocker.patch("routers.mfa.ratelimit.prevent")
+    mocker.patch("routers.mfa.verify_totp_code", return_value=False)
+    mocker.patch("routers.mfa.verify_email_otp", return_value=False)
+    mocker.patch("routers.mfa.verify_backup_code", return_value=True)
+    mocker.patch(
+        "routers.mfa.users_service.get_user_by_id_raw",
+        return_value={"id": user_id, "mfa_method": "email"},
+    )
+    mock_enroll = mocker.patch(
+        "routers.mfa.users_service.user_must_enroll_enhanced", return_value=False
+    )
+
+    from fastapi.responses import RedirectResponse
+
+    mock_complete = mocker.patch(
+        "routers.auth._login_completion.complete_authenticated_login",
+        return_value=RedirectResponse(url="/dashboard", status_code=303),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/mfa/verify",
+        data={"code": "123456"},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    assert "pending_enhanced_enrollment_user_id" not in session_data
+    mock_complete.assert_called_once()
+    mock_enroll.assert_called_once_with(test_tenant["id"], ANY, login_mfa_method="backup_code")
+
+
+def test_mfa_verify_email_otp_passes_method_to_policy_check(test_tenant, mocker):
+    """When email OTP verifies the code, login_mfa_method='email' is passed
+    to user_must_enroll_enhanced so the service can reject it under enhanced
+    policy.
     """
     from dependencies import get_tenant_id_from_request
 
@@ -441,15 +494,8 @@ def test_mfa_verify_under_enhanced_with_passkey_completes_login(test_tenant, moc
         "routers.mfa.users_service.get_user_by_id_raw",
         return_value={"id": user_id, "mfa_method": "email"},
     )
-    # Passkey satisfies enhanced policy: must_enroll_enhanced returns False.
-    mocker.patch("routers.mfa.users_service.user_must_enroll_enhanced", return_value=False)
-
-    # Stub out the shared completion helper so we don't need full DB/session setup.
-    from fastapi.responses import RedirectResponse
-
-    mock_complete = mocker.patch(
-        "routers.auth._login_completion.complete_authenticated_login",
-        return_value=RedirectResponse(url="/dashboard", status_code=303),
+    mock_enroll = mocker.patch(
+        "routers.mfa.users_service.user_must_enroll_enhanced", return_value=True
     )
 
     client = TestClient(app)
@@ -462,8 +508,5 @@ def test_mfa_verify_under_enhanced_with_passkey_completes_login(test_tenant, moc
     app.dependency_overrides.clear()
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/dashboard"
-    # No enrollment gate should have been set.
-    assert "pending_enhanced_enrollment_user_id" not in session_data
-    # Completion helper invoked (exactly once).
-    mock_complete.assert_called_once()
+    assert response.headers["location"] == "/login/enroll-enhanced-auth"
+    mock_enroll.assert_called_once_with(test_tenant["id"], ANY, login_mfa_method="email")

@@ -92,7 +92,8 @@ def test_user_must_enroll_enhanced_false_when_user_has_passkey(
     test_tenant, test_super_admin_user, test_user
 ):
     """Under enhanced policy, a registered passkey satisfies the policy even
-    when ``mfa_method`` is still ``email``.
+    when ``mfa_method`` is still ``email`` (profile/registration check with
+    no login context).
     """
     _set_policy(test_tenant["id"], test_super_admin_user, "enhanced")
     _create_passkey(test_tenant["id"], test_user["id"], seed=1)
@@ -101,6 +102,58 @@ def test_user_must_enroll_enhanced_false_when_user_has_passkey(
         users_service.user_must_enroll_enhanced(
             test_tenant["id"],
             {"id": test_user["id"], "mfa_method": "email"},
+        )
+        is False
+    )
+
+
+def test_email_otp_never_satisfies_enhanced_even_with_passkeys(
+    test_tenant, test_super_admin_user, test_user
+):
+    """Under enhanced policy, email OTP at login time always requires
+    enrollment, even when the user has registered passkeys.
+    """
+    _set_policy(test_tenant["id"], test_super_admin_user, "enhanced")
+    _create_passkey(test_tenant["id"], test_user["id"], seed=20)
+
+    assert (
+        users_service.user_must_enroll_enhanced(
+            test_tenant["id"],
+            {"id": test_user["id"], "mfa_method": "email"},
+            login_mfa_method="email",
+        )
+        is True
+    )
+
+
+def test_backup_code_satisfies_enhanced_when_user_has_passkey(
+    test_tenant, test_super_admin_user, test_user
+):
+    """Backup codes are a legitimate recovery mechanism. A passkey user who
+    uses a backup code at login has already enrolled in a strong method.
+    """
+    _set_policy(test_tenant["id"], test_super_admin_user, "enhanced")
+    _create_passkey(test_tenant["id"], test_user["id"], seed=21)
+
+    assert (
+        users_service.user_must_enroll_enhanced(
+            test_tenant["id"],
+            {"id": test_user["id"], "mfa_method": "email"},
+            login_mfa_method="backup_code",
+        )
+        is False
+    )
+
+
+def test_totp_login_satisfies_enhanced(test_tenant, test_super_admin_user, test_user):
+    """TOTP at login time satisfies enhanced policy."""
+    _set_policy(test_tenant["id"], test_super_admin_user, "enhanced")
+
+    assert (
+        users_service.user_must_enroll_enhanced(
+            test_tenant["id"],
+            {"id": test_user["id"], "mfa_method": "totp"},
+            login_mfa_method="totp",
         )
         is False
     )

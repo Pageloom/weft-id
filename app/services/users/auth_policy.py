@@ -17,7 +17,12 @@ after signing in.
 import database
 
 
-def user_must_enroll_enhanced(tenant_id: str, user: dict) -> bool:
+def user_must_enroll_enhanced(
+    tenant_id: str,
+    user: dict,
+    *,
+    login_mfa_method: str | None = None,
+) -> bool:
     """Return True if this user must enroll in a strong auth method now.
 
     A TOTP-enabled user satisfies the policy. A user with at least one
@@ -25,9 +30,18 @@ def user_must_enroll_enhanced(tenant_id: str, user: dict) -> bool:
     is still ``email``) because a passkey is a phishing-resistant factor
     on its own.
 
+    When called at login time, pass ``login_mfa_method`` to indicate which
+    verification method was actually used.  Email OTP never satisfies
+    enhanced policy regardless of what other methods the user has
+    registered: the policy requires the user to *use* a strong factor,
+    not merely to *have* one available.
+
     Args:
         tenant_id: The tenant ID (used to look up policy).
         user: User dict including at least ``id`` and ``mfa_method``.
+        login_mfa_method: The MFA method the user actually used for this
+            login (``"email"``, ``"totp"``, ``"backup_code"``).  ``None``
+            for non-login checks (e.g. profile/registration).
 
     Returns:
         True if the user needs to enroll before continuing; False otherwise.
@@ -35,6 +49,11 @@ def user_must_enroll_enhanced(tenant_id: str, user: dict) -> bool:
     policy = database.security.get_required_auth_strength(tenant_id)
     if policy != "enhanced":
         return False
+
+    # Email OTP never satisfies enhanced policy at login time, even if the
+    # user has passkeys registered.
+    if login_mfa_method == "email":
+        return True
 
     if user.get("mfa_method") == "totp":
         return False

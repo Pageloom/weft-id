@@ -14,8 +14,6 @@ Uses the two-tenant testbed's IdP tenant (``idp_config``).
 
 import subprocess
 
-import pytest
-
 from tests.e2e.conftest import DOCKER_COMPOSE
 
 # ---------------------------------------------------------------------------
@@ -275,22 +273,10 @@ class TestEnhancedPolicyPasskeyInteraction:
             _set_auth_policy(subdomain, "baseline")
             _delete_all_passkeys_for_admin(subdomain)
 
-    @pytest.mark.xfail(
-        reason="BUG: user_must_enroll_enhanced checks passkey existence, not usage. "
-        "A user with a registered passkey can bypass enhanced policy via "
-        "password + email OTP by abandoning the passkey ceremony.",
-        strict=True,
-    )
     def test_passkey_user_cannot_bypass_via_email_otp(self, page, idp_config):
         """Under enhanced policy, a user who has a passkey but abandons the
         ceremony and falls back to password + email OTP should NOT reach
-        the dashboard. The policy says email OTP is not acceptable.
-
-        Current behavior (BUG): ``user_must_enroll_enhanced`` returns False
-        because the user has a passkey, allowing email OTP login to complete.
-
-        Expected behavior: the user should be blocked or redirected, because
-        they authenticated with a weak factor despite having a strong one.
+        the dashboard. Email OTP never satisfies enhanced policy.
         """
         base_url = idp_config["base_url"]
         email = idp_config["admin_email"]

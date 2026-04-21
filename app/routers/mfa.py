@@ -94,21 +94,25 @@ def mfa_verify(
         )
 
     verified = False
+    verified_via: str | None = None
     code_clean = code.replace(" ", "").replace("-", "")
 
     # Try primary MFA method (totp)
     if pending_method == "totp":
         secret = get_totp_secret(tenant_id, pending_user_id, pending_method)
-        if secret:
-            verified = verify_totp_code(secret, code_clean)
+        if secret and verify_totp_code(secret, code_clean):
+            verified = True
+            verified_via = "totp"
 
     # Try email OTP
-    if not verified:
-        verified = verify_email_otp(tenant_id, pending_user_id, code_clean)
+    if not verified and verify_email_otp(tenant_id, pending_user_id, code_clean):
+        verified = True
+        verified_via = "email"
 
     # Try backup codes
-    if not verified:
-        verified = verify_backup_code(tenant_id, pending_user_id, code_clean)
+    if not verified and verify_backup_code(tenant_id, pending_user_id, code_clean):
+        verified = True
+        verified_via = "backup_code"
 
     if not verified:
         user = emails_service.get_user_with_primary_email(tenant_id, pending_user_id)
@@ -131,7 +135,9 @@ def mfa_verify(
     # user_signed_in, do not regenerate the session, and keep pending_mfa_*
     # around so the helper can re-enter if enrollment is abandoned.
     current_user = users_service.get_user_by_id_raw(tenant_id, pending_user_id)
-    if current_user and users_service.user_must_enroll_enhanced(tenant_id, current_user):
+    if current_user and users_service.user_must_enroll_enhanced(
+        tenant_id, current_user, login_mfa_method=verified_via
+    ):
         # Persist tz/locale across the enrollment redirect so the completion
         # helper can apply them once enrollment finishes.
         if timezone:

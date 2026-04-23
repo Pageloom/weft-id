@@ -7,8 +7,8 @@ WeftID supports two single sign-on flows: SP-initiated (started by the applicati
 This is the most common flow. The user starts at the application and is redirected to WeftID to authenticate.
 
 1. **User visits the application.** The application generates a SAML AuthnRequest and redirects the user to WeftID's SSO endpoint.
-2. **WeftID authenticates the user.** If the user is not already signed in, they are prompted to sign in (password, SAML IdP, or both).
-3. **Two-step verification.** If the IdP requires platform two-step verification, the user must complete that step.
+2. **WeftID authenticates the user.** If the user is not already signed in, they are prompted to sign in (passkey, password, or SAML IdP).
+3. **Two-step verification.** If the user signs in with a password, they must complete two-step verification. If the IdP requires platform two-step verification, IdP users must also complete that step. Passkey sign-in skips this step (passkeys are inherently multi-factor).
 4. **Consent.** WeftID shows a consent screen displaying the application name and the user's identity. The user confirms or cancels.
 5. **Access check.** WeftID verifies the user has access to the SP (via group assignment or "available to all").
 6. **Assertion issued.** WeftID builds a signed SAML response containing the user's attributes. If the application provides an [encryption certificate](attribute-mapping.md#assertion-encryption), the assertion is encrypted before delivery. The response is posted to the application's ACS URL.

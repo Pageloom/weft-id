@@ -44,9 +44,19 @@ On your first sign-in with this flow (or when your trust cookie has expired), yo
 
 Once your trust cookie is set, future sign-ins skip step 2 and you only enter one code.
 
+## Passkey sign-in
+
+If you have a passkey registered, WeftID offers a passkey prompt after you enter your email. Approve with your fingerprint, PIN, or security key tap, and you go straight to the dashboard. No password, no verification code.
+
+If the passkey prompt is dismissed or fails, WeftID falls back to the normal password and two-step verification flow. See [Passkeys](passkeys.md) for details on registering and managing passkeys.
+
 ## Two-step verification
 
 After your password is accepted, you enter a verification code from your authenticator app or email. This protects your account even if your password is compromised. See [Two-Step Verification](two-step-verification.md) to configure your verification method.
+
+## Enhanced authentication enrollment
+
+If your organization requires stronger sign-in (enhanced [authentication policy](../admin-guide/security/authentication-policy.md)), users with only email-based verification are redirected to an enrollment page after their next sign-in. The page offers two options: register a passkey or set up an authenticator app (TOTP). Completing either option satisfies the policy and finishes the sign-in.
 
 ## Forced password reset
 

@@ -20,6 +20,8 @@ from schemas.saml import (
     IdPUpdate,
     MetadataRefreshResult,
     ProviderPresets,
+    SAMLDebugEntryAPI,
+    SAMLDebugEntryDetailAPI,
     UnboundDomain,
 )
 from services import saml as saml_service
@@ -586,6 +588,53 @@ def import_identity_provider_from_xml(
         raise translate_to_http_exception(exc)
 
 
+class ReimportMetadataXMLRequest(BaseModel):
+    """Request to re-import IdP metadata from pasted XML."""
+
+    metadata_xml: str = Field(..., min_length=1, max_length=1000000)
+
+
+@router.post("/idps/{idp_id}/reimport-xml", response_model=IdPConfig)
+def reimport_idp_metadata_xml(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+    body: ReimportMetadataXMLRequest,
+):
+    """
+    Re-import IdP metadata from raw XML on an existing IdP.
+
+    Requires super_admin role.
+
+    Parses the provided XML metadata and updates the IdP's SSO URL,
+    SLO URL, and certificate. Use this when an IdP rotates its
+    certificate and does not expose a metadata URL.
+
+    Path parameters:
+    - idp_id: UUID of the IdP
+
+    Request body:
+    - metadata_xml: Raw SAML metadata XML content
+
+    Returns updated IdP configuration.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        saml_service.get_identity_provider(requesting_user, idp_id)
+        parsed = saml_service.parse_idp_metadata_xml_to_schema(body.metadata_xml)
+        return saml_service.update_identity_provider(
+            requesting_user,
+            idp_id,
+            IdPUpdate(
+                sso_url=parsed.sso_url,
+                slo_url=parsed.slo_url,
+                certificate_pem=parsed.certificate_pem,
+            ),
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
 @router.post("/idps/{idp_id}/refresh", response_model=MetadataRefreshResult)
 def refresh_identity_provider_metadata(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -743,5 +792,88 @@ def get_unbound_domains(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return saml_service.get_unbound_domains(requesting_user)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# SAML Debug Entries
+# =============================================================================
+
+
+@router.get("/idps/{idp_id}/debug-entries", response_model=list[SAMLDebugEntryAPI])
+def list_debug_entries(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+    limit: Annotated[int, Query(ge=1, le=200, description="Max entries to return")] = 50,
+):
+    """
+    List SAML debug log entries for an IdP.
+
+    Requires super_admin role.
+
+    Entries are created when verbose assertion logging is enabled and a
+    SAML authentication fails. Auto-expires after 24 hours.
+
+    Path parameters:
+    - idp_id: UUID of the IdP
+
+    Query parameters:
+    - limit: Maximum number of entries (1-200, default 50)
+
+    Returns list of debug entries, most recent first.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        entries = saml_service.list_saml_debug_entries(requesting_user, limit=limit)
+        return [
+            SAMLDebugEntryAPI(
+                id=str(e["id"]),
+                error_type=e["error_type"],
+                error_detail=e.get("error_detail"),
+                idp_id=str(e["idp_id"]) if e.get("idp_id") else None,
+                idp_name=e.get("idp_name"),
+                request_ip=e.get("request_ip"),
+                created_at=e["created_at"],
+            )
+            for e in entries
+            if not idp_id or str(e.get("idp_id", "")) == idp_id
+        ]
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/idps/{idp_id}/debug-entries/{entry_id}", response_model=SAMLDebugEntryDetailAPI)
+def get_debug_entry(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+    entry_id: str,
+):
+    """
+    Get a specific SAML debug log entry with full XML.
+
+    Requires super_admin role.
+
+    Path parameters:
+    - idp_id: UUID of the IdP
+    - entry_id: UUID of the debug entry
+
+    Returns the debug entry including the raw SAML response XML.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        entry = saml_service.get_saml_debug_entry(requesting_user, entry_id)
+        return SAMLDebugEntryDetailAPI(
+            id=str(entry["id"]),
+            error_type=entry["error_type"],
+            error_detail=entry.get("error_detail"),
+            idp_id=str(entry["idp_id"]) if entry.get("idp_id") else None,
+            idp_name=entry.get("idp_name"),
+            request_ip=entry.get("request_ip"),
+            created_at=entry["created_at"],
+            saml_response_xml=entry.get("saml_response_xml"),
+        )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

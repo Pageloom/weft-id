@@ -1245,3 +1245,358 @@ class TestSamlApiServiceErrors:
                 headers={"Host": test_tenant_host, **oauth2_super_admin_header},
             )
         assert response.status_code == 500
+
+
+# =============================================================================
+# Reimport Metadata XML Tests
+# =============================================================================
+
+
+def test_reimport_metadata_xml_as_super_admin(make_user_dict, override_api_auth):
+    """Super admin can reimport metadata XML and get updated IdPConfig."""
+    from datetime import UTC, datetime
+
+    from main import app
+    from schemas.saml import IdPConfig
+    from starlette.testclient import TestClient
+
+    super_admin = make_user_dict(role="super_admin")
+    idp_id = str(uuid.uuid4())
+
+    now = datetime.now(UTC)
+    mock_idp = IdPConfig(
+        id=idp_id,
+        name="Corp IdP",
+        provider_type="okta",
+        entity_id="https://idp.example.com/entity",
+        sso_url="https://idp.example.com/sso/updated",
+        slo_url="https://idp.example.com/slo/updated",
+        certificate_pem="-----BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG==\n-----END CERTIFICATE-----",
+        metadata_url=None,
+        metadata_xml=None,
+        metadata_last_fetched_at=None,
+        metadata_fetch_error=None,
+        sp_entity_id="https://app.example.com/saml/sp",
+        sp_acs_url="https://app.example.com/saml/acs",
+        attribute_mapping={"email": "email"},
+        is_enabled=True,
+        is_default=False,
+        require_platform_mfa=False,
+        jit_provisioning=False,
+        trust_established=True,
+        created_at=now,
+        updated_at=now,
+    )
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.saml.saml_service") as mock_svc:
+        mock_parsed = mock_svc.parse_idp_metadata_xml_to_schema.return_value
+        mock_parsed.sso_url = "https://idp.example.com/sso/updated"
+        mock_parsed.slo_url = "https://idp.example.com/slo/updated"
+        mock_parsed.certificate_pem = (
+            "-----BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG==\n-----END CERTIFICATE-----"
+        )
+        mock_svc.get_identity_provider.return_value = mock_idp
+        mock_svc.update_identity_provider.return_value = mock_idp
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/saml/idps/{idp_id}/reimport-xml",
+            json={"metadata_xml": "<EntityDescriptor/>"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == idp_id
+        assert data["sso_url"] == "https://idp.example.com/sso/updated"
+        mock_svc.get_identity_provider.assert_called_once()
+        mock_svc.parse_idp_metadata_xml_to_schema.assert_called_once_with(
+            "<EntityDescriptor/>"
+        )
+        mock_svc.update_identity_provider.assert_called_once()
+
+
+def test_reimport_metadata_xml_admin_forbidden(make_user_dict, override_api_auth):
+    """Admin (non-super_admin) gets 403 on reimport-xml."""
+    from main import app
+    from services.exceptions import ForbiddenError
+    from starlette.testclient import TestClient
+
+    admin = make_user_dict(role="admin")
+    idp_id = str(uuid.uuid4())
+
+    override_api_auth(admin, level="super_admin")
+
+    with patch("routers.api.v1.saml.saml_service") as mock_svc:
+        mock_svc.get_identity_provider.side_effect = ForbiddenError(
+            message="Super admin required", code="super_admin_required"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/saml/idps/{idp_id}/reimport-xml",
+            json={"metadata_xml": "<EntityDescriptor/>"},
+        )
+
+        assert response.status_code == 403
+
+
+def test_reimport_metadata_xml_idp_not_found(make_user_dict, override_api_auth):
+    """Non-existent IdP returns 404 on reimport-xml."""
+    from main import app
+    from services.exceptions import NotFoundError
+    from starlette.testclient import TestClient
+
+    super_admin = make_user_dict(role="super_admin")
+    idp_id = str(uuid.uuid4())
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.saml.saml_service") as mock_svc:
+        mock_svc.get_identity_provider.side_effect = NotFoundError(
+            message="IdP not found", code="idp_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/saml/idps/{idp_id}/reimport-xml",
+            json={"metadata_xml": "<EntityDescriptor/>"},
+        )
+
+        assert response.status_code == 404
+
+
+def test_reimport_metadata_xml_invalid_xml(make_user_dict, override_api_auth):
+    """Invalid XML returns 400 on reimport-xml."""
+    from datetime import UTC, datetime
+
+    from main import app
+    from schemas.saml import IdPConfig
+    from services.exceptions import ValidationError
+    from starlette.testclient import TestClient
+
+    super_admin = make_user_dict(role="super_admin")
+    idp_id = str(uuid.uuid4())
+
+    now = datetime.now(UTC)
+    mock_idp = IdPConfig(
+        id=idp_id,
+        name="Corp IdP",
+        provider_type="okta",
+        entity_id="https://idp.example.com/entity",
+        sso_url="https://idp.example.com/sso",
+        slo_url=None,
+        certificate_pem=None,
+        metadata_url=None,
+        metadata_xml=None,
+        metadata_last_fetched_at=None,
+        metadata_fetch_error=None,
+        sp_entity_id="https://app.example.com/saml/sp",
+        sp_acs_url="https://app.example.com/saml/acs",
+        attribute_mapping={},
+        is_enabled=True,
+        is_default=False,
+        require_platform_mfa=False,
+        jit_provisioning=False,
+        trust_established=True,
+        created_at=now,
+        updated_at=now,
+    )
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.saml.saml_service") as mock_svc:
+        mock_svc.get_identity_provider.return_value = mock_idp
+        mock_svc.parse_idp_metadata_xml_to_schema.side_effect = ValidationError(
+            message="Invalid XML", code="invalid_xml"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/saml/idps/{idp_id}/reimport-xml",
+            json={"metadata_xml": "not valid xml at all"},
+        )
+
+        assert response.status_code == 400
+
+
+# =============================================================================
+# SAML Debug Entries Tests
+# =============================================================================
+
+
+def test_list_debug_entries_returns_filtered_list(make_user_dict, override_api_auth):
+    """Super admin can list debug entries for an IdP."""
+    from datetime import UTC, datetime
+
+    from main import app
+    from starlette.testclient import TestClient
+
+    super_admin = make_user_dict(role="super_admin")
+    idp_id = str(uuid.uuid4())
+    entry_id = str(uuid.uuid4())
+    now = datetime.now(UTC)
+
+    mock_entries = [
+        {
+            "id": entry_id,
+            "error_type": "invalid_signature",
+            "error_detail": "Signature verification failed",
+            "idp_id": idp_id,
+            "idp_name": "Corp IdP",
+            "request_ip": "10.0.0.1",
+            "created_at": now,
+            "saml_response_xml": "<saml/>",
+        }
+    ]
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.saml.saml_service") as mock_svc:
+        mock_svc.list_saml_debug_entries.return_value = mock_entries
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/saml/idps/{idp_id}/debug-entries")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["id"] == entry_id
+        assert data[0]["error_type"] == "invalid_signature"
+        assert data[0]["idp_id"] == idp_id
+
+
+def test_list_debug_entries_filters_by_idp_id(make_user_dict, override_api_auth):
+    """List debug entries only returns entries matching the path idp_id."""
+    from datetime import UTC, datetime
+
+    from main import app
+    from starlette.testclient import TestClient
+
+    super_admin = make_user_dict(role="super_admin")
+    target_idp_id = str(uuid.uuid4())
+    other_idp_id = str(uuid.uuid4())
+    now = datetime.now(UTC)
+
+    mock_entries = [
+        {
+            "id": str(uuid.uuid4()),
+            "error_type": "invalid_signature",
+            "error_detail": None,
+            "idp_id": target_idp_id,
+            "idp_name": "Target IdP",
+            "request_ip": "10.0.0.1",
+            "created_at": now,
+            "saml_response_xml": None,
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "error_type": "missing_attribute",
+            "error_detail": None,
+            "idp_id": other_idp_id,
+            "idp_name": "Other IdP",
+            "request_ip": "10.0.0.2",
+            "created_at": now,
+            "saml_response_xml": None,
+        },
+    ]
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.saml.saml_service") as mock_svc:
+        mock_svc.list_saml_debug_entries.return_value = mock_entries
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/saml/idps/{target_idp_id}/debug-entries")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["idp_id"] == target_idp_id
+
+
+def test_get_debug_entry_detail_with_xml(make_user_dict, override_api_auth):
+    """Super admin can get debug entry detail including SAML XML."""
+    from datetime import UTC, datetime
+
+    from main import app
+    from starlette.testclient import TestClient
+
+    super_admin = make_user_dict(role="super_admin")
+    idp_id = str(uuid.uuid4())
+    entry_id = str(uuid.uuid4())
+    now = datetime.now(UTC)
+    xml_content = "<samlp:Response>...</samlp:Response>"
+
+    mock_entry = {
+        "id": entry_id,
+        "error_type": "invalid_signature",
+        "error_detail": "Cert mismatch",
+        "idp_id": idp_id,
+        "idp_name": "Corp IdP",
+        "request_ip": "192.168.1.1",
+        "created_at": now,
+        "saml_response_xml": xml_content,
+    }
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.saml.saml_service") as mock_svc:
+        mock_svc.get_saml_debug_entry.return_value = mock_entry
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/saml/idps/{idp_id}/debug-entries/{entry_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == entry_id
+        assert data["saml_response_xml"] == xml_content
+        assert data["error_type"] == "invalid_signature"
+        mock_svc.get_saml_debug_entry.assert_called_once()
+
+
+def test_get_debug_entry_not_found(make_user_dict, override_api_auth):
+    """Non-existent debug entry returns 404."""
+    from main import app
+    from services.exceptions import NotFoundError
+    from starlette.testclient import TestClient
+
+    super_admin = make_user_dict(role="super_admin")
+    idp_id = str(uuid.uuid4())
+    entry_id = str(uuid.uuid4())
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.saml.saml_service") as mock_svc:
+        mock_svc.get_saml_debug_entry.side_effect = NotFoundError(
+            message="Debug entry not found", code="debug_entry_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/saml/idps/{idp_id}/debug-entries/{entry_id}")
+
+        assert response.status_code == 404
+
+
+def test_debug_entries_non_super_admin_forbidden(make_user_dict, override_api_auth):
+    """Admin (non-super_admin) gets 403 on debug entries endpoints."""
+    from main import app
+    from services.exceptions import ForbiddenError
+    from starlette.testclient import TestClient
+
+    admin = make_user_dict(role="admin")
+    idp_id = str(uuid.uuid4())
+
+    override_api_auth(admin, level="super_admin")
+
+    with patch("routers.api.v1.saml.saml_service") as mock_svc:
+        mock_svc.list_saml_debug_entries.side_effect = ForbiddenError(
+            message="Super admin required", code="super_admin_required"
+        )
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/saml/idps/{idp_id}/debug-entries")
+
+        assert response.status_code == 403

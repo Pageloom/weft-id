@@ -29,3 +29,5 @@ Look for the information icon in the top-right corner of the navigation bar. It 
 
 1. [Connect an identity provider](connecting-an-idp.md) so users can sign in with their existing credentials
 2. [Register an application](adding-an-application.md) to enable single sign-on
+3. Consider [registering a passkey](../user-guide/passkeys.md) for phishing-resistant sign-in
+4. Review the [authentication policy](../admin-guide/security/authentication-policy.md) to require strong second factors tenant-wide

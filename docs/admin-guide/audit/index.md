@@ -65,14 +65,15 @@ Events cover all areas of the platform:
 
 | Category | Examples |
 |----------|---------|
-| Authentication | Sign-in, sign-out, password changes, password resets, breach detection |
+| Authentication | Sign-in, sign-out, password changes, password resets, breach detection, passkey sign-in |
 | Users | Created, updated, inactivated, reactivated, anonymized |
 | Groups | Created, deleted, members added/removed, relationships changed |
 | Identity providers | Created, updated, trust established, deleted |
 | Service providers | Created, updated, deleted, SSO assertions issued |
 | Certificates | Created, rotated |
 | Settings | Session, certificate, permission, branding, and group assertion scope changes |
-| Two-step verification | Method changed, backup codes regenerated, admin resets |
+| Two-step verification | Method changed, backup codes regenerated, admin resets, passkey registered/deleted/renamed |
+| Authentication policy | Tenant authentication strength changed, user enhanced-auth enrollment completed |
 
 ## Activity tracking
 

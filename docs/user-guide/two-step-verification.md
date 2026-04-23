@@ -35,3 +35,7 @@ Email verification sends a one-time code to your email address on each sign-in. 
 4. The change takes effect immediately
 
 Switching from TOTP to email deletes your backup codes.
+
+## Passkeys
+
+Passkeys are also managed from the two-step verification page. They are a separate sign-in method that replaces both your password and verification code. See [Passkeys](passkeys.md) for full details on registration, sign-in, and recovery.

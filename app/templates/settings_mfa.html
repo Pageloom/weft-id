@@ -95,7 +95,7 @@
             </div>
             {% elif passkey_success == 'deleted' %}
             <div class="mb-4 px-4 py-3 rounded border text-sm bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300" role="status">
-                Passkey deleted.
+                Passkey revoked.
             </div>
             {% elif passkey_success == 'registered' %}
             <div class="mb-4 px-4 py-3 rounded border text-sm bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300" role="status">
@@ -138,7 +138,7 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit"
                                     class="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
-                                Delete
+                                Revoke
                             </button>
                         </form>
                     </div>

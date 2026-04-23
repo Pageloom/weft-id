@@ -2,5 +2,11 @@
   "enabledPlugins": {
     "feature-dev@claude-plugins-official": false,
     "context7@claude-plugins-official": true
+  },
+  "permissions": {
+    "deny": [
+      "Bash(make db-init*)",
+      "Bash(docker compose down -v*)"
+    ]
   }
 }

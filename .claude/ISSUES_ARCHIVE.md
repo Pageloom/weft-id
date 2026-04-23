@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [BUG] SAML IdP `require_platform_mfa` flag is not enforced
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/routers/saml/authentication.py` (both ACS endpoints)
+**Severity:** Medium
+**Resolution:** Both ACS handlers (per-IdP and legacy) gated MFA redirect on `user.get("mfa_method")`, skipping MFA entirely for users with no method configured. Removed the condition so `requires_mfa=True` always redirects to `/mfa/verify`, defaulting to email OTP when user has no MFA method. Two tests added (one per ACS handler) covering the `mfa_method=None` case.
+
+---
+
 ### [SECURITY] TOCTOU: passkey `complete_authentication` skips user eligibility recheck
 
 **Status:** Resolved (2026-04-23)

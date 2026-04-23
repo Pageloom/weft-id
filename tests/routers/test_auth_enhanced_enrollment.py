@@ -826,3 +826,104 @@ def test_passkey_complete_no_backup_codes_path(test_tenant, mocker):
     body = response.json()
     assert body["redirect_url"] == "/dashboard"
     assert body["backup_codes"] is None
+
+
+# ---------------------------------------------------------------------------
+# Rate limit tests
+# ---------------------------------------------------------------------------
+
+
+def test_enroll_totp_verify_rate_limited_redirects(test_tenant, mocker):
+    """POST /login/enroll-enhanced-auth returns 303 with error=too_many_attempts when rate limited."""
+    from dependencies import get_tenant_id_from_request
+    from services.exceptions import RateLimitError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    user_id = "rate-limit-user"
+    session_data: dict = {"pending_enhanced_enrollment_user_id": user_id}
+    mocker.patch(
+        "starlette.requests.Request.session",
+        new_callable=lambda: property(lambda self: session_data),
+    )
+    mocker.patch(
+        "routers.auth.enhanced_enrollment.ratelimit.prevent",
+        side_effect=RateLimitError(message="rate limited", limit=5, timespan=300, retry_after=300),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/enroll-enhanced-auth",
+        data={"code": "123456"},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "too_many_attempts" in response.headers["location"]
+
+
+def test_enroll_passkey_begin_rate_limited_returns_429(test_tenant, mocker):
+    """POST /login/enroll-enhanced-auth/passkey/begin returns 429 when rate limited."""
+    from dependencies import get_tenant_id_from_request
+    from services.exceptions import RateLimitError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    user_id = "rate-limit-user"
+    session_data: dict = {"pending_enhanced_enrollment_user_id": user_id}
+    mocker.patch(
+        "starlette.requests.Request.session",
+        new_callable=lambda: property(lambda self: session_data),
+    )
+    mocker.patch(
+        "routers.auth.enhanced_enrollment.users_service.get_user_by_id_raw",
+        return_value={"id": user_id, "role": "member", "mfa_method": "email"},
+    )
+    mocker.patch(
+        "routers.auth.enhanced_enrollment.ratelimit.prevent",
+        side_effect=RateLimitError(message="rate limited", limit=10, timespan=300, retry_after=300),
+    )
+
+    client = TestClient(app)
+    response = client.post("/login/enroll-enhanced-auth/passkey/begin", json={})
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 429
+    assert response.json() == {"error": "too_many_requests"}
+
+
+def test_enroll_passkey_complete_rate_limited_returns_429(test_tenant, mocker):
+    """POST /login/enroll-enhanced-auth/passkey/complete returns 429 when rate limited."""
+    from dependencies import get_tenant_id_from_request
+    from services.exceptions import RateLimitError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    user_id = "rate-limit-user"
+    session_data: dict = {"pending_enhanced_enrollment_user_id": user_id}
+    mocker.patch(
+        "starlette.requests.Request.session",
+        new_callable=lambda: property(lambda self: session_data),
+    )
+    mocker.patch(
+        "routers.auth.enhanced_enrollment.users_service.get_user_by_id_raw",
+        return_value={"id": user_id, "role": "member", "mfa_method": "email"},
+    )
+    mocker.patch(
+        "routers.auth.enhanced_enrollment.ratelimit.prevent",
+        side_effect=RateLimitError(message="rate limited", limit=10, timespan=300, retry_after=300),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/enroll-enhanced-auth/passkey/complete",
+        json=_valid_complete_body(),
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 429
+    assert response.json() == {"error": "too_many_requests"}

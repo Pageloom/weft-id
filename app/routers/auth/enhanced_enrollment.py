@@ -20,10 +20,11 @@ from middleware.csrf import make_csrf_token_func
 from routers.auth._login_completion import complete_authenticated_login
 from schemas.webauthn import CompleteRegistrationRequest
 from services.event_log import log_event
-from services.exceptions import ServiceError, ValidationError
+from services.exceptions import RateLimitError, ServiceError, ValidationError
 from services.types import RequestingUser
 from utils.csp_nonce import get_csp_nonce
 from utils.qr import generate_qr_code_base64
+from utils.ratelimit import MINUTE, ratelimit
 from utils.templates import templates
 
 router = APIRouter()
@@ -130,6 +131,18 @@ def enroll_enhanced_auth_verify(
     if not pending_user_id:
         return RedirectResponse(url="/login", status_code=303)
 
+    try:
+        ratelimit.prevent(
+            "enroll_totp_verify:user:{user_id}",
+            limit=5,
+            timespan=MINUTE * 5,
+            user_id=str(pending_user_id),
+        )
+    except RateLimitError:
+        return RedirectResponse(
+            url="/login/enroll-enhanced-auth?error=too_many_attempts", status_code=303
+        )
+
     user = users_service.get_user_by_id_raw(tenant_id, pending_user_id)
     if not user:
         request.session.pop("pending_enhanced_enrollment_user_id", None)
@@ -185,6 +198,16 @@ def enroll_enhanced_auth_passkey_begin(
             content={"error": "no_pending_enrollment"},
         )
 
+    try:
+        ratelimit.prevent(
+            "enroll_passkey_begin:user:{user_id}",
+            limit=10,
+            timespan=MINUTE * 5,
+            user_id=str(user["id"]),
+        )
+    except RateLimitError:
+        return JSONResponse(status_code=429, content={"error": "too_many_requests"})
+
     requesting_user = _build_pending_requesting_user(user, tenant_id)
     try:
         result = webauthn_service.begin_registration(requesting_user, request)
@@ -214,6 +237,16 @@ async def enroll_enhanced_auth_passkey_complete(
             status_code=403,
             content={"error": "no_pending_enrollment"},
         )
+
+    try:
+        ratelimit.prevent(
+            "enroll_passkey_complete:user:{user_id}",
+            limit=10,
+            timespan=MINUTE * 5,
+            user_id=str(user["id"]),
+        )
+    except RateLimitError:
+        return JSONResponse(status_code=429, content={"error": "too_many_requests"})
 
     try:
         body = await request.json()

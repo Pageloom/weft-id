@@ -405,6 +405,40 @@ def test_per_idp_acs_mfa_totp_required(
     assert response.headers["location"] == "/mfa/verify"
 
 
+@patch("routers.saml.authentication.send_mfa_code_email")
+@patch("routers.saml.authentication.create_email_otp")
+@patch("routers.saml.authentication.emails_service.get_primary_email")
+@patch("routers.saml.authentication.saml_service.authenticate_via_saml")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+def test_per_idp_acs_mfa_enforced_when_user_has_no_mfa_method(
+    mock_process,
+    mock_auth,
+    mock_email,
+    mock_otp,
+    mock_send,
+    tenant_client,
+):
+    """MFA enforced even when user has no mfa_method (defaults to email OTP)."""
+    mock_result = MagicMock()
+    mock_result.requires_mfa = True
+    mock_process.return_value = mock_result
+
+    user_id = str(uuid4())
+    mock_auth.return_value = {"id": user_id, "mfa_method": None}
+    mock_email.return_value = "user@example.com"
+    mock_otp.return_value = "111222"
+
+    response = tenant_client.post(
+        f"/saml/acs/{uuid4()}",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/mfa/verify"
+    mock_send.assert_called_once_with("user@example.com", "111222", tenant_id=ANY)
+
+
 # =============================================================================
 # Legacy ACS (Issuer-Based) Error Handlers
 # =============================================================================
@@ -1199,6 +1233,49 @@ def test_legacy_acs_mfa_email_required(
     assert response.status_code == 303
     assert response.headers["location"] == "/mfa/verify"
     mock_send.assert_called_once_with("user@example.com", "654321", tenant_id=ANY)
+
+
+@patch("routers.saml.authentication.send_mfa_code_email")
+@patch("routers.saml.authentication.create_email_otp")
+@patch("routers.saml.authentication.emails_service.get_primary_email")
+@patch("routers.saml.authentication.saml_service.authenticate_via_saml")
+@patch("routers.saml.authentication.saml_service.process_saml_response")
+@patch("routers.saml.authentication.saml_service.get_idp_by_issuer")
+@patch("routers.saml.authentication.extract_issuer_from_response")
+def test_legacy_acs_mfa_enforced_when_user_has_no_mfa_method(
+    mock_extract,
+    mock_get,
+    mock_process,
+    mock_auth,
+    mock_email,
+    mock_otp,
+    mock_send,
+    tenant_client,
+):
+    """Legacy ACS enforces MFA even when user has no mfa_method configured."""
+    mock_extract.return_value = "https://idp.example.com"
+    mock_idp = MagicMock()
+    mock_idp.id = "idp-id"
+    mock_idp.name = "Test IdP"
+    mock_get.return_value = mock_idp
+
+    mock_result = MagicMock()
+    mock_result.requires_mfa = True
+    mock_process.return_value = mock_result
+
+    user_id = str(uuid4())
+    mock_auth.return_value = {"id": user_id, "mfa_method": None}
+    mock_email.return_value = "user@example.com"
+    mock_otp.return_value = "333444"
+
+    response = tenant_client.post(
+        "/saml/acs",
+        data={"SAMLResponse": "base64data", "RelayState": "/dashboard"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/mfa/verify"
+    mock_send.assert_called_once_with("user@example.com", "333444", tenant_id=ANY)
 
 
 # =============================================================================

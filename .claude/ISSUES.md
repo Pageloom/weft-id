@@ -86,17 +86,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [BUG] SAML IdP `require_platform_mfa` flag is not enforced
-
-**Found in:** `app/routers/saml/authentication.py` (ACS endpoint)
-**Severity:** Medium
-**Description:** The `saml_identity_providers.require_platform_mfa` column exists in the schema and is configurable from the admin UI (`app/routers/saml/admin/providers.py:510`), but it has no effect at authentication time. After a successful SAML assertion, the user is signed in directly without any platform-side two-step verification, regardless of the flag's value.
-**Evidence:** No reference to `require_platform_mfa` in the ACS processing chain in `app/routers/saml/authentication.py` or in `app/services/saml/` login paths. Admins who enable this flag expect to gate SAML users behind a WeftID-side MFA step; currently nothing happens.
-**Impact:** Admins cannot enforce platform-side two-step verification for IdP-authenticated users. This is a silent failure: the UI accepts the setting and persists it, but authentication proceeds as if the flag were off.
-**Suggested fix:** After successful SAML assertion processing in the ACS, if the chosen IdP has `require_platform_mfa=true`, stash pending-MFA state in the session and redirect the user to `/mfa/verify` before completing the login. The MFA step should accept the user's configured two-step method (email OTP, TOTP, or passkey once passkeys are available).
-
----
-
 ## [COPY] "two-step verification" wording on Authentication settings page is inaccurate once passkeys exist
 
 **Found in:** `app/templates/settings_security_tab_authentication.html`

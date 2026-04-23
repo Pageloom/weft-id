@@ -336,13 +336,14 @@ def saml_acs_per_idp(
             verbose_event_logging=verbose_logging,
         )
 
-    # Check if MFA is required
-    if saml_result.requires_mfa and user.get("mfa_method"):
+    # Enforce platform MFA when the IdP requires it
+    if saml_result.requires_mfa:
+        mfa_method = user.get("mfa_method") or "email"
         request.session["pending_mfa_user_id"] = str(user["id"])
-        request.session["pending_mfa_method"] = user.get("mfa_method", "email")
+        request.session["pending_mfa_method"] = mfa_method
         request.session["pending_saml_relay_state"] = RelayState
 
-        if user.get("mfa_method") == "email":
+        if mfa_method == "email":
             code = create_email_otp(tenant_id, str(user["id"]))
             primary_email = emails_service.get_primary_email(tenant_id, str(user["id"]))
             if primary_email:
@@ -563,15 +564,14 @@ def saml_acs(
             verbose_event_logging=verbose_logging,
         )
 
-    # Check if MFA is required
-    if saml_result.requires_mfa and user.get("mfa_method"):
-        # Store pending MFA info in session
+    # Enforce platform MFA when the IdP requires it
+    if saml_result.requires_mfa:
+        mfa_method = user.get("mfa_method") or "email"
         request.session["pending_mfa_user_id"] = str(user["id"])
-        request.session["pending_mfa_method"] = user.get("mfa_method", "email")
+        request.session["pending_mfa_method"] = mfa_method
         request.session["pending_saml_relay_state"] = RelayState
 
-        # If email MFA, send code immediately
-        if user.get("mfa_method") == "email":
+        if mfa_method == "email":
             code = create_email_otp(tenant_id, str(user["id"]))
             primary_email = emails_service.get_primary_email(tenant_id, str(user["id"]))
             if primary_email:

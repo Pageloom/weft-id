@@ -142,7 +142,7 @@ This code will expire in 5 minutes.
 
 Enter this code to continue signing in.
 
-If you did not request this code, please ignore this email.
+If you did not request this code, ignore this email.
 """,
         branding,
     )
@@ -151,7 +151,7 @@ If you did not request this code, please ignore this email.
 <p style="{_S_P}">Enter this code to continue signing in:</p>
 <div style="{_S_CODE_BOX}">{html.escape(code)}</div>
 <p style="{_S_P}">This code will expire in <strong>5 minutes</strong>.</p>
-<p style="{_S_P}">If you did not request this code, please ignore this email.</p>"""
+<p style="{_S_P}">If you did not request this code, ignore this email.</p>"""
 
     html_body = _wrap_html(body, branding)
     return send_email(to_email, subject, html_body, text_body)
@@ -160,24 +160,24 @@ If you did not request this code, please ignore this email.
 def send_mfa_code_email(to_email: str, code: str, *, tenant_id: str | None = None) -> bool:
     """Send MFA verification code via email."""
     branding = _get_branding(tenant_id)
-    subject = "Your verification code"
+    subject = "Your two-step verification code"
 
     text_body = _wrap_text(
         f"""
-Your verification code is: {code}
+Your two-step verification code is: {code}
 
 This code will expire in 10 minutes.
 
-If you did not request this code, please ignore this email.
+If you did not request this code, ignore this email.
 """,
         branding,
     )
 
-    body = f"""<h1 style="{_S_H1}">Your Verification Code</h1>
-<p style="{_S_P}">Enter this code to continue signing in:</p>
+    body = f"""<h1 style="{_S_H1}">Your Two-Step Verification Code</h1>
+<p style="{_S_P}">Enter this code to complete two-step verification:</p>
 <div style="{_S_CODE_BOX}">{html.escape(code)}</div>
 <p style="{_S_P}">This code will expire in <strong>10 minutes</strong>.</p>
-<p style="{_S_P}">If you did not request this code, please ignore this email.</p>"""
+<p style="{_S_P}">If you did not request this code, ignore this email.</p>"""
 
     html_body = _wrap_html(body, branding)
     return send_email(to_email, subject, html_body, text_body)
@@ -192,22 +192,22 @@ def send_email_verification(
 
     text_body = _wrap_text(
         f"""
-Please verify your email address by clicking the link below:
+Verify your email address by clicking the link below:
 
 {verification_url}
 
-If you did not add this email address to your account, please ignore this email.
+If you did not add this email address to your account, ignore this email.
 """,
         branding,
     )
 
     url = html.escape(verification_url)
     body = f"""<h1 style="{_S_H1}">Verify Your Email Address</h1>
-<p style="{_S_P}">Please verify your email address by clicking the button below:</p>
+<p style="{_S_P}">Verify your email address by clicking the button below:</p>
 <a href="{url}" style="{_S_BUTTON}">Verify Email Address</a>
 <p style="{_S_P}">Or copy and paste this link into your browser:</p>
 <p style="{_S_LINK_FALLBACK}">{url}</p>
-<p style="{_S_P}">If you did not add this email address to your account, please ignore this email.</p>"""
+<p style="{_S_P}">If you did not add this email address to your account, ignore this email.</p>"""
 
     html_body = _wrap_html(body, branding)
     return send_email(to_email, subject, html_body, text_body)
@@ -229,7 +229,7 @@ Added by: {admin_name}
 
 This email address has been automatically verified and can be used to access your account.
 
-If you did not expect this change or have concerns, please contact your administrator immediately.
+If you did not expect this change or have concerns, contact your administrator immediately.
 """,
         branding,
     )
@@ -242,7 +242,7 @@ If you did not expect this change or have concerns, please contact your administ
 </div>
 <p style="{_S_P}">This email address has been automatically verified and can be used to access your account.</p>
 <div style="{_S_WARNING_BOX}">
-<p style="margin: 0;"><strong>Security Notice:</strong> If you did not expect this change or have concerns, please contact your administrator immediately.</p>
+<p style="margin: 0;"><strong>Security Notice:</strong> If you did not expect this change or have concerns, contact your administrator immediately.</p>
 </div>"""
 
     html_body = _wrap_html(body, branding)
@@ -265,7 +265,7 @@ Removed by: {admin_name}
 
 This email address can no longer be used to access your account.
 
-If you did not expect this change or have concerns, please contact your administrator immediately.
+If you did not expect this change or have concerns, contact your administrator immediately.
 """,
         branding,
     )
@@ -278,7 +278,7 @@ If you did not expect this change or have concerns, please contact your administ
 </div>
 <p style="{_S_P}">This email address can no longer be used to access your account.</p>
 <div style="{_S_WARNING_BOX}">
-<p style="margin: 0;"><strong>Security Notice:</strong> If you did not expect this change or have concerns, please contact your administrator immediately.</p>
+<p style="margin: 0;"><strong>Security Notice:</strong> If you did not expect this change or have concerns, contact your administrator immediately.</p>
 </div>"""
 
     html_body = _wrap_html(body, branding)
@@ -301,7 +301,7 @@ Changed by: {admin_name}
 
 Your account sign-in will now use the new primary email address.
 
-If you did not expect this change or have concerns, please contact your administrator immediately.
+If you did not expect this change or have concerns, contact your administrator immediately.
 """,
         branding,
     )
@@ -314,7 +314,7 @@ If you did not expect this change or have concerns, please contact your administ
 </div>
 <p style="{_S_P}">Your account sign-in will now use the new primary email address.</p>
 <div style="{_S_WARNING_BOX}">
-<p style="margin: 0;"><strong>Security Notice:</strong> If you did not expect this change or have concerns, please contact your administrator immediately.</p>
+<p style="margin: 0;"><strong>Security Notice:</strong> If you did not expect this change or have concerns, contact your administrator immediately.</p>
 </div>"""
 
     html_body = _wrap_html(body, branding)
@@ -339,12 +339,12 @@ Welcome to {org_name}!
 
 Your account has been created by {admin_name}. Since you're using a trusted email domain, your email address has been automatically verified.
 
-To get started, please set your password by visiting:
+To get started, set your password by visiting:
 {password_set_url}
 
 After setting your password, you'll be able to sign in and access your account.
 
-If you have any questions, please contact your administrator.
+If you have any questions, contact your administrator.
 """,
         branding,
     )
@@ -353,7 +353,7 @@ If you have any questions, please contact your administrator.
     body = f"""<h1 style="{_S_H1}">Welcome to {html.escape(org_name)}!</h1>
 <p style="{_S_P}">Your account has been created by <strong>{html.escape(admin_name)}</strong>.</p>
 <p style="{_S_P}">Since you're using a trusted email domain, your email address has been automatically verified.</p>
-<p style="{_S_P}">To get started, please set your password:</p>
+<p style="{_S_P}">To get started, set your password:</p>
 <a href="{url}" style="{_S_BUTTON}">Set Your Password</a>
 <p style="{_S_P}">Or copy and paste this link into your browser:</p>
 <p style="{_S_LINK_FALLBACK}">{url}</p>
@@ -379,13 +379,13 @@ def send_new_user_invitation(
         f"""
 You've been invited to join {org_name}!
 
-{admin_name} has invited you to join the organization. To accept this invitation and activate your account, please verify your email address by clicking the link below:
+{admin_name} has invited you to join the organization. To accept this invitation and set up your account, verify your email address by clicking the link below:
 
 {verification_url}
 
 After verifying your email, you'll be able to set your password and access your account.
 
-If you have any questions, please contact your administrator.
+If you have any questions, contact your administrator.
 """,
         branding,
     )
@@ -395,8 +395,8 @@ If you have any questions, please contact your administrator.
 <div style="{_S_INFO_BOX}">
 <p style="margin: 0;"><strong>{html.escape(admin_name)}</strong> has invited you to join the organization.</p>
 </div>
-<p style="{_S_P}">To accept this invitation and activate your account, please verify your email address:</p>
-<a href="{url}" style="{_S_BUTTON}">Verify Email &amp; Activate Account</a>
+<p style="{_S_P}">To accept this invitation and set up your account, verify your email address:</p>
+<a href="{url}" style="{_S_BUTTON}">Verify Email &amp; Set Up Account</a>
 <p style="{_S_P}">Or copy and paste this link into your browser:</p>
 <p style="{_S_LINK_FALLBACK}">{url}</p>
 <p style="{_S_P}">After verifying your email, you'll be able to set your password and access your account.</p>"""
@@ -420,7 +420,7 @@ An administrator has approved your reactivation request. You can now sign in to 
 
 {login_url}
 
-If you have any questions, please contact your administrator.
+If you have any questions, contact your administrator.
 """,
         branding,
     )
@@ -448,18 +448,18 @@ def send_reactivation_denied_notification(to_email: str, *, tenant_id: str | Non
         """
 Your reactivation request was denied.
 
-An administrator has reviewed your request to reactivate your account and has decided not to approve it at this time.
+An administrator has reviewed your request to reset up your account and has decided not to approve it at this time.
 
-If you believe this decision was made in error or have questions, please contact your administrator directly.
+If you believe this decision was made in error or have questions, contact your administrator directly.
 """,
         branding,
     )
 
     body = f"""<h1 style="{_S_H1}">Reactivation Request Denied</h1>
 <div style="{_S_DANGER_BOX}">
-<p style="margin: 0;">An administrator has reviewed your request to reactivate your account and has decided not to approve it at this time.</p>
+<p style="margin: 0;">An administrator has reviewed your request to reset up your account and has decided not to approve it at this time.</p>
 </div>
-<p style="{_S_P}">If you believe this decision was made in error or have questions, please contact your administrator directly.</p>"""
+<p style="{_S_P}">If you believe this decision was made in error or have questions, contact your administrator directly.</p>"""
 
     html_body = _wrap_html(body, branding)
     return send_email(to_email, subject, html_body, text_body)
@@ -484,7 +484,7 @@ A user has requested account reactivation.
 User: {user_name}
 Email: {user_email}
 
-Please review this request at:
+Review this request at:
 {requests_url}
 """,
         branding,
@@ -496,7 +496,7 @@ Please review this request at:
 <p style="margin: 0 0 8px 0;"><strong>User:</strong> {html.escape(user_name)}</p>
 <p style="margin: 0;"><strong>Email:</strong> {html.escape(user_email)}</p>
 </div>
-<p style="{_S_P}">A user whose account was inactivated has requested reactivation. Please review this request:</p>
+<p style="{_S_P}">A user whose account was inactivated has requested reactivation. Review this request:</p>
 <a href="{url}" style="{_S_BUTTON}">Review Request</a>
 <p style="{_S_P}">Or copy and paste this link into your browser:</p>
 <p style="{_S_LINK_FALLBACK}">{url}</p>"""
@@ -571,7 +571,7 @@ Time: {reset_timestamp}
 
 Your next sign-in will use email verification codes. You can re-enroll in authenticator-based two-step verification from your account settings after signing in.
 
-If you did not expect this change, please contact your administrator.
+If you did not expect this change, contact your administrator.
 """,
         branding,
     )

@@ -834,7 +834,7 @@ def test_passkey_complete_no_backup_codes_path(test_tenant, mocker):
 
 
 def test_enroll_totp_verify_rate_limited_redirects(test_tenant, mocker):
-    """POST /login/enroll-enhanced-auth returns 303 with error=too_many_attempts when rate limited."""
+    """POST /login/enroll-enhanced-auth returns 303 with error when rate limited."""
     from dependencies import get_tenant_id_from_request
     from services.exceptions import RateLimitError
 

@@ -1017,7 +1017,9 @@ def test_complete_authentication_clone_detection_clears_session(test_user, mocke
 
     mocker.patch(
         "services.webauthn.verify_authentication",
-        side_effect=SignCountRegressionError("Response sign count of 5 was not greater than current count"),
+        side_effect=SignCountRegressionError(
+            "Response sign count of 5 was not greater than current count"
+        ),
     )
     mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
     mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
@@ -1492,7 +1494,9 @@ def test_admin_revoke_self_is_rejected(test_admin_user):
     assert still_there is not None
 
 
-def test_admin_cannot_revoke_super_admin_passkey(test_user, test_admin_user, test_super_admin_user, mocker):
+def test_admin_cannot_revoke_super_admin_passkey(
+    test_user, test_admin_user, test_super_admin_user, mocker
+):
     """A plain admin must not be able to revoke a super_admin's passkey.
 
     Protects super admins from having their credentials revoked by lower-privilege
@@ -1521,12 +1525,9 @@ def test_super_admin_can_revoke_another_super_admin_passkey(
     test_user, test_super_admin_user, mocker
 ):
     """A super_admin can revoke another super_admin's passkey."""
+    # Create a second super_admin in the same tenant to act as the requester.
     import database as _db
 
-    # Create a second super_admin in the same tenant to act as the requester.
-    from uuid import uuid4
-
-    unique = str(uuid4())[:8]
     other_sa = _db.fetchone(
         test_super_admin_user["tenant_id"],
         """

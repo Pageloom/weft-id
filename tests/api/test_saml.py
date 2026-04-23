@@ -1271,7 +1271,9 @@ def test_reimport_metadata_xml_as_super_admin(make_user_dict, override_api_auth)
         entity_id="https://idp.example.com/entity",
         sso_url="https://idp.example.com/sso/updated",
         slo_url="https://idp.example.com/slo/updated",
-        certificate_pem="-----BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG==\n-----END CERTIFICATE-----",
+        certificate_pem=(
+            "-----BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG==\n-----END CERTIFICATE-----"
+        ),
         metadata_url=None,
         metadata_xml=None,
         metadata_last_fetched_at=None,
@@ -1311,9 +1313,7 @@ def test_reimport_metadata_xml_as_super_admin(make_user_dict, override_api_auth)
         assert data["id"] == idp_id
         assert data["sso_url"] == "https://idp.example.com/sso/updated"
         mock_svc.get_identity_provider.assert_called_once()
-        mock_svc.parse_idp_metadata_xml_to_schema.assert_called_once_with(
-            "<EntityDescriptor/>"
-        )
+        mock_svc.parse_idp_metadata_xml_to_schema.assert_called_once_with("<EntityDescriptor/>")
         mock_svc.update_identity_provider.assert_called_once()
 
 

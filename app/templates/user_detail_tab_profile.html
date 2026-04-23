@@ -44,6 +44,16 @@
                     </p>
                 </div>
                 <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Passkeys</p>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">
+                        {% if passkeys %}
+                        {{ passkeys|length }} registered
+                        {% else %}
+                        None
+                        {% endif %}
+                    </p>
+                </div>
+                <div>
                     <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</p>
                     <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ fmt_datetime(target_user.created_at) }}</p>
                 </div>

@@ -33,7 +33,7 @@
             {% elif success == 'idp_updated' %}
             User's IdP assignment updated.
             {% elif success == 'mfa_reset' %}
-            User's two-step verification has been reset. They will use email codes on next sign-in.
+            User's two-step verification has been reset. Any TOTP secret and backup codes are cleared. Registered passkeys are not affected.
             {% elif success == 'group_added' %}
             User added to group.
             {% elif success == 'groups_bulk_added' %}
@@ -115,7 +115,7 @@
             {% elif error == 'passkey_not_found' %}
             Passkey not found.
             {% elif error == 'cannot_revoke_own_passkey' %}
-            You cannot revoke your own passkey from the admin view. Use the account passkeys page instead.
+            You cannot revoke your own passkey from the admin view. Go to Account > Two-Step Verification to manage your own passkeys.
             {% else %}
             An error occurred. Try again.
             {% endif %}

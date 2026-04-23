@@ -10,21 +10,14 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 0 | |
-| Medium | 2 | API-First |
-| Low | 1 | API-First |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 | Low | 2 | Copy |
-| Low | 1 | Security |
-| Medium | 2 | Security (passkey_auth review) |
-| Low | 1 | Security (passkey_auth review) |
-| Low | 1 | Docs (passkey_auth review) |
 | Low | 6 | Copy (passkey_auth review) |
 
 **Last security scan:** 2026-04-13 (broad: all code from last 90 days, all OWASP categories; 2 findings, both fixed)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
-**Last API coverage audit:** 2026-04-13 (conceptual review: 3 gaps found across ~180 API endpoints)
+**Last API coverage audit:** 2026-04-23 (3 gaps resolved: group clear relationships, IdP reimport XML, SAML debug entries)
 **Last dependency audit:** 2026-02-23 (all clear; werkzeug upgraded to 3.1.6, pip upgraded to 26.0.1)
 **Last refactor scan:** 2026-03-21 (standard: new code since 2026-02-27, all categories; 5 new issues)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
@@ -33,40 +26,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last copy review:** 2026-04-13 (security sweep templates, SAML IdP/SP, user profile, email audit)
 
 ---
-
-## [API-FIRST] Missing API: Group clear all relationships
-
-**Found in:** `app/routers/api/v1/groups.py`
-**Severity:** Medium
-**Principle Violated:** API-First
-**Description:** The web UI exposes `POST /admin/groups/{group_id}/relationships/clear` which calls `groups_service.remove_all_relationships()`. The API has no equivalent. Consumers must enumerate and DELETE each parent/child relationship individually, with no atomicity.
-**Evidence:** `remove_all_relationships()` is exported from `app/services/groups/__init__.py` (line 53) but never referenced in `app/routers/api/v1/groups.py`.
-**Impact:** An API consumer reassigning a group's position in the hierarchy needs N calls instead of one, and partial failure leaves inconsistent state since individual deletes are not wrapped in a single transaction.
-**Suggested fix:** Add `DELETE /api/v1/groups/{group_id}/relationships` that calls `groups_service.remove_all_relationships(requesting_user, group_id)`. Return 204 on success.
-
----
-
-## [API-FIRST] Missing API: IdP reimport metadata from XML
-
-**Found in:** `app/routers/api/v1/saml.py`
-**Severity:** Medium
-**Principle Violated:** API-First
-**Description:** The web UI exposes `POST /admin/settings/identity-providers/{idp_id}/reimport-metadata` which accepts pasted XML, parses it via `saml_service.parse_idp_metadata_xml_to_schema()`, and updates the IdP's SSO URL, SLO URL, and certificate. The API has no equivalent for applying XML to an existing IdP. It only has `POST /idps/import-xml` (creates new), `POST /idps/{idp_id}/refresh` (URL-based), and `PATCH /idps/{idp_id}` (manual fields).
-**Evidence:** `app/routers/saml/admin/providers.py:625-666` (web handler). No corresponding route in `app/routers/api/v1/saml.py`.
-**Impact:** When an IdP rotates its certificate and doesn't expose a metadata URL, API consumers must parse SAML metadata themselves and PATCH individual fields. This is the primary recovery path for certificate rotation. B2B/automation clients are blocked without it.
-**Suggested fix:** Add `POST /api/v1/idps/{idp_id}/reimport-xml` that accepts `metadata_xml` in the request body, parses it, and applies the extracted fields. Mirrors the web handler logic.
-
----
-
-## [API-FIRST] Missing API: SAML debug log entries
-
-**Found in:** `app/routers/api/v1/saml.py`
-**Severity:** Low
-**Principle Violated:** API-First
-**Description:** The web UI exposes `GET /admin/audit/saml-debug` (list) and `GET /admin/audit/saml-debug/{entry_id}` (detail) via `app/routers/saml/admin/debug.py`. These call `saml_service.list_saml_debug_entries()` and `saml_service.get_saml_debug_entry()`. The API can toggle verbose logging on/off but provides no way to read the resulting entries.
-**Evidence:** `app/routers/saml/admin/debug.py:23-72` (web handlers). No corresponding routes in `app/routers/api/v1/saml.py`.
-**Impact:** B2B clients debugging SAML integration issues through the API must switch to the web UI to view failure details. Lower severity because this is primarily a setup-time concern, not ongoing operations.
-**Suggested fix:** Add `GET /api/v1/idps/{idp_id}/debug-entries` (list, with limit parameter) and `GET /api/v1/idps/{idp_id}/debug-entries/{entry_id}` (detail). Alternatively, scope under a general audit path: `GET /api/v1/saml/debug-entries`.
 
 ---
 
@@ -112,64 +71,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
 
 ---
-
-## [SECURITY] Passkey clone detection relies on py_webauthn error-string substring match
-
-**Found in:** `app/services/webauthn.py::complete_authentication` (sign-count regression branch)
-**Severity:** Low
-**Description:** Clone detection rejects a WebAuthn assertion when `py_webauthn` raises `InvalidAuthenticationResponse` and the error message contains the substring `"sign count"` or `"counter"`. `py_webauthn` does not expose a typed exception for this case, so the service branches on the library's human-readable wording. A future library version that rephrases the error would fall through to the `bad_signature` branch: the assertion is still rejected, but the credential is NOT deleted and the event reason is `bad_signature` instead of `clone_suspected`. That's a weaker security posture (attacker keeps the cloned credential) and noisier audit.
-**Evidence:** `app/services/webauthn.py` (search for `"sign count"` substring). The py_webauthn 2.7.1 message today is `"Response sign count of X was not greater than..."`.
-**Impact:** Correctness bound (never let a sign-count regression slip past on `backup_eligible=false`) is preserved, but the cloned credential is not automatically deleted and the `passkey_auth_failure` event reason becomes misleading. Silent degradation on library bump.
-**Suggested fix:** Either catch a typed exception if a newer py_webauthn release adds one, or move the sign-count decision into `app/utils/webauthn.py::verify_authentication` so the service receives a typed result (`WebAuthnAuthResult(ok=False, reason="clone_suspected")`) rather than parsing a message string. Add a pin test so any library upgrade that reshapes the error wording forces the issue to the surface.
-
----
-
-## [SECURITY] Passkey registration + enhanced-enrollment TOTP verify have no rate limit
-
-**Found in:** `app/routers/auth/enhanced_enrollment.py`, `app/routers/account_passkeys.py`, `app/routers/api/v1/account_passkeys.py`
-**Severity:** Medium
-**Description:** Registration begin/complete (both HTML and API) and `POST /login/enroll-enhanced-auth` (TOTP verify) have no per-user or per-IP rate limits. Passkey login `complete` has `passkey_complete:ip:{ip}` 30/5min; registration does not. Enhanced-enrollment TOTP verify can be spammed within a single code window.
-**Evidence:**
-- `app/routers/auth/enhanced_enrollment.py` lines 171-272 (TOTP verify, passkey begin/complete) — no `ratelimit.prevent` calls.
-- `app/routers/account_passkeys.py` lines 40-91 — no rate limits.
-- `app/routers/api/v1/account_passkeys.py` lines 48-96 — no rate limits.
-**Impact:** (1) Hijacked pre-auth enrollment session can brute-force 6-digit TOTP code within the 30-second validity window. Feasible over a few minutes at 100+ req/s. (2) Authenticated session (or compromised cookie) can spam registration begin/complete, consuming expensive crypto on the server.
-**Suggested fix:**
-- `ratelimit.prevent("enroll_totp_verify:user:{user_id}", limit=5, timespan=MINUTE*5, user_id=pending_user_id)` on TOTP verify.
-- `ratelimit.prevent("passkey_enroll_complete:user:{user_id}", limit=10, timespan=MINUTE*5, user_id=...)` on both HTML and API complete-registration endpoints.
-- Similar begin-side soft cap.
-
----
-
-## [SECURITY] `show_passkey_first` render branch is a passkey-existence oracle
-
-**Found in:** `app/routers/auth/login.py` lines 82-90
-**Severity:** Medium
-**Description:** `GET /login?prefill_email=<email>&show_password=true` calls `webauthn_service.user_has_passkey_for_email(tenant_id, email)`. If the user exists and has ≥ 1 passkey, the page auto-starts the ceremony; otherwise only the password form renders. Observable at GET time with no rate limit. Attacker can enumerate "user exists AND has passkey" without a POST.
-**Evidence:** `app/routers/auth/login.py:82-90` branches the template on the boolean.
-**Impact:** Targeted attacks can prefer/avoid passkey users (e.g., pick users with passkeys to attempt authenticator theft, or avoid them to stick with phishable MFA paths). Partial user-existence oracle.
-**Suggested fix:** (a) Add rate limiting to `GET /login` when both `show_password=true` and `prefill_email` are set; or (b) always render the passkey-first variant when `show_password=true`, letting the begin endpoint 404 silently and fall back to password.
-
----
-
-## [SECURITY] Plain admin can revoke super_admin's passkey
-
-**Found in:** `app/services/webauthn.py::admin_revoke_credential`
-**Severity:** Low
-**Description:** `admin_revoke_credential` requires `require_admin` (admin or super_admin). A plain admin can revoke a super_admin's passkey. Combined with `/users/{user_id}/force-password-reset` (same permission level), an admin can materially degrade a super_admin's auth posture. Not direct privilege escalation but inconsistent with the usual "lower role cannot act on higher role" convention.
-**Evidence:** `app/services/webauthn.py` lines 369-442; `app/routers/users/detail.py` lines 436-460.
-**Impact:** Plain admin can kick a super_admin out of active OAuth2 sessions (via the OAuth2 token revocation coupled to passkey revoke) and force them through enhanced-enrollment again.
-**Suggested fix:** In `admin_revoke_credential`, if target user role is `super_admin` and requesting user is not `super_admin`, raise `ForbiddenError`. Apply the same guard to `force_password_reset` for consistency if not already present.
-
----
-
-## [DOCS] authentication-policy.md: MFA reset incorrectly claims passkeys are cleared
-
-**Found in:** `docs/admin-guide/security/authentication-policy.md` Recovery section (lines 31-39)
-**Severity:** Low
-**Description:** Doc says "The user's TOTP secret and passkeys are cleared" on MFA reset. `reset_mfa` in `app/services/mfa.py:540-584` only clears TOTP secret + backup codes; passkeys are untouched (admins revoke passkeys individually via the user detail Profile tab).
-**Impact:** Admin expectations diverge from behaviour. A super_admin reading this may believe MFA reset fully resets auth; passkey-using target still signs in via passkey.
-**Suggested fix:** Replace with: "This clears the user's TOTP secret and backup codes. It does not delete any registered passkeys; those must be revoked individually from the user's Profile tab (see 'Revoking a single passkey' below). On the next sign-in the user goes through the enrollment flow again unless they still have a passkey that satisfies the enhanced policy." Also update `docs/admin-guide/security/two-step-verification.md` reset section to match. Add passkeys entry to `docs/user-guide/index.md` and `docs/admin-guide/security/index.md` nav. Add "Signing in with a passkey" subsection to `docs/user-guide/signing-in.md`. Update `docs/user-guide/two-step-verification.md` backup-codes section to mention passkey recovery.
 
 ---
 

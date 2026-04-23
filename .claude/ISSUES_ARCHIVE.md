@@ -5,6 +5,78 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Passkey registration + enhanced-enrollment TOTP verify have no rate limit
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/routers/auth/enhanced_enrollment.py`, `app/routers/account_passkeys.py`, `app/routers/api/v1/account_passkeys.py`
+**Severity:** Medium
+**Resolution:** Added per-user rate limits: 5/5min for enrollment TOTP verify, 10/5min for passkey begin/complete across all three route layers (enrollment, HTML, API). Tests cover rate-limited responses (429/303).
+
+---
+
+### [SECURITY] `show_passkey_first` render branch is a passkey-existence oracle
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/routers/auth/login.py` lines 82-90
+**Severity:** Medium
+**Resolution:** Removed the database lookup from GET /login. Now always renders passkey-first variant when show_password and prefill_email are both set. The begin endpoint handles non-eligible users via its existing 404 path. Eliminated webauthn_service import from login.py.
+
+---
+
+### [SECURITY] Plain admin can revoke super_admin's passkey
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/services/webauthn.py::admin_revoke_credential`
+**Severity:** Low
+**Resolution:** Added role guard: if target user role is super_admin and requesting user is not super_admin, raise ForbiddenError. Tests cover both the block and the super_admin-to-super_admin success path.
+
+---
+
+### [SECURITY] Passkey clone detection relies on py_webauthn error-string substring match
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/services/webauthn.py::complete_authentication`
+**Severity:** Low
+**Resolution:** Added SignCountRegressionError subclass of WebAuthnError in utils/webauthn.py. verify_authentication now detects sign-count keywords and raises the typed exception. Service layer catches SignCountRegressionError by type instead of parsing message strings. Pin tests ensure library wording changes surface immediately.
+
+---
+
+### [API-FIRST] Missing API: Group clear all relationships
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/routers/api/v1/groups.py`
+**Severity:** Medium
+**Resolution:** Added DELETE /api/v1/groups/{group_id}/relationships calling remove_all_relationships(). Returns 204. Tests cover success, forbidden, and not-found cases.
+
+---
+
+### [API-FIRST] Missing API: IdP reimport metadata from XML
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/routers/api/v1/saml.py`
+**Severity:** Medium
+**Resolution:** Added POST /api/v1/saml/idps/{idp_id}/reimport-xml accepting metadata_xml body. Parses XML, extracts SSO URL/SLO URL/certificate, and updates the existing IdP. Tests cover success, forbidden, not-found, and invalid-XML cases.
+
+---
+
+### [API-FIRST] Missing API: SAML debug log entries
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/routers/api/v1/saml.py`
+**Severity:** Low
+**Resolution:** Added GET /api/v1/saml/idps/{idp_id}/debug-entries (list, filtered by IdP, with limit param) and GET .../debug-entries/{entry_id} (detail with XML). Added SAMLDebugEntryAPI/SAMLDebugEntryDetailAPI schemas. Tests cover list, filtering, detail, not-found, and forbidden cases.
+
+---
+
+### [DOCS] authentication-policy.md: MFA reset incorrectly claims passkeys are cleared
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `docs/admin-guide/security/authentication-policy.md`
+**Severity:** Low
+**Resolution:** Updated Recovery section to accurately state that reset_mfa clears TOTP secret and backup codes only. Passkeys must be revoked individually from the user's Profile tab.
+
+---
+
 ### [BUG] SAML IdP `require_platform_mfa` flag is not enforced
 
 **Status:** Resolved (2026-04-23)

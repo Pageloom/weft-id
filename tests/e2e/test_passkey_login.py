@@ -110,6 +110,8 @@ def test_passkey_first_hidden_for_password_only_user(page, sp_config):
     page.locator("#emailForm button[type='submit']").click()
     page.wait_for_url("**/login?**show_password**", timeout=10000)
 
-    # Plain password form: no passkey-flow container.
-    assert page.locator("#passkey-flow").count() == 0
+    # Passkey-flow div exists but JS hides it after begin returns 404.
+    # Password form becomes visible.
+    page.wait_for_selector("#loginForm:not(.hidden)", timeout=10000)
+    assert page.locator("#passkey-flow.hidden").count() == 1
     assert page.locator("#loginForm input[name='password']").count() == 1

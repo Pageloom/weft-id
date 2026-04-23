@@ -294,29 +294,6 @@ CREATE TABLE public.mfa_backup_codes (
 
 ALTER TABLE public.mfa_backup_codes OWNER TO appowner;
 
--- webauthn_credentials
-CREATE TABLE public.webauthn_credentials (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    user_id uuid NOT NULL,
-    credential_id bytea NOT NULL,
-    public_key bytea NOT NULL,
-    sign_count bigint DEFAULT 0 NOT NULL,
-    name character varying(100) NOT NULL,
-    aaguid text,
-    transports text[],
-    backup_eligible boolean DEFAULT false NOT NULL,
-    backup_state boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_used_at timestamp with time zone,
-    CONSTRAINT webauthn_credentials_pkey PRIMARY KEY (id),
-    CONSTRAINT fk_webauthn_credentials_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE,
-    CONSTRAINT fk_webauthn_credentials_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE,
-    CONSTRAINT chk_webauthn_credentials_aaguid_length CHECK ((length(aaguid) <= 64))
-);
-
-ALTER TABLE public.webauthn_credentials OWNER TO appowner;
-
 -- mfa_email_codes
 CREATE TABLE public.mfa_email_codes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -873,8 +850,6 @@ CREATE INDEX idx_tenant_branding_tenant ON public.tenant_branding USING btree (t
 -- mfa
 CREATE INDEX idx_mfa_totp_user ON public.mfa_totp USING btree (user_id);
 CREATE INDEX idx_mfa_backup_codes_user ON public.mfa_backup_codes USING btree (user_id) WHERE (used_at IS NULL);
-CREATE UNIQUE INDEX webauthn_credentials_credential_id_key ON public.webauthn_credentials USING btree (credential_id);
-CREATE INDEX webauthn_credentials_tenant_user_idx ON public.webauthn_credentials USING btree (tenant_id, user_id);
 CREATE INDEX idx_mfa_email_codes_user_expires ON public.mfa_email_codes USING btree (user_id, expires_at) WHERE (used_at IS NULL);
 
 -- saml_identity_providers
@@ -1039,12 +1014,6 @@ CREATE POLICY mfa_backup_codes_tenant_isolation ON public.mfa_backup_codes
     USING ((tenant_id = (current_setting('app.tenant_id'::text, true))::uuid))
     WITH CHECK ((tenant_id = (current_setting('app.tenant_id'::text, true))::uuid));
 
--- webauthn_credentials
-ALTER TABLE public.webauthn_credentials ENABLE ROW LEVEL SECURITY;
-CREATE POLICY webauthn_credentials_tenant_isolation ON public.webauthn_credentials
-    USING ((tenant_id = (current_setting('app.tenant_id'::text, true))::uuid))
-    WITH CHECK ((tenant_id = (current_setting('app.tenant_id'::text, true))::uuid));
-
 -- mfa_email_codes
 ALTER TABLE public.mfa_email_codes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY mfa_email_codes_tenant_isolation ON public.mfa_email_codes
@@ -1197,7 +1166,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.tenant_security_settings TO
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.tenant_branding TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.mfa_totp TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.mfa_backup_codes TO appuser;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.webauthn_credentials TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.mfa_email_codes TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saml_identity_providers TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.idp_certificates TO appuser;

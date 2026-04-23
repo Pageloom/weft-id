@@ -2156,3 +2156,61 @@ def test_list_group_service_providers_error(make_user_dict, override_api_auth):
         client = TestClient(app)
         response = client.get(f"/api/v1/groups/{group_id}/service-providers")
     assert response.status_code == 404
+
+
+# =============================================================================
+# Clear All Relationships Tests
+# =============================================================================
+
+
+def test_clear_all_relationships_as_admin(make_user_dict, override_api_auth):
+    """Admin can clear all relationships for a group."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.remove_all_relationships.return_value = 3
+
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/groups/{group_id}/relationships")
+
+        assert response.status_code == 204
+        mock_svc.remove_all_relationships.assert_called_once()
+
+
+def test_clear_all_relationships_non_admin_forbidden(make_user_dict, override_api_auth):
+    """Non-admin user gets 403 when clearing relationships."""
+    user = make_user_dict(role="member")
+    group_id = str(uuid4())
+
+    override_api_auth(user)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.remove_all_relationships.side_effect = ForbiddenError(
+            message="Admin required", code="admin_required"
+        )
+
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/groups/{group_id}/relationships")
+
+        assert response.status_code == 403
+
+
+def test_clear_all_relationships_not_found(make_user_dict, override_api_auth):
+    """Clearing relationships for a non-existent group returns 404."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.remove_all_relationships.side_effect = NotFoundError(
+            message="Group not found", code="group_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/groups/{group_id}/relationships")
+
+        assert response.status_code == 404

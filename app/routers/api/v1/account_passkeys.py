@@ -16,7 +16,8 @@ from schemas.webauthn import (
     RenamePasskeyRequest,
 )
 from services import webauthn as webauthn_service
-from services.exceptions import ServiceError
+from services.exceptions import RateLimitError, ServiceError
+from utils.ratelimit import MINUTE, ratelimit
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/account/passkeys", tags=["Account Passkeys"])
@@ -60,6 +61,16 @@ def begin_registration(
 
     No request body is required.
     """
+    try:
+        ratelimit.prevent(
+            "passkey_reg_begin:user:{user_id}",
+            limit=10,
+            timespan=MINUTE * 5,
+            user_id=str(user["id"]),
+        )
+    except RateLimitError as exc:
+        raise translate_to_http_exception(exc)
+
     requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         result = webauthn_service.begin_registration(requesting_user, request)
@@ -89,6 +100,16 @@ def complete_registration(
       successful passkey registration if they had no prior backup codes. Null
       on all subsequent registrations.
     """
+    try:
+        ratelimit.prevent(
+            "passkey_reg_complete:user:{user_id}",
+            limit=10,
+            timespan=MINUTE * 5,
+            user_id=str(user["id"]),
+        )
+    except RateLimitError as exc:
+        raise translate_to_http_exception(exc)
+
     requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         return webauthn_service.complete_registration(requesting_user, request, payload)

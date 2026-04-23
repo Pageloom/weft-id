@@ -18,7 +18,8 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from schemas.webauthn import CompleteRegistrationRequest
 from services import webauthn as webauthn_service
-from services.exceptions import NotFoundError, ServiceError, ValidationError
+from services.exceptions import NotFoundError, RateLimitError, ServiceError, ValidationError
+from utils.ratelimit import MINUTE, ratelimit
 from utils.service_errors import render_error_page
 
 router = APIRouter(
@@ -44,6 +45,18 @@ def begin_registration(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Return ``PublicKeyCredentialCreationOptions`` and stash the challenge."""
+    try:
+        ratelimit.prevent(
+            "passkey_reg_begin:user:{user_id}",
+            limit=10,
+            timespan=MINUTE * 5,
+            user_id=str(user["id"]),
+        )
+    except RateLimitError:
+        return JSONResponse(
+            {"error": "Too many requests", "code": "too_many_requests"}, status_code=429
+        )
+
     requesting_user = build_requesting_user(user, user["tenant_id"], request)
     try:
         result = webauthn_service.begin_registration(requesting_user, request)
@@ -64,6 +77,18 @@ async def complete_registration(
     """Verify a registration response, persist the credential, and return the
     resulting passkey plus any one-time backup codes.
     """
+    try:
+        ratelimit.prevent(
+            "passkey_reg_complete:user:{user_id}",
+            limit=10,
+            timespan=MINUTE * 5,
+            user_id=str(user["id"]),
+        )
+    except RateLimitError:
+        return JSONResponse(
+            {"error": "Too many requests", "code": "too_many_requests"}, status_code=429
+        )
+
     try:
         body = await request.json()
     except Exception:

@@ -138,3 +138,40 @@ def test_list_passkeys_unauthenticated(test_tenant, test_tenant_host):
         headers={"host": test_tenant_host},
     )
     assert response.status_code == 401
+
+
+def test_begin_registration_rate_limited_returns_429(make_user_dict, override_api_auth, mocker):
+    """POST /api/v1/account/passkeys/begin-registration returns 429 when rate limited."""
+    from services.exceptions import RateLimitError
+
+    user = make_user_dict(role="member")
+    override_api_auth(user, level="user")
+    mocker.patch(
+        "routers.api.v1.account_passkeys.ratelimit.prevent",
+        side_effect=RateLimitError(message="rate limited", limit=10, timespan=300, retry_after=300),
+    )
+
+    client = TestClient(app)
+    response = client.post("/api/v1/account/passkeys/begin-registration")
+
+    assert response.status_code == 429
+
+
+def test_complete_registration_rate_limited_returns_429(make_user_dict, override_api_auth, mocker):
+    """POST /api/v1/account/passkeys/complete-registration returns 429 when rate limited."""
+    from services.exceptions import RateLimitError
+
+    user = make_user_dict(role="member")
+    override_api_auth(user, level="user")
+    mocker.patch(
+        "routers.api.v1.account_passkeys.ratelimit.prevent",
+        side_effect=RateLimitError(message="rate limited", limit=10, timespan=300, retry_after=300),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/account/passkeys/complete-registration",
+        json={"name": "Laptop", "response": {"id": "x"}},
+    )
+
+    assert response.status_code == 429

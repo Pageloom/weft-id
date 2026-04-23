@@ -151,3 +151,42 @@ def test_passkeys_page_requires_auth(test_tenant, test_tenant_host):
     )
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
+
+
+def test_begin_registration_rate_limited_returns_429(test_user, override_auth, mocker):
+    """POST /account/passkeys/begin-registration returns 429 when rate limited."""
+    from services.exceptions import RateLimitError
+
+    override_auth(test_user)
+    mocker.patch(
+        "routers.account_passkeys.ratelimit.prevent",
+        side_effect=RateLimitError(message="rate limited", limit=10, timespan=300, retry_after=300),
+    )
+
+    client = TestClient(app)
+    response = client.post("/account/passkeys/begin-registration")
+
+    assert response.status_code == 429
+    body = response.json()
+    assert body.get("code") == "too_many_requests"
+
+
+def test_complete_registration_rate_limited_returns_429(test_user, override_auth, mocker):
+    """POST /account/passkeys/complete-registration returns 429 when rate limited."""
+    from services.exceptions import RateLimitError
+
+    override_auth(test_user)
+    mocker.patch(
+        "routers.account_passkeys.ratelimit.prevent",
+        side_effect=RateLimitError(message="rate limited", limit=10, timespan=300, retry_after=300),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/passkeys/complete-registration",
+        json={"name": "Laptop", "response": {"id": "x"}},
+    )
+
+    assert response.status_code == 429
+    body = response.json()
+    assert body.get("code") == "too_many_requests"

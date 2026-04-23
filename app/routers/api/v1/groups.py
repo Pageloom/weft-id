@@ -4,7 +4,7 @@ from typing import Annotated
 
 from api_dependencies import require_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, Query, Request, Response, UploadFile
 from schemas.groups import (
     AvailableUserList,
     BulkMemberAdd,
@@ -600,6 +600,30 @@ def remove_child(
         groups_service.remove_child(requesting_user, group_id, child_group_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
+
+
+@router.delete("/{group_id}/relationships", status_code=204, response_class=Response)
+def clear_all_relationships(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+):
+    """
+    Remove all parent and child relationships for a group.
+
+    Requires admin role.
+
+    Returns:
+        204 No Content on success.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        groups_service.remove_all_relationships(requesting_user, group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+    return Response(status_code=204)
 
 
 # =============================================================================

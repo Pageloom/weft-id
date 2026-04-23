@@ -5,6 +5,69 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [COPY] email.py: generic MFA subject, "please" usage, "activate" terminology
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/utils/email.py`
+**Severity:** Low
+**Resolution:** MFA subject/heading changed to "two-step verification code", ~20 "please" occurrences removed across all email functions, "activate your account" changed to "set up your account" in invitation emails, button CTA changed from "Activate Account" to "Set Up Account".
+
+---
+
+### [COPY] settings_security_tab_authentication.html: stale "future release" passkey reference
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/templates/settings_security_tab_authentication.html`
+**Severity:** Low
+**Resolution:** Removed "in a future release" qualifier, now says "an authenticator app or passkey". Enhanced-mode note also updated to mention passkey option.
+
+---
+
+### [COPY] settings_mfa.html: backup-code description omits passkeys
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/templates/settings_mfa.html`
+**Severity:** Low
+**Resolution:** Changed to "if you lose access to your authenticator app or all your passkeys."
+
+---
+
+### [COPY] user_detail_base.html: mfa_reset banner misleads when target has a passkey
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/templates/user_detail_base.html`
+**Severity:** Low
+**Resolution:** Changed to "Any TOTP secret and backup codes are cleared. Registered passkeys are not affected."
+
+---
+
+### [COPY] user_detail_base.html: self-revoke error banner gives no navigation path
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/templates/user_detail_base.html`
+**Severity:** Low
+**Resolution:** Changed to "Go to Account > Two-Step Verification to manage your own passkeys."
+
+---
+
+### [COPY] user_detail_tab_profile.html: Verification Method row ignores passkeys
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/templates/user_detail_tab_profile.html`
+**Severity:** Low
+**Resolution:** Added "Passkeys: N registered / None" row to user info grid, so passkey-only users no longer appear to have no auth method.
+
+---
+
+### [COPY] login.html: "Use password instead" should be a button, not an anchor
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/templates/login.html`
+**Severity:** Low
+**Resolution:** Replaced `<a href="#">` with `<button type="button">`, removed unnecessary `preventDefault`.
+
+---
+
 ### [SECURITY] Passkey registration + enhanced-enrollment TOTP verify have no rate limit
 
 **Status:** Resolved (2026-04-23)

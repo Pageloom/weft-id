@@ -500,3 +500,21 @@ class SAMLDebugList(BaseModel):
 
     items: list[SAMLDebugEntry]
     total: int
+
+
+class SAMLDebugEntryAPI(BaseModel):
+    """SAML debug entry for API responses (includes ID)."""
+
+    id: str
+    error_type: str
+    error_detail: str | None = None
+    idp_id: str | None = None
+    idp_name: str | None = None
+    request_ip: str | None = None
+    created_at: datetime
+
+
+class SAMLDebugEntryDetailAPI(SAMLDebugEntryAPI):
+    """SAML debug entry detail for API responses (includes XML)."""
+
+    saml_response_xml: str | None = None

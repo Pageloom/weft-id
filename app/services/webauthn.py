@@ -709,6 +709,23 @@ def complete_authentication(
         backup_state=new_backup_state,
     )
 
+    # Re-check user eligibility. Between begin and complete (up to 5 min),
+    # an admin may have inactivated the user, linked them to a SAML IdP, or
+    # deleted the account.
+    user = database.users.get_user_by_id(tenant_id, str(pending_user_id))
+    if not user or user.get("is_inactivated") or user.get("saml_idp_id"):
+        _clear_login_session(session)
+        _emit_passkey_failure(
+            tenant_id,
+            str(pending_user_id),
+            "eligibility_revoked",
+            credential_uuid=credential_uuid,
+        )
+        raise ValidationError(
+            message="Passkey sign-in failed",
+            code="eligibility_revoked",
+        )
+
     log_event(
         tenant_id=tenant_id,
         actor_user_id=str(pending_user_id),

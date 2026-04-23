@@ -16,9 +16,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
 | Low | 2 | Copy |
-| **High** | **1** | **Security (passkey_auth review)** |
 | Low | 1 | Security |
-| Medium | 3 | Security (passkey_auth review) |
+| Medium | 2 | Security (passkey_auth review) |
 | Low | 1 | Security (passkey_auth review) |
 | Low | 1 | Docs (passkey_auth review) |
 | Low | 6 | Copy (passkey_auth review) |
@@ -125,21 +124,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [SECURITY] Enhanced policy bypass: passkey user can authenticate via email OTP
-
-**Found in:** `app/services/users/auth_policy.py::user_must_enroll_enhanced`, `app/routers/mfa.py::mfa_verify`
-**Severity:** High
-**Description:** Under `required_auth_strength = 'enhanced'`, a user with `mfa_method = 'email'` and at least one registered passkey can sign in via password + email OTP by abandoning the passkey ceremony. The enforcement check `user_must_enroll_enhanced` returns `False` because the user has a passkey (line 46-47 counts credentials). This conflates "has a strong method available" with "used a strong method for this login." The design decision states: "Email OTP is a valid step-up method iff tenant policy is `baseline`." Under `enhanced`, email OTP should never be the final authentication factor, regardless of what other methods the user has registered.
-**Evidence:**
-- `app/services/users/auth_policy.py:46-47` short-circuits on `count_credentials > 0`.
-- `app/routers/mfa.py:134` calls `user_must_enroll_enhanced` after email OTP succeeds; the passkey count makes it return False and the login completes.
-- E2E test `tests/e2e/test_enhanced_auth_policy.py::test_passkey_user_cannot_bypass_via_email_otp` demonstrates the bug (marked `xfail`).
-**Impact:** An attacker who phishes a password and intercepts an email OTP can authenticate as a passkey-protected user under enhanced policy. The entire point of enhanced policy is to block email OTP. This undermines the security guarantee admins expect when enabling the setting.
-**Suggested fix:** In `mfa_verify`, after successful email OTP verification, if the tenant policy is `enhanced`, always redirect to the enrollment page (or a "use your passkey" interstitial), regardless of whether the user has passkeys registered. The enrollment page already handles passkey users gracefully. Alternatively, add a new check in `user_must_enroll_enhanced` that accepts the MFA method used for the current login and rejects email OTP under enhanced policy even when passkeys exist.
-**Related cleanup:** The `mfa_method` CHECK constraint includes a `passcode` value that no code path ever sets. Remove it from the schema constraint and any service/template logic that references it. Simplifying the set of valid MFA methods makes the policy enforcement logic easier to reason about.
-
----
-
 ## [SECURITY] Passkey clone detection relies on py_webauthn error-string substring match
 
 **Found in:** `app/services/webauthn.py::complete_authentication` (sign-count regression branch)
@@ -148,17 +132,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Evidence:** `app/services/webauthn.py` (search for `"sign count"` substring). The py_webauthn 2.7.1 message today is `"Response sign count of X was not greater than..."`.
 **Impact:** Correctness bound (never let a sign-count regression slip past on `backup_eligible=false`) is preserved, but the cloned credential is not automatically deleted and the `passkey_auth_failure` event reason becomes misleading. Silent degradation on library bump.
 **Suggested fix:** Either catch a typed exception if a newer py_webauthn release adds one, or move the sign-count decision into `app/utils/webauthn.py::verify_authentication` so the service receives a typed result (`WebAuthnAuthResult(ok=False, reason="clone_suspected")`) rather than parsing a message string. Add a pin test so any library upgrade that reshapes the error wording forces the issue to the surface.
-
----
-
-## [SECURITY] TOCTOU: passkey `complete_authentication` skips user eligibility recheck
-
-**Found in:** `app/services/webauthn.py::complete_authentication`
-**Severity:** Medium
-**Description:** `begin_authentication` runs `_resolve_eligible_user` (rejects nonexistent, IdP-linked, inactivated, zero-passkey). `complete_authentication` only fetches the credential row and verifies the signature. Within the 5 minute challenge TTL an admin can inactivate the user, reassign them to a SAML IdP, or delete their last passkey, and the pending ceremony still completes a sign-in.
-**Evidence:** `app/services/webauthn.py` around line 552+. `_resolve_eligible_user` is not called from the complete path.
-**Impact:** Inactivated user signs in successfully; IdP-linked user bypasses IdP redirect; audit log shows `passkey_auth_success` + `user_signed_in` for an account that should already be locked. Window is bounded by the 5 minute challenge TTL but the race is real under admin-triggered lockout.
-**Suggested fix:** In `complete_authentication`, after resolving the credential row and before session finalisation, re-read the user (`database.users.get_user_by_id(tenant_id, pending_user_id)`) and reject if `is_inactivated=True`, `saml_idp_id is not None`, or user not found. Emit `passkey_auth_failure(reason="eligibility_revoked")` on rejection.
 
 ---
 

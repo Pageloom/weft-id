@@ -1038,6 +1038,151 @@ def test_complete_authentication_clone_detection_clears_session(test_user, mocke
 
 
 # =============================================================================
+# Eligibility recheck (TOCTOU guard in complete_authentication)
+# =============================================================================
+
+
+def test_complete_authentication_rejects_inactivated_user(test_user, mocker):
+    """User inactivated between begin and complete is rejected."""
+    _seed_passkey(test_user, credential_id=b"toctou-inactive", sign_count=0, backup_eligible=True)
+    state = _seed_login_session(b"toctou-inactive", str(test_user["id"]))
+
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        return_value=_FakeVerifiedAuth(new_sign_count=1),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    mocker.patch(
+        "services.webauthn.database.users.get_user_by_id",
+        return_value={
+            "id": test_user["id"],
+            "is_inactivated": True,
+            "saml_idp_id": None,
+        },
+    )
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={
+            "id": state["raw_b64"],
+            "rawId": state["raw_b64"],
+            "type": "public-key",
+            "response": {
+                "clientDataJSON": "x",
+                "authenticatorData": "y",
+                "signature": "z",
+                "userHandle": None,
+            },
+        }
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "eligibility_revoked"
+
+    assert "pending_passkey_user_id" not in req.session
+
+    assert any(
+        c.kwargs.get("event_type") == "passkey_auth_failure"
+        and c.kwargs["metadata"]["reason"] == "eligibility_revoked"
+        for c in log_event.call_args_list
+    )
+
+    assert not any(
+        c.kwargs.get("event_type") == "passkey_auth_success" for c in log_event.call_args_list
+    )
+
+
+def test_complete_authentication_rejects_idp_linked_user(test_user, mocker):
+    """User linked to SAML IdP between begin and complete is rejected."""
+    _seed_passkey(test_user, credential_id=b"toctou-idp", sign_count=0, backup_eligible=True)
+    state = _seed_login_session(b"toctou-idp", str(test_user["id"]))
+
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        return_value=_FakeVerifiedAuth(new_sign_count=1),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.log_event")
+
+    mocker.patch(
+        "services.webauthn.database.users.get_user_by_id",
+        return_value={
+            "id": test_user["id"],
+            "is_inactivated": False,
+            "saml_idp_id": "11111111-1111-1111-1111-111111111111",
+        },
+    )
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={
+            "id": state["raw_b64"],
+            "rawId": state["raw_b64"],
+            "type": "public-key",
+            "response": {
+                "clientDataJSON": "x",
+                "authenticatorData": "y",
+                "signature": "z",
+                "userHandle": None,
+            },
+        }
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "eligibility_revoked"
+
+
+def test_complete_authentication_rejects_deleted_user(test_user, mocker):
+    """User deleted between begin and complete is rejected."""
+    _seed_passkey(test_user, credential_id=b"toctou-deleted", sign_count=0, backup_eligible=True)
+    state = _seed_login_session(b"toctou-deleted", str(test_user["id"]))
+
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        return_value=_FakeVerifiedAuth(new_sign_count=1),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    mocker.patch(
+        "services.webauthn.database.users.get_user_by_id",
+        return_value=None,
+    )
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={
+            "id": state["raw_b64"],
+            "rawId": state["raw_b64"],
+            "type": "public-key",
+            "response": {
+                "clientDataJSON": "x",
+                "authenticatorData": "y",
+                "signature": "z",
+                "userHandle": None,
+            },
+        }
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "eligibility_revoked"
+
+    assert any(
+        c.kwargs.get("event_type") == "passkey_auth_failure"
+        and c.kwargs["metadata"]["reason"] == "eligibility_revoked"
+        for c in log_event.call_args_list
+    )
+
+
+# =============================================================================
 # Admin operations (iteration 5)
 # =============================================================================
 

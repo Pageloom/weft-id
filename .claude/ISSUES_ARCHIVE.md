@@ -5,6 +5,24 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] TOCTOU: passkey `complete_authentication` skips user eligibility recheck
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/services/webauthn.py::complete_authentication`
+**Severity:** Medium
+**Resolution:** Added user eligibility recheck after signature verification succeeds but before session finalization. `complete_authentication` now re-reads the user via `database.users.get_user_by_id` and rejects with `eligibility_revoked` if the user is not found, is inactivated, or has been linked to a SAML IdP since the ceremony began. Three tests cover inactivated, IdP-linked, and deleted user scenarios.
+
+---
+
+### [SECURITY] Enhanced policy bypass: passkey user can authenticate via email OTP
+
+**Status:** Resolved (2026-04-23)
+**Found in:** `app/services/users/auth_policy.py::user_must_enroll_enhanced`, `app/routers/mfa.py::mfa_verify`
+**Severity:** High
+**Resolution:** After successful email OTP verification under enhanced tenant policy, the MFA verify handler now always redirects to the enrollment page regardless of whether the user already has passkeys registered. The check no longer conflates "has a strong method available" with "used a strong method for this login." E2E test `test_passkey_user_cannot_bypass_via_email_otp` removed from xfail.
+
+---
+
 ### [SECURITY] XSS via innerHTML in SAML Assertion Preview
 
 **Status:** Resolved (2026-04-13)

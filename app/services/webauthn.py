@@ -32,9 +32,10 @@ from services import mfa as mfa_service
 from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
-from services.exceptions import NotFoundError, ValidationError
+from services.exceptions import ForbiddenError, NotFoundError, ValidationError
 from services.types import RequestingUser
 from utils.webauthn import (
+    SignCountRegressionError,
     WebAuthnError,
     generate_authentication_options_for_user,
     generate_registration_options_for_user,
@@ -395,6 +396,13 @@ def admin_revoke_credential(
     if not target_user:
         raise NotFoundError(message="User not found", code="user_not_found")
 
+    if target_user.get("role") == "super_admin" and requesting_user["role"] != "super_admin":
+        raise ForbiddenError(
+            message="Only super admins can revoke a super admin's passkey",
+            code="super_admin_required",
+            required_role="super_admin",
+        )
+
     existing = database.webauthn_credentials.get_credential(tenant_id, credential_uuid)
     if not existing or str(existing["user_id"]) != str(user_id):
         raise NotFoundError(
@@ -653,37 +661,33 @@ def complete_authentication(
             credential_public_key=bytes(stored["public_key"]),
             credential_current_sign_count=effective_current,
         )
+    except SignCountRegressionError as exc:
+        _clear_login_session(session)
+        database.webauthn_credentials.delete_credential(
+            tenant_id, credential_uuid, str(pending_user_id)
+        )
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=str(pending_user_id),
+            artifact_type="webauthn_credential",
+            artifact_id=credential_uuid,
+            event_type="passkey_deleted",
+            metadata={
+                "reason": "clone_suspected",
+                "credential_name": stored.get("name"),
+            },
+        )
+        _emit_passkey_failure(
+            tenant_id,
+            str(pending_user_id),
+            "clone_suspected",
+            credential_uuid=credential_uuid,
+        )
+        raise ValidationError(
+            message="Passkey sign-in failed",
+            code="clone_suspected",
+        ) from exc
     except WebAuthnError as exc:
-        msg = str(exc).lower()
-        # Sign-count regression for a non-synced credential suggests a clone.
-        # (We bypass the check for BE=true above, so hitting it means BE=false.)
-        if "sign count" in msg or "counter" in msg:
-            _clear_login_session(session)
-            database.webauthn_credentials.delete_credential(
-                tenant_id, credential_uuid, str(pending_user_id)
-            )
-            log_event(
-                tenant_id=tenant_id,
-                actor_user_id=str(pending_user_id),
-                artifact_type="webauthn_credential",
-                artifact_id=credential_uuid,
-                event_type="passkey_deleted",
-                metadata={
-                    "reason": "clone_suspected",
-                    "credential_name": stored.get("name"),
-                },
-            )
-            _emit_passkey_failure(
-                tenant_id,
-                str(pending_user_id),
-                "clone_suspected",
-                credential_uuid=credential_uuid,
-            )
-            raise ValidationError(
-                message="Passkey sign-in failed",
-                code="clone_suspected",
-            ) from exc
-
         _clear_login_session(session)
         _emit_passkey_failure(
             tenant_id,

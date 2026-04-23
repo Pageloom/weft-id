@@ -837,11 +837,11 @@ def test_complete_authentication_clone_suspected_be_false(test_user, mocker):
     )
     state = _seed_login_session(b"clone-cred", str(test_user["id"]))
     log_event = mocker.patch("services.webauthn.log_event")
-    from utils.webauthn import WebAuthnError
+    from utils.webauthn import SignCountRegressionError
 
     mocker.patch(
         "services.webauthn.verify_authentication",
-        side_effect=WebAuthnError("Counter has not increased"),
+        side_effect=SignCountRegressionError("Counter has not increased"),
     )
     mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
     mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
@@ -1013,11 +1013,11 @@ def test_complete_authentication_clone_detection_clears_session(test_user, mocke
     )
     state = _seed_login_session(b"clone-session-cred", str(test_user["id"]))
     mocker.patch("services.webauthn.log_event")
-    from utils.webauthn import WebAuthnError
+    from utils.webauthn import SignCountRegressionError
 
     mocker.patch(
         "services.webauthn.verify_authentication",
-        side_effect=WebAuthnError("Response sign count of 5 was not greater than current count"),
+        side_effect=SignCountRegressionError("Response sign count of 5 was not greater than current count"),
     )
     mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
     mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
@@ -1035,6 +1035,56 @@ def test_complete_authentication_clone_detection_clears_session(test_user, mocke
     assert "pending_passkey_user_id" not in req.session
     assert "webauthn_login_challenge" not in req.session
     assert "webauthn_login_challenge_at" not in req.session
+
+
+def test_complete_authentication_clone_detection_via_typed_exception(test_user, mocker):
+    """complete_authentication must detect clones via SignCountRegressionError, not by
+    inspecting the error message string.
+
+    The service layer catches SignCountRegressionError first (before the generic
+    WebAuthnError handler). This test patches verify_authentication to raise the
+    typed exception directly, verifying the service routes it to clone_suspected
+    regardless of the message text.
+    """
+    from utils.webauthn import SignCountRegressionError
+
+    row = _seed_passkey(
+        test_user,
+        credential_id=b"typed-clone-cred",
+        sign_count=10,
+        backup_eligible=False,
+    )
+    state = _seed_login_session(b"typed-clone-cred", str(test_user["id"]))
+    log_event = mocker.patch("services.webauthn.log_event")
+
+    mocker.patch(
+        "services.webauthn.verify_authentication",
+        side_effect=SignCountRegressionError("sign count regression"),
+    )
+    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+
+    req = _fake_request(state["session"])
+    payload = CompleteAuthenticationRequest(
+        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
+    assert excinfo.value.code == "clone_suspected"
+
+    # Credential must be deleted.
+    gone = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
+    assert gone is None
+
+    # Both deletion and failure events emitted with clone_suspected reason.
+    event_types = [c.kwargs.get("event_type") for c in log_event.call_args_list]
+    assert "passkey_deleted" in event_types
+    assert "passkey_auth_failure" in event_types
+    deleted_call = next(
+        c for c in log_event.call_args_list if c.kwargs.get("event_type") == "passkey_deleted"
+    )
+    assert deleted_call.kwargs["metadata"]["reason"] == "clone_suspected"
 
 
 # =============================================================================
@@ -1440,6 +1490,74 @@ def test_admin_revoke_self_is_rejected(test_admin_user):
         test_admin_user["tenant_id"], str(row["id"])
     )
     assert still_there is not None
+
+
+def test_admin_cannot_revoke_super_admin_passkey(test_user, test_admin_user, test_super_admin_user, mocker):
+    """A plain admin must not be able to revoke a super_admin's passkey.
+
+    Protects super admins from having their credentials revoked by lower-privilege
+    admins. The service must raise ForbiddenError with code super_admin_required.
+    """
+    from services.exceptions import ForbiddenError
+
+    row = _seed_passkey(test_super_admin_user, credential_id=b"sa-revoke-guard", name="SA key")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        webauthn_service.admin_revoke_credential(
+            _requesting_admin(test_admin_user),
+            str(test_super_admin_user["id"]),
+            str(row["id"]),
+        )
+    assert exc_info.value.code == "super_admin_required"
+
+    # Credential must still exist (no partial deletion).
+    still_there = database.webauthn_credentials.get_credential(
+        test_super_admin_user["tenant_id"], str(row["id"])
+    )
+    assert still_there is not None
+
+
+def test_super_admin_can_revoke_another_super_admin_passkey(
+    test_user, test_super_admin_user, mocker
+):
+    """A super_admin can revoke another super_admin's passkey."""
+    import database as _db
+
+    # Create a second super_admin in the same tenant to act as the requester.
+    from uuid import uuid4
+
+    unique = str(uuid4())[:8]
+    other_sa = _db.fetchone(
+        test_super_admin_user["tenant_id"],
+        """
+        INSERT INTO users (tenant_id, first_name, last_name, role)
+        VALUES (:tenant_id, 'Other', 'SuperAdmin', 'super_admin')
+        RETURNING id, first_name, last_name, role
+        """,
+        {"tenant_id": test_super_admin_user["tenant_id"]},
+    )
+    other_sa_requesting: RequestingUser = {
+        "id": str(other_sa["id"]),
+        "tenant_id": str(test_super_admin_user["tenant_id"]),
+        "role": "super_admin",
+    }
+
+    row = _seed_passkey(test_super_admin_user, credential_id=b"sa-revoke-by-sa", name="SA key 2")
+    mocker.patch("services.webauthn.log_event")
+    mocker.patch("services.webauthn.database.oauth2.revoke_all_user_tokens", return_value=0)
+
+    # Should not raise.
+    webauthn_service.admin_revoke_credential(
+        other_sa_requesting,
+        str(test_super_admin_user["id"]),
+        str(row["id"]),
+    )
+
+    # Credential is gone.
+    gone = database.webauthn_credentials.get_credential(
+        test_super_admin_user["tenant_id"], str(row["id"])
+    )
+    assert gone is None
 
 
 def test_complete_authentication_preserves_backup_eligible(test_user, mocker):

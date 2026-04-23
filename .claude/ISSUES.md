@@ -12,8 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Duplication (pre-existing) |
-| Low | 2 | Copy |
-| Low | 6 | Copy (passkey_auth review) |
+| Low | 1 | Copy |
 
 **Last security scan:** 2026-04-13 (broad: all code from last 90 days, all OWASP categories; 2 findings, both fixed)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
@@ -23,25 +22,9 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
-**Last copy review:** 2026-04-13 (security sweep templates, SAML IdP/SP, user profile, email audit)
+**Last copy review:** 2026-04-23 (7 passkey-related copy issues fixed across templates and emails)
 
 ---
-
----
-
-## [COPY] email.py: generic MFA subject, "please" usage, "activate" terminology
-
-**Found in:** `app/utils/email.py`
-**Severity:** Low
-**Description:** Three copy issues in outbound emails requiring Python code changes:
-
-1. **Generic MFA subject (line 163):** Subject is "Your verification code" but should be "Your two-step verification code" to match the glossary. Heading on line 176 and body on line 177 also use generic "Verification Code" / "continue signing in" instead of mentioning two-step verification.
-
-2. **"please" usage (~20 occurrences):** The copy style guide calls for terse, direct language. Phrases like "please ignore this email", "please verify your email", "please contact your administrator" should drop "please" (e.g., "If you did not request this code, ignore this email.").
-
-3. **"activate" in invitation emails (lines 382, 398-399):** Invitation text says "activate your account" and the CTA button says "Activate Account". Per the glossary, "Activate" is not used for users. Clearer as "set up your account" / "Set Up Account".
-
-**Scope:** ~25 string changes across one file. All in `app/utils/email.py`.
 
 ---
 
@@ -71,67 +54,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
 
 ---
-
----
-
-## [COPY] settings_security_tab_authentication.html: stale "future release" passkey reference
-
-**Found in:** `app/templates/settings_security_tab_authentication.html` lines 17-21 and 73-75
-**Severity:** Low
-**Description:** Two strings still say passkey support is "in a future release":
-- Line 17-21: "forced to set up an authenticator app (or, in a future release, a passkey)".
-- Line 73-75: "redirected to set up an authenticator app the next time they sign in" (omits passkey option).
-
-Passkey enrollment is live per iteration 4 (`enroll_enhanced_auth.html` renders both TOTP and passkey cards).
-**Suggested fix:**
-- Line 17-21: "forced to set up an authenticator app or passkey the next time they sign in."
-- Line 73-75: "redirected to set up an authenticator app or a passkey the next time they sign in."
-
----
-
-## [COPY] settings_mfa.html: backup-code description omits passkeys
-
-**Found in:** `app/templates/settings_mfa.html` line 49
-**Severity:** Low
-**Description:** Current: "Backup codes can be used once each to sign in if you lose access to your authenticator app." Backup codes are the recovery fallback for passkey users too (first passkey registration issues them).
-**Suggested fix:** "Backup codes can be used once each to sign in if you lose access to your authenticator app or all your passkeys."
-
----
-
-## [COPY] user_detail_base.html: mfa_reset banner misleads when target has a passkey
-
-**Found in:** `app/templates/user_detail_base.html` line 36
-**Severity:** Low
-**Description:** Current: "User's two-step verification has been reset. They will use email codes on next sign-in." Wrong if the target has a passkey, since `reset_mfa` does not delete passkeys.
-**Suggested fix:** "User's two-step verification has been reset. Any TOTP secret and backup codes are cleared. Registered passkeys are not affected."
-
----
-
-## [COPY] user_detail_base.html: self-revoke error banner gives no navigation path
-
-**Found in:** `app/templates/user_detail_base.html` lines 117-118
-**Severity:** Low
-**Description:** Current: "You cannot revoke your own passkey from the admin view. Use the account passkeys page instead."
-**Suggested fix:** "You cannot revoke your own passkey from the admin view. Go to Account > Two-Step Verification to manage your own passkeys."
-
----
-
-## [COPY] user_detail_tab_profile.html: Verification Method row ignores passkeys
-
-**Found in:** `app/templates/user_detail_tab_profile.html` lines 33-45
-**Severity:** Low
-**Description:** "Two-Step Verification: Yes/No" and "Verification Method: TOTP/EMAIL/Not set" are driven by `mfa_enabled` and `mfa_method`. A passkey-only user shows "Verification Method: Not set" while the Passkeys section immediately below lists registered passkeys.
-**Impact:** Structural misrepresentation of user's real auth posture; not a pure copy fix.
-**Suggested fix:** Add a "Passkeys: N registered" row or rename/rescope the Verification Method section. Coordinate with `/tech-writer` on terminology.
-
----
-
-## [COPY] login.html: "Use password instead" should be a button, not an anchor
-
-**Found in:** `app/templates/login.html` lines 76-79
-**Severity:** Low
-**Description:** `<a href="#">` with `preventDefault` for an action that does not navigate. Accessibility polish.
-**Suggested fix:** Replace with `<button type="button">`.
 
 ---
 

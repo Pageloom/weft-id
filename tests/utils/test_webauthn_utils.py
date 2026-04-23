@@ -161,3 +161,71 @@ def test_verify_authentication_passes_through_when_ok(mocker):
         credential_current_sign_count=3,
     )
     assert result is sentinel
+
+
+def test_verify_authentication_raises_sign_count_regression_error_on_sign_count_message(mocker):
+    """Pin test: verify_authentication must raise SignCountRegressionError (not plain
+    WebAuthnError) when the library error message contains 'sign count'.
+
+    If a future library update changes the error wording so this keyword is no
+    longer present, this test will fail and alert us to re-check clone detection.
+    """
+    from webauthn.helpers import exceptions as webauthn_exc
+
+    mocker.patch(
+        "utils.webauthn.verify_authentication_response",
+        side_effect=webauthn_exc.InvalidAuthenticationResponse(
+            "Response sign count of 5 was not greater than current sign count of 10"
+        ),
+    )
+    with pytest.raises(wa.SignCountRegressionError):
+        wa.verify_authentication(
+            response={"id": "x"},
+            expected_challenge=b"\x00",
+            expected_rp_id="host",
+            expected_origin="https://host",
+            credential_public_key=b"pk",
+            credential_current_sign_count=10,
+        )
+
+
+def test_verify_authentication_raises_sign_count_regression_error_on_counter_message(mocker):
+    """Pin test: 'counter' keyword in the error message also triggers SignCountRegressionError."""
+    from webauthn.helpers import exceptions as webauthn_exc
+
+    mocker.patch(
+        "utils.webauthn.verify_authentication_response",
+        side_effect=webauthn_exc.InvalidAuthenticationResponse(
+            "Counter has not increased"
+        ),
+    )
+    with pytest.raises(wa.SignCountRegressionError):
+        wa.verify_authentication(
+            response={"id": "x"},
+            expected_challenge=b"\x00",
+            expected_rp_id="host",
+            expected_origin="https://host",
+            credential_public_key=b"pk",
+            credential_current_sign_count=10,
+        )
+
+
+def test_verify_authentication_raises_plain_webauthn_error_for_other_messages(mocker):
+    """Non-sign-count library errors must raise WebAuthnError, not SignCountRegressionError."""
+    from webauthn.helpers import exceptions as webauthn_exc
+
+    mocker.patch(
+        "utils.webauthn.verify_authentication_response",
+        side_effect=webauthn_exc.InvalidAuthenticationResponse("bad challenge"),
+    )
+    with pytest.raises(wa.WebAuthnError) as excinfo:
+        wa.verify_authentication(
+            response={"id": "x"},
+            expected_challenge=b"\x00",
+            expected_rp_id="host",
+            expected_origin="https://host",
+            credential_public_key=b"pk",
+            credential_current_sign_count=0,
+        )
+    # Must be a plain WebAuthnError, not the more specific subclass.
+    assert type(excinfo.value) is wa.WebAuthnError

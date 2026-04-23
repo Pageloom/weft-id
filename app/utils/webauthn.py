@@ -42,6 +42,10 @@ class WebAuthnError(Exception):
     """Raised when a WebAuthn ceremony fails (invalid signature, bad challenge, etc.)."""
 
 
+class SignCountRegressionError(WebAuthnError):
+    """Raised when the authenticator's sign count regressed, indicating a cloned credential."""
+
+
 def rp_id_for_request(request: Request) -> str:
     """Return the Relying Party ID for the request.
 
@@ -165,6 +169,9 @@ def verify_authentication(
             require_user_verification=require_user_verification,
         )
     except webauthn_exc.InvalidAuthenticationResponse as exc:
+        msg = str(exc).lower()
+        if "sign count" in msg or "counter" in msg:
+            raise SignCountRegressionError(str(exc)) from exc
         raise WebAuthnError(str(exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive
         raise WebAuthnError(f"Authentication verification failed: {exc}") from exc

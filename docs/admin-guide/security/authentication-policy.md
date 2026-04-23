@@ -34,7 +34,7 @@ If a user is stuck (lost their TOTP device and all backup codes, lost every pass
 1. Go to **Users > (user) > Danger**.
 2. Click **Reset two-step verification**.
 
-The user's TOTP secret and passkeys are cleared. On their next sign-in they go through the enrollment flow again.
+This clears the user's TOTP secret and backup codes. It does not delete any registered passkeys; those must be revoked individually from the user's Profile tab (see "Revoking a single passkey" below). On the next sign-in the user goes through the enrollment flow again unless they still have a passkey that satisfies the enhanced policy.
 
 Resetting two-step verification is the recovery path; there is no "one-time baseline exception" that lets a user bypass the enhanced policy.
 

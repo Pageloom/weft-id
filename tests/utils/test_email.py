@@ -129,7 +129,7 @@ def test_send_mfa_code_email():
         to_email, subject, html_body, text_body = call_args[0]
 
         assert to_email == "test@example.com"
-        assert subject == "Your verification code"
+        assert subject == "Your two-step verification code"
         assert "123456" in html_body
         assert "123456" in text_body
         assert "10 minutes" in html_body

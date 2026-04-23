@@ -45,7 +45,7 @@
             {% if backup_codes %}
             {% set available_count = backup_codes|selectattr('used_at', 'none')|list|length %}
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Backup codes can be used once each to sign in if you lose access to your authenticator app.
+                Backup codes can be used once each to sign in if you lose access to your authenticator app or all your passkeys.
             </p>
             <div class="flex items-center gap-2 mb-2">
                 <span class="text-2xl font-semibold {% if available_count <= 2 %}text-red-600 dark:text-red-400{% elif available_count <= 5 %}text-yellow-600 dark:text-yellow-400{% else %}text-green-600 dark:text-green-400{% endif %}">{{ available_count }}</span>

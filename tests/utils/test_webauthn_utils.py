@@ -195,9 +195,7 @@ def test_verify_authentication_raises_sign_count_regression_error_on_counter_mes
 
     mocker.patch(
         "utils.webauthn.verify_authentication_response",
-        side_effect=webauthn_exc.InvalidAuthenticationResponse(
-            "Counter has not increased"
-        ),
+        side_effect=webauthn_exc.InvalidAuthenticationResponse("Counter has not increased"),
     )
     with pytest.raises(wa.SignCountRegressionError):
         wa.verify_authentication(

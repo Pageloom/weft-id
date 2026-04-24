@@ -3,8 +3,8 @@
 Thin wrapper around the ``webauthn`` (py_webauthn) library so the service layer
 stays framework-agnostic. This module exposes:
 
-- ``rp_id_for_request`` / ``origin_for_request`` -- derive RP ID and origin from
-  a FastAPI ``Request``.
+- ``rp_id_for_tenant`` / ``origin_for_tenant`` -- derive RP ID and origin from
+  the tenant record (not from request headers).
 - ``rp_name_for_tenant`` -- resolves the tenant display name for the RP name.
 - ``generate_registration_options_for_user`` -- build a
   ``PublicKeyCredentialCreationOptions`` JSON dict and the raw challenge.
@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from dependencies import normalize_host
 from fastapi import Request
 from webauthn import (
     generate_authentication_options,
@@ -46,15 +45,35 @@ class SignCountRegressionError(WebAuthnError):
     """Raised when the authenticator's sign count regressed, indicating a cloned credential."""
 
 
-def rp_id_for_request(request: Request) -> str:
-    """Return the Relying Party ID for the request.
+def _tenant_host(tenant_id: str) -> str:
+    """Return ``subdomain.BASE_DOMAIN`` for the tenant, derived from the DB.
 
-    The RP ID is the tenant host (subdomain.BASE_DOMAIN), port stripped. This
-    scopes passkeys to the tenant subdomain so a passkey registered against one
-    tenant is not silently offered to another.
+    Falls back to BASE_DOMAIN alone if the tenant is not found (defensive).
     """
-    host = normalize_host(request.headers.get("x-forwarded-host") or request.headers.get("host"))
-    return host
+    import database
+
+    tenant = database.tenants.get_tenant_by_id(tenant_id)
+    subdomain = tenant["subdomain"] if tenant else None
+    base = _base_domain()
+    if subdomain and base:
+        return f"{subdomain}.{base}"
+    return base or "localhost"
+
+
+def _base_domain() -> str:
+    import settings
+
+    return settings.BASE_DOMAIN
+
+
+def rp_id_for_tenant(tenant_id: str) -> str:
+    """Return the Relying Party ID computed from the tenant record.
+
+    The RP ID is the bare domain (no port, no scheme). Computed server-side
+    from the tenant's subdomain and BASE_DOMAIN so it cannot be influenced
+    by spoofed request headers.
+    """
+    return _tenant_host(tenant_id)
 
 
 def rp_name_for_tenant(tenant_id: str) -> str:
@@ -67,17 +86,25 @@ def rp_name_for_tenant(tenant_id: str) -> str:
     return "WeftID"
 
 
-def origin_for_request(request: Request) -> str:
-    """Return the origin (scheme://host[:port]) for the request.
+def origin_for_tenant(tenant_id: str, request: Request) -> str:
+    """Return the expected WebAuthn origin for the tenant.
 
-    Honors the ``x-forwarded-proto`` and ``x-forwarded-host`` headers so the
-    origin matches what the browser sees when behind a reverse proxy.
+    The host portion is derived from the tenant record (not from request
+    headers) so a spoofed X-Forwarded-Host cannot shift the origin. The
+    scheme and optional port are taken from the reverse proxy headers
+    because they reflect how the browser reached the site.
     """
     scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
-    host_header = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
-    # Keep the port if present (host header already includes it when non-default).
-    host = host_header.strip().rstrip(".").lower()
-    return f"{scheme}://{host}"
+    host = _tenant_host(tenant_id)
+    raw_header = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    port = ""
+    if ":" in raw_header:
+        port_str = raw_header.rsplit(":", 1)[1]
+        if port_str.isdigit():
+            p = int(port_str)
+            if (scheme == "https" and p != 443) or (scheme == "http" and p != 80):
+                port = f":{p}"
+    return f"{scheme}://{host}{port}"
 
 
 def generate_registration_options_for_user(

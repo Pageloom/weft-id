@@ -216,6 +216,49 @@ grace_period_days: int = Query(default=7, ge=0, le=90)
 - [ ] XML/large content fields have a reasonable upper bound (e.g., 1MB)
 - [ ] No unbounded TEXT columns accepting user input without validation
 - [ ] Web form routes and API routes to the same service use equivalent validation
+- [ ] Pydantic fields typed as bare `dict`, `list`, or `Any` have either a typed sub-model with per-field `max_length` OR a documented body-size cap
+- [ ] Endpoints that call `await request.json()` have a request-body size ceiling (ASGI middleware or reverse proxy) — FastAPI does not cap body size by default
+- [ ] Pre-auth JSON endpoints (login, registration, ceremony complete) have the tightest body caps (~128 KiB) since they are the attractive DoS targets
+
+### 12. Forwarded-Header Trust (A05:2021)
+
+**Red Flag:**
+```python
+# VULNERABLE - trusts arbitrary caller if app port is ever reachable directly
+host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+rp_id = normalize(host)  # now used for WebAuthn RP binding, tenant routing, etc.
+```
+
+`X-Forwarded-*` headers are proxy-controlled only when the app is strictly behind that proxy. If the app port is exposed (debug port publish, internal network, misconfigured compose override), any caller can set those headers.
+
+**Checklist:**
+- [ ] Every `x-forwarded-host` / `x-forwarded-proto` / `x-forwarded-for` read is either (a) non-security (logging, cosmetic) OR (b) gated by a trusted-proxy allowlist.
+- [ ] Security-relevant derivations (WebAuthn RP ID / origin, tenant routing, rate-limit keys) prefer a server-side source (tenant record, configured base domain) over header derivation.
+- [ ] Container / compose config does NOT publish the app port to the host; only the reverse proxy is externally reachable.
+
+### 13. Policy Consistency (Cross-cutting)
+
+**Red Flag:** A tenant setting or UI string promises a security property (phishing-resistant MFA, persistent-session opt-out, cert lifetime ceiling, password floor), but the enforcement point checks something weaker.
+
+```python
+# UI: "Enhanced: only phishing-resistant factors satisfy sign-in"
+# Code:
+if policy != "enhanced":
+    return False
+if user.mfa_method == "totp":
+    return False
+# A passkey counts as satisfied even if it was registered with UV=PREFERRED
+# and verified with require_user_verification=False -> assertion can be
+# UV-absent -> "phishing-resistant" promise is false.
+passkey_count = count_credentials(...)
+return passkey_count == 0
+```
+
+**Checklist:**
+- [ ] For each tenant policy setting, identify the enforcement point(s) and confirm the check matches the UI promise.
+- [ ] Check password-strength / zxcvbn thresholds are applied on change AND on set-password / onboarding paths, not only on login.
+- [ ] Check session timeout / persistent-session flags are honored on every code path that regenerates a session.
+- [ ] Check "require strong MFA" gates read a flag captured at enrollment, not a simple "has credential" boolean.
 
 ## Severity Guide
 

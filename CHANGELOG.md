@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-04-24
+
+### Added
+
+- Passkey authentication (FIDO2/WebAuthn): register, list, rename, and delete passkeys from the two-step verification page
+- Passkey login with a scoped ceremony and clone detection on used authenticators
+- Admin passkey management: per-user passkey view/revoke and auth-method filter on the user list
+- Tenant authentication strength policy with forced TOTP enrollment and platform-MFA requirement
+- Passkey enrollment accepted under the enhanced auth policy
+- API endpoints for SAML IdP reimport-xml and SAML debug entry retrieval (with response schemas)
+- API endpoint to clear all group relationships in one call
+- Admin passkey API endpoints (list, revoke)
+
+### Changed
+
+- Renamed "two-step verification" copy where it was inaccurate now that passkeys are available
+- Passkey-related copy aligned across templates and emails (revoke terminology, MFA reset docs)
+- Tenant auth strength selector switched from a dropdown to radio buttons
+- Passkey clone detection raises a typed exception instead of matching error strings
+
+### Fixed
+
+- Enforce `require_platform_mfa` on SAML IdP login (policy was not applied on that path)
+- Enhanced auth policy bypass via email OTP closed
+- TOCTOU race in passkey `complete_authentication`
+- Passkey-existence oracle on the login page (revealed whether a user had a passkey registered)
+- Migration `0032` conflict with baseline schema on fresh installs
+
+### Security
+
+- WebAuthn RP ID now derived from the tenant record, not request headers (prevents RP ID spoofing via `Host`/`Origin` manipulation)
+- Require user verification (UV) in all WebAuthn ceremonies (registration, authentication, reauth)
+- Bounded request body size and tightened WebAuthn input schemas
+- Rate limits on passkey registration and enrollment endpoints
+- Plain admins can no longer revoke super_admin passkeys (privilege escalation blocked)
+- Updated `lxml` and `python-multipart` to fix CVEs
+- Minor dependency bumps: `click`, `werkzeug`, `python-dotenv`, `ua-parser-builtins`, `watchfiles`
+
 ## [1.4.1] - 2026-04-13
 
 ### Security

@@ -24,12 +24,13 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 | Broken Access Control | A01 | Ownership checks, IDOR, privilege escalation |
 | Cryptographic Failures | A02 | Password hashing, token generation, data exposure |
 | Injection | A03 | SQL injection, XSS |
-| Security Misconfiguration | A05 | CORS, cookies, headers, debug mode |
+| Security Misconfiguration | A05 | CORS, cookies, headers, debug mode, trusted-proxy boundaries |
 | Vulnerable Components | A06 | Use `/deps` agent |
-| Auth Failures | A07 | Password handling, session management, MFA |
+| Auth Failures | A07 | Password handling, session management, MFA, WebAuthn ceremonies |
 | Data Integrity | A08 | Deserialization, YAML/pickle, eval |
 | Logging Failures | A09 | Auth events, log injection |
-| Unbounded Input | - | Missing `max_length` on str fields, unbounded TEXT columns |
+| Unbounded Input | - | Missing `max_length` on str fields, unbounded TEXT/dict/JSON bodies |
+| Policy Consistency | - | Tenant settings / UI copy promise X but code does not enforce X |
 
 ## Workflow
 
@@ -70,6 +71,23 @@ Ask the user:
 - Check `Form()` parameters in route handlers for missing `max_length` (compliance check: `form-input-length`)
 - Check numeric parameters in security contexts for missing `ge`/`le` bounds
 - Verify that web form routes and API routes to the same service use equivalent validation
+- Check Pydantic `dict` / `Any` fields and `await request.json()` endpoints for missing body-size caps (proxy or middleware). Pre-auth JSON endpoints are the attractive DoS targets.
+
+**For WebAuthn / Passkey code:**
+- See `.claude/references/webauthn-patterns.md` for the full checklist.
+- Key pitfalls: UV required vs preferred under policy that promises phishing-resistant MFA, RP ID / origin derived from `X-Forwarded-Host` without a trusted-proxy boundary, unbounded `response: dict` ceremony payloads, cross-user credential lookup at `complete`, sign-count regression handling for synced vs non-synced credentials.
+- Compliance check: `webauthn-ceremony` (see `dev/compliance_check.py`).
+
+**For Forwarded-Header Trust (defense-in-depth):**
+- Grep for `x-forwarded-host`, `x-forwarded-proto`, `x-forwarded-for` usages.
+- For each usage, confirm either (a) the value is consumed for a non-security decision, or (b) a `TRUSTED_PROXIES` allowlist / server-side source is used for security-relevant derivations (RP ID, expected origin, rate-limit keys, tenant routing).
+
+**For Policy Consistency:**
+- When the repo exposes a tenant setting whose label promises a security property (`required_auth_strength=enhanced`, `persistent_sessions=false`, `session_timeout_seconds`, cert-rotation windows, password-length floor), trace the enforcement point and confirm it delivers the promise.
+- Common gap: UI says "phishing-resistant MFA" but the underlying check only verifies the credential exists, not the UV / assurance level it actually provided.
+
+**For Regression Hunting:**
+- Before closing the scan, `grep` the new diff for the root-cause pattern of every entry in `.claude/ISSUES_ARCHIVE.md` tagged `[SECURITY]`. Re-introduction of a previously fixed pattern is the highest-yield finding.
 
 ### 3. Evidence Collection
 
@@ -136,6 +154,18 @@ See `.claude/references/owasp-patterns.md` for detailed patterns including:
 - Deserialization risks
 - Unbounded input / resource exhaustion
 
+See `.claude/references/webauthn-patterns.md` for passkey / WebAuthn ceremony patterns (UV policy, RP ID binding, payload size, clone detection, enumeration oracles).
+
+## Delegating to Subagents
+
+When scope is large, delegating file clusters to `Explore` subagents is fine, but the bar for a "clean" report back is evidence, not assertion. Reject reports that say "cluster X: clean" or "checked, OK" without specifics.
+
+Require each cluster report to include:
+- For every claim of the form "Y is not vulnerable to Z", quote the `file:line` that proves it (a parameterized query, an `escapeHtml()` call, a `require_admin` dependency, etc.).
+- If the subagent found the absence of something (e.g., "no `| safe` without justification"), require the exact `grep` command it ran and a count.
+
+If a subagent returns only narrative summaries, re-delegate with an explicit "quote the lines" instruction or do the cluster yourself.
+
 ## Issue Format
 
 ```markdown
@@ -168,6 +198,13 @@ cursor.execute(query, (email,))
 - No code fixes (log issues for `/dev`)
 - No penetration testing (code review only)
 - No assumptions (verify against actual usage)
+
+## Where Findings and Suggestions Go
+
+- Concrete vulnerabilities: `.claude/ISSUES.md` (using the issue format below).
+- Follow-up work that is feature-shaped (new automation, new checks, refactors): `.claude/BACKLOG.md` via `/pm`.
+- Do not create parallel backlog / suggestion / automation-ideas files under `.claude/references/`, `.claude/skills/`, or elsewhere. The user engages findings and suggestions manually through ISSUES.md and BACKLOG.md; a sibling surface just duplicates and drifts.
+- Automation ideas that come out of a sweep: either propose them as BACKLOG entries or surface them in the chat for manual triage. Never park them in a standalone reference doc.
 
 ## Headless Mode
 

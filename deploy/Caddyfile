@@ -11,6 +11,9 @@
 }
 
 {$BASE_DOMAIN} {
+	request_body {
+		max_size 1MB
+	}
 	reverse_proxy app:8000 {
 		header_up X-Real-IP {remote_host}
 	}
@@ -19,6 +22,9 @@
 *.{$BASE_DOMAIN} {
 	tls {
 		on_demand
+	}
+	request_body {
+		max_size 1MB
 	}
 	reverse_proxy app:8000 {
 		header_up X-Real-IP {remote_host}

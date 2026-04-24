@@ -6,6 +6,56 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Upper bound for base64url-encoded WebAuthn fields. A 4 KB raw value
+# encodes to ~5500 chars; 8192 is generous headroom for large attestation
+# objects while still bounding memory.
+_B64_MAX = 8192
+
+
+class AuthenticatorResponse(BaseModel):
+    """Fields common to both registration and authentication inner responses."""
+
+    model_config = ConfigDict(extra="allow")
+
+    clientDataJSON: str = Field(..., max_length=_B64_MAX)  # noqa: N815
+
+
+class RegistrationResponseData(AuthenticatorResponse):
+    """The ``response`` object inside a registration PublicKeyCredential."""
+
+    attestationObject: str = Field(..., max_length=_B64_MAX)  # noqa: N815
+    transports: list[str] | None = Field(default=None, max_length=16)
+
+
+class AuthenticationResponseData(AuthenticatorResponse):
+    """The ``response`` object inside an authentication PublicKeyCredential."""
+
+    authenticatorData: str = Field(..., max_length=_B64_MAX)  # noqa: N815
+    signature: str = Field(..., max_length=_B64_MAX)
+    userHandle: str | None = Field(default=None, max_length=_B64_MAX)  # noqa: N815
+
+
+class PublicKeyCredentialBase(BaseModel):
+    """Shared shape of a PublicKeyCredential returned by the browser."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str = Field(..., max_length=_B64_MAX)
+    rawId: str = Field(..., max_length=_B64_MAX)  # noqa: N815
+    type: str = Field(..., max_length=50)
+
+
+class RegistrationCredential(PublicKeyCredentialBase):
+    """PublicKeyCredential from ``navigator.credentials.create()``."""
+
+    response: RegistrationResponseData
+
+
+class AuthenticationCredential(PublicKeyCredentialBase):
+    """PublicKeyCredential from ``navigator.credentials.get()``."""
+
+    response: AuthenticationResponseData
+
 
 class BeginRegistrationResponse(BaseModel):
     """Envelope for the ``PublicKeyCredentialCreationOptions`` returned to the browser.
@@ -35,7 +85,7 @@ class CompleteRegistrationRequest(BaseModel):
         max_length=100,
         description="User-chosen label for the passkey",
     )
-    response: dict = Field(
+    response: RegistrationCredential = Field(
         ...,
         description="PublicKeyCredential JSON produced by navigator.credentials.create()",
     )
@@ -108,7 +158,7 @@ class CompleteAuthenticationRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    response: dict = Field(
+    response: AuthenticationCredential = Field(
         ...,
         description="PublicKeyCredential JSON produced by navigator.credentials.get()",
     )

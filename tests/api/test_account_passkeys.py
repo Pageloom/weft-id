@@ -66,7 +66,15 @@ def test_complete_registration(make_user_dict, override_api_auth, mocker):
     client = TestClient(app)
     response = client.post(
         "/api/v1/account/passkeys/complete-registration",
-        json={"name": "Laptop", "response": {"id": "x"}},
+        json={
+            "name": "Laptop",
+            "response": {
+                "id": "x",
+                "rawId": "x",
+                "type": "public-key",
+                "response": {"clientDataJSON": "x", "attestationObject": "y"},
+            },
+        },
     )
     assert response.status_code == 200
     body = response.json()
@@ -171,7 +179,15 @@ def test_complete_registration_rate_limited_returns_429(make_user_dict, override
     client = TestClient(app)
     response = client.post(
         "/api/v1/account/passkeys/complete-registration",
-        json={"name": "Laptop", "response": {"id": "x"}},
+        json={
+            "name": "Laptop",
+            "response": {
+                "id": "x",
+                "rawId": "x",
+                "type": "public-key",
+                "response": {"clientDataJSON": "x", "attestationObject": "y"},
+            },
+        },
     )
 
     assert response.status_code == 429

@@ -58,7 +58,15 @@ def test_complete_registration_persists(test_user, override_auth, mocker):
     client = TestClient(app)
     response = client.post(
         "/account/passkeys/complete-registration",
-        json={"name": "Laptop", "response": {"id": "x"}},
+        json={
+            "name": "Laptop",
+            "response": {
+                "id": "x",
+                "rawId": "x",
+                "type": "public-key",
+                "response": {"clientDataJSON": "x", "attestationObject": "y"},
+            },
+        },
     )
 
     assert response.status_code == 200
@@ -184,7 +192,15 @@ def test_complete_registration_rate_limited_returns_429(test_user, override_auth
     client = TestClient(app)
     response = client.post(
         "/account/passkeys/complete-registration",
-        json={"name": "Laptop", "response": {"id": "x"}},
+        json={
+            "name": "Laptop",
+            "response": {
+                "id": "x",
+                "rawId": "x",
+                "type": "public-key",
+                "response": {"clientDataJSON": "x", "attestationObject": "y"},
+            },
+        },
     )
 
     assert response.status_code == 429

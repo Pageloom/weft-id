@@ -179,7 +179,7 @@ PAGES = [
             ),
             Page(
                 path="/account/mfa",
-                title="Two-Step Verification",
+                title="Sign-in Methods",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
                 docs_path="/docs/user-guide/two-step-verification/",

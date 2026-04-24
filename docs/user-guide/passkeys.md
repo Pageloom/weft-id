@@ -54,7 +54,7 @@ A passkey in iCloud Keychain is the same passkey on every device signed in to th
 
 ## Registering a passkey
 
-1. Go to **Account > Two-Step Verification**.
+1. Go to **Account > Sign-in Methods**.
 2. Under **Passkeys**, click **Register a new passkey**.
 3. Follow your browser's prompt. Touch your security key, scan your fingerprint, or enter your device PIN.
 4. Give the passkey a name (see guidance above).
@@ -82,6 +82,6 @@ If the passkey prompt is dismissed, cancelled, or fails, WeftID falls back to th
 
 ## Revoking a passkey
 
-On the **Account > Two-Step Verification** page, each registered passkey has a **Revoke** button. Revoking a passkey immediately removes its public key from WeftID. The private key on the device becomes a dead credential; it can no longer sign in.
+On the **Account > Sign-in Methods** page, each registered passkey has a **Revoke** button. Revoking a passkey immediately removes its public key from WeftID. The private key on the device becomes a dead credential; it can no longer sign in.
 
 Admins can also revoke a user's passkey from the user detail page under **Users > (user) > Profile**. Revoking a compromised device is the right first step if a laptop or phone is lost.

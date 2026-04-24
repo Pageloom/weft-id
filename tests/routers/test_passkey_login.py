@@ -81,7 +81,6 @@ def test_complete_happy_path(test_tenant, mocker):
                     "clientDataJSON": "x",
                     "authenticatorData": "y",
                     "signature": "z",
-                    "userHandle": None,
                 },
             }
         },
@@ -102,7 +101,14 @@ def test_complete_validation_error_surfaces_code(test_tenant, mocker):
     client = TestClient(app)
     response = client.post(
         "/login/passkey/complete",
-        json={"response": {"id": "abc", "rawId": "abc"}},
+        json={
+            "response": {
+                "id": "abc",
+                "rawId": "abc",
+                "type": "public-key",
+                "response": {"clientDataJSON": "x", "authenticatorData": "y", "signature": "z"},
+            }
+        },
     )
     assert response.status_code == 400
     assert response.json() == {"error": "bad_signature"}
@@ -120,7 +126,14 @@ def test_complete_validation_error_clone_suspected(test_tenant, mocker):
     client = TestClient(app)
     response = client.post(
         "/login/passkey/complete",
-        json={"response": {"id": "abc", "rawId": "abc"}},
+        json={
+            "response": {
+                "id": "abc",
+                "rawId": "abc",
+                "type": "public-key",
+                "response": {"clientDataJSON": "x", "authenticatorData": "y", "signature": "z"},
+            }
+        },
     )
     assert response.status_code == 400
     assert response.json() == {"error": "clone_suspected"}

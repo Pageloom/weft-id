@@ -187,9 +187,10 @@ def complete_registration(
     rp_id = rp_id_for_request(request)
     origin = origin_for_request(request)
 
+    response_dict = payload.response.model_dump(by_alias=True, exclude_none=True)
     try:
         verified = verify_registration(
-            response=payload.response,
+            response=response_dict,
             expected_challenge=challenge_bytes,
             expected_rp_id=rp_id,
             expected_origin=origin,
@@ -200,16 +201,9 @@ def complete_registration(
             code="registration_verification_failed",
         ) from exc
 
-    # Extract transport list from the raw browser response. The browser sends
-    # it under response.response.transports when available.
     transports: list[str] | None = None
-    inner = payload.response.get("response") if isinstance(payload.response, dict) else None
-    if isinstance(inner, dict):
-        raw_transports = inner.get("transports")
-        if isinstance(raw_transports, list):
-            transports = [str(t) for t in raw_transports if isinstance(t, str)]
-            if not transports:
-                transports = None
+    if payload.response.response.transports:
+        transports = list(payload.response.response.transports) or None
 
     # Note: ``count_credentials`` reads the state *before* the insert, so this
     # is correct for the "first passkey" check.
@@ -608,16 +602,8 @@ def complete_authentication(
     # rawId (base64url) bytes against the user's registered credential_id
     # bytes. This is defence-in-depth on top of the allowCredentials we sent
     # at begin time.
-    raw = payload.response if isinstance(payload.response, dict) else {}
-    raw_id_b64 = raw.get("rawId") or raw.get("id")
-    if not raw_id_b64 or not isinstance(raw_id_b64, str):
-        _clear_login_session(session)
-        _emit_passkey_failure(tenant_id, str(pending_user_id), "unknown_credential")
-        raise ValidationError(
-            message="Unknown credential",
-            code="unknown_credential",
-        )
-
+    raw = payload.response.model_dump(by_alias=True, exclude_none=True)
+    raw_id_b64 = payload.response.rawId or payload.response.id
     try:
         returned_id_bytes = base64url_to_bytes(raw_id_b64)
     except Exception as exc:

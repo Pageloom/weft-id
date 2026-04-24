@@ -21,6 +21,34 @@ class _FakeVerified:
     credential_device_type: str = "single_device"
 
 
+def _reg_response(
+    id: str = "abc",
+    transports: list[str] | None = None,
+    **extra: object,
+) -> dict:
+    """Build a minimal valid registration PublicKeyCredential dict."""
+    inner: dict = {"clientDataJSON": "x", "attestationObject": "y"}
+    if transports is not None:
+        inner["transports"] = transports
+    d: dict = {"id": id, "rawId": id, "type": "public-key", "response": inner}
+    d.update(extra)
+    return d
+
+
+def _auth_response(raw_b64: str = "abc") -> dict:
+    """Build a minimal valid authentication PublicKeyCredential dict."""
+    return {
+        "id": raw_b64,
+        "rawId": raw_b64,
+        "type": "public-key",
+        "response": {
+            "clientDataJSON": "x",
+            "authenticatorData": "y",
+            "signature": "z",
+        },
+    }
+
+
 def _requesting(user: dict) -> RequestingUser:
     return {
         "id": str(user["id"]),
@@ -65,7 +93,7 @@ def test_complete_registration_missing_challenge(test_user):
         webauthn_service.complete_registration(
             _requesting(test_user),
             req,
-            CompleteRegistrationRequest(name="Key", response={"response": {}}),
+            CompleteRegistrationRequest(name="Key", response=_reg_response()),
         )
     assert exc.value.code == "no_registration_in_progress"
 
@@ -81,7 +109,7 @@ def test_complete_registration_expired_challenge(test_user):
         webauthn_service.complete_registration(
             _requesting(test_user),
             req,
-            CompleteRegistrationRequest(name="Key", response={"response": {}}),
+            CompleteRegistrationRequest(name="Key", response=_reg_response()),
         )
     assert exc.value.code == "registration_session_expired"
     # Session was consumed even on expiry
@@ -110,16 +138,7 @@ def test_complete_registration_happy_path_issues_backup_codes(test_user, mocker)
 
     payload = CompleteRegistrationRequest(
         name="Laptop",
-        response={
-            "id": "abc",
-            "rawId": "abc",
-            "type": "public-key",
-            "response": {
-                "clientDataJSON": "x",
-                "attestationObject": "y",
-                "transports": ["internal"],
-            },
-        },
+        response=_reg_response(transports=["internal"]),
     )
 
     result = webauthn_service.complete_registration(_requesting(test_user), req, payload)
@@ -175,7 +194,7 @@ def test_complete_registration_second_does_not_reissue_backup_codes(test_user, m
 
     payload = CompleteRegistrationRequest(
         name="Second",
-        response={"id": "x", "rawId": "x", "type": "public-key", "response": {}},
+        response=_reg_response(id="x"),
     )
     result = webauthn_service.complete_registration(_requesting(test_user), req, payload)
 
@@ -206,7 +225,7 @@ def test_complete_registration_verification_failure(test_user, mocker):
         webauthn_service.complete_registration(
             _requesting(test_user),
             req,
-            CompleteRegistrationRequest(name="X", response={"response": {}}),
+            CompleteRegistrationRequest(name="X", response=_reg_response()),
         )
     assert exc.value.code == "registration_verification_failed"
 
@@ -367,7 +386,7 @@ def test_complete_registration_preexisting_backup_codes_not_reissued(test_user, 
 
     payload = CompleteRegistrationRequest(
         name="First passkey",
-        response={"id": "x", "rawId": "x", "type": "public-key", "response": {}},
+        response=_reg_response(id="x"),
     )
     result = webauthn_service.complete_registration(_requesting(test_user), req, payload)
 
@@ -375,13 +394,34 @@ def test_complete_registration_preexisting_backup_codes_not_reissued(test_user, 
     gen_spy.assert_not_called()
 
 
-def test_complete_registration_malformed_transports_does_not_crash(test_user, mocker):
-    """If the browser sends a non-list or list of non-strings under transports,
-    the service must not crash and must normalise to None or a clean str list.
-    """
+def test_complete_registration_malformed_transports_rejected_by_schema():
+    """Malformed transports (non-list, mixed types) are rejected at the schema level."""
+    from pydantic import ValidationError as PydanticValidationError
+
+    bad_inner = {"clientDataJSON": "x", "attestationObject": "y", "transports": "usb"}
+    with pytest.raises(PydanticValidationError):
+        CompleteRegistrationRequest(
+            name="Weird-1",
+            response=_reg_response() | {"response": bad_inner},
+        )
+
+    bad_inner2 = {
+        "clientDataJSON": "x",
+        "attestationObject": "y",
+        "transports": [123, "internal"],
+    }
+    with pytest.raises(PydanticValidationError):
+        CompleteRegistrationRequest(
+            name="Weird-2",
+            response=_reg_response() | {"response": bad_inner2},
+        )
+
+
+def test_complete_registration_empty_transports_becomes_none(test_user, mocker):
+    """Empty transports list stores as None."""
     mocker.patch(
         "services.webauthn.verify_registration",
-        return_value=_FakeVerified(credential_id=b"malformed-cred"),
+        return_value=_FakeVerified(credential_id=b"malformed-cred-3"),
     )
     mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
     mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
@@ -389,70 +429,18 @@ def test_complete_registration_malformed_transports_does_not_crash(test_user, mo
 
     import time as _time
 
-    # Case 1: transports is a string, not a list -> must become None
     req = _fake_request(
-        {
-            "webauthn_reg_challenge": b"chal1".hex(),
-            "webauthn_reg_challenge_at": int(_time.time()),
-        }
-    )
-    payload = CompleteRegistrationRequest(
-        name="Weird-1",
-        response={
-            "id": "x",
-            "rawId": "x",
-            "type": "public-key",
-            "response": {"transports": "usb"},
-        },
-    )
-    result = webauthn_service.complete_registration(_requesting(test_user), req, payload)
-    assert result.credential.transports is None
-
-    # Case 2: mixed-type list -> non-strings dropped, strings survive
-    mocker.patch(
-        "services.webauthn.verify_registration",
-        return_value=_FakeVerified(credential_id=b"malformed-cred-2"),
-    )
-    req2 = _fake_request(
-        {
-            "webauthn_reg_challenge": b"chal2".hex(),
-            "webauthn_reg_challenge_at": int(_time.time()),
-        }
-    )
-    payload2 = CompleteRegistrationRequest(
-        name="Weird-2",
-        response={
-            "id": "y",
-            "rawId": "y",
-            "type": "public-key",
-            "response": {"transports": [123, "internal", None, "usb"]},
-        },
-    )
-    result2 = webauthn_service.complete_registration(_requesting(test_user), req2, payload2)
-    assert result2.credential.transports == ["internal", "usb"]
-
-    # Case 3: empty list -> None
-    mocker.patch(
-        "services.webauthn.verify_registration",
-        return_value=_FakeVerified(credential_id=b"malformed-cred-3"),
-    )
-    req3 = _fake_request(
         {
             "webauthn_reg_challenge": b"chal3".hex(),
             "webauthn_reg_challenge_at": int(_time.time()),
         }
     )
-    payload3 = CompleteRegistrationRequest(
+    payload = CompleteRegistrationRequest(
         name="Weird-3",
-        response={
-            "id": "z",
-            "rawId": "z",
-            "type": "public-key",
-            "response": {"transports": []},
-        },
+        response=_reg_response(id="z", transports=[]),
     )
-    result3 = webauthn_service.complete_registration(_requesting(test_user), req3, payload3)
-    assert result3.credential.transports is None
+    result = webauthn_service.complete_registration(_requesting(test_user), req, payload)
+    assert result.credential.transports is None
 
 
 def test_rename_credential_other_tenant_not_found(test_user, mocker):
@@ -683,17 +671,7 @@ def test_complete_authentication_happy_path(test_user, mocker):
 
     req = _fake_request(state["session"])
     payload = CompleteAuthenticationRequest(
-        response={
-            "id": state["raw_b64"],
-            "rawId": state["raw_b64"],
-            "type": "public-key",
-            "response": {
-                "clientDataJSON": "x",
-                "authenticatorData": "y",
-                "signature": "z",
-                "userHandle": None,
-            },
-        }
+        response=_auth_response(state["raw_b64"]),
     )
 
     url = webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -724,7 +702,7 @@ def test_complete_authentication_happy_path(test_user, mocker):
 def test_complete_authentication_no_session(test_user, mocker):
     log_event = mocker.patch("services.webauthn.log_event")
     req = _fake_request({})
-    payload = CompleteAuthenticationRequest(response={"id": "x", "rawId": "x"})
+    payload = CompleteAuthenticationRequest(response=_auth_response("x"))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -751,7 +729,7 @@ def test_complete_authentication_expired_challenge(test_user, mocker):
     import base64 as _b64
 
     raw = _b64.urlsafe_b64encode(b"exp-cred").rstrip(b"=").decode()
-    payload = CompleteAuthenticationRequest(response={"id": raw, "rawId": raw})
+    payload = CompleteAuthenticationRequest(response=_auth_response(raw))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -778,7 +756,7 @@ def test_complete_authentication_unknown_credential(test_user, mocker):
     other_id = _b64.urlsafe_b64encode(b"other-bytes").rstrip(b"=").decode()
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(response={"id": other_id, "rawId": other_id})
+    payload = CompleteAuthenticationRequest(response=_auth_response(other_id))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -809,9 +787,7 @@ def test_complete_authentication_bad_signature(test_user, mocker):
     mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -847,9 +823,7 @@ def test_complete_authentication_clone_suspected_be_false(test_user, mocker):
     mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -905,9 +879,7 @@ def test_complete_authentication_sign_count_regression_be_true_allowed(test_user
     )
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
     url = webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
     assert url == "/dashboard"
 
@@ -943,9 +915,7 @@ def test_complete_authentication_backup_state_refreshed(test_user, mocker):
     )
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
     webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
 
     fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))
@@ -985,7 +955,7 @@ def test_complete_authentication_corrupt_challenge_clears_session(test_user, moc
     import base64 as _b64
 
     raw = _b64.urlsafe_b64encode(b"corrupt-cred").rstrip(b"=").decode()
-    payload = CompleteAuthenticationRequest(response={"id": raw, "rawId": raw})
+    payload = CompleteAuthenticationRequest(response=_auth_response(raw))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -1025,9 +995,7 @@ def test_complete_authentication_clone_detection_clears_session(test_user, mocke
     mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -1067,9 +1035,7 @@ def test_complete_authentication_clone_detection_via_typed_exception(test_user, 
     mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -1117,19 +1083,7 @@ def test_complete_authentication_rejects_inactivated_user(test_user, mocker):
     )
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={
-            "id": state["raw_b64"],
-            "rawId": state["raw_b64"],
-            "type": "public-key",
-            "response": {
-                "clientDataJSON": "x",
-                "authenticatorData": "y",
-                "signature": "z",
-                "userHandle": None,
-            },
-        }
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -1171,19 +1125,7 @@ def test_complete_authentication_rejects_idp_linked_user(test_user, mocker):
     )
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={
-            "id": state["raw_b64"],
-            "rawId": state["raw_b64"],
-            "type": "public-key",
-            "response": {
-                "clientDataJSON": "x",
-                "authenticatorData": "y",
-                "signature": "z",
-                "userHandle": None,
-            },
-        }
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -1209,19 +1151,7 @@ def test_complete_authentication_rejects_deleted_user(test_user, mocker):
     )
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={
-            "id": state["raw_b64"],
-            "rawId": state["raw_b64"],
-            "type": "public-key",
-            "response": {
-                "clientDataJSON": "x",
-                "authenticatorData": "y",
-                "signature": "z",
-                "userHandle": None,
-            },
-        }
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
 
     with pytest.raises(ValidationError) as excinfo:
         webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
@@ -1590,9 +1520,7 @@ def test_complete_authentication_preserves_backup_eligible(test_user, mocker):
     )
 
     req = _fake_request(state["session"])
-    payload = CompleteAuthenticationRequest(
-        response={"id": state["raw_b64"], "rawId": state["raw_b64"]}
-    )
+    payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
     webauthn_service.complete_authentication(req, str(test_user["tenant_id"]), payload)
 
     fresh = database.webauthn_credentials.get_credential(test_user["tenant_id"], str(row["id"]))

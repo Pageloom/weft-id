@@ -14,6 +14,7 @@ from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.openapi.utils import get_openapi  # noqa: E402
 from fastapi.responses import RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
+from middleware.body_limit import BodyLimitMiddleware  # noqa: E402
 from middleware.csrf import CSRFMiddleware  # noqa: E402
 from middleware.request_context import RequestContextMiddleware  # noqa: E402
 from middleware.security_headers import SecurityHeadersMiddleware  # noqa: E402
@@ -66,6 +67,9 @@ app = FastAPI(
 # Reject requests without a tenant subdomain (outermost, runs first)
 # /healthz is exempt so load balancers can probe without a subdomain
 app.add_middleware(TenantGuardMiddleware)
+
+# Reject oversized request bodies before they are parsed (1 MiB)
+app.add_middleware(BodyLimitMiddleware, max_bytes=1_048_576)
 
 # Add session middleware with dynamic per-tenant session configuration
 app.add_middleware(

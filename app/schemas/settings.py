@@ -107,7 +107,7 @@ class TenantSecuritySettings(BaseModel):
     required_auth_strength: Literal["baseline", "enhanced"] = Field(
         "baseline",
         description=(
-            "Minimum two-step verification strength required by the tenant. "
+            "Minimum sign-in strength required by the tenant. "
             "'baseline' accepts email code, TOTP, or passkey. "
             "'enhanced' requires TOTP or passkey (email code is no longer sufficient)."
         ),
@@ -166,8 +166,5 @@ class TenantSecuritySettingsUpdate(BaseModel):
     )
     required_auth_strength: Literal["baseline", "enhanced"] | None = Field(
         None,
-        description=(
-            "Minimum two-step verification strength required by the tenant "
-            "('baseline' or 'enhanced')."
-        ),
+        description=("Minimum sign-in strength required by the tenant ('baseline' or 'enhanced')."),
     )

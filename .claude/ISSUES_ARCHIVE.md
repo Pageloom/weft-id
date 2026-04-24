@@ -5,6 +5,24 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [COPY] "two-step verification" wording on Authentication settings page
+
+**Status:** Resolved (2026-04-24)
+**Found in:** `app/templates/settings_security_tab_authentication.html`, `app/schemas/settings.py`, `app/routers/api/v1/settings.py`
+**Severity:** Low
+**Resolution:** Renamed "Minimum two-step verification strength" to "Minimum sign-in strength" across the admin settings template (label, help text, sr-only legend), API schema descriptions, and API docstrings. "Two-step" remains accurate where it refers specifically to the TOTP/email code flow after a password.
+
+---
+
+### [COPY] settings_mfa.html page title mixed with passkey management
+
+**Status:** Resolved (2026-04-24)
+**Found in:** `app/templates/settings_mfa.html`, `app/pages.py`, docs
+**Severity:** Low
+**Resolution:** Renamed page title and nav entry from "Two-Step Verification" to "Sign-in Methods". Updated all references to "Account > Two-Step Verification" in templates (`user_detail_base.html`) and docs (`passkeys.md`, `two-step-verification.md`, `user-guide/index.md`). Doc file keeps its URL (`two-step-verification.md`) for link stability.
+
+---
+
 ### [SECURITY] Passkey verification accepts assertions without User Verification (UV)
 
 **Status:** Resolved (2026-04-24)

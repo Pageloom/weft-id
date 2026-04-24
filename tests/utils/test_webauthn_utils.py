@@ -63,6 +63,13 @@ def test_generate_registration_options_includes_exclude_credentials(mocker):
     excluded = captured["exclude_credentials"]
     assert len(excluded) == 2
     assert bytes(excluded[0].id) == b"cred-a"
+    # User verification must be REQUIRED for NIST AAL2+ compliance
+    from webauthn.helpers.structs import UserVerificationRequirement
+
+    assert (
+        captured["authenticator_selection"].user_verification
+        == UserVerificationRequirement.REQUIRED
+    )
 
 
 def test_verify_registration_translates_library_errors(mocker):
@@ -125,6 +132,10 @@ def test_generate_authentication_options_includes_allow_credentials(mocker):
     assert len(allow) == 2
     assert bytes(allow[0].id) == b"cred-a"
     assert bytes(allow[1].id) == b"cred-b"
+    # User verification must be REQUIRED for NIST AAL2+ compliance
+    from webauthn.helpers.structs import UserVerificationRequirement
+
+    assert captured["user_verification"] == UserVerificationRequirement.REQUIRED
 
 
 def test_verify_authentication_wraps_library_errors(mocker):
@@ -161,6 +172,44 @@ def test_verify_authentication_passes_through_when_ok(mocker):
         credential_current_sign_count=3,
     )
     assert result is sentinel
+
+
+def test_verify_authentication_requires_user_verification_by_default(mocker):
+    """Default require_user_verification must be True (NIST AAL2+)."""
+    captured: dict = {}
+
+    def spy(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    mocker.patch("utils.webauthn.verify_authentication_response", side_effect=spy)
+    wa.verify_authentication(
+        response={"id": "x"},
+        expected_challenge=b"\x00",
+        expected_rp_id="host",
+        expected_origin="https://host",
+        credential_public_key=b"pk",
+        credential_current_sign_count=0,
+    )
+    assert captured["require_user_verification"] is True
+
+
+def test_verify_registration_requires_user_verification(mocker):
+    """verify_registration must pass require_user_verification=True."""
+    captured: dict = {}
+
+    def spy(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    mocker.patch("utils.webauthn.verify_registration_response", side_effect=spy)
+    wa.verify_registration(
+        response={"id": "x"},
+        expected_challenge=b"\x00",
+        expected_rp_id="host",
+        expected_origin="https://host",
+    )
+    assert captured["require_user_verification"] is True
 
 
 def test_verify_authentication_raises_sign_count_regression_error_on_sign_count_message(mocker):

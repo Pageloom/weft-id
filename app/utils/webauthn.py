@@ -104,7 +104,7 @@ def generate_registration_options_for_user(
             PublicKeyCredentialDescriptor(id=cid) for cid in existing_credential_ids
         ],
         authenticator_selection=AuthenticatorSelectionCriteria(
-            user_verification=UserVerificationRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
             resident_key=ResidentKeyRequirement.PREFERRED,
         ),
         attestation=AttestationConveyancePreference.NONE,
@@ -129,7 +129,7 @@ def generate_authentication_options_for_user(
     options = generate_authentication_options(
         rp_id=rp_id,
         allow_credentials=[PublicKeyCredentialDescriptor(id=cid) for cid in allowed_credential_ids],
-        user_verification=UserVerificationRequirement.PREFERRED,
+        user_verification=UserVerificationRequirement.REQUIRED,
     )
     options_json_str = options_to_json(options)
     options_dict: dict[str, Any] = json.loads(options_json_str)
@@ -143,20 +143,13 @@ def verify_authentication(
     expected_origin: str,
     credential_public_key: bytes,
     credential_current_sign_count: int,
-    require_user_verification: bool = False,
+    require_user_verification: bool = True,
 ) -> VerifiedAuthentication:
     """Verify a WebAuthn authentication assertion returned by the browser.
 
     Raises:
         WebAuthnError: on any verification failure (bad challenge, bad origin,
             invalid signature, sign-count regression, etc.).
-
-    Note:
-        We default ``require_user_verification`` to False at this layer; the
-        service layer calls registration with PREFERRED user verification so
-        some authenticators may not set the UV flag. Phishing resistance is
-        still provided by the challenge + origin check plus the sign-count /
-        clone detection handled in the service layer.
     """
     try:
         return verify_authentication_response(
@@ -195,6 +188,7 @@ def verify_registration(
             expected_challenge=expected_challenge,
             expected_rp_id=expected_rp_id,
             expected_origin=expected_origin,
+            require_user_verification=True,
         )
     except webauthn_exc.InvalidRegistrationResponse as exc:
         raise WebAuthnError(str(exc)) from exc

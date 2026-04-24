@@ -5,6 +5,33 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Passkey verification accepts assertions without User Verification (UV)
+
+**Status:** Resolved (2026-04-24)
+**Found in:** `app/utils/webauthn.py`
+**Severity:** Medium
+**Resolution:** Changed `UserVerificationRequirement.PREFERRED` to `REQUIRED` in registration and authentication option generation. Changed `require_user_verification` default from `False` to `True` in `verify_authentication`. Added `require_user_verification=True` to `verify_registration_response` call. Pin tests added to prevent regression.
+
+---
+
+### [SECURITY] Unbounded JSON body on passkey ceremony endpoints
+
+**Status:** Resolved (2026-04-24)
+**Found in:** `app/schemas/webauthn.py`, `app/main.py`, `deploy/Caddyfile`
+**Severity:** Medium
+**Resolution:** Three complementary fixes: (1) ASGI `BodyLimitMiddleware` rejects `Content-Length > 1 MiB` before parsing. (2) Caddy `request_body { max_size 1MB }` stops oversized requests at the proxy. (3) WebAuthn schemas replaced `response: dict` with typed Pydantic models (`RegistrationCredential`, `AuthenticationCredential`) with per-field `max_length` bounds.
+
+---
+
+### [SECURITY] rp_id / origin derivation trusts X-Forwarded-Host without a trust boundary
+
+**Status:** Resolved (2026-04-24)
+**Found in:** `app/utils/webauthn.py`
+**Severity:** Low
+**Resolution:** Replaced `rp_id_for_request` and `origin_for_request` (which read `X-Forwarded-Host`) with `rp_id_for_tenant` and `origin_for_tenant` that compute the RP ID from the tenant's subdomain and `BASE_DOMAIN` setting. Only the scheme and non-standard port are taken from request headers.
+
+---
+
 ### [COPY] email.py: generic MFA subject, "please" usage, "activate" terminology
 
 **Status:** Resolved (2026-04-23)

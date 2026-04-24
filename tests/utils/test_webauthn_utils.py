@@ -10,27 +10,69 @@ def _fake_request(headers: dict, scheme: str = "http") -> SimpleNamespace:
     return SimpleNamespace(headers=headers, url=SimpleNamespace(scheme=scheme))
 
 
-def test_rp_id_for_request_uses_forwarded_host():
-    req = _fake_request({"x-forwarded-host": "meridian.weftid.localhost:8443"})
-    assert wa.rp_id_for_request(req) == "meridian.weftid.localhost"
+def test_rp_id_for_tenant_uses_db_subdomain(mocker):
+    import database
+
+    mocker.patch.object(
+        database.tenants,
+        "get_tenant_by_id",
+        return_value={"subdomain": "meridian"},
+    )
+    mocker.patch("utils.webauthn._base_domain", return_value="weftid.localhost")
+    assert wa.rp_id_for_tenant("t-123") == "meridian.weftid.localhost"
 
 
-def test_rp_id_for_request_falls_back_to_host():
-    req = _fake_request({"host": "Test.Example.COM:8080"})
-    assert wa.rp_id_for_request(req) == "test.example.com"
+def test_rp_id_for_tenant_fallback_when_missing(mocker):
+    import database
+
+    mocker.patch.object(database.tenants, "get_tenant_by_id", return_value=None)
+    mocker.patch("utils.webauthn._base_domain", return_value="weftid.localhost")
+    assert wa.rp_id_for_tenant("t-none") == "weftid.localhost"
 
 
-def test_origin_for_request_honors_forwarded_proto():
+def test_origin_for_tenant_uses_db_subdomain(mocker):
+    import database
+
+    mocker.patch.object(
+        database.tenants,
+        "get_tenant_by_id",
+        return_value={"subdomain": "meridian"},
+    )
+    mocker.patch("utils.webauthn._base_domain", return_value="weftid.localhost")
     req = _fake_request(
-        {"x-forwarded-proto": "https", "x-forwarded-host": "meridian.weftid.localhost:4443"},
+        {"x-forwarded-proto": "https", "x-forwarded-host": "attacker.example.com:4443"},
         scheme="http",
     )
-    assert wa.origin_for_request(req) == "https://meridian.weftid.localhost:4443"
+    assert wa.origin_for_tenant("t-123", req) == "https://meridian.weftid.localhost:4443"
 
 
-def test_origin_for_request_uses_request_scheme_when_no_forward():
-    req = _fake_request({"host": "meridian.weftid.localhost:4443"}, scheme="http")
-    assert wa.origin_for_request(req) == "http://meridian.weftid.localhost:4443"
+def test_origin_for_tenant_omits_standard_port(mocker):
+    import database
+
+    mocker.patch.object(
+        database.tenants,
+        "get_tenant_by_id",
+        return_value={"subdomain": "meridian"},
+    )
+    mocker.patch("utils.webauthn._base_domain", return_value="weftid.localhost")
+    req = _fake_request(
+        {"x-forwarded-proto": "https", "host": "meridian.weftid.localhost:443"},
+        scheme="https",
+    )
+    assert wa.origin_for_tenant("t-123", req) == "https://meridian.weftid.localhost"
+
+
+def test_origin_for_tenant_no_port_in_header(mocker):
+    import database
+
+    mocker.patch.object(
+        database.tenants,
+        "get_tenant_by_id",
+        return_value={"subdomain": "meridian"},
+    )
+    mocker.patch("utils.webauthn._base_domain", return_value="weftid.localhost")
+    req = _fake_request({"host": "meridian.weftid.localhost"}, scheme="https")
+    assert wa.origin_for_tenant("t-123", req) == "https://meridian.weftid.localhost"
 
 
 def test_generate_registration_options_includes_exclude_credentials(mocker):

@@ -76,7 +76,7 @@ def test_begin_registration_stashes_challenge(test_user, mocker):
         "services.webauthn.generate_registration_options_for_user",
         return_value=({"rp": {"id": "host"}, "challenge": "abc"}, b"\x01\x02\x03"),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
     mocker.patch("services.webauthn.rp_name_for_tenant", return_value="Tenant")
 
     req = _fake_request()
@@ -123,8 +123,8 @@ def test_complete_registration_happy_path_issues_backup_codes(test_user, mocker)
         "services.webauthn.verify_registration",
         return_value=_FakeVerified(),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     log_event = mocker.patch("services.webauthn.log_event")
 
     import time as _time
@@ -179,8 +179,8 @@ def test_complete_registration_second_does_not_reissue_backup_codes(test_user, m
         "services.webauthn.verify_registration",
         return_value=_FakeVerified(credential_id=b"new-cred-bytes"),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     mocker.patch("services.webauthn.log_event")
 
     import time as _time
@@ -209,8 +209,8 @@ def test_complete_registration_verification_failure(test_user, mocker):
         "services.webauthn.verify_registration",
         side_effect=WebAuthnError("bad signature"),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
 
     import time as _time
 
@@ -369,8 +369,8 @@ def test_complete_registration_preexisting_backup_codes_not_reissued(test_user, 
         "services.webauthn.verify_registration",
         return_value=_FakeVerified(credential_id=b"first-passkey"),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     mocker.patch("services.webauthn.log_event")
     # Spy to prove generator is NOT called
     gen_spy = mocker.patch("services.webauthn.mfa_service.generate_initial_backup_codes")
@@ -423,8 +423,8 @@ def test_complete_registration_empty_transports_becomes_none(test_user, mocker):
         "services.webauthn.verify_registration",
         return_value=_FakeVerified(credential_id=b"malformed-cred-3"),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     mocker.patch("services.webauthn.log_event")
 
     import time as _time
@@ -550,7 +550,7 @@ def test_begin_authentication_eligible_user(test_user, mocker):
             b"\xaa\xbb\xcc",
         ),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
 
     req = _fake_request()
     result = webauthn_service.begin_authentication(
@@ -656,8 +656,8 @@ def test_complete_authentication_happy_path(test_user, mocker):
         "services.webauthn.verify_authentication",
         return_value=_FakeVerifiedAuth(new_sign_count=42, credential_backed_up=True),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     log_event = mocker.patch("services.webauthn.log_event")
 
     # Mock the shared login completion helper to return a canonical redirect
@@ -783,8 +783,8 @@ def test_complete_authentication_bad_signature(test_user, mocker):
         "services.webauthn.verify_authentication",
         side_effect=WebAuthnError("invalid signature"),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
 
     req = _fake_request(state["session"])
     payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
@@ -819,8 +819,8 @@ def test_complete_authentication_clone_suspected_be_false(test_user, mocker):
         "services.webauthn.verify_authentication",
         side_effect=SignCountRegressionError("Counter has not increased"),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
 
     req = _fake_request(state["session"])
     payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
@@ -867,8 +867,8 @@ def test_complete_authentication_sign_count_regression_be_true_allowed(test_user
         "services.webauthn.verify_authentication",
         return_value=_FakeVerifiedAuth(new_sign_count=0, credential_backed_up=True),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     mocker.patch("services.webauthn.log_event")
 
     from fastapi.responses import RedirectResponse
@@ -903,8 +903,8 @@ def test_complete_authentication_backup_state_refreshed(test_user, mocker):
         "services.webauthn.verify_authentication",
         return_value=_FakeVerifiedAuth(new_sign_count=2, credential_backed_up=True),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     mocker.patch("services.webauthn.log_event")
 
     from fastapi.responses import RedirectResponse
@@ -991,8 +991,8 @@ def test_complete_authentication_clone_detection_clears_session(test_user, mocke
             "Response sign count of 5 was not greater than current count"
         ),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
 
     req = _fake_request(state["session"])
     payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
@@ -1031,8 +1031,8 @@ def test_complete_authentication_clone_detection_via_typed_exception(test_user, 
         "services.webauthn.verify_authentication",
         side_effect=SignCountRegressionError("sign count regression"),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
 
     req = _fake_request(state["session"])
     payload = CompleteAuthenticationRequest(response=_auth_response(state["raw_b64"]))
@@ -1069,8 +1069,8 @@ def test_complete_authentication_rejects_inactivated_user(test_user, mocker):
         "services.webauthn.verify_authentication",
         return_value=_FakeVerifiedAuth(new_sign_count=1),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     log_event = mocker.patch("services.webauthn.log_event")
 
     mocker.patch(
@@ -1111,8 +1111,8 @@ def test_complete_authentication_rejects_idp_linked_user(test_user, mocker):
         "services.webauthn.verify_authentication",
         return_value=_FakeVerifiedAuth(new_sign_count=1),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     mocker.patch("services.webauthn.log_event")
 
     mocker.patch(
@@ -1141,8 +1141,8 @@ def test_complete_authentication_rejects_deleted_user(test_user, mocker):
         "services.webauthn.verify_authentication",
         return_value=_FakeVerifiedAuth(new_sign_count=1),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     log_event = mocker.patch("services.webauthn.log_event")
 
     mocker.patch(
@@ -1508,8 +1508,8 @@ def test_complete_authentication_preserves_backup_eligible(test_user, mocker):
         "services.webauthn.verify_authentication",
         return_value=_FakeVerifiedAuth(new_sign_count=2, credential_backed_up=True),
     )
-    mocker.patch("services.webauthn.rp_id_for_request", return_value="host")
-    mocker.patch("services.webauthn.origin_for_request", return_value="https://host")
+    mocker.patch("services.webauthn.rp_id_for_tenant", return_value="host")
+    mocker.patch("services.webauthn.origin_for_tenant", return_value="https://host")
     mocker.patch("services.webauthn.log_event")
 
     from fastapi.responses import RedirectResponse

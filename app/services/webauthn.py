@@ -39,8 +39,8 @@ from utils.webauthn import (
     WebAuthnError,
     generate_authentication_options_for_user,
     generate_registration_options_for_user,
-    origin_for_request,
-    rp_id_for_request,
+    origin_for_tenant,
+    rp_id_for_tenant,
     rp_name_for_tenant,
     verify_authentication,
     verify_registration,
@@ -120,7 +120,7 @@ def begin_registration(
     existing = database.webauthn_credentials.list_credentials(tenant_id, user_id)
     existing_ids: list[bytes] = [bytes(row["credential_id"]) for row in existing]
 
-    rp_id = rp_id_for_request(request)
+    rp_id = rp_id_for_tenant(tenant_id)
     rp_name = rp_name_for_tenant(tenant_id)
 
     # Encode the user handle as raw bytes of the user's UUID. This is opaque to
@@ -184,8 +184,8 @@ def complete_registration(
             code="invalid_registration_challenge",
         ) from exc
 
-    rp_id = rp_id_for_request(request)
-    origin = origin_for_request(request)
+    rp_id = rp_id_for_tenant(tenant_id)
+    origin = origin_for_tenant(tenant_id, request)
 
     response_dict = payload.response.model_dump(by_alias=True, exclude_none=True)
     try:
@@ -536,7 +536,7 @@ def begin_authentication(
     if not credential_ids:
         return None
 
-    rp_id = rp_id_for_request(request)
+    rp_id = rp_id_for_tenant(tenant_id)
     options_dict, challenge_bytes = generate_authentication_options_for_user(
         rp_id=rp_id,
         allowed_credential_ids=credential_ids,
@@ -635,8 +635,8 @@ def complete_authentication(
     # still trips the library's check (sign-count regression = clone).
     effective_current = 0 if backup_eligible else stored_sign_count
 
-    rp_id = rp_id_for_request(request)
-    origin = origin_for_request(request)
+    rp_id = rp_id_for_tenant(tenant_id)
+    origin = origin_for_tenant(tenant_id, request)
 
     try:
         verified = verify_authentication(

@@ -32,8 +32,10 @@ If no tags exist, use the initial commit. The range is `<tag>..HEAD`.
 python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['tool']['poetry']['version'])"
 ```
 
-If this version matches the latest tag (minus the `v` prefix), warn the user that the version
-in `pyproject.toml` hasn't been bumped yet and ask whether to proceed.
+Record the current version. Do NOT treat a match with the latest tag as a problem — this skill
+proposes the next version, so an unbumped `pyproject.toml` is the expected state. Only stop if
+`pyproject.toml` is already ahead of the latest tag with a version that has no commits since
+that tag.
 
 ### 3. Collect commits
 
@@ -71,16 +73,42 @@ require a major version bump.
 - Commits that only modify .claude/BACKLOG.md, .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES.md, or .claude/ISSUES_ARCHIVE.md
 - Merge commits with no substantive changes
 
-### 5. Present the draft
+### 5. Propose the next version
 
-Show the complete `## [x.y.z] - YYYY-MM-DD` section to the user for review. Use today's
-date. Ask the user to review and approve, or request edits.
+Based on the categorized changes, propose the next semver version per `docs/VERSIONING.md`:
 
-### 6. Write to CHANGELOG.md
+- **Major** — SAML assertion structure / entityID format / default attribute mapping changes,
+  removed or changed API endpoints, required new env vars without defaults, SSO flow changes
+  requiring SP/IdP reconfiguration, compose file structural changes.
+- **Minor** — new features, additive API endpoints, non-breaking migrations, new optional
+  SAML/OAuth features, new env vars with defaults, UI improvements.
+- **Patch** — bug fixes and security patches only, no schema migrations, no API changes, no
+  SAML/OAuth behavior changes.
+
+State the proposed bump explicitly with a one-paragraph motivation citing the specific
+commits/features that drive the level. Example:
+
+> Proposed bump: **1.4.1 → 1.5.0 (minor)**. Adds passkey authentication (new feature, additive
+> API, new schema tables) and a tenant auth strength policy. No SAML assertion/entityID/attribute
+> changes, so a major bump is not required. Security fixes are rolled into the minor.
+
+If the SAML/identity rule triggers, call it out in the motivation and bump major even when the
+rest of the changes look minor.
+
+### 6. Present the draft
+
+Show the proposed version + motivation, followed by the complete `## [x.y.z] - YYYY-MM-DD`
+section using today's date and the proposed version. Ask the user to (a) approve the version
+bump and (b) approve the entry, or request edits to either.
+
+### 7. Write to CHANGELOG.md
 
 On approval, insert the new section into `CHANGELOG.md` immediately after the
 `## [Unreleased]` header (and any content under it). Clear the `[Unreleased]` section
 contents (move them into the new versioned section if applicable).
+
+Remind the user to bump `pyproject.toml` to the same version before tagging. Do NOT edit
+`pyproject.toml` automatically — the user owns the version bump.
 
 Do NOT commit. Tell the user to review the file and commit when ready.
 

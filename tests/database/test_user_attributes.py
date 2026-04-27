@@ -1,4 +1,4 @@
-"""Tests for database.user_attributes."""
+"""Tests for database.user_attributes (post two-space pivot)."""
 
 from __future__ import annotations
 
@@ -7,49 +7,21 @@ from uuid import uuid4
 import database
 import pytest
 
-
-def _create_idp(tenant_id, user_id):
-    """Insert a SAML IdP for tests that need source_idp_id."""
-    return database.fetchone(
-        tenant_id,
-        """
-        INSERT INTO saml_identity_providers (
-            tenant_id, name, provider_type, entity_id, sso_url,
-            certificate_pem, sp_entity_id, created_by
-        ) VALUES (
-            :tenant_id, :name, 'generic', :entity_id,
-            'https://idp.example.com/sso', 'cert-placeholder',
-            'https://sp.example.com', :created_by
-        ) RETURNING id
-        """,
-        {
-            "tenant_id": tenant_id,
-            "name": f"Test IdP {uuid4().hex[:6]}",
-            "entity_id": f"https://idp-{uuid4().hex[:8]}.example.com",
-            "created_by": user_id,
-        },
-    )
-
-
 # ---------------------------------------------------------------------------
 # Upsert
 # ---------------------------------------------------------------------------
 
 
-def test_upsert_admin_inserts_new_row(test_user):
+def test_upsert_inserts_new_row(test_user):
     row = database.user_attributes.upsert_attribute(
         tenant_id=test_user["tenant_id"],
         tenant_id_value=str(test_user["tenant_id"]),
         user_id=test_user["id"],
         attribute_key="job_title",
         value="Engineer",
-        source="admin",
-        source_idp_id=None,
     )
     assert row["attribute_key"] == "job_title"
     assert row["value"] == "Engineer"
-    assert row["source"] == "admin"
-    assert row["source_idp_id"] is None
 
 
 def test_upsert_overwrites_existing_row(test_user):
@@ -59,8 +31,6 @@ def test_upsert_overwrites_existing_row(test_user):
         user_id=test_user["id"],
         attribute_key="job_title",
         value="Junior Engineer",
-        source="admin",
-        source_idp_id=None,
     )
     updated = database.user_attributes.upsert_attribute(
         tenant_id=test_user["tenant_id"],
@@ -68,72 +38,12 @@ def test_upsert_overwrites_existing_row(test_user):
         user_id=test_user["id"],
         attribute_key="job_title",
         value="Senior Engineer",
-        source="self",
-        source_idp_id=None,
     )
     assert updated["value"] == "Senior Engineer"
-    assert updated["source"] == "self"
 
     # And only one row exists
     rows = database.user_attributes.list_attributes(test_user["tenant_id"], test_user["id"])
     assert len([r for r in rows if r["attribute_key"] == "job_title"]) == 1
-
-
-def test_upsert_with_idp_source_requires_idp_id(test_user):
-    # source='idp' with no source_idp_id violates the CHECK constraint
-    with pytest.raises(Exception):
-        database.user_attributes.upsert_attribute(
-            tenant_id=test_user["tenant_id"],
-            tenant_id_value=str(test_user["tenant_id"]),
-            user_id=test_user["id"],
-            attribute_key="job_title",
-            value="Engineer",
-            source="idp",
-            source_idp_id=None,
-        )
-
-
-def test_upsert_admin_with_idp_id_violates_check(test_user):
-    idp = _create_idp(test_user["tenant_id"], test_user["id"])
-    # source='admin' with a source_idp_id violates the CHECK
-    with pytest.raises(Exception):
-        database.user_attributes.upsert_attribute(
-            tenant_id=test_user["tenant_id"],
-            tenant_id_value=str(test_user["tenant_id"]),
-            user_id=test_user["id"],
-            attribute_key="job_title",
-            value="Engineer",
-            source="admin",
-            source_idp_id=str(idp["id"]),
-        )
-
-
-def test_upsert_idp_source_with_idp_id_succeeds(test_user):
-    idp = _create_idp(test_user["tenant_id"], test_user["id"])
-    row = database.user_attributes.upsert_attribute(
-        tenant_id=test_user["tenant_id"],
-        tenant_id_value=str(test_user["tenant_id"]),
-        user_id=test_user["id"],
-        attribute_key="department",
-        value="Platform",
-        source="idp",
-        source_idp_id=str(idp["id"]),
-    )
-    assert row["source"] == "idp"
-    assert str(row["source_idp_id"]) == str(idp["id"])
-
-
-def test_upsert_rejects_unknown_source(test_user):
-    with pytest.raises(Exception):
-        database.user_attributes.upsert_attribute(
-            tenant_id=test_user["tenant_id"],
-            tenant_id_value=str(test_user["tenant_id"]),
-            user_id=test_user["id"],
-            attribute_key="job_title",
-            value="Engineer",
-            source="bogus",
-            source_idp_id=None,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -160,8 +70,6 @@ def test_list_orders_by_attribute_key(test_user):
             user_id=test_user["id"],
             attribute_key=key,
             value=value,
-            source="admin",
-            source_idp_id=None,
         )
     rows = database.user_attributes.list_attributes(test_user["tenant_id"], test_user["id"])
     keys = [r["attribute_key"] for r in rows]
@@ -175,8 +83,6 @@ def test_delete_returns_one_on_hit(test_user):
         user_id=test_user["id"],
         attribute_key="job_title",
         value="Eng",
-        source="admin",
-        source_idp_id=None,
     )
     rows_affected = database.user_attributes.delete_attribute(
         test_user["tenant_id"], test_user["id"], "job_title"
@@ -221,8 +127,6 @@ def test_tenant_isolation(test_user):
             user_id=test_user["id"],
             attribute_key="job_title",
             value="Engineer",
-            source="admin",
-            source_idp_id=None,
         )
         rows = database.user_attributes.list_attributes(other["id"], test_user["id"])
         assert rows == []
@@ -241,8 +145,6 @@ def test_cascade_delete_on_user(test_user):
         user_id=test_user["id"],
         attribute_key="job_title",
         value="Engineer",
-        source="admin",
-        source_idp_id=None,
     )
     database.execute(
         test_user["tenant_id"],
@@ -261,8 +163,6 @@ def test_unique_user_attribute_key(test_user):
         user_id=test_user["id"],
         attribute_key="job_title",
         value="Eng",
-        source="admin",
-        source_idp_id=None,
     )
     # Direct INSERT (bypassing upsert) must violate the unique constraint
     with pytest.raises(Exception):
@@ -270,9 +170,9 @@ def test_unique_user_attribute_key(test_user):
             test_user["tenant_id"],
             """
             INSERT INTO user_attributes (
-                tenant_id, user_id, attribute_key, value, source
+                tenant_id, user_id, attribute_key, value
             ) VALUES (
-                :tenant_id, :user_id, 'job_title', 'Other', 'admin'
+                :tenant_id, :user_id, 'job_title', 'Other'
             )
             """,
             {
@@ -293,39 +193,11 @@ def test_force_profile_completion_default(test_user):
     assert row["force_profile_completion"] is False
 
 
-def test_idp_delete_cascades_to_user_attributes(test_user):
-    """Deleting a SAML IdP removes IdP-sourced attribute rows.
-
-    The CHECK constraint requires source='idp' rows to have a non-null
-    source_idp_id, so the FK must use ON DELETE CASCADE (not SET NULL).
-    """
-    idp = _create_idp(test_user["tenant_id"], test_user["id"])
-    database.user_attributes.upsert_attribute(
-        tenant_id=test_user["tenant_id"],
-        tenant_id_value=str(test_user["tenant_id"]),
-        user_id=test_user["id"],
-        attribute_key="department",
-        value="Platform",
-        source="idp",
-        source_idp_id=str(idp["id"]),
-    )
-    database.execute(
-        test_user["tenant_id"],
-        "DELETE FROM saml_identity_providers WHERE id = :id",
-        {"id": idp["id"]},
-    )
-    rows = database.user_attributes.list_attributes(test_user["tenant_id"], test_user["id"])
-    assert rows == []
-
-
 # Note on tenant-delete cascade for user_attributes:
 # The chain is tenants -> users -> user_attributes via composite FKs with
 # ON DELETE CASCADE. The user-level cascade is verified by
 # test_cascade_delete_on_user above. The tenant-level cascade through users
-# is well-established by the existing tenants/users/users-fkey schema. Adding
-# a direct tenant-delete-then-count check here is not feasible under appuser
-# because RLS USING current_setting('app.tenant_id')::uuid blocks UNSCOPED
-# reads. The transitive guarantee is sufficient.
+# is well-established by the existing tenants/users/users-fkey schema.
 
 
 def test_cross_tenant_upsert_rejected_by_rls(test_user):
@@ -350,9 +222,9 @@ def test_cross_tenant_upsert_rejected_by_rls(test_user):
                 test_user["tenant_id"],
                 """
                 INSERT INTO user_attributes (
-                    tenant_id, user_id, attribute_key, value, source
+                    tenant_id, user_id, attribute_key, value
                 ) VALUES (
-                    :tenant_id, :user_id, 'job_title', 'Engineer', 'admin'
+                    :tenant_id, :user_id, 'job_title', 'Engineer'
                 )
                 """,
                 {

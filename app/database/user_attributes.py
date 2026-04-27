@@ -1,8 +1,12 @@
 """Database layer for user_attributes.
 
-Stores one row per (user, attribute_key). Values are text-serialized via
-``app/constants/user_attributes.py``. Source tracking distinguishes IdP-set
-values (read-only to admins/users) from admin- and self-set values.
+Stores the canonical user attribute set: one row per (user, attribute_key).
+Values are text-serialized via ``app/constants/user_attributes.py``.
+
+This table holds whatever the user/admin set, plus values mirrored in by
+the IdP login flow when the tenant has ``mirror_from_idp=true`` for that
+attribute. There is no per-row source enum; the read-only IdP-mirror
+audit copy lives in ``user_idp_attributes``.
 """
 
 from __future__ import annotations
@@ -15,8 +19,7 @@ def list_attributes(tenant_id: TenantArg, user_id: str) -> list[dict]:
     return fetchall(
         tenant_id,
         """
-        select id, tenant_id, user_id, attribute_key, value, source,
-               source_idp_id, updated_at
+        select id, tenant_id, user_id, attribute_key, value, updated_at
         from user_attributes
         where user_id = :user_id
         order by attribute_key
@@ -30,8 +33,7 @@ def get_attribute(tenant_id: TenantArg, user_id: str, attribute_key: str) -> dic
     return fetchone(
         tenant_id,
         """
-        select id, tenant_id, user_id, attribute_key, value, source,
-               source_idp_id, updated_at
+        select id, tenant_id, user_id, attribute_key, value, updated_at
         from user_attributes
         where user_id = :user_id and attribute_key = :attribute_key
         """,
@@ -45,16 +47,11 @@ def upsert_attribute(
     user_id: str,
     attribute_key: str,
     value: str,
-    source: str,
-    source_idp_id: str | None,
 ) -> dict:
     """Insert or update one attribute row.
 
-    Args:
-        source: ``'idp'`` | ``'admin'`` | ``'self'``. Caller must enforce
-            authorization rules; this function only writes whatever it is
-            given (subject to the DB CHECK that ``source = 'idp'`` requires
-            a non-null ``source_idp_id`` and other sources require null).
+    Authorization (e.g. lock checks) is the service layer's job; this
+    function only writes whatever it is given.
 
     Returns:
         The full upserted row.
@@ -63,25 +60,20 @@ def upsert_attribute(
         tenant_id,
         """
         insert into user_attributes (
-            tenant_id, user_id, attribute_key, value, source, source_idp_id
+            tenant_id, user_id, attribute_key, value
         ) values (
-            :tenant_id, :user_id, :attribute_key, :value, :source, :source_idp_id
+            :tenant_id, :user_id, :attribute_key, :value
         )
         on conflict (user_id, attribute_key) do update set
             value = excluded.value,
-            source = excluded.source,
-            source_idp_id = excluded.source_idp_id,
             updated_at = now()
-        returning id, tenant_id, user_id, attribute_key, value, source,
-                  source_idp_id, updated_at
+        returning id, tenant_id, user_id, attribute_key, value, updated_at
         """,
         {
             "tenant_id": tenant_id_value,
             "user_id": user_id,
             "attribute_key": attribute_key,
             "value": value,
-            "source": source,
-            "source_idp_id": source_idp_id,
         },
     )
     assert result is not None  # INSERT ... RETURNING always yields a row

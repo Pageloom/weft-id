@@ -143,7 +143,9 @@ def update_current_user_profile(
     if primary_email:
         updated_user["email"] = primary_email["email"]
 
-    # Log the event if there were actual changes
+    # Log the event if there were actual changes.
+    # Self-edit only -- this function is the self-service profile update path.
+    # Admin-edit on someone else's profile uses services.users.crud.update_user.
     if changes:
         log_event(
             tenant_id=tenant_id,
@@ -151,7 +153,11 @@ def update_current_user_profile(
             artifact_type="user",
             artifact_id=user_id,
             event_type="user_profile_updated",
-            metadata={"changes": changes},
+            metadata={
+                "cause": "self_edit",
+                "idp_id": None,
+                "changes": changes,
+            },
         )
 
     return _user_row_to_profile(updated_user)

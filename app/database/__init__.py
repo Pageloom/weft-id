@@ -20,6 +20,7 @@ from . import (
     user_activity,
     user_attributes,
     user_emails,
+    user_idp_attributes,
     users,
     webauthn_credentials,
 )
@@ -63,6 +64,7 @@ __all__ = [
     "user_activity",
     "user_attributes",
     "user_emails",
+    "user_idp_attributes",
     "users",
     "webauthn_credentials",
 ]

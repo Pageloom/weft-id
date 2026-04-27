@@ -108,6 +108,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "tenant_certificate_rotation_window_updated": "Certificate rotation window setting changed",
     "password_policy_updated": "Password strength policy settings changed",
     "tenant_settings_updated": "Tenant settings updated",
+    "tenant_attribute_config_updated": "Tenant attribute configuration updated",
     "group_assertion_scope_updated": "Group assertion scope setting changed",
     "tenant_auth_policy_updated": "Tenant authentication strength policy changed",
     "user_enhanced_auth_enrolled": (
@@ -320,6 +321,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "tenant_certificate_rotation_window_updated": "admin",
     "password_policy_updated": "admin",
     "tenant_settings_updated": "admin",
+    "tenant_attribute_config_updated": "admin",
     "group_assertion_scope_updated": "admin",
     "tenant_auth_policy_updated": "admin",
     "domain_group_link_created": "admin",

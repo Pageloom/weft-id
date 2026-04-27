@@ -24,9 +24,9 @@ def _seed_tenant_config(tenant_id):
             """
             INSERT INTO tenant_attribute_config (
                 tenant_id, attribute_key, category, enabled, required,
-                send_to_sps_default
+                mirror_from_idp, locked_for_users, send_to_sps_default
             ) VALUES (
-                :tenant_id, :attribute_key, :category, false, false, true
+                :tenant_id, :attribute_key, :category, false, false, false, false, true
             )
             ON CONFLICT (tenant_id, attribute_key) DO NOTHING
             """,
@@ -52,6 +52,8 @@ def test_list_config_after_seed_has_all_fourteen(test_tenant):
     for r in rows:
         assert r["enabled"] is False
         assert r["required"] is False
+        assert r["mirror_from_idp"] is False
+        assert r["locked_for_users"] is False
         assert r["send_to_sps_default"] is True
         # Category matches the registry
         assert r["category"] == ATTRIBUTES_BY_KEY[r["attribute_key"]].category
@@ -90,6 +92,8 @@ def test_update_config_changes_flags(test_tenant):
         attribute_key="job_title",
         enabled=True,
         required=True,
+        mirror_from_idp=True,
+        locked_for_users=True,
         send_to_sps_default=False,
     )
     assert rows_affected == 1
@@ -97,6 +101,8 @@ def test_update_config_changes_flags(test_tenant):
     assert row is not None
     assert row["enabled"] is True
     assert row["required"] is True
+    assert row["mirror_from_idp"] is True
+    assert row["locked_for_users"] is True
     assert row["send_to_sps_default"] is False
 
 
@@ -107,6 +113,8 @@ def test_update_config_returns_zero_for_missing_key(test_tenant):
         attribute_key="nonexistent_key",
         enabled=True,
         required=False,
+        mirror_from_idp=False,
+        locked_for_users=False,
         send_to_sps_default=True,
     )
     assert rows_affected == 0

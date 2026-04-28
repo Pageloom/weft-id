@@ -3,6 +3,7 @@
 This package provides business logic for settings operations:
 - Privileged domains management (domains.py)
 - Tenant security settings (security.py)
+- Tenant attribute configuration (attributes.py)
 
 All functions:
 - Receive a RequestingUser for authorization
@@ -11,6 +12,11 @@ All functions:
 - Have no knowledge of HTTP concepts
 """
 
+from services.settings.attributes import (
+    list_tenant_attribute_config,
+    seed_tenant_attribute_config,
+    update_tenant_attribute_config,
+)
 from services.settings.domains import (
     add_domain_group_link,
     add_privileged_domain,
@@ -59,4 +65,8 @@ __all__ = [
     "get_session_settings",
     "requires_email_verification_for_login",
     "update_security_settings",
+    # Attributes
+    "list_tenant_attribute_config",
+    "seed_tenant_attribute_config",
+    "update_tenant_attribute_config",
 ]

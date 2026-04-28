@@ -425,6 +425,12 @@ PAGES = [
                         ],
                     ),
                     Page(
+                        path="/admin/settings/user-attributes",
+                        title="User attributes",
+                        permission=PagePermission.SUPER_ADMIN,
+                        show_in_nav=True,
+                    ),
+                    Page(
                         path="/admin/settings/branding",
                         title="Branding",
                         permission=PagePermission.ADMIN,

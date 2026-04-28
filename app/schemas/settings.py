@@ -6,6 +6,54 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 # =============================================================================
+# Tenant Attribute Configuration
+# =============================================================================
+
+
+class TenantAttributeConfigRow(BaseModel):
+    """Response schema for one tenant attribute config row."""
+
+    attribute_key: str = Field(..., description="Standard attribute key")
+    category: str = Field(..., description="Attribute category")
+    enabled: bool = Field(..., description="Attribute is in use by this tenant")
+    required: bool = Field(..., description="Profile is incomplete without this value")
+    mirror_from_idp: bool = Field(
+        ...,
+        description=(
+            "When an IdP sends this attribute, copy it into the user's profile. "
+            "Otherwise, the IdP value is shown only as read-only info."
+        ),
+    )
+    locked_for_users: bool = Field(
+        ..., description="Only admins can edit this. Users see it read-only."
+    )
+    send_to_sps_default: bool = Field(
+        ..., description="Include this attribute in assertions to newly-added SPs."
+    )
+    updated_at: datetime = Field(..., description="When the row was last updated")
+
+
+class TenantAttributeConfigUpdate(BaseModel):
+    """Request schema for updating one tenant attribute config row."""
+
+    enabled: bool = Field(..., description="Attribute is in use by this tenant")
+    required: bool = Field(..., description="Profile is incomplete without this value")
+    mirror_from_idp: bool = Field(
+        ...,
+        description=(
+            "When an IdP sends this attribute, copy it into the user's profile. "
+            "Otherwise, the IdP value is shown only as read-only info."
+        ),
+    )
+    locked_for_users: bool = Field(
+        ..., description="Only admins can edit this. Users see it read-only."
+    )
+    send_to_sps_default: bool = Field(
+        ..., description="Include this attribute in assertions to newly-added SPs."
+    )
+
+
+# =============================================================================
 # Privileged Domains
 # =============================================================================
 

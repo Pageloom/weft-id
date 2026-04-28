@@ -10,6 +10,8 @@ from schemas.settings import (
     DomainGroupLinkCreate,
     PrivilegedDomain,
     PrivilegedDomainCreate,
+    TenantAttributeConfigRow,
+    TenantAttributeConfigUpdate,
     TenantSecuritySettings,
     TenantSecuritySettingsUpdate,
     VersionInfo,
@@ -281,3 +283,110 @@ def update_tenant_security(
         return settings_service.update_security_settings(requesting_user, settings_update)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Tenant Attribute Configuration (Super-admin only)
+# =============================================================================
+#
+# Mounted under /api/v1/tenant via a separate router so the URL path matches
+# the iteration spec while reusing this module's service-layer wiring.
+
+
+tenant_router = APIRouter(prefix="/api/v1/tenant", tags=["Tenant"])
+
+
+@tenant_router.get("/attribute-config", response_model=list[TenantAttributeConfigRow])
+def list_attribute_config(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    super_admin: Annotated[dict, Depends(require_super_admin_api)],
+):
+    """
+    List the tenant's standard user attribute configuration.
+
+    Returns one row per registered standard attribute (14 total) with all
+    five per-attribute toggles. Rows are ordered by category, then by key.
+
+    Requires super_admin role.
+
+    Returns:
+        List of attribute config rows
+    """
+    requesting_user = build_requesting_user(super_admin, tenant_id, None)
+
+    try:
+        rows = settings_service.list_tenant_attribute_config(requesting_user)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+    return [
+        TenantAttributeConfigRow(
+            attribute_key=row["attribute_key"],
+            category=row["category"],
+            enabled=bool(row["enabled"]),
+            required=bool(row["required"]),
+            mirror_from_idp=bool(row["mirror_from_idp"]),
+            locked_for_users=bool(row["locked_for_users"]),
+            send_to_sps_default=bool(row["send_to_sps_default"]),
+            updated_at=row["updated_at"],
+        )
+        for row in rows
+    ]
+
+
+@tenant_router.put(
+    "/attribute-config/{attribute_key}",
+    response_model=TenantAttributeConfigRow,
+)
+def update_attribute_config(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    super_admin: Annotated[dict, Depends(require_super_admin_api)],
+    attribute_key: str,
+    payload: TenantAttributeConfigUpdate,
+):
+    """
+    Update one tenant attribute config row.
+
+    Authorization: super_admin only.
+
+    Path Parameters:
+        attribute_key: One of the 14 standard attribute keys (e.g., 'job_title').
+
+    Request Body:
+        enabled: Attribute is in use by this tenant.
+        required: Profile is incomplete without this value.
+        mirror_from_idp: When an IdP sends this attribute, copy it into the
+            user's profile. Otherwise, the IdP value is shown only as
+            read-only info.
+        locked_for_users: Only admins can edit this. Users see it read-only.
+        send_to_sps_default: Include this attribute in assertions to
+            newly-added SPs.
+
+    Returns:
+        The updated attribute config row.
+    """
+    requesting_user = build_requesting_user(super_admin, tenant_id, None)
+
+    try:
+        updated = settings_service.update_tenant_attribute_config(
+            requesting_user,
+            attribute_key,
+            enabled=payload.enabled,
+            required=payload.required,
+            mirror_from_idp=payload.mirror_from_idp,
+            locked_for_users=payload.locked_for_users,
+            send_to_sps_default=payload.send_to_sps_default,
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+    return TenantAttributeConfigRow(
+        attribute_key=updated["attribute_key"],
+        category=updated["category"],
+        enabled=bool(updated["enabled"]),
+        required=bool(updated["required"]),
+        mirror_from_idp=bool(updated["mirror_from_idp"]),
+        locked_for_users=bool(updated["locked_for_users"]),
+        send_to_sps_default=bool(updated["send_to_sps_default"]),
+        updated_at=updated["updated_at"],
+    )

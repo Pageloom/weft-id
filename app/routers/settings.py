@@ -2,6 +2,10 @@
 
 from typing import Annotated, Literal
 
+from constants.user_attributes import (
+    CATEGORIES,
+    STANDARD_ATTRIBUTES,
+)
 from dependencies import (
     build_requesting_user,
     get_current_user,
@@ -245,6 +249,83 @@ def admin_about(
         request,
         "settings_about.html",
         get_template_context(request, tenant_id, version=__version__),
+    )
+
+
+# =============================================================================
+# User attributes (super_admin only)
+# =============================================================================
+
+
+_CATEGORY_LABELS = {
+    "contact": "Contact",
+    "professional": "Professional",
+    "location": "Location",
+    "profile": "Profile",
+}
+
+
+@router.get(
+    "/user-attributes",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def admin_user_attributes(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display the tenant standard user attribute configuration page."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        rows = settings_service.list_tenant_attribute_config(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    rows_by_key = {r["attribute_key"]: r for r in rows}
+
+    # Build a category-grouped, registry-ordered structure for the template.
+    # Each row carries both the registry metadata (label, default friendly name)
+    # and the persisted flags. Rows missing from the database fall back to
+    # default-false flags (matches the seed defaults).
+    grouped: list[dict] = []
+    for category in CATEGORIES:
+        category_attrs = []
+        for attr in STANDARD_ATTRIBUTES:
+            if attr.category != category:
+                continue
+            row = rows_by_key.get(attr.key)
+            category_attrs.append(
+                {
+                    "key": attr.key,
+                    "label": attr.default_friendly_name,
+                    "category": attr.category,
+                    "enabled": bool(row["enabled"]) if row else False,
+                    "required": bool(row["required"]) if row else False,
+                    "mirror_from_idp": bool(row["mirror_from_idp"]) if row else False,
+                    "locked_for_users": bool(row["locked_for_users"]) if row else False,
+                    "send_to_sps_default": (bool(row["send_to_sps_default"]) if row else True),
+                }
+            )
+        if category_attrs:
+            grouped.append(
+                {
+                    "key": category,
+                    "label": _CATEGORY_LABELS.get(category, category.title()),
+                    "attributes": category_attrs,
+                    "any_enabled": any(a["enabled"] for a in category_attrs),
+                }
+            )
+
+    return templates.TemplateResponse(
+        request,
+        "settings_user_attributes.html",
+        get_template_context(
+            request,
+            tenant_id,
+            categories=grouped,
+        ),
     )
 
 

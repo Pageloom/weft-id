@@ -144,6 +144,7 @@ app.include_router(saml_api.router)
 app.include_router(service_providers_api.router)
 app.include_router(service_providers_api.my_apps_router)
 app.include_router(settings_api.router)
+app.include_router(settings_api.tenant_router)
 app.include_router(users_api.router)
 app.include_router(users_passkeys_api.router)
 

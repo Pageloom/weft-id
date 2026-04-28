@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}User attributes - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">User attributes</h1>
+        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Choose which standard user attributes this tenant collects, where they come from,
+            and which ones are sent to service providers by default. Changes save individually
+            per row.
+        </p>
+    </div>
+
+    <div id="user-attributes-status"
+         role="status"
+         aria-live="polite"
+         class="hidden mb-4 p-3 rounded-md text-sm"></div>
+
+    <div class="space-y-8">
+        {% for category in categories %}
+        <section class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+                 data-category="{{ category.key }}">
+            <header class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ category.label }}</h2>
+                    <span class="category-status text-xs font-medium px-2 py-0.5 rounded-full
+                                 {% if category.any_enabled %}bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300
+                                 {% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                        {% if category.any_enabled %}on{% else %}off{% endif %}
+                    </span>
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <span>Enable all in {{ category.label }}</span>
+                    <input type="checkbox"
+                           class="category-toggle h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                           data-category="{{ category.key }}"
+                           {% if category.any_enabled %}checked{% endif %}>
+                </label>
+            </header>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-700/40 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        <tr>
+                            <th class="px-6 py-3">Attribute</th>
+                            <th class="px-3 py-3 text-center" title="Attribute is in use by this tenant.">Enabled</th>
+                            <th class="px-3 py-3 text-center" title="Profile is incomplete without this value.">Required</th>
+                            <th class="px-3 py-3 text-center"
+                                title="When an IdP sends this attribute, copy it into the user's profile. Otherwise, the IdP value is shown only as read-only info.">
+                                Mirror from IdP
+                            </th>
+                            <th class="px-3 py-3 text-center"
+                                title="Only admins can edit this. Users see it read-only.">
+                                Locked for users
+                            </th>
+                            <th class="px-3 py-3 text-center"
+                                title="Include this attribute in assertions to newly-added SPs.">
+                                Send to SPs by default
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for attr in category.attributes %}
+                        <tr class="attribute-row" data-key="{{ attr.key }}" data-category="{{ attr.category }}">
+                            <td class="px-6 py-3">
+                                <div class="font-medium text-gray-900 dark:text-gray-100">{{ attr.label }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 font-mono">{{ attr.key }}</div>
+                            </td>
+                            <td class="px-3 py-3 text-center">
+                                <input type="checkbox"
+                                       class="flag-input flag-enabled h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                                       data-flag="enabled"
+                                       {% if attr.enabled %}checked{% endif %}>
+                            </td>
+                            <td class="px-3 py-3 text-center">
+                                <input type="checkbox"
+                                       class="flag-input flag-required h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                                       data-flag="required"
+                                       {% if attr.required %}checked{% endif %}
+                                       {% if not attr.enabled %}disabled{% endif %}>
+                            </td>
+                            <td class="px-3 py-3 text-center">
+                                <input type="checkbox"
+                                       class="flag-input flag-mirror h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                                       data-flag="mirror_from_idp"
+                                       {% if attr.mirror_from_idp %}checked{% endif %}
+                                       {% if not attr.enabled %}disabled{% endif %}>
+                            </td>
+                            <td class="px-3 py-3 text-center">
+                                <input type="checkbox"
+                                       class="flag-input flag-locked h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                                       data-flag="locked_for_users"
+                                       {% if attr.locked_for_users %}checked{% endif %}
+                                       {% if not attr.enabled %}disabled{% endif %}>
+                            </td>
+                            <td class="px-3 py-3 text-center">
+                                <input type="checkbox"
+                                       class="flag-input flag-send h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                                       data-flag="send_to_sps_default"
+                                       {% if attr.send_to_sps_default %}checked{% endif %}
+                                       {% if not attr.enabled %}disabled{% endif %}>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="px-6 py-3 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
+                <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <div><dt class="font-semibold inline">Required:</dt> <dd class="inline">Profile is incomplete without this value.</dd></div>
+                    <div><dt class="font-semibold inline">Mirror from IdP:</dt> <dd class="inline">When an IdP sends this attribute, copy it into the user's profile. Otherwise, the IdP value is shown only as read-only info.</dd></div>
+                    <div><dt class="font-semibold inline">Locked for users:</dt> <dd class="inline">Only admins can edit this. Users see it read-only.</dd></div>
+                    <div><dt class="font-semibold inline">Send to SPs by default:</dt> <dd class="inline">Include this attribute in assertions to newly-added SPs.</dd></div>
+                </dl>
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+</div>
+
+<script type="application/json" id="user-attributes-page-data">
+{
+    "endpoint": "/api/v1/tenant/attribute-config"
+}
+</script>
+<script nonce="{{ csp_nonce }}">
+(() => {
+    const pageData = JSON.parse(document.getElementById('user-attributes-page-data').textContent);
+
+    const statusEl = document.getElementById('user-attributes-status');
+    let statusTimer = null;
+
+    const showStatus = (kind, message) => {
+        statusEl.textContent = message;
+        statusEl.classList.remove(
+            'hidden',
+            'bg-red-50', 'border', 'border-red-200', 'text-red-800',
+            'dark:bg-red-900/30', 'dark:border-red-800', 'dark:text-red-300',
+            'bg-green-50', 'border-green-200', 'text-green-800',
+            'dark:bg-green-900/30', 'dark:border-green-800', 'dark:text-green-300',
+        );
+        if (kind === 'error') {
+            statusEl.classList.add(
+                'bg-red-50', 'border', 'border-red-200', 'text-red-800',
+                'dark:bg-red-900/30', 'dark:border-red-800', 'dark:text-red-300',
+            );
+        } else {
+            statusEl.classList.add(
+                'bg-green-50', 'border', 'border-green-200', 'text-green-800',
+                'dark:bg-green-900/30', 'dark:border-green-800', 'dark:text-green-300',
+            );
+        }
+        if (statusTimer) clearTimeout(statusTimer);
+        statusTimer = setTimeout(() => {
+            statusEl.classList.add('hidden');
+        }, 3000);
+    };
+
+    const collectFlags = (row) => {
+        const flags = {};
+        row.querySelectorAll('.flag-input').forEach((el) => {
+            flags[el.dataset.flag] = el.checked;
+        });
+        return flags;
+    };
+
+    const refreshSecondaryDisabledState = (row) => {
+        const enabled = row.querySelector('.flag-enabled').checked;
+        row.querySelectorAll('.flag-input').forEach((el) => {
+            if (el.dataset.flag === 'enabled') return;
+            el.disabled = !enabled;
+        });
+    };
+
+    const refreshCategoryStatus = (categoryKey) => {
+        const section = document.querySelector(`section[data-category="${categoryKey}"]`);
+        if (!section) return;
+        const anyEnabled = Array.from(section.querySelectorAll('.flag-enabled'))
+            .some((el) => el.checked);
+        const badge = section.querySelector('.category-status');
+        if (badge) {
+            badge.textContent = anyEnabled ? 'on' : 'off';
+            badge.classList.toggle('bg-green-100', anyEnabled);
+            badge.classList.toggle('text-green-800', anyEnabled);
+            badge.classList.toggle('dark:bg-green-900/40', anyEnabled);
+            badge.classList.toggle('dark:text-green-300', anyEnabled);
+            badge.classList.toggle('bg-gray-100', !anyEnabled);
+            badge.classList.toggle('text-gray-600', !anyEnabled);
+            badge.classList.toggle('dark:bg-gray-700', !anyEnabled);
+            badge.classList.toggle('dark:text-gray-300', !anyEnabled);
+        }
+        const toggle = section.querySelector('.category-toggle');
+        if (toggle) {
+            toggle.checked = anyEnabled;
+        }
+    };
+
+    const saveRow = async (row) => {
+        const key = row.dataset.key;
+        const flags = collectFlags(row);
+        try {
+            const resp = await WeftUtils.apiFetch(
+                `${pageData.endpoint}/${encodeURIComponent(key)}`,
+                {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(flags),
+                },
+            );
+            if (!resp.ok) {
+                let detail = `HTTP ${resp.status}`;
+                try {
+                    const data = await resp.json();
+                    if (data && data.detail) detail = data.detail;
+                } catch (_) { /* ignore */ }
+                showStatus('error', `Could not save ${key}: ${detail}`);
+                return false;
+            }
+            showStatus('ok', `${key} saved.`);
+            return true;
+        } catch (err) {
+            showStatus('error', `Could not save ${key}: ${err.message || err}`);
+            return false;
+        }
+    };
+
+    document.querySelectorAll('.attribute-row').forEach((row) => {
+        row.querySelectorAll('.flag-input').forEach((input) => {
+            input.addEventListener('change', async () => {
+                if (input.dataset.flag === 'enabled') {
+                    refreshSecondaryDisabledState(row);
+                    refreshCategoryStatus(row.dataset.category);
+                }
+                await saveRow(row);
+            });
+        });
+    });
+
+    document.querySelectorAll('.category-toggle').forEach((toggle) => {
+        toggle.addEventListener('change', async () => {
+            const categoryKey = toggle.dataset.category;
+            const section = document.querySelector(`section[data-category="${categoryKey}"]`);
+            if (!section) return;
+            const newEnabled = toggle.checked;
+            const rows = Array.from(section.querySelectorAll('.attribute-row'));
+            const changed = rows.filter((row) => {
+                const enabledInput = row.querySelector('.flag-enabled');
+                if (enabledInput.checked === newEnabled) return false;
+                enabledInput.checked = newEnabled;
+                refreshSecondaryDisabledState(row);
+                return true;
+            });
+            refreshCategoryStatus(categoryKey);
+            for (const row of changed) {
+                await saveRow(row);
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

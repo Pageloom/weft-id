@@ -303,7 +303,7 @@ def admin_user_attributes(
                     "category": attr.category,
                     "enabled": bool(row["enabled"]) if row else False,
                     "required": bool(row["required"]) if row else False,
-                    "mirror_from_idp": bool(row["mirror_from_idp"]) if row else False,
+                    "mirror_from_idp": bool(row["mirror_from_idp"]) if row else True,
                     "locked_for_users": bool(row["locked_for_users"]) if row else False,
                     "send_to_sps_default": (bool(row["send_to_sps_default"]) if row else True),
                 }

@@ -26,7 +26,7 @@ def _seed_tenant_config(tenant_id):
                 tenant_id, attribute_key, category, enabled, required,
                 mirror_from_idp, locked_for_users, send_to_sps_default
             ) VALUES (
-                :tenant_id, :attribute_key, :category, false, false, false, false, true
+                :tenant_id, :attribute_key, :category, false, false, true, false, true
             )
             ON CONFLICT (tenant_id, attribute_key) DO NOTHING
             """,
@@ -52,7 +52,7 @@ def test_list_config_after_seed_has_all_fourteen(test_tenant):
     for r in rows:
         assert r["enabled"] is False
         assert r["required"] is False
-        assert r["mirror_from_idp"] is False
+        assert r["mirror_from_idp"] is True
         assert r["locked_for_users"] is False
         assert r["send_to_sps_default"] is True
         # Category matches the registry

@@ -41,7 +41,7 @@ def test_seed_inserts_all_fourteen_rows(test_tenant):
     for r in rows:
         assert r["enabled"] is False
         assert r["required"] is False
-        assert r["mirror_from_idp"] is False
+        assert r["mirror_from_idp"] is True
         assert r["locked_for_users"] is False
         assert r["send_to_sps_default"] is True
 
@@ -154,7 +154,7 @@ def test_update_tenant_attribute_config_no_event_when_unchanged(test_tenant):
             "job_title",
             enabled=False,
             required=False,
-            mirror_from_idp=False,
+            mirror_from_idp=True,
             locked_for_users=False,
             send_to_sps_default=True,
         )

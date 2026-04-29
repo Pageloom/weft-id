@@ -357,3 +357,31 @@ class UserUpdate(BaseModel):
         pattern="^(member|admin|super_admin)$",
         description="User role (requires super_admin to set super_admin)",
     )
+
+
+# ============================================================================
+# User Attribute Schemas
+# ============================================================================
+
+
+class UserAttributeRow(BaseModel):
+    """One row from the canonical user_attributes store."""
+
+    attribute_key: str = Field(..., description="Standard attribute key")
+    value: str = Field(..., description="Serialized attribute value")
+    updated_at: datetime = Field(..., description="When the row was last updated")
+
+
+class UserAttributeWrite(BaseModel):
+    """Request body for setting one user attribute."""
+
+    value: str = Field(..., min_length=1, max_length=2000, description="Attribute value")
+
+
+class UserIdpAttributeRow(BaseModel):
+    """One row from the IdP-mirror snapshot table."""
+
+    idp_id: str = Field(..., description="Identity provider UUID")
+    attribute_key: str = Field(..., description="Attribute key as last sent by the IdP")
+    value: str = Field(..., description="Attribute value as last sent by the IdP")
+    updated_at: datetime = Field(..., description="When the row was last updated")

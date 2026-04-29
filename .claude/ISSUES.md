@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 1 | Duplication (pre-existing) |
+| Low | 2 | Duplication (pre-existing), UX (new) |
 
 **Last security scan:** 2026-04-24 (targeted: all code from last 14 days, all OWASP categories; 3 findings, all resolved)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
@@ -39,6 +39,20 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 - `idp_lifecycle.py` (~350 lines): group lifecycle and discovery
 - `idp_membership.py` (~350 lines): sync, base group membership, cross-IdP moves
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
+
+---
+
+---
+
+## [BUG] UX: "Enable all" category checkbox on tenant attribute settings is misleading
+
+**Found in:** `app/templates/settings_user_attributes.html` (tenant attribute config page, iter 3 of user_attributes feature)
+**Impact:** Low
+**Category:** UX
+**Description:** Each category section (Contact, Professional, Location, Profile) has an "Enable all in [Category]" checkbox at the top. The checkbox renders as **checked** if any single attribute in the category is enabled, even though the label implies it reflects "all in this category enabled." Toggling it then enables/disables every row in the category, surprising users who only had one row enabled.
+**Why It Matters:** The control's checked state does not match the meaning of the label, and clicking it can wipe out a deliberately partial selection.
+**Suggested Fix:** Least-surprising option is to remove the category-level toggle entirely. Per-row checkboxes already cover the use case. If kept, change the control to a button (e.g., "Enable all" / "Disable all" buttons that always show both options) or change the checkbox to reflect "all enabled" precisely (only checked when every row is on, indeterminate when partial).
+**Files Affected:** `app/templates/settings_user_attributes.html`, related JS in the same file.
 
 ---
 

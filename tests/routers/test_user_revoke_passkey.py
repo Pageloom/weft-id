@@ -103,6 +103,8 @@ def test_profile_tab_renders_passkey_list(test_admin_user, mocker, override_auth
     mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains", return_value=[])
     mocker.patch(f"{USERS_DETAIL}.groups_service")
     mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mocker.patch(f"{USERS_DETAIL}.build_attribute_groups_for_admin", return_value=[])
+    mocker.patch(f"{USERS_DETAIL}.build_idp_attribute_panel", return_value=[])
 
     passkey = PasskeyResponse(
         id="pk-1",
@@ -141,6 +143,8 @@ def test_profile_tab_renders_empty_passkey_list(test_admin_user, mocker, overrid
         f"{USERS_DETAIL}.webauthn_service.admin_list_credentials",
         return_value=[],
     )
+    mocker.patch(f"{USERS_DETAIL}.build_attribute_groups_for_admin", return_value=[])
+    mocker.patch(f"{USERS_DETAIL}.build_idp_attribute_panel", return_value=[])
 
     mock_template.return_value = HTMLResponse(content="<html>ok</html>")
     client = TestClient(app)

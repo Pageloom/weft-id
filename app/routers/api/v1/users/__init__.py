@@ -2,6 +2,8 @@
 
 from fastapi import APIRouter
 from routers.api.v1.users.admin import router as admin_router
+from routers.api.v1.users.attributes import me_router as attributes_me_router
+from routers.api.v1.users.attributes import router as attributes_router
 from routers.api.v1.users.bulk_ops import router as bulk_ops_router
 from routers.api.v1.users.emails import router as emails_router
 from routers.api.v1.users.groups import router as groups_router
@@ -40,3 +42,8 @@ router.include_router(mfa_router)
 router.include_router(bulk_ops_router)
 router.include_router(admin_router)
 router.include_router(groups_router)
+router.include_router(attributes_router)
+
+# /api/v1/me/* endpoints are exposed as a separate top-level router so the
+# main app can mount it alongside /api/v1/users.
+me_router = attributes_me_router

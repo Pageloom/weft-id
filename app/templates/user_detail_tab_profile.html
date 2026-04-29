@@ -108,6 +108,137 @@
             </form>
         </div>
 
+        {% if attribute_categories %}
+        <!-- Standard Attributes -->
+        <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Standard Attributes</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Tenant-configured profile attributes. Leave a field empty to clear it.
+            </p>
+
+            <form method="post" action="/users/{{ target_user.id }}/update-attributes" class="space-y-6">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                {% for category in attribute_categories %}
+                <section data-category="{{ category.key }}">
+                    <h3 class="text-md font-medium text-gray-800 dark:text-gray-200 mb-3">{{ category.label }}</h3>
+                    <div class="space-y-4">
+                        {% for attr in category.attributes %}
+                        <div class="admin-attr-row" data-key="{{ attr.key }}">
+                            <label for="admin-attr-{{ attr.key }}" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <span>{{ attr.label }}</span>
+                                {% if attr.locked %}
+                                <span title="Locked for users">
+                                    {{ icon("shield-check", class="w-4 h-4 text-gray-400") }}
+                                </span>
+                                {% endif %}
+                                {% if attr.required %}
+                                <span class="text-red-500" title="Required">*</span>
+                                {% endif %}
+                            </label>
+                            {% set field_name = "attr_" ~ attr.key %}
+                            {% if attr.value_type == "country" %}
+                                <select id="admin-attr-{{ attr.key }}"
+                                        name="{{ field_name }}"
+                                        class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                                    <option value="">(None)</option>
+                                    {% set countries = [
+                                        ("US", "United States"), ("GB", "United Kingdom"), ("CA", "Canada"),
+                                        ("AU", "Australia"), ("DE", "Germany"), ("FR", "France"),
+                                        ("ES", "Spain"), ("IT", "Italy"), ("JP", "Japan"),
+                                        ("IN", "India"), ("BR", "Brazil"), ("MX", "Mexico"),
+                                        ("NL", "Netherlands"), ("SE", "Sweden"), ("NO", "Norway"),
+                                        ("DK", "Denmark"), ("FI", "Finland"), ("PL", "Poland"),
+                                        ("IE", "Ireland"), ("NZ", "New Zealand"), ("ZA", "South Africa"),
+                                        ("SG", "Singapore"), ("AT", "Austria"), ("BE", "Belgium"),
+                                        ("CH", "Switzerland"), ("PT", "Portugal"), ("GR", "Greece"),
+                                        ("CZ", "Czechia"), ("HU", "Hungary"), ("RO", "Romania"),
+                                        ("KR", "South Korea"), ("CN", "China"), ("HK", "Hong Kong"),
+                                        ("TW", "Taiwan"), ("AE", "United Arab Emirates"), ("IL", "Israel"),
+                                        ("TR", "Turkey"), ("EG", "Egypt"), ("NG", "Nigeria"),
+                                        ("KE", "Kenya")
+                                    ] %}
+                                    {% set known_codes = countries | map(attribute=0) | list %}
+                                    {% for code, name in countries %}
+                                    <option value="{{ code }}" {% if attr.value == code %}selected{% endif %}>{{ code }} - {{ name }}</option>
+                                    {% endfor %}
+                                    {% if attr.value and attr.value not in known_codes %}
+                                    <option value="{{ attr.value }}" selected>{{ attr.value }} (current)</option>
+                                    {% endif %}
+                                </select>
+                            {% else %}
+                                {% set input_type = "tel" if attr.value_type == "phone" else "text" %}
+                                <input type="{{ input_type }}"
+                                       id="admin-attr-{{ attr.key }}"
+                                       name="{{ field_name }}"
+                                       value="{{ attr.value }}"
+                                       maxlength="{{ attr.max_length }}"
+                                       class="w-full md:w-96 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </section>
+                {% endfor %}
+
+                <div class="pt-2">
+                    <button type="submit"
+                            class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                        Save Attributes
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if idp_attribute_groups %}
+        <!-- Connected IdP attributes (admin-only diagnostic panel) -->
+        <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Connected IdP attributes</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Read-only snapshot of values most recently received from each connected identity provider.
+            </p>
+            <div class="space-y-6">
+                {% for group in idp_attribute_groups %}
+                <section data-idp-id="{{ group.idp_id }}">
+                    <h3 class="flex items-center gap-2 text-md font-medium text-gray-800 dark:text-gray-200 mb-3">
+                        {{ icon("shield-check", class="w-4 h-4 text-blue-500") }}
+                        <span>Synced from {{ group.idp_name }}</span>
+                    </h3>
+                    <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-md">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-50 dark:bg-gray-700/40 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                <tr>
+                                    <th class="px-4 py-2">Attribute</th>
+                                    <th class="px-4 py-2">Value</th>
+                                    <th class="px-4 py-2">Last updated</th>
+                                    <th class="px-4 py-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for row in group.attributes %}
+                                <tr>
+                                    <td class="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-300">{{ row.attribute_key }}</td>
+                                    <td class="px-4 py-2 text-gray-900 dark:text-gray-100">{{ row.value }}</td>
+                                    <td class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{{ fmt_datetime(row.updated_at) }}</td>
+                                    <td class="px-4 py-2">
+                                        {% if row.mirrored_into_profile %}
+                                        <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 rounded-full">
+                                            Mirrored into profile
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Edit Role Form (Super Admin Only) -->
         {% if user.role == 'super_admin' %}
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
@@ -331,3 +462,4 @@
     </div>
 </div>
 {% endblock %}
+

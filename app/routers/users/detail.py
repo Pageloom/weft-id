@@ -23,6 +23,10 @@ from services import webauthn as webauthn_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from starlette.responses import Response
 from utils.email import send_new_user_invitation, send_new_user_privileged_domain_notification
+from utils.profile_attributes import (
+    build_attribute_groups_for_admin,
+    build_idp_attribute_panel,
+)
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -143,6 +147,9 @@ def user_detail_profile(
     except ServiceError:
         pass
 
+    attribute_categories = build_attribute_groups_for_admin(requesting_user, user_id)
+    idp_attribute_groups = build_idp_attribute_panel(requesting_user, user_id)
+
     return templates.TemplateResponse(
         request,
         "user_detail_tab_profile.html",
@@ -155,6 +162,8 @@ def user_detail_profile(
             idps=idps,
             email_impact=email_impact,
             passkeys=passkeys,
+            attribute_categories=attribute_categories,
+            idp_attribute_groups=idp_attribute_groups,
             active_tab="profile",
             group_count=common["group_count"],
             app_count=common["app_count"],
@@ -287,6 +296,58 @@ def user_detail_danger(
 # ============================================================================
 # POST handlers
 # ============================================================================
+
+
+@router.post("/{user_id}/update-attributes")
+async def update_user_attributes(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+):
+    """Bulk update a user's standard attributes from the admin profile tab.
+
+    Admin path: locked-for-users attributes are still editable here. For
+    each enabled attribute config row whose ``attr_<key>`` form field is
+    present, sets the trimmed value (empty clears).
+    """
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    form = await request.form()
+    try:
+        config_rows = settings_service.list_tenant_attribute_config(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    error_code: str | None = None
+    for cfg in config_rows:
+        if not cfg.get("enabled"):
+            continue
+        key = cfg["attribute_key"]
+        field = f"attr_{key}"
+        if field not in form:
+            continue
+        raw = str(form.get(field, "")).strip()
+        try:
+            if raw:
+                users_service.set_user_attribute(requesting_user, user_id, key, raw)
+            else:
+                users_service.clear_user_attribute(requesting_user, user_id, key)
+        except NotFoundError:
+            return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+        except ValidationError:
+            error_code = error_code or f"invalid_{key}"
+        except ServiceError:
+            error_code = error_code or "save_failed"
+
+    if error_code:
+        return RedirectResponse(url=f"/users/{user_id}/profile?error={error_code}", status_code=303)
+    return RedirectResponse(
+        url=f"/users/{user_id}/profile?success=attributes_saved", status_code=303
+    )
 
 
 @router.post("/{user_id}/update-name")

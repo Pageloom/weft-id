@@ -27,6 +27,16 @@ from services.users._converters import (
 # Re-export validation helpers for backwards compatibility
 from services.users._validation import _validate_role_change
 
+# Re-export from attributes module
+from services.users.attributes import (
+    apply_idp_attributes,
+    clear_user_attribute,
+    get_user_attribute,
+    list_user_attributes,
+    list_user_idp_attributes,
+    set_user_attribute,
+)
+
 # Re-export from auth_policy module
 from services.users.auth_policy import (
     user_must_enroll_enhanced,
@@ -92,6 +102,13 @@ from services.users.utilities import (
 )
 
 __all__ = [
+    # Attributes
+    "apply_idp_attributes",
+    "clear_user_attribute",
+    "get_user_attribute",
+    "list_user_attributes",
+    "list_user_idp_attributes",
+    "set_user_attribute",
     # Auth policy
     "user_must_enroll_enhanced",
     # CRUD

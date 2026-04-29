@@ -28,6 +28,7 @@ from services.exceptions import (
     ValidationError,
 )
 from utils.email import send_mfa_code_email
+from utils.profile_attributes import build_attribute_groups_for_self
 from utils.qr import generate_qr_code_base64
 from utils.ratelimit import HOUR, ratelimit
 from utils.service_errors import render_error_page
@@ -63,10 +64,29 @@ def account_index(
 def profile_settings(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
 ):
-    """Display and edit user profile settings (name, etc)."""
+    """Display and edit user profile settings (name + standard attributes)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    # Load tenant attribute config + this user's canonical values to render
+    # the standard-attribute form. Failures (e.g., the unlikely "tenant has
+    # no config rows seeded") surface as an empty list so the page still
+    # renders the rest of the profile.
+    grouped_attributes = build_attribute_groups_for_self(requesting_user)
+    can_edit_profile = user.get("role") == "super_admin" or settings_service.can_user_edit_profile(
+        tenant_id
+    )
+
     return templates.TemplateResponse(
-        request, "settings_profile.html", get_template_context(request, tenant_id)
+        request,
+        "settings_profile.html",
+        get_template_context(
+            request,
+            tenant_id,
+            attribute_categories=grouped_attributes,
+            can_edit_profile=can_edit_profile,
+        ),
     )
 
 
@@ -94,6 +114,55 @@ def update_profile(
     users_service.update_current_user_profile(requesting_user, user, profile_update)
 
     return RedirectResponse(url="/account/profile", status_code=303)
+
+
+@router.post("/profile/update-attributes")
+async def update_profile_attributes(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Bulk update standard user attributes from a form submission.
+
+    Iterates the tenant's enabled attribute config; for each key whose
+    form field is present, sets the value (empty string clears). Locked
+    attributes are silently skipped for non-admins (the template already
+    renders them read-only). Validation failures redirect with an error
+    code; a successful submission redirects with a success indicator.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    is_admin = user.get("role") in ("admin", "super_admin")
+
+    if not is_admin and not settings_service.can_user_edit_profile(tenant_id):
+        return RedirectResponse(url="/account/profile", status_code=303)
+
+    form = await request.form()
+    config_rows = settings_service.list_tenant_attribute_config(requesting_user)
+
+    error_code: str | None = None
+    for cfg in config_rows:
+        if not cfg.get("enabled"):
+            continue
+        key = cfg["attribute_key"]
+        field = f"attr_{key}"
+        if field not in form:
+            continue
+        if cfg.get("locked_for_users") and not is_admin:
+            continue
+        raw = str(form.get(field, "")).strip()
+        try:
+            if raw:
+                users_service.set_user_attribute(requesting_user, user["id"], key, raw)
+            else:
+                users_service.clear_user_attribute(requesting_user, user["id"], key)
+        except ValidationError:
+            error_code = error_code or f"invalid_{key}"
+        except ServiceError:
+            error_code = error_code or "save_failed"
+
+    if error_code:
+        return RedirectResponse(url=f"/account/profile?error={error_code}", status_code=303)
+    return RedirectResponse(url="/account/profile?success=attributes_saved", status_code=303)
 
 
 @router.post("/profile/update-timezone")

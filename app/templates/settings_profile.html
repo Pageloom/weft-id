@@ -33,6 +33,100 @@
 
     </div>
 
+    {% if attribute_categories %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Standard Attributes</h1>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Profile attributes configured by your organization. Leave a field empty to clear it.
+        </p>
+
+        <form method="post" action="/account/profile/update-attributes" class="space-y-8">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            {% for category in attribute_categories %}
+            <section data-category="{{ category.key }}">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">{{ category.label }}</h2>
+                <div class="space-y-4">
+                    {% for attr in category.attributes %}
+                    <div class="profile-attr-row" data-key="{{ attr.key }}">
+                        <label for="profile-attr-{{ attr.key }}" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <span>{{ attr.label }}</span>
+                            {% if attr.locked %}
+                            {{ icon("shield-check", class="w-4 h-4 text-gray-400") }}
+                            {% endif %}
+                            {% if attr.required %}
+                            <span class="text-red-500" title="Required">*</span>
+                            {% endif %}
+                        </label>
+                        {% set is_locked = attr.locked %}
+                        {% set readonly = (not can_edit_profile) or is_locked %}
+                        {% set field_name = "attr_" ~ attr.key %}
+                        {% if attr.value_type == "country" %}
+                            {% if readonly %}
+                                <input type="text" id="profile-attr-{{ attr.key }}" value="{{ attr.value }}"
+                                       readonly
+                                       class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 cursor-not-allowed">
+                            {% else %}
+                                <select id="profile-attr-{{ attr.key }}"
+                                        name="{{ field_name }}"
+                                        class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                                    <option value="">(None)</option>
+                                    {% set countries = [
+                                        ("US", "United States"), ("GB", "United Kingdom"), ("CA", "Canada"),
+                                        ("AU", "Australia"), ("DE", "Germany"), ("FR", "France"),
+                                        ("ES", "Spain"), ("IT", "Italy"), ("JP", "Japan"),
+                                        ("IN", "India"), ("BR", "Brazil"), ("MX", "Mexico"),
+                                        ("NL", "Netherlands"), ("SE", "Sweden"), ("NO", "Norway"),
+                                        ("DK", "Denmark"), ("FI", "Finland"), ("PL", "Poland"),
+                                        ("IE", "Ireland"), ("NZ", "New Zealand"), ("ZA", "South Africa"),
+                                        ("SG", "Singapore"), ("AT", "Austria"), ("BE", "Belgium"),
+                                        ("CH", "Switzerland"), ("PT", "Portugal"), ("GR", "Greece"),
+                                        ("CZ", "Czechia"), ("HU", "Hungary"), ("RO", "Romania"),
+                                        ("KR", "South Korea"), ("CN", "China"), ("HK", "Hong Kong"),
+                                        ("TW", "Taiwan"), ("AE", "United Arab Emirates"), ("IL", "Israel"),
+                                        ("TR", "Turkey"), ("EG", "Egypt"), ("NG", "Nigeria"),
+                                        ("KE", "Kenya")
+                                    ] %}
+                                    {% set known_codes = countries | map(attribute=0) | list %}
+                                    {% for code, name in countries %}
+                                    <option value="{{ code }}" {% if attr.value == code %}selected{% endif %}>{{ code }} - {{ name }}</option>
+                                    {% endfor %}
+                                    {% if attr.value and attr.value not in known_codes %}
+                                    <option value="{{ attr.value }}" selected>{{ attr.value }} (current)</option>
+                                    {% endif %}
+                                </select>
+                            {% endif %}
+                        {% else %}
+                            {% set input_type = "tel" if attr.value_type == "phone" else "text" %}
+                            <input type="{{ input_type }}"
+                                   id="profile-attr-{{ attr.key }}"
+                                   {% if not readonly %}name="{{ field_name }}"{% endif %}
+                                   value="{{ attr.value }}"
+                                   maxlength="{{ attr.max_length }}"
+                                   {% if readonly %}readonly{% endif %}
+                                   class="w-full md:w-96 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md {% if readonly %}bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 cursor-not-allowed{% else %}bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent{% endif %}">
+                        {% endif %}
+                        {% if is_locked and can_edit_profile %}
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Locked: only an admin can change this.</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endfor %}
+
+            {% if can_edit_profile %}
+            <div class="pt-4">
+                <button type="submit"
+                        class="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Save Changes
+                </button>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+    {% endif %}
+
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Appearance</h1>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -152,6 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('theme', this.value);
         });
     });
+
 });
 </script>
 {% endblock %}

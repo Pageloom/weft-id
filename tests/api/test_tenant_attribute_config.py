@@ -49,7 +49,7 @@ def test_list_attribute_config_as_super_admin(
         # Default seed values.
         assert row["enabled"] is False
         assert row["required"] is False
-        assert row["mirror_from_idp"] is False
+        assert row["mirror_from_idp"] is True
         assert row["locked_for_users"] is False
         assert row["send_to_sps_default"] is True
 

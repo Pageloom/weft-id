@@ -100,9 +100,9 @@ def insert_config_row(
 ) -> int:
     """Insert a default-flag row for (tenant, key). Idempotent via ON CONFLICT.
 
-    Used by the service-layer seed helper for newly-created tenants. All
-    flags default to false except ``send_to_sps_default`` which defaults
-    to true (matches migration 0033 seed behaviour).
+    Used by the service-layer seed helper for newly-created tenants.
+    Defaults: enabled=false, required=false, mirror_from_idp=true,
+    locked_for_users=false, send_to_sps_default=true.
     """
     return execute(
         tenant_id,
@@ -113,7 +113,7 @@ def insert_config_row(
             locked_for_users, send_to_sps_default
         ) values (
             :tenant_id, :attribute_key, :category,
-            false, false, false, false, true
+            false, false, true, false, true
         )
         on conflict (tenant_id, attribute_key) do nothing
         """,

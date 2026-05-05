@@ -265,8 +265,10 @@ def _extract_mapped_attributes(
 
     Returns:
         Dict with keys: email, first_name, last_name, groups, name_id,
-        name_id_format, raw_attributes.
+        name_id_format, raw_attributes, standard_attributes.
     """
+    from constants.user_attributes import STANDARD_ATTRIBUTES
+
     raw_attributes = auth.get_attributes()
     name_id = auth.get_nameid()
     name_id_format = auth.get_nameid_format()
@@ -276,6 +278,20 @@ def _extract_mapped_attributes(
     first_name = get_saml_attribute(raw_attributes, mapping.get("first_name", "firstName"))
     last_name = get_saml_attribute(raw_attributes, mapping.get("last_name", "lastName"))
     groups = get_saml_group_attributes(raw_attributes, mapping.get("groups", "groups"))
+
+    # Extended standard attributes (Iteration 5). Iterate the registry and look
+    # up each registry key's wire name (per-IdP override or default friendly
+    # name) in the raw attributes. Only non-empty values are returned. Service
+    # consumer (apply_idp_attributes) does its own validation/serialization.
+    standard_attributes: dict[str, str] = {}
+    for attr in STANDARD_ATTRIBUTES:
+        wire_name = mapping.get(attr.key, attr.default_friendly_name)
+        value = get_saml_attribute(raw_attributes, wire_name)
+        if value is None:
+            continue
+        if isinstance(value, str) and value.strip() == "":
+            continue
+        standard_attributes[attr.key] = value
 
     missing_optional = []
     if not first_name:
@@ -294,6 +310,7 @@ def _extract_mapped_attributes(
         "name_id_format": name_id_format,
         "raw_attributes": raw_attributes,
         "missing_optional_attributes": missing_optional,
+        "standard_attributes": standard_attributes,
     }
 
 
@@ -531,6 +548,7 @@ def process_saml_response(
         slo_url=idp.slo_url,
         requires_mfa=idp.require_platform_mfa,
         groups=attrs["groups"],
+        standard_attributes=attrs.get("standard_attributes", {}),
     )
 
 

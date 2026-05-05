@@ -11,6 +11,7 @@ import services.groups as groups_service
 from schemas.saml import SAMLAuthResult
 from services.event_log import log_event
 from services.exceptions import ForbiddenError, NotFoundError, ValidationError
+from services.users.attributes import apply_idp_attributes
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,9 @@ def authenticate_via_saml(
                 group_names=saml_result.groups,
             )
 
+        # Mirror upstream standard attributes (Iteration 5).
+        _apply_idp_attributes_safe(tenant_id, user_id, saml_result)
+
         # Return immediately - JIT provisioning already logged the creation event
         # No need to log sign-in since this is their first login (creation implies sign-in)
         return user
@@ -288,4 +292,39 @@ def authenticate_via_saml(
             group_names=saml_result.groups,
         )
 
+    # Mirror upstream standard attributes (Iteration 5). Replaces the user's
+    # IdP-mirror snapshot for this IdP and conditionally writes to
+    # user_attributes per tenant policy. Soft-fail: a bug here must not break
+    # SAML login.
+    _apply_idp_attributes_safe(tenant_id, user_id, saml_result)
+
     return user
+
+
+def _apply_idp_attributes_safe(
+    tenant_id: str,
+    user_id: str,
+    saml_result: SAMLAuthResult,
+) -> None:
+    """Wrapper around ``apply_idp_attributes`` that swallows exceptions.
+
+    The IdP-mirror write must never break the authentication flow. Internal
+    validation already drops malformed values silently; this wrapper only
+    catches infrastructure failures (DB outages, etc.) so the user can still
+    sign in.
+    """
+    try:
+        apply_idp_attributes(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            idp_id=saml_result.idp_id,
+            attributes=saml_result.standard_attributes,
+            actor_user_id=user_id,
+        )
+    except Exception:
+        logger.warning(
+            "Failed to apply IdP attributes for user %s (idp %s)",
+            user_id,
+            saml_result.idp_id,
+            exc_info=True,
+        )

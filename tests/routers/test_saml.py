@@ -536,6 +536,104 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
     assert updated_idp.attribute_mapping["first_name"] == "user.firstName"
 
 
+def test_update_idp_attributes_includes_standard_attributes(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    """Iteration 5: posting attr_<registry_key> persists registry-key mappings."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Iter5 Form Update IdP",
+        provider_type="okta",
+        entity_id="https://iter5-form.example.com/entity",
+        sso_url="https://iter5-form.example.com/sso",
+        certificate_pem=(
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls\n"
+            "-----END CERTIFICATE-----"
+        ),
+    )
+
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    response = super_admin_session.post(
+        f"/admin/settings/identity-providers/{idp.id}/edit-attributes",
+        data={
+            "attr_email": "email",
+            "attr_first_name": "firstName",
+            "attr_last_name": "lastName",
+            "attr_groups": "groups",
+            "attr_job_title": "title",
+            "attr_phone_work": "telephone",
+            "attr_department": "dept",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=attributes_updated" in response.headers.get("location", "")
+
+    updated_idp = saml_service.get_identity_provider(requesting_user, idp.id)
+    assert updated_idp.attribute_mapping["job_title"] == "title"
+    assert updated_idp.attribute_mapping["phone_work"] == "telephone"
+    assert updated_idp.attribute_mapping["department"] == "dept"
+
+
+def test_update_idp_attributes_skips_unknown_form_keys(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    """Form fields outside the known set are ignored (not persisted)."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Iter5 Unknown Form IdP",
+        provider_type="okta",
+        entity_id="https://iter5-unknown.example.com/entity",
+        sso_url="https://iter5-unknown.example.com/sso",
+        certificate_pem=(
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls\n"
+            "-----END CERTIFICATE-----"
+        ),
+    )
+
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    response = super_admin_session.post(
+        f"/admin/settings/identity-providers/{idp.id}/edit-attributes",
+        data={
+            "attr_email": "email",
+            "attr_first_name": "firstName",
+            "attr_last_name": "lastName",
+            "attr_groups": "groups",
+            "attr_bogus": "should-be-ignored",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    updated_idp = saml_service.get_identity_provider(requesting_user, idp.id)
+    assert "bogus" not in updated_idp.attribute_mapping
+
+
 # =============================================================================
 # Import IdP from Raw XML Tests
 # =============================================================================

@@ -207,6 +207,72 @@ class TestAttributesTabWithoutMetadata:
         assert "Load Okta presets" in response.text
 
 
+class TestAttributesTabStandardAttributes:
+    """Iteration 5: enabled tenant attributes render below fixed rows."""
+
+    def test_attributes_tab_renders_enabled_standard_attribute(
+        self, idp_admin_session, idp_host, sample_idp_config
+    ):
+        """When tenant has job_title enabled, attr_job_title input renders."""
+        with (
+            _mock_idp_common(sample_idp_config),
+            patch(
+                "services.settings.list_tenant_attribute_config",
+                return_value=[
+                    {
+                        "attribute_key": "job_title",
+                        "category": "professional",
+                        "enabled": True,
+                        "required": False,
+                        "mirror_from_idp": True,
+                        "locked_for_users": False,
+                        "send_to_sps_default": True,
+                    }
+                ],
+            ),
+        ):
+            response = idp_admin_session.get(
+                f"/admin/settings/identity-providers/{sample_idp_config.id}/attributes",
+                headers={"Host": idp_host},
+            )
+
+        assert response.status_code == 200
+        html = response.text
+        assert 'name="attr_job_title"' in html
+        assert 'value="jobTitle"' in html
+        # Category subheader rendered
+        assert "Professional" in html
+
+    def test_attributes_tab_omits_disabled_standard_attribute(
+        self, idp_admin_session, idp_host, sample_idp_config
+    ):
+        """Tenant with job_title disabled does not see attr_job_title input."""
+        with (
+            _mock_idp_common(sample_idp_config),
+            patch(
+                "services.settings.list_tenant_attribute_config",
+                return_value=[
+                    {
+                        "attribute_key": "job_title",
+                        "category": "professional",
+                        "enabled": False,
+                        "required": False,
+                        "mirror_from_idp": True,
+                        "locked_for_users": False,
+                        "send_to_sps_default": True,
+                    }
+                ],
+            ),
+        ):
+            response = idp_admin_session.get(
+                f"/admin/settings/identity-providers/{sample_idp_config.id}/attributes",
+                headers={"Host": idp_host},
+            )
+
+        assert response.status_code == 200
+        assert 'name="attr_job_title"' not in response.text
+
+
 class TestAttributesTabWithAdvertisedAttributes:
     """Tests for the attributes tab when IdP has metadata with advertised attrs."""
 

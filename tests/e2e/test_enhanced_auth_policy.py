@@ -89,6 +89,7 @@ def _sign_in_with_password_and_otp(page, base_url, email, password):
     page.locator("#email").fill(email)
     page.locator("#emailForm button[type='submit']").click()
     page.wait_for_url("**/login?**show_password**", timeout=10000)
+    page.wait_for_selector("#loginForm:not(.hidden)", timeout=10000)
 
     page.locator("input[name='password']").fill(password)
     page.locator("#loginForm button[type='submit']").click()
@@ -266,8 +267,12 @@ class TestEnhancedPolicyPasskeyInteraction:
             page.locator("#emailForm button[type='submit']").click()
             page.wait_for_url("**/login?**show_password**", timeout=10000)
 
-            # Passkey-first UI auto-starts; virtual auth auto-completes
-            assert page.locator("#passkey-flow").count() == 1
+            # Passkey-first UI auto-starts and the virtual authenticator
+            # auto-completes the ceremony, redirecting to /dashboard. We can't
+            # safely assert on `#passkey-flow` here: the redirect can race the
+            # check (the page may already have navigated by the time Playwright
+            # evaluates the locator). The dashboard wait below proves the
+            # passkey path ran (no password was entered).
             page.wait_for_url("**/dashboard**", timeout=15000)
         finally:
             _set_auth_policy(subdomain, "baseline")

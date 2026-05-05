@@ -3,7 +3,32 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from constants.user_attributes import ATTRIBUTE_KEYS
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+
+# The fixed (pre-iteration-5) attribute mapping keys. These are not in the
+# standard attribute registry because they map to first-class user columns,
+# not user_attributes rows.
+_FIXED_ATTRIBUTE_KEYS = frozenset({"email", "first_name", "last_name", "groups"})
+
+
+def _validate_attribute_mapping_keys(value: dict[str, str] | None) -> dict[str, str] | None:
+    """Reject mapping keys outside the fixed set or the standard registry.
+
+    Used by IdPCreate / IdPUpdate to ensure tenants cannot persist mappings
+    for unknown logical names. Allowed keys = fixed set
+    (email/first_name/last_name/groups) ∪ standard attribute registry keys.
+    """
+    if value is None:
+        return value
+    allowed = _FIXED_ATTRIBUTE_KEYS | ATTRIBUTE_KEYS
+    bad = sorted(k for k in value if k not in allowed)
+    if bad:
+        raise ValueError(
+            "attribute_mapping contains unknown keys: " + ", ".join(bad),
+        )
+    return value
+
 
 # ============================================================================
 # Provider Type Constants
@@ -83,6 +108,11 @@ class IdPCreate(BaseModel):
     require_platform_mfa: bool = False
     jit_provisioning: bool = False
 
+    @field_validator("attribute_mapping")
+    @classmethod
+    def _check_mapping_keys(cls, value: dict[str, str]) -> dict[str, str]:
+        return _validate_attribute_mapping_keys(value) or {}
+
 
 class IdPUpdate(BaseModel):
     """Request schema for updating an IdP."""
@@ -97,6 +127,11 @@ class IdPUpdate(BaseModel):
     ) = None
     require_platform_mfa: bool | None = None
     jit_provisioning: bool | None = None
+
+    @field_validator("attribute_mapping")
+    @classmethod
+    def _check_mapping_keys(cls, value: dict[str, str] | None) -> dict[str, str] | None:
+        return _validate_attribute_mapping_keys(value)
 
 
 class IdPConfig(BaseModel):
@@ -265,6 +300,12 @@ class SAMLAuthResult(BaseModel):
     user_id: str | None = None  # Set after user lookup
     requires_mfa: bool = False
     groups: list[str] = Field(default_factory=list)  # Group claims from assertion
+    # Standard user attributes extracted via the per-IdP attribute_mapping for
+    # registry keys (job_title, phone_work, etc.). Empty when the IdP does not
+    # advertise any of the standard keys. Consumed by ``apply_idp_attributes``
+    # in ``authenticate_via_saml`` to populate user_idp_attributes and
+    # (per tenant policy) mirror into user_attributes.
+    standard_attributes: dict[str, str] = Field(default_factory=dict)
 
 
 class SAMLTestResult(BaseModel):

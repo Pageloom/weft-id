@@ -355,11 +355,37 @@ def idp_tab_attributes(
     if idp.metadata_xml:
         advertised_attributes = extract_idp_advertised_attributes(idp.metadata_xml)
 
+    # Iteration 5: surface enabled tenant attributes alongside fixed rows.
+    # Group registry entries by category, preserving registry order.
+    from constants.user_attributes import CATEGORIES, STANDARD_ATTRIBUTES
+    from services import settings as settings_service
+
+    try:
+        config_rows = settings_service.list_tenant_attribute_config(requesting_user)
+    except ServiceError:
+        config_rows = []
+    enabled_keys = {row["attribute_key"] for row in config_rows if row.get("enabled")}
+
+    enabled_attribute_groups: list[dict] = []
+    for category in CATEGORIES:
+        category_attrs = [
+            {
+                "key": attr.key,
+                "default_friendly_name": attr.default_friendly_name,
+                "form_field_name": f"attr_{attr.key}",
+            }
+            for attr in STANDARD_ATTRIBUTES
+            if attr.category == category and attr.key in enabled_keys
+        ]
+        if category_attrs:
+            enabled_attribute_groups.append({"category": category, "attributes": category_attrs})
+
     context = get_template_context(
         request,
         tenant_id,
         idp=idp,
         advertised_attributes=advertised_attributes,
+        enabled_attribute_groups=enabled_attribute_groups,
         active_tab="attributes",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
@@ -584,31 +610,59 @@ def toggle_verbose_logging(
     "/admin/settings/identity-providers/{idp_id}/edit-attributes",
     dependencies=[Depends(require_super_admin)],
 )
-def edit_idp_attributes(
+async def edit_idp_attributes(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
-    attr_email: Annotated[str, Form(max_length=255)] = "email",
-    attr_first_name: Annotated[str, Form(max_length=255)] = "firstName",
-    attr_last_name: Annotated[str, Form(max_length=255)] = "lastName",
-    attr_groups: Annotated[str, Form(max_length=255)] = "groups",
 ):
-    """Update IdP attribute mapping."""
+    """Update IdP attribute mapping.
+
+    Accepts the four fixed keys (email/first_name/last_name/groups) plus one
+    ``attr_<registry_key>`` form field per standard attribute. Empty / missing
+    values fall back to the registry's friendly default so saving does not
+    silently drop rows.
+    """
+    from constants.user_attributes import STANDARD_ATTRIBUTES
+
     requesting_user = build_requesting_user(user, tenant_id, request)
+    form = await request.form()
+
+    def _value(field: str, default: str | None = None) -> str | None:
+        v = form.get(field)
+        if v is None:
+            return default
+        # Form values may be UploadFile if a file field collides; we only want str.
+        if not isinstance(v, str):
+            return default
+        v = v.strip()
+        # Cap length at 255 (matches the Pydantic field constraint).
+        if len(v) > 255:
+            v = v[:255]
+        return v if v else default
+
+    # Fixed keys always present; preserve current defaults when blank.
+    attribute_mapping: dict[str, str] = {
+        "email": _value("attr_email", "email") or "email",
+        "first_name": _value("attr_first_name", "firstName") or "firstName",
+        "last_name": _value("attr_last_name", "lastName") or "lastName",
+        "groups": _value("attr_groups", "groups") or "groups",
+    }
+    # Standard attributes only included if the form actually carries the
+    # field (i.e. the tenant has enabled it). Empty values fall back to the
+    # registry's friendly default so save does not silently drop the row.
+    for attr in STANDARD_ATTRIBUTES:
+        field_name = f"attr_{attr.key}"
+        if field_name in form:
+            attribute_mapping[attr.key] = (
+                _value(field_name, attr.default_friendly_name) or attr.default_friendly_name
+            )
 
     try:
         saml_service.update_identity_provider(
             requesting_user,
             idp_id,
-            IdPUpdate(
-                attribute_mapping={
-                    "email": attr_email,
-                    "first_name": attr_first_name,
-                    "last_name": attr_last_name,
-                    "groups": attr_groups,
-                }
-            ),
+            IdPUpdate(attribute_mapping=attribute_mapping),
         )
     except NotFoundError:
         return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)

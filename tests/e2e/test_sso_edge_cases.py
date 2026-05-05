@@ -243,8 +243,11 @@ class TestSwitchAccount:
         page.locator("#email").fill(user_b_email)
         page.locator("#emailForm button[type='submit']").click()
 
-        # Direct routing: password form immediately
+        # Direct routing: password form immediately. Wait for the loginForm to
+        # become visible (passkey-first variant hides it until WebAuthn begin
+        # returns 404).
         page.wait_for_url("**/login?**show_password**", timeout=10000)
+        page.wait_for_selector("#loginForm:not(.hidden)", timeout=10000)
         page.locator("input[name='password']").fill(user_b_password)
         page.locator("#loginForm button[type='submit']").click()
 

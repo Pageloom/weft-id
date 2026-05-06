@@ -16,6 +16,7 @@ __pycache__/
 .claude/settings.local.json
 .claude/worktrees/
 /storage/*
+app/storage/
 
 # Frontend build artifacts
 static/css/output.css

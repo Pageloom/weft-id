@@ -12,6 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 2 | Duplication (pre-existing), UX (new) |
+| Deps | 4 | urllib3, pip, python-multipart, pygments (pre-existing) |
 
 **Last security scan:** 2026-04-24 (targeted: all code from last 14 days, all OWASP categories; 3 findings, all resolved)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
@@ -70,3 +71,26 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
+
+## [DEPS] Transitive/pinned CVEs blocking `make check`
+
+**Discovered:** 2026-05-12 (iter 6 close-out)
+**Severity:** Mixed (1 HIGH, 2 MEDIUM, 1 LOW)
+**Source:** `python dev/deps_check.py`
+
+`make check` fails because `deps_check.py` reports 4 CVEs that all pre-date the
+`feature/user-attributes` branch (confirmed by stashing the working tree).
+
+- **urllib3 2.6.3 → 2.7.0** (HIGH, transitive)
+- **pip 26.0.1 → 26.1** (MEDIUM, build tool, not a project dep)
+- **python-multipart 0.0.26 → 0.0.27** (MEDIUM, pinned `^0.0.26` in `pyproject.toml`)
+- **pygments 2.19.2 → 2.20.0** (LOW, pinned `<2.20` because 2.20.0 breaks
+  `pymdownx.superfences` — requires upstream fix or a swap to the new API
+  before bumping)
+
+Hold off on a one-line bump until `/deps` does a full audit; pygments needs an
+upstream fix or a switch off `pymdownx.superfences`. Track here until resolved.
+
+**Files Affected:** `pyproject.toml`, `poetry.lock`
+
+---

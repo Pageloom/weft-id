@@ -66,6 +66,141 @@ def get_groups_for_consent(
     return get_groups_for_assertion(tenant_id, user_id, str(sp_row["id"]), sp_row)
 
 
+def _build_assertion_attributes(
+    tenant_id: str,
+    user_id: str,
+    *,
+    email: str,
+    first_name: str,
+    last_name: str,
+    group_names: list[str],
+    attribute_mapping: dict[str, str] | None,
+) -> dict[str, str | list[str]]:
+    """Build the user_attributes dict for SAML assertion emission.
+
+    Bridges between the SP's ``attribute_mapping`` and the value sources:
+
+    * Fixed keys (email/firstName/lastName/displayName) come from the users
+      row + primary_email. ``displayName`` is composed from first+last.
+    * ``groups`` comes from the precomputed ``group_names`` list (already
+      filtered by include_group_claims + scope).
+    * Standard-attribute registry keys are read from ``user_attributes``
+      (the canonical EAV table). A registry key is emitted iff (a) the tenant
+      has it enabled in ``tenant_attribute_config`` (when a config row exists),
+      (b) the SP's ``attribute_mapping`` includes it (when one is configured),
+      and (c) the user has a non-empty value.
+
+    Empty / missing values are dropped so ``build_saml_response`` does not
+    emit empty ``<saml:Attribute>`` elements (Iteration 6 acceptance criterion).
+
+    Wire-name collision precedence: the registry key ``display_name`` and the
+    fixed key ``displayName`` both resolve to the same wire name (the registry
+    entry's ``default_friendly_name`` is ``"displayName"``). When the tenant
+    enables ``display_name`` and the user has a stored value, the EAV value
+    wins; otherwise the fixed first+last composition wins. The downstream
+    emitter looks up each result-dict key in ``attribute_mapping``, so we drop
+    the fixed ``displayName`` entry when the registry-sourced value will fill
+    the same wire slot.
+
+    The downstream emitter (``build_saml_response``) consumes
+    ``attribute_mapping`` to look up the wire name per key, so this helper does
+    not transform key names -- it only decides which keys (with values) belong
+    in the dict.
+    """
+    from constants.user_attributes import ATTRIBUTE_KEYS, deserialize
+
+    result: dict[str, str | list[str]] = {}
+
+    # Fixed keys
+    if email:
+        result["email"] = email
+    if first_name:
+        result["firstName"] = first_name
+    if last_name:
+        result["lastName"] = last_name
+    display_name = f"{first_name} {last_name}".strip()
+    if display_name:
+        result["displayName"] = display_name
+    if group_names:
+        result["groups"] = group_names
+
+    # Tenant attribute config (enabled flags). A registry key is only emitted
+    # when the tenant config row exists AND enabled=true. Without this filter,
+    # disabling an attribute after an SP's mapping was seeded would silently
+    # keep leaking the value out to that SP.
+    try:
+        config_rows = database.tenant_attribute_config.list_config(tenant_id)
+    except Exception:  # noqa: BLE001 -- never break SSO over an attribute fetch
+        logger.warning(
+            "Failed to load tenant_attribute_config for tenant_id=%s; "
+            "assertion omits standard attrs",
+            tenant_id,
+            exc_info=True,
+        )
+        config_rows = []
+    enabled_tenant_keys = {row.get("attribute_key") for row in config_rows if row.get("enabled")}
+
+    # Standard attributes from EAV. Read once; merge by registry key.
+    try:
+        rows = database.user_attributes.list_attributes(tenant_id, user_id)
+    except Exception:  # noqa: BLE001 -- never break SSO over an attribute fetch
+        logger.warning(
+            "Failed to load user_attributes for user_id=%s; assertion omits standard attrs",
+            user_id,
+            exc_info=True,
+        )
+        rows = []
+
+    # When attribute_mapping is provided, only include keys present in the
+    # mapping. Otherwise, include every value the user has. This honors the
+    # "empty values not emitted" rule AND the "only configured keys emitted"
+    # rule together: a key is emitted iff (mapping says emit it) AND (user has
+    # a non-empty value).
+    allowed_keys: set[str] | None = None
+    if attribute_mapping is not None:
+        allowed_keys = {k for k in attribute_mapping if k in ATTRIBUTE_KEYS}
+
+    for row in rows:
+        key = row.get("attribute_key")
+        raw = row.get("value")
+        if not key or raw is None or raw == "":
+            continue
+        if key not in ATTRIBUTE_KEYS:
+            continue
+        if allowed_keys is not None and key not in allowed_keys:
+            continue
+        # Tenant-disabled attributes do not leak even if the SP mapping still
+        # references the key. (Skip the check only when no config rows were
+        # loaded at all -- e.g., DB read failure -- so a transient outage does
+        # not silently drop every standard attribute.)
+        if config_rows and key not in enabled_tenant_keys:
+            continue
+        try:
+            typed = deserialize(key, str(raw))
+        except ValueError:
+            # Corrupt row (fails the registry validator) -- skip rather than
+            # break the assertion. ``deserialize`` is guaranteed to return a
+            # non-empty string on success (empty values raise), so there is no
+            # need to re-check emptiness here.
+            continue
+        result[key] = typed
+
+    # Resolve display_name / displayName wire-name collision: if the EAV merge
+    # placed a non-empty ``display_name`` AND that key is in the mapping, drop
+    # the fixed ``displayName`` so build_saml_response does not emit two
+    # ``<saml:Attribute Name="...">`` elements that resolve to the same wire
+    # name. The registry value wins (admin intent: explicit > composed).
+    if (
+        "display_name" in result
+        and attribute_mapping is not None
+        and "display_name" in attribute_mapping
+        and result.get("display_name")
+    ):
+        result.pop("displayName", None)
+
+    return result
+
+
 def get_service_provider_by_id(tenant_id: str, sp_id: str) -> dict | None:
     """Look up an SP by ID. No auth check required.
 
@@ -182,20 +317,29 @@ def build_sso_response(
 
     email = primary_email_row["email"]
 
-    # 5. Build user attributes
-    first_name = user.get("first_name", "")
-    last_name = user.get("last_name", "")
-    user_attributes: dict[str, str | list[str]] = {
-        "email": email,
-        "firstName": first_name,
-        "lastName": last_name,
-        "displayName": f"{first_name} {last_name}".strip(),
-    }
+    # 5. Build user attributes (bridge between mapping + value sources).
+    # Fixed keys come from the users row; standard attribute registry keys
+    # come from the user_attributes EAV table. Empty values are dropped so
+    # no empty <saml:Attribute> elements are emitted.
+    first_name = user.get("first_name", "") or ""
+    last_name = user.get("last_name", "") or ""
 
     # 5b. Include group claims based on assertion scope
     group_names = get_groups_for_assertion(tenant_id, user_id, sp_id, sp_row)
-    if group_names:
-        user_attributes["groups"] = group_names
+
+    # 6b. Get per-SP attribute mapping (if configured) -- determines which
+    # standard-attribute keys are emitted at all.
+    attribute_mapping = sp_row.get("attribute_mapping")
+
+    user_attributes = _build_assertion_attributes(
+        tenant_id,
+        user_id,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        group_names=group_names,
+        attribute_mapping=attribute_mapping,
+    )
 
     # 6. Resolve NameID value and format
     from services.service_providers.nameid import resolve_name_id
@@ -212,9 +356,6 @@ def build_sso_response(
         nameid_format=name_id_format,
         user_email=email,
     )
-
-    # 6b. Get per-SP attribute mapping (if configured)
-    attribute_mapping = sp_row.get("attribute_mapping")
 
     # 6c. Encrypt assertion if SP provides an encryption certificate
     encryption_cert = sp_row.get("encryption_certificate_pem")
@@ -286,22 +427,24 @@ def preview_assertion(
         raise ValidationError(message="User has no primary email", code="user_no_email")
 
     email = primary_email_row["email"]
-    first_name = user.get("first_name", "")
-    last_name = user.get("last_name", "")
+    first_name = user.get("first_name", "") or ""
+    last_name = user.get("last_name", "") or ""
 
-    # 3. Build user attributes (same logic as build_sso_response)
+    # 3. Build user attributes via the same bridge helper used by build_sso_response,
+    # so preview matches actual emission. Standard-attribute keys from the EAV
+    # are merged in; empty values are dropped.
     sp_id_str = str(sp_row["id"])
-    user_attributes: dict[str, str | list[str]] = {
-        "email": email,
-        "firstName": first_name,
-        "lastName": last_name,
-        "displayName": f"{first_name} {last_name}".strip(),
-    }
-
-    # 4. Compute group claims
     group_names = get_groups_for_assertion(tenant_id, target_user_id, sp_id_str, sp_row)
-    if group_names:
-        user_attributes["groups"] = group_names
+    attribute_mapping = sp_row.get("attribute_mapping")
+    user_attributes = _build_assertion_attributes(
+        tenant_id,
+        target_user_id,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        group_names=group_names,
+        attribute_mapping=attribute_mapping,
+    )
 
     # 5. Resolve NameID
     from services.service_providers.nameid import resolve_name_id
@@ -316,9 +459,6 @@ def preview_assertion(
         nameid_format=name_id_format,
         user_email=email,
     )
-
-    # 6. Apply per-SP attribute mapping (for display)
-    attribute_mapping = sp_row.get("attribute_mapping")
 
     # 7. Check access
     from services.service_providers.group_assignments import check_user_sp_access

@@ -3,7 +3,31 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from constants.user_attributes import ATTRIBUTE_KEYS, FIXED_SP_ATTRIBUTE_KEYS
+from pydantic import BaseModel, Field, field_validator
+
+
+def _validate_sp_attribute_mapping_keys(
+    value: dict[str, str] | None,
+) -> dict[str, str] | None:
+    """Reject mapping keys outside the fixed SP set or the standard registry.
+
+    Iteration 6: ensures tenants cannot persist mappings for unknown logical
+    names that the assertion builder has no value source for.
+
+    Allowed mapping keys = fixed SP set (camelCase wire names) ∪ standard
+    attribute registry keys (snake_case logical names).
+    """
+    if value is None:
+        return value
+    allowed = FIXED_SP_ATTRIBUTE_KEYS | ATTRIBUTE_KEYS
+    bad = sorted(k for k in value if k not in allowed)
+    if bad:
+        raise ValueError(
+            "attribute_mapping contains unknown keys: " + ", ".join(bad),
+        )
+    return value
+
 
 # ============================================================================
 # Request Schemas
@@ -71,6 +95,11 @@ class SPUpdate(BaseModel):
     attribute_mapping: (
         dict[Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]] | None
     ) = None
+
+    @field_validator("attribute_mapping")
+    @classmethod
+    def _check_mapping_keys(cls, value: dict[str, str] | None) -> dict[str, str] | None:
+        return _validate_sp_attribute_mapping_keys(value)
 
 
 # ============================================================================

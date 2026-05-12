@@ -24,10 +24,32 @@ row into tenant_attribute_config for every existing tenant.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Final, Literal
 
 Category = Literal["contact", "professional", "location", "profile"]
+
+
+# ----------------------------------------------------------------------------
+# Fixed SP-side attribute keys (camelCase wire names)
+# ----------------------------------------------------------------------------
+# These resolve to first-class user columns or computed values rather than
+# user_attributes rows. They are the "fixed" half of the SP attribute_mapping
+# allowed-key set (the other half is ATTRIBUTE_KEYS below).
+FIXED_SP_ATTRIBUTE_KEYS: Final[frozenset[str]] = frozenset(
+    {"email", "firstName", "lastName", "displayName", "groups"}
+)
+
+# Defaults used when seeding a new SP's attribute_mapping. Mirrors the camelCase
+# wire names; tenants can override these on the SP detail page.
+FIXED_SP_DEFAULTS: Final[Mapping[str, str]] = {
+    "email": "email",
+    "firstName": "firstName",
+    "lastName": "lastName",
+    "displayName": "displayName",
+    "groups": "groups",
+}
 ValueType = Literal["string", "country", "locale", "phone", "postal_code"]
 Source = Literal["idp", "admin", "self"]
 

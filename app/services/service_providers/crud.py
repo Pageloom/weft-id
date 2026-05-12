@@ -23,6 +23,42 @@ from services.types import RequestingUser
 logger = logging.getLogger(__name__)
 
 
+def _seeded_attribute_mapping(tenant_id: str) -> dict[str, str]:
+    """Build the default attribute_mapping for a newly-created SP.
+
+    Returns a copy of ``FIXED_SP_DEFAULTS`` extended with one row per
+    standard attribute where the tenant has ``enabled=true`` AND
+    ``send_to_sps_default=true``. The wire name defaults to the registry's
+    friendly camelCase. Tenants opt out per-attribute by flipping
+    ``send_to_sps_default`` or ``enabled`` in their attribute config.
+
+    Errors loading the config are swallowed (and logged) -- new SP creation
+    must not fail because of an attribute-config read.
+    """
+    from constants.user_attributes import ATTRIBUTES_BY_KEY, FIXED_SP_DEFAULTS
+
+    mapping: dict[str, str] = dict(FIXED_SP_DEFAULTS)
+    try:
+        rows = database.tenant_attribute_config.list_config(tenant_id)
+    except Exception:  # noqa: BLE001 -- never block SP creation on this
+        logger.warning(
+            "Failed to load tenant_attribute_config while seeding SP defaults for tenant_id=%s",
+            tenant_id,
+            exc_info=True,
+        )
+        return mapping
+
+    for row in rows:
+        if not row.get("enabled") or not row.get("send_to_sps_default"):
+            continue
+        key = row.get("attribute_key")
+        attr = ATTRIBUTES_BY_KEY.get(key) if key else None
+        if attr is None:
+            continue
+        mapping.setdefault(attr.key, attr.default_friendly_name)
+    return mapping
+
+
 def _get_or_create_sp_signing_certificate(
     tenant_id: str,
     sp_id: str,
@@ -98,13 +134,18 @@ def _create_sp_from_parsed_metadata(
             code="sp_entity_id_exists",
         )
 
-    # Extract and auto-detect attribute mapping from SP metadata
+    # Extract and auto-detect attribute mapping from SP metadata, then merge
+    # in the tenant's standard-attribute defaults (Iteration 6). Auto-detected
+    # entries (from SP metadata) take precedence over the friendly-camelCase
+    # defaults so SPs that ask for OIDs get OIDs.
     sp_requested_attributes = parsed.get("requested_attributes")
-    attribute_mapping = None
+    seeded = _seeded_attribute_mapping(tenant_id)
+    auto_detected: dict[str, str] = {}
     if sp_requested_attributes:
         from utils.saml_idp import auto_detect_attribute_mapping
 
-        attribute_mapping = auto_detect_attribute_mapping(sp_requested_attributes) or None
+        auto_detected = auto_detect_attribute_mapping(sp_requested_attributes) or {}
+    attribute_mapping = {**seeded, **auto_detected} or None
 
     row = database.service_providers.create_service_provider(
         tenant_id=tenant_id,
@@ -262,12 +303,18 @@ def create_service_provider(
                 code="sp_entity_id_exists",
             )
 
+    # Seed attribute_mapping with fixed defaults + tenant-opted-in standard
+    # attributes (Iteration 6). Existing SPs are not touched -- only newly
+    # created rows pick up the seeded defaults.
+    seeded_mapping = _seeded_attribute_mapping(tenant_id)
+
     row = database.service_providers.create_service_provider(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
         name=data.name,
         entity_id=data.entity_id,
         acs_url=data.acs_url,
+        attribute_mapping=seeded_mapping,
         created_by=requesting_user["id"],
         description=data.description,
         slo_url=data.slo_url,

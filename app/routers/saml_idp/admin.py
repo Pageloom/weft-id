@@ -295,6 +295,43 @@ def sp_tab_attributes(
         except (ValueError, Exception):
             pass  # Non-critical: just skip displaying advertised methods
 
+    # Iteration 6: split standard attributes into "mapped" (already in
+    # attribute_mapping) and "available, not sent" (tenant enabled but absent
+    # from the SP mapping) so the template can render distinct sections.
+    from constants.user_attributes import CATEGORIES, STANDARD_ATTRIBUTES
+    from services import settings as settings_service
+
+    try:
+        config_rows = settings_service.list_tenant_attribute_config(requesting_user)
+    except ServiceError:
+        config_rows = []
+    enabled_keys = {row["attribute_key"] for row in config_rows if row.get("enabled")}
+
+    current_mapping = sp_config.attribute_mapping or {}
+    mapped_standard_rows: list[dict] = []
+    available_groups: list[dict] = []
+    for category in CATEGORIES:
+        avail_in_cat: list[dict] = []
+        for attr in STANDARD_ATTRIBUTES:
+            if attr.category != category:
+                continue
+            if attr.key not in enabled_keys:
+                continue
+            entry = {
+                "key": attr.key,
+                "default_friendly_name": attr.default_friendly_name,
+                "default_oid": attr.default_oid,
+                "form_field_name": f"attr_map_{attr.key}",
+                "category": attr.category,
+            }
+            if attr.key in current_mapping:
+                entry["current_value"] = current_mapping[attr.key]
+                mapped_standard_rows.append(entry)
+            else:
+                avail_in_cat.append(entry)
+        if avail_in_cat:
+            available_groups.append({"category": category, "attributes": avail_in_cat})
+
     context = get_template_context(
         request,
         tenant_id,
@@ -304,6 +341,8 @@ def sp_tab_attributes(
         expected_mapping=expected_mapping,
         tenant_default_scope=tenant_default_scope,
         encryption_methods=encryption_methods,
+        mapped_standard_rows=mapped_standard_rows,
+        available_attribute_groups=available_groups,
         active_tab="attributes",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
@@ -565,52 +604,82 @@ def sp_edit_nameid_format(
 
 
 @router.post("/{sp_id}/edit-attributes", response_class=HTMLResponse)
-def sp_edit_attributes(
+async def sp_edit_attributes(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    include_group_claims: str | None = Form(None),
-    group_assertion_scope: str = Form(""),
-    assertion_encryption_algorithm: str = Form(""),
-    attr_map_email: str = Form(""),
-    attr_map_firstName: str = Form(""),  # noqa: N803
-    attr_map_lastName: str = Form(""),  # noqa: N803
-    attr_map_groups: str = Form(""),
 ):
-    """Update SP attribute mapping, group claims, scope override, and encryption algorithm."""
+    """Update SP attribute mapping, group claims, scope override, and encryption algorithm.
+
+    Form fields accepted:
+        - include_group_claims, group_assertion_scope, assertion_encryption_algorithm
+        - attr_map_email / attr_map_firstName / attr_map_lastName /
+          attr_map_displayName / attr_map_groups (fixed defaults)
+        - attr_map_<registry_key> for each standard attribute the tenant has
+          enabled (Iteration 6). Unknown attr_map_* keys are silently dropped
+          so the validator does not reject the request.
+    """
     if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
+    from constants.user_attributes import STANDARD_ATTRIBUTES
     from schemas.service_providers import SPUpdate
 
+    form = await request.form()
+
+    def _str_value(key: str) -> str | None:
+        raw = form.get(key)
+        if raw is None or not isinstance(raw, str):
+            return None
+        stripped = raw.strip()
+        return stripped if stripped else None
+
     update_fields: dict = {}
-    update_fields["include_group_claims"] = include_group_claims == "true"
+    update_fields["include_group_claims"] = form.get("include_group_claims") == "true"
 
     # Per-SP encryption algorithm: only set when a valid value is provided
     valid_algorithms = ("aes256-cbc", "aes256-gcm")
-    if assertion_encryption_algorithm in valid_algorithms:
-        update_fields["assertion_encryption_algorithm"] = assertion_encryption_algorithm
+    algo = form.get("assertion_encryption_algorithm")
+    if isinstance(algo, str) and algo in valid_algorithms:
+        update_fields["assertion_encryption_algorithm"] = algo
 
     # Per-SP scope override: empty string means inherit tenant default (NULL in DB)
     valid_scopes = ("all", "trunk", "access_relevant")
-    if group_assertion_scope in valid_scopes:
-        update_fields["group_assertion_scope"] = group_assertion_scope
+    scope = form.get("group_assertion_scope")
+    if isinstance(scope, str) and scope in valid_scopes:
+        update_fields["group_assertion_scope"] = scope
     else:
-        # Empty/unrecognized = clear the override (inherit tenant default)
         update_fields["group_assertion_scope"] = None
 
+    # Build attribute_mapping from a fixed allow-list of keys, defensively
+    # filtering out anything outside the known set so the schema validator
+    # never sees an unexpected key.
+    fixed_keys = (
+        ("email", "email"),
+        ("firstName", "firstName"),
+        ("lastName", "lastName"),
+        ("displayName", "displayName"),
+        ("groups", "groups"),
+    )
     attr_mapping: dict[str, str] = {}
-    if attr_map_email.strip():
-        attr_mapping["email"] = attr_map_email.strip()
-    if attr_map_firstName.strip():
-        attr_mapping["firstName"] = attr_map_firstName.strip()
-    if attr_map_lastName.strip():
-        attr_mapping["lastName"] = attr_map_lastName.strip()
-    if attr_map_groups.strip():
-        attr_mapping["groups"] = attr_map_groups.strip()
+    for key, default in fixed_keys:
+        v = _str_value(f"attr_map_{key}")
+        if v:
+            attr_mapping[key] = v[:255]
+        elif f"attr_map_{key}" in form:
+            # Field present but empty: fall back to default rather than dropping.
+            attr_mapping[key] = default
+    for attr in STANDARD_ATTRIBUTES:
+        field_name = f"attr_map_{attr.key}"
+        if field_name not in form:
+            continue
+        v = _str_value(field_name)
+        if v:
+            attr_mapping[attr.key] = v[:255]
+        # Empty registry-attribute field => omit (means "stop sending this key").
     if attr_mapping:
         update_fields["attribute_mapping"] = attr_mapping
 

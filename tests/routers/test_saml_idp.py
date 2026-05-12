@@ -579,6 +579,140 @@ class TestSPTabAttributes:
         ctx_kwargs = mock_ctx.call_args[1]
         assert ctx_kwargs["active_tab"] == "attributes"
         assert "saml_attributes" in ctx_kwargs
+        # Iteration 6 context fields are present.
+        assert "mapped_standard_rows" in ctx_kwargs
+        assert "available_attribute_groups" in ctx_kwargs
+
+    def test_attributes_tab_iter6_classifies_enabled_attributes(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Iter 6: enabled tenant attrs split into 'mapped' vs 'available, not sent'."""
+        # SP currently maps job_title; phone_work is enabled in tenant config
+        # but not mapped on this SP yet.
+        sample_sp_config.attribute_mapping = {
+            "email": "email",
+            "firstName": "firstName",
+            "lastName": "lastName",
+            "job_title": "jobTitle",
+        }
+
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>attributes tab</html>")
+
+        with patch(
+            "services.settings.list_tenant_attribute_config",
+            return_value=[
+                {"attribute_key": "job_title", "category": "professional", "enabled": True},
+                {"attribute_key": "phone_work", "category": "contact", "enabled": True},
+                {"attribute_key": "department", "category": "professional", "enabled": False},
+            ],
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/attributes",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        mapped = ctx_kwargs["mapped_standard_rows"]
+        available = ctx_kwargs["available_attribute_groups"]
+
+        mapped_keys = {row["key"] for row in mapped}
+        assert "job_title" in mapped_keys
+        # department is disabled, not surfaced anywhere
+        assert "department" not in mapped_keys
+
+        avail_keys: set[str] = set()
+        for group in available:
+            for attr in group["attributes"]:
+                avail_keys.add(attr["key"])
+        assert "phone_work" in avail_keys
+        assert "job_title" not in avail_keys  # already mapped
+        assert "department" not in avail_keys  # disabled
+
+    def test_available_attribute_groups_category_order(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """available_attribute_groups are returned in the canonical category
+        order: contact, professional, location, profile."""
+        sample_sp_config.attribute_mapping = {
+            "email": "email",
+            "firstName": "firstName",
+            "lastName": "lastName",
+        }
+
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>attributes tab</html>")
+
+        # Enable one attribute in each of the four categories, listed in a
+        # deliberately scrambled order in the input to prove the route
+        # imposes the canonical order rather than passing input order through.
+        with patch(
+            "services.settings.list_tenant_attribute_config",
+            return_value=[
+                {"attribute_key": "country", "category": "location", "enabled": True},
+                {"attribute_key": "description", "category": "profile", "enabled": True},
+                {"attribute_key": "phone_work", "category": "contact", "enabled": True},
+                {"attribute_key": "job_title", "category": "professional", "enabled": True},
+            ],
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/attributes",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        groups = ctx_kwargs["available_attribute_groups"]
+        # Exactly four categories with one attribute each, in canonical order.
+        observed = [g["category"] for g in groups]
+        assert observed == ["contact", "professional", "location", "profile"]
+
+    def test_attributes_tab_renders_oid_button_for_mapped_standard_attr(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """When a standard attribute is mapped, the rendered HTML wires the
+        OID button (data-oid="urn:oid:...") and surfaces the 'Use SAML OID'
+        label so admins can swap the wire URI to the registry OID in one click."""
+        # SP currently maps job_title; the registry entry has default_oid
+        # 'urn:oid:2.5.4.12' (see constants/user_attributes.py).
+        sample_sp_config.attribute_mapping = {
+            "email": "email",
+            "firstName": "firstName",
+            "lastName": "lastName",
+            "job_title": "jobTitle",
+        }
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sample_sp_config,
+            ),
+            patch(
+                "services.service_providers.count_sp_group_assignments",
+                return_value=0,
+            ),
+            patch(
+                "services.settings.list_tenant_attribute_config",
+                return_value=[
+                    {"attribute_key": "job_title", "category": "professional", "enabled": True},
+                ],
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/attributes",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        # OID button is wired with the registry OID for job_title (title).
+        assert 'data-oid="urn:oid:2.5.4.12"' in response.text
+        # Visible label appears at least once.
+        assert "Use SAML OID" in response.text
 
 
 # =============================================================================
@@ -1385,6 +1519,106 @@ class TestSPEditAttributes:
         assert response.status_code == 303
         assert f"/{sp_id}/attributes" in response.headers["location"]
         assert "error=" in response.headers["location"]
+
+    def test_edit_attributes_includes_standard_attributes(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Iteration 6: attr_map_<registry_key> form fields persist into the mapping."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={
+                    "include_group_claims": "false",
+                    "attr_map_email": "email",
+                    "attr_map_firstName": "givenName",
+                    "attr_map_lastName": "sn",
+                    "attr_map_displayName": "cn",
+                    "attr_map_groups": "groups",
+                    "attr_map_job_title": "jobTitle",
+                    "attr_map_department": "department",
+                    "attr_map_phone_work": "telephone",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=attributes_updated" in response.headers["location"]
+        sp_update = mock_update.call_args[0][2]
+        assert sp_update.attribute_mapping is not None
+        assert sp_update.attribute_mapping["job_title"] == "jobTitle"
+        assert sp_update.attribute_mapping["department"] == "department"
+        assert sp_update.attribute_mapping["phone_work"] == "telephone"
+        assert sp_update.attribute_mapping["firstName"] == "givenName"
+
+    def test_edit_attributes_skips_unknown_form_keys(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Unknown attr_map_<key> form fields are dropped, not forwarded to the schema."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={
+                    "include_group_claims": "false",
+                    "attr_map_email": "email",
+                    "attr_map_made_up_thing": "x",
+                    "attr_map_another_fake": "y",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        sp_update = mock_update.call_args[0][2]
+        assert sp_update.attribute_mapping is not None
+        # Known fixed keys present
+        assert "email" in sp_update.attribute_mapping
+        # Unknown keys silently dropped
+        assert "made_up_thing" not in sp_update.attribute_mapping
+        assert "another_fake" not in sp_update.attribute_mapping
+
+    def test_edit_attributes_empty_fixed_key_falls_back_to_default(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Fix 6: posting an empty value for a fixed attr_map_<fixed> field
+        keeps the camelCase default, locking in the asymmetric behaviour
+        between fixed and registry keys (registry keys drop on empty)."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={
+                    "include_group_claims": "false",
+                    # Empty fixed key: should fall back to "email"
+                    "attr_map_email": "",
+                    # Empty registry key: should NOT appear in mapping
+                    "attr_map_job_title": "",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        sp_update = mock_update.call_args[0][2]
+        assert sp_update.attribute_mapping is not None
+        # Empty fixed key falls back to default friendly name.
+        assert sp_update.attribute_mapping["email"] == "email"
+        # Empty registry key is dropped (not "stop sending" via fallback).
+        assert "job_title" not in sp_update.attribute_mapping
 
 
 # =============================================================================

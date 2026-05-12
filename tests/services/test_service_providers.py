@@ -1650,7 +1650,14 @@ class TestImportSPStoresAttributeMapping:
             assert "firstName" in call_kwargs["attribute_mapping"]
 
     def test_import_xml_no_requested_attributes(self, make_requesting_user):
-        """Import from XML passes None when metadata has no RequestedAttribute."""
+        """Import from XML with no RequestedAttribute still seeds the fixed defaults.
+
+        Iteration 6 changed this path: even when the SP metadata advertises
+        no attribute expectations, new SPs receive the fixed
+        email/firstName/lastName/displayName/groups defaults so the SAML
+        builder has a complete mapping. Tenant-enabled standard attributes
+        are also merged in when ``send_to_sps_default=true``.
+        """
         from services import service_providers as sp_service
 
         tenant_id = str(uuid4())
@@ -1672,6 +1679,7 @@ class TestImportSPStoresAttributeMapping:
         ):
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
             mock_db.service_providers.create_service_provider.return_value = row
+            mock_db.tenant_attribute_config.list_config.return_value = []
 
             sp_service.import_sp_from_metadata_xml(
                 requesting_user, name="No Attrs", metadata_xml="<xml/>"
@@ -1679,7 +1687,13 @@ class TestImportSPStoresAttributeMapping:
 
             call_kwargs = mock_db.service_providers.create_service_provider.call_args[1]
             assert call_kwargs["sp_requested_attributes"] is None
-            assert call_kwargs["attribute_mapping"] is None
+            seeded = call_kwargs["attribute_mapping"]
+            assert seeded is not None
+            assert seeded["email"] == "email"
+            assert seeded["firstName"] == "firstName"
+            assert seeded["lastName"] == "lastName"
+            assert seeded["displayName"] == "displayName"
+            assert seeded["groups"] == "groups"
 
 
 # =============================================================================

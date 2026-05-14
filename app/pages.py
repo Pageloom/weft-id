@@ -559,6 +559,12 @@ PAGES = [
                             ),
                         ],
                     ),
+                    Page(
+                        path="/admin/todo/user-attributes",
+                        title="User Attributes",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
                 ],
             ),
             # Audit section: Event Log

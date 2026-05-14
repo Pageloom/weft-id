@@ -238,3 +238,102 @@ def test_cross_tenant_upsert_rejected_by_rls(test_user):
             "DELETE FROM tenants WHERE id = :id",
             {"id": other["id"]},
         )
+
+
+# ---------------------------------------------------------------------------
+# Iteration 7: list_missing_required_for_tenant
+# ---------------------------------------------------------------------------
+
+
+def test_list_missing_required_for_tenant_returns_rows(test_user):
+    """Returns one row per (active user, missing required attribute key)."""
+    from constants.user_attributes import ATTRIBUTES_BY_KEY
+
+    attr = ATTRIBUTES_BY_KEY["job_title"]
+    database.execute(
+        test_user["tenant_id"],
+        """
+        INSERT INTO tenant_attribute_config (
+            tenant_id, attribute_key, category, enabled, required,
+            mirror_from_idp, locked_for_users, send_to_sps_default
+        ) VALUES (
+            :tenant_id, :key, :category, true, true, false, false, true
+        )
+        ON CONFLICT (tenant_id, attribute_key) DO UPDATE SET
+            enabled = true, required = true, locked_for_users = false
+        """,
+        {
+            "tenant_id": str(test_user["tenant_id"]),
+            "key": "job_title",
+            "category": attr.category,
+        },
+    )
+    rows = database.user_attributes.list_missing_required_for_tenant(test_user["tenant_id"])
+    matching = [r for r in rows if str(r["user_id"]) == str(test_user["id"])]
+    assert matching
+    assert matching[0]["attribute_key"] == "job_title"
+    assert matching[0]["locked_for_users"] is False
+
+
+def test_list_missing_required_for_tenant_excludes_filled(test_user):
+    from constants.user_attributes import ATTRIBUTES_BY_KEY
+
+    attr = ATTRIBUTES_BY_KEY["job_title"]
+    database.execute(
+        test_user["tenant_id"],
+        """
+        INSERT INTO tenant_attribute_config (
+            tenant_id, attribute_key, category, enabled, required,
+            mirror_from_idp, locked_for_users, send_to_sps_default
+        ) VALUES (
+            :tenant_id, :key, :category, true, true, false, false, true
+        )
+        ON CONFLICT (tenant_id, attribute_key) DO UPDATE SET
+            enabled = true, required = true
+        """,
+        {
+            "tenant_id": str(test_user["tenant_id"]),
+            "key": "job_title",
+            "category": attr.category,
+        },
+    )
+    database.user_attributes.upsert_attribute(
+        tenant_id=test_user["tenant_id"],
+        tenant_id_value=str(test_user["tenant_id"]),
+        user_id=test_user["id"],
+        attribute_key="job_title",
+        value="Engineer",
+    )
+    rows = database.user_attributes.list_missing_required_for_tenant(test_user["tenant_id"])
+    assert all(str(r["user_id"]) != str(test_user["id"]) for r in rows)
+
+
+def test_list_missing_required_for_tenant_excludes_inactivated(test_user):
+    from constants.user_attributes import ATTRIBUTES_BY_KEY
+
+    attr = ATTRIBUTES_BY_KEY["job_title"]
+    database.execute(
+        test_user["tenant_id"],
+        """
+        INSERT INTO tenant_attribute_config (
+            tenant_id, attribute_key, category, enabled, required,
+            mirror_from_idp, locked_for_users, send_to_sps_default
+        ) VALUES (
+            :tenant_id, :key, :category, true, true, false, false, true
+        )
+        ON CONFLICT (tenant_id, attribute_key) DO UPDATE SET
+            enabled = true, required = true
+        """,
+        {
+            "tenant_id": str(test_user["tenant_id"]),
+            "key": "job_title",
+            "category": attr.category,
+        },
+    )
+    database.execute(
+        test_user["tenant_id"],
+        "UPDATE users SET is_inactivated = true WHERE id = :id",
+        {"id": test_user["id"]},
+    )
+    rows = database.user_attributes.list_missing_required_for_tenant(test_user["tenant_id"])
+    assert all(str(r["user_id"]) != str(test_user["id"]) for r in rows)

@@ -4,6 +4,15 @@
 
 {% block content %}
 <div class="max-w-4xl space-y-6">
+    {% if force_profile_completion %}
+    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 px-4 py-3 rounded flex items-start gap-3" role="alert">
+        {{ icon("exclamation-triangle", class="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400") }}
+        <div class="flex-1">
+            <p class="font-medium">You must complete the highlighted fields to continue.</p>
+            <p class="text-sm mt-1">Your administrator has required additional profile information before you can use the rest of the site.</p>
+        </div>
+    </div>
+    {% endif %}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Profile Settings</h1>
 
@@ -48,7 +57,8 @@
                 <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">{{ category.label }}</h2>
                 <div class="space-y-4">
                     {% for attr in category.attributes %}
-                    <div class="profile-attr-row" data-key="{{ attr.key }}">
+                    {% set is_missing_unlocked = attr.key in (missing_unlocked_keys or []) %}
+                    <div class="profile-attr-row {% if is_missing_unlocked %}border-l-4 border-amber-400 dark:border-amber-500 pl-3 -ml-3{% endif %}" data-key="{{ attr.key }}">
                         <label for="profile-attr-{{ attr.key }}" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             <span>{{ attr.label }}</span>
                             {% if attr.locked %}
@@ -56,6 +66,9 @@
                             {% endif %}
                             {% if attr.required %}
                             <span class="text-red-500" title="Required">*</span>
+                            {% endif %}
+                            {% if is_missing_unlocked %}
+                            <span class="text-xs font-normal text-amber-700 dark:text-amber-300">(missing)</span>
                             {% endif %}
                         </label>
                         {% set is_locked = attr.locked %}

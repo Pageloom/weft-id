@@ -16,6 +16,7 @@ from pages import get_first_accessible_child
 from services import bg_tasks as bg_tasks_service
 from services import event_log as event_log_service
 from services import reactivation as reactivation_service
+from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.email import (
     send_account_reactivated_notification,
@@ -383,3 +384,118 @@ def deny_reactivation_request(
         url="/admin/todo/reactivation?success=denied",
         status_code=303,
     )
+
+
+# =============================================================================
+# Todo: User Attributes (incomplete profiles)
+# =============================================================================
+
+
+def _group_missing_rows(rows: list[dict]) -> list[dict]:
+    """Collapse the (user, key) flat list into one row per user.
+
+    Each output row preserves ``user_id``, ``first_name``, ``last_name``,
+    ``email``, and ``force_profile_completion``, plus two key lists:
+    ``missing_unlocked`` and ``missing_locked``. The admin Todo view uses
+    these to flag at a glance which users can be force-completed.
+    """
+    by_user: dict[str, dict] = {}
+    for row in rows:
+        uid = row["user_id"]
+        entry = by_user.get(uid)
+        if entry is None:
+            entry = {
+                "user_id": uid,
+                "first_name": row["first_name"],
+                "last_name": row["last_name"],
+                "email": row["email"],
+                "force_profile_completion": row["force_profile_completion"],
+                "missing_unlocked": [],
+                "missing_locked": [],
+            }
+            by_user[uid] = entry
+        bucket = "missing_locked" if row["locked"] else "missing_unlocked"
+        entry[bucket].append(row["attribute_key"])
+    return list(by_user.values())
+
+
+@router.get("/todo/user-attributes", response_class=HTMLResponse)
+def todo_user_attributes_list(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    filter_key: str | None = None,
+):
+    """List users with missing required attributes.
+
+    Each row shows the user, the missing attribute keys (split by locked
+    vs unlocked), and whether the user is already in the force-completion
+    flow. Supports filtering by a single missing key via the ``filter_key``
+    query parameter.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        rows = users_service.list_users_with_missing_required(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    if filter_key:
+        rows = [r for r in rows if r["attribute_key"] == filter_key]
+
+    grouped = _group_missing_rows(rows)
+
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    # Filter dropdown options: distinct attribute keys with at least one
+    # missing row in the tenant (so filters are always useful).
+    all_keys = sorted({r["attribute_key"] for r in rows})
+
+    return templates.TemplateResponse(
+        request,
+        "admin_todo_user_attributes.html",
+        get_template_context(
+            request,
+            tenant_id,
+            users_missing=grouped,
+            filter_key=filter_key,
+            available_keys=all_keys,
+            success=success,
+            error=error,
+        ),
+    )
+
+
+@router.post("/todo/user-attributes/force-complete")
+async def todo_user_attributes_force_complete(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Bulk-flag selected users for forced profile completion.
+
+    Reads ``user_ids`` checkbox values from the form. Skips users whose
+    only missing required attributes are locked (the gate would otherwise
+    trap them; admins must fill locked values directly).
+    """
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    form = await request.form()
+    user_ids = [str(val) for val in form.getlist("user_ids") if isinstance(val, str)]
+
+    if not user_ids:
+        return RedirectResponse(
+            url="/admin/todo/user-attributes?error=no_users_selected", status_code=303
+        )
+
+    try:
+        result = users_service.bulk_set_force_profile_completion(requesting_user, user_ids)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    flagged_count = len(result["flagged"])
+    skipped_locked = len(result["skipped_locked"])
+    skipped_complete = len(result["skipped_complete"])
+    suffix = f"flagged_{flagged_count}_skipped_locked_{skipped_locked}_complete_{skipped_complete}"
+
+    return RedirectResponse(url=f"/admin/todo/user-attributes?success={suffix}", status_code=303)

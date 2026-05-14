@@ -257,3 +257,80 @@ def test_require_super_admin_not_authenticated():
 
         assert exc_info.value.status_code == 303
         assert exc_info.value.url == "/login"
+
+
+# ---------------------------------------------------------------------------
+# force_profile_completion gate (Iteration 7)
+# ---------------------------------------------------------------------------
+
+
+def _user_with_force_flag(user, flag=True):
+    """Return a shallow copy of ``user`` with ``force_profile_completion`` set."""
+    new = dict(user)
+    new["force_profile_completion"] = flag
+    return new
+
+
+def test_require_current_user_force_completion_redirects_off_whitelist(test_user):
+    """A flagged user hitting any non-whitelisted path is redirected to profile."""
+    request = Mock()
+    request.url.path = "/dashboard"
+    with patch("dependencies.auth.get_current_user") as mock_auth:
+        mock_auth.return_value = _user_with_force_flag(test_user, True)
+        with pytest.raises(RedirectError) as exc_info:
+            require_current_user(request, test_user["tenant_id"])
+    assert exc_info.value.url == "/account/profile"
+    assert exc_info.value.status_code == 303
+
+
+def test_require_current_user_force_completion_allows_profile_page(test_user):
+    """The profile page itself stays accessible while the flag is set."""
+    request = Mock()
+    request.url.path = "/account/profile"
+    flagged = _user_with_force_flag(test_user, True)
+    with patch("dependencies.auth.get_current_user") as mock_auth:
+        mock_auth.return_value = flagged
+        result = require_current_user(request, test_user["tenant_id"])
+    assert result == flagged
+
+
+def test_require_current_user_force_completion_allows_logout(test_user):
+    request = Mock()
+    request.url.path = "/logout"
+    flagged = _user_with_force_flag(test_user, True)
+    with patch("dependencies.auth.get_current_user") as mock_auth:
+        mock_auth.return_value = flagged
+        result = require_current_user(request, test_user["tenant_id"])
+    assert result == flagged
+
+
+def test_require_current_user_force_completion_allows_profile_submit(test_user):
+    """The form-submit endpoint must keep working so the gate can clear."""
+    request = Mock()
+    request.url.path = "/account/profile/update-attributes"
+    flagged = _user_with_force_flag(test_user, True)
+    with patch("dependencies.auth.get_current_user") as mock_auth:
+        mock_auth.return_value = flagged
+        result = require_current_user(request, test_user["tenant_id"])
+    assert result == flagged
+
+
+def test_require_current_user_force_completion_allows_static_assets(test_user):
+    request = Mock()
+    request.url.path = "/static/js/utils.js"
+    flagged = _user_with_force_flag(test_user, True)
+    with patch("dependencies.auth.get_current_user") as mock_auth:
+        mock_auth.return_value = flagged
+        result = require_current_user(request, test_user["tenant_id"])
+    assert result == flagged
+
+
+def test_require_admin_force_completion_redirects_admin_routes(test_admin_user):
+    """Even admins land on the profile page if their flag is set."""
+    request = Mock()
+    request.url.path = "/admin/audit/events"
+    with patch("dependencies.auth.get_current_user") as mock_auth:
+        mock_auth.return_value = _user_with_force_flag(test_admin_user, True)
+        with pytest.raises(RedirectError) as exc_info:
+            require_admin(request, test_admin_user["tenant_id"])
+    assert exc_info.value.url == "/account/profile"

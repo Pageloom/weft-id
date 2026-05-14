@@ -23,11 +23,14 @@ def list_tenant_attribute_config(
 ) -> list[dict]:
     """Return all attribute config rows for the requesting user's tenant.
 
-    Authorization: any authenticated admin / super_admin. Listed under
-    ``track_activity`` per the project's read-tracking convention.
+    Authorization: any authenticated user in the tenant. The data is
+    informational tenant configuration (which attributes are enabled,
+    required, locked) and is needed by self-service profile rendering
+    for member users, not just admin UIs. The API surface remains
+    super_admin-gated at the router layer for write operations; this
+    read is safe to expose at the service level.
     """
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
-    require_super_admin(requesting_user)
     return database.tenant_attribute_config.list_config(requesting_user["tenant_id"])
 
 

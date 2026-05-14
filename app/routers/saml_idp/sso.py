@@ -23,7 +23,7 @@ from utils.saml_authn_request import parse_authn_request, validate_authn_request
 from utils.template_context import get_template_context
 from utils.templates import templates
 
-from ._helpers import PENDING_SSO_KEYS, get_base_url
+from ._helpers import PENDING_SSO_KEYS, get_base_url, redirect_if_force_profile_completion
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +133,12 @@ def _handle_sso_request(
     if user_id:
         # Bind SSO context to this user so no other user can complete it
         request.session["pending_sso_user_id"] = user_id
+        # Enforce the force_profile_completion gate. The SSO context stays
+        # pending until the user completes their profile; if the AuthnRequest
+        # times out in the meantime, the SP simply retries.
+        gate_redirect = redirect_if_force_profile_completion(request, tenant_id, user_id)
+        if gate_redirect is not None:
+            return gate_redirect
         # User is authenticated, go straight to consent
         return RedirectResponse(url="/saml/idp/consent", status_code=303)
     else:
@@ -160,6 +166,11 @@ def consent_page(
             list(request.session.keys()),
         )
         return _render_sso_error(request, tenant_id, "no_session")
+
+    # Enforce force_profile_completion gate
+    gate_redirect = redirect_if_force_profile_completion(request, tenant_id, user_id)
+    if gate_redirect is not None:
+        return gate_redirect
 
     # Require pending SSO context
     sp_entity_id = request.session.get("pending_sso_sp_entity_id")
@@ -267,6 +278,11 @@ def consent_respond(
     if not user_id:
         return _render_sso_error(request, tenant_id, "no_session")
 
+    # Enforce force_profile_completion gate
+    gate_redirect = redirect_if_force_profile_completion(request, tenant_id, user_id)
+    if gate_redirect is not None:
+        return gate_redirect
+
     # Require pending SSO context
     sp_entity_id = request.session.get("pending_sso_sp_entity_id")
     if not sp_entity_id:
@@ -366,6 +382,11 @@ def idp_initiated_launch(
     user_id = request.session.get("user_id")
     if not user_id:
         return RedirectResponse(url="/login", status_code=303)
+
+    # Enforce force_profile_completion gate
+    gate_redirect = redirect_if_force_profile_completion(request, tenant_id, user_id)
+    if gate_redirect is not None:
+        return gate_redirect
 
     # Look up SP by ID
     sp_row = sp_service.get_service_provider_by_id(tenant_id, sp_id)

@@ -1382,3 +1382,195 @@ class TestSwitchAccount:
         mock_log.assert_called_once()
         assert mock_log.call_args[1]["event_type"] == "user_signed_out"
         assert mock_log.call_args[1]["metadata"]["reason"] == "sso_switch_account"
+
+
+# ============================================================================
+# force_profile_completion gate (Iteration 7)
+# ============================================================================
+
+GATE_HELPER_PATH = "routers.saml_idp._helpers.auth_utils.get_current_user"
+
+
+def _flagged_user(sso_user):
+    """Return a user dict with force_profile_completion=True."""
+    return {**sso_user, "force_profile_completion": True}
+
+
+class TestForceProfileCompletionGate:
+    """The SAML IdP endpoints must honor the force_profile_completion gate.
+
+    Without this gate, an authenticated user flagged for forced profile
+    completion could complete a SAML SSO assertion to a downstream SP
+    despite being blocked from the rest of the app.
+    """
+
+    def test_sso_get_with_authenticated_flagged_user_redirects_to_profile(
+        self, client, sso_user, sso_host
+    ):
+        xml = _make_authn_request_xml()
+        saml_request = _encode_redirect(xml)
+
+        mock_session = {
+            "user_id": sso_user["id"],
+            "session_start": 1234567890,
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.get_sp_by_entity_id",
+                return_value=_sample_sp_config(),
+            ),
+            patch(GATE_HELPER_PATH, return_value=_flagged_user(sso_user)),
+        ):
+            response = client.get(
+                "/saml/idp/sso",
+                params={"SAMLRequest": saml_request},
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/profile"
+
+    def test_sso_post_with_authenticated_flagged_user_redirects_to_profile(
+        self, client, sso_user, sso_host
+    ):
+        xml = _make_authn_request_xml()
+        saml_request = _encode_post(xml)
+
+        mock_session = {
+            "user_id": sso_user["id"],
+            "session_start": 1234567890,
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.get_sp_by_entity_id",
+                return_value=_sample_sp_config(),
+            ),
+            patch(GATE_HELPER_PATH, return_value=_flagged_user(sso_user)),
+        ):
+            response = client.post(
+                "/saml/idp/sso",
+                data={"SAMLRequest": saml_request},
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/profile"
+
+    def test_consent_get_with_flagged_user_redirects_to_profile(self, client, sso_user, sso_host):
+        mock_session = {
+            "user_id": sso_user["id"],
+            "pending_sso_user_id": sso_user["id"],
+            "pending_sso_sp_id": str(uuid4()),
+            "pending_sso_sp_entity_id": "https://sp.example.com",
+            "pending_sso_sp_name": "Test Application",
+            "pending_sso_authn_request_id": "_req123",
+            "pending_sso_relay_state": "",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(GATE_HELPER_PATH, return_value=_flagged_user(sso_user)),
+        ):
+            response = client.get(
+                "/saml/idp/consent",
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/profile"
+
+    def test_consent_post_with_flagged_user_redirects_to_profile(self, client, sso_user, sso_host):
+        mock_session = {
+            "user_id": sso_user["id"],
+            "pending_sso_user_id": sso_user["id"],
+            "pending_sso_sp_id": str(uuid4()),
+            "pending_sso_sp_entity_id": "https://sp.example.com",
+            "pending_sso_sp_name": "Test SP",
+            "pending_sso_authn_request_id": "_req123",
+            "pending_sso_relay_state": "",
+            "_csrf_token": "test-csrf-token",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(GATE_HELPER_PATH, return_value=_flagged_user(sso_user)),
+        ):
+            response = client.post(
+                "/saml/idp/consent",
+                data={"action": "continue", "csrf_token": "test-csrf-token"},
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/profile"
+
+    def test_idp_launch_with_flagged_user_redirects_to_profile(self, client, sso_user, sso_host):
+        sp_id = str(uuid4())
+        mock_session = {"user_id": sso_user["id"]}
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(GATE_HELPER_PATH, return_value=_flagged_user(sso_user)),
+        ):
+            response = client.get(
+                f"/saml/idp/launch/{sp_id}",
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/profile"
+
+    def test_sso_get_with_unflagged_user_proceeds_normally(self, client, sso_user, sso_host):
+        """Sanity: the gate is a no-op when force_profile_completion is false."""
+        xml = _make_authn_request_xml()
+        saml_request = _encode_redirect(xml)
+
+        mock_session = {
+            "user_id": sso_user["id"],
+            "session_start": 1234567890,
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.get_sp_by_entity_id",
+                return_value=_sample_sp_config(),
+            ),
+            patch(GATE_HELPER_PATH, return_value={**sso_user, "force_profile_completion": False}),
+        ):
+            response = client.get(
+                "/saml/idp/sso",
+                params={"SAMLRequest": saml_request},
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "/saml/idp/consent" in response.headers["location"]

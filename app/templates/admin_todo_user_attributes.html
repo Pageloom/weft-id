@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}User Attributes - {{ site_title }}{% endblock %}
+
+{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
+
+{% block content %}
+<div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Incomplete User Profiles</h1>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Users who are missing one or more required profile attributes. Users with missing unlocked attributes can be force-completed (they will be redirected to their profile on next request and blocked until they fill the fields). Users whose only missing values are locked attributes can only be fixed by an admin editing the user directly.
+        </p>
+
+        {% if success %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">
+                Force-completion applied. See the table for current state.
+            </p>
+        </div>
+        {% endif %}
+
+        {% if error == 'no_users_selected' %}
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">
+                Select at least one user before applying force-completion.
+            </p>
+        </div>
+        {% elif error %}
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">
+                An error occurred: {{ error }}
+            </p>
+        </div>
+        {% endif %}
+
+        {% if available_keys %}
+        <form method="get" action="/admin/todo/user-attributes" class="mb-6 flex items-center gap-3">
+            <label for="filter-key" class="text-sm text-gray-700 dark:text-gray-300">Filter by missing key:</label>
+            <select id="filter-key" name="filter_key" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100">
+                <option value="">(all)</option>
+                {% for key in available_keys %}
+                <option value="{{ key }}" {% if filter_key == key %}selected{% endif %}>{{ key }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">Apply</button>
+            {% if filter_key %}
+            <a href="/admin/todo/user-attributes" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Clear</a>
+            {% endif %}
+        </form>
+        {% endif %}
+
+        {% if users_missing|length == 0 %}
+        <div class="text-center py-12 border-t border-gray-200 dark:border-gray-700">
+            <p class="text-gray-500 dark:text-gray-400 text-lg">No incomplete profiles</p>
+            <p class="text-gray-400 dark:text-gray-500 text-sm mt-2">
+                Every user in this tenant has all required attributes set.
+            </p>
+        </div>
+        {% else %}
+        <form method="post" action="/admin/todo/user-attributes/force-complete" id="force-complete-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="border-t border-gray-200 dark:border-gray-700 overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 w-10">
+                                <input type="checkbox" id="select-all" class="rounded">
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Missing (user-fixable)</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Missing (admin-only)</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Force flag</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for row in users_missing %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <td class="px-4 py-4 w-10">
+                                <input type="checkbox" name="user_ids" value="{{ row.user_id }}" class="user-checkbox rounded" {% if not row.missing_unlocked %}disabled title="Only locked fields are missing - cannot force-complete"{% endif %}>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <a href="/users/{{ row.user_id }}/profile" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+                                    {{ row.first_name }} {{ row.last_name }}
+                                </a>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {{ row.email or '-' }}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
+                                {% if row.missing_unlocked %}
+                                <span class="font-mono text-xs">{{ row.missing_unlocked | join(', ') }}</span>
+                                {% else %}
+                                <span class="text-gray-400 dark:text-gray-500">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
+                                {% if row.missing_locked %}
+                                <span class="font-mono text-xs">{{ row.missing_locked | join(', ') }}</span>
+                                {% else %}
+                                <span class="text-gray-400 dark:text-gray-500">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                {% if row.force_profile_completion %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">Forced</span>
+                                {% else %}
+                                <span class="text-gray-400 dark:text-gray-500">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="bulk-action-bar" class="mt-6 flex items-center justify-between bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md px-4 py-3">
+                <span class="text-sm text-gray-700 dark:text-gray-300" id="selection-count">0 selected</span>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium disabled:opacity-50" id="force-complete-btn" disabled>
+                    Force profile completion
+                </button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script nonce="{{ csp_nonce }}">
+(() => {
+    const selectAll = document.getElementById('select-all');
+    const countEl = document.getElementById('selection-count');
+    const btn = document.getElementById('force-complete-btn');
+    if (!selectAll || !countEl || !btn) return;
+
+    const checkboxes = () => Array.from(document.querySelectorAll('.user-checkbox:not(:disabled)'));
+
+    const updateState = () => {
+        const checked = checkboxes().filter((cb) => cb.checked).length;
+        countEl.textContent = `${checked} selected`;
+        btn.disabled = checked === 0;
+    };
+
+    selectAll.addEventListener('change', () => {
+        checkboxes().forEach((cb) => { cb.checked = selectAll.checked; });
+        updateState();
+    });
+
+    document.querySelectorAll('.user-checkbox').forEach((cb) => {
+        cb.addEventListener('change', updateState);
+    });
+
+    updateState();
+})();
+</script>
+{% endblock %}

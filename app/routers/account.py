@@ -78,6 +78,13 @@ def profile_settings(
         tenant_id
     )
 
+    # Forced-completion banner: when the admin has flagged this user, show
+    # the gate copy and highlight the missing+unlocked rows. Locked-missing
+    # values are not part of the user-facing gate.
+    force_profile_completion = bool(user.get("force_profile_completion"))
+    missing_pairs = users_service.compute_missing_required(tenant_id, str(user["id"]))
+    missing_unlocked_keys = {key for key, locked in missing_pairs if not locked}
+
     return templates.TemplateResponse(
         request,
         "settings_profile.html",
@@ -86,6 +93,8 @@ def profile_settings(
             tenant_id,
             attribute_categories=grouped_attributes,
             can_edit_profile=can_edit_profile,
+            force_profile_completion=force_profile_completion,
+            missing_unlocked_keys=list(missing_unlocked_keys),
         ),
     )
 

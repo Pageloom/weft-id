@@ -137,6 +137,7 @@ user_created_jit
 user_deleted
 user_enhanced_auth_enrolled
 user_export_task_created
+user_force_profile_completion_set
 user_groups_bulk_added
 user_inactivated
 user_profile_updated

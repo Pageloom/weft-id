@@ -1,6 +1,8 @@
 """Shared helpers for SAML IdP routers."""
 
 from fastapi import Request
+from fastapi.responses import RedirectResponse
+from utils import auth as auth_utils
 
 # Session keys for pending SSO context
 PENDING_SSO_KEYS = (
@@ -16,6 +18,29 @@ def get_base_url(request: Request) -> str:
     """Get base URL from request for building SAML URLs (always HTTPS)."""
     host = request.headers.get("x-forwarded-host", request.url.netloc)
     return f"https://{host}"
+
+
+def redirect_if_force_profile_completion(
+    request: Request, tenant_id: str, user_id: str
+) -> RedirectResponse | None:
+    """Redirect to /account/profile if the user must complete their profile.
+
+    SAML IdP endpoints check the session for ``user_id`` directly rather
+    than going through the ``require_current_user`` dependency, so they
+    bypass the iter 7 ``force_profile_completion`` gate. This helper
+    closes that gap: callers invoke it right after establishing
+    ``user_id`` and short-circuit the handler when a redirect is needed.
+
+    Behavior: when the SSO context has already been stamped onto the
+    session by ``_handle_sso_request``, redirecting here is benign. The
+    pending context will sit untouched until the user completes their
+    profile; if the original AuthnRequest expires meanwhile, the SP will
+    simply re-issue one on the next attempt.
+    """
+    user = auth_utils.get_current_user(request, tenant_id)
+    if user and user.get("force_profile_completion"):
+        return RedirectResponse(url="/account/profile", status_code=303)
+    return None
 
 
 def extract_pending_sso(session: dict) -> dict[str, str] | None:

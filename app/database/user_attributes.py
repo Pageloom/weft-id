@@ -90,3 +90,55 @@ def delete_attribute(tenant_id: TenantArg, user_id: str, attribute_key: str) -> 
         """,
         {"user_id": user_id, "attribute_key": attribute_key},
     )
+
+
+def list_missing_required_for_tenant(tenant_id: TenantArg) -> list[dict]:
+    """Return rows for every (user, required_attribute) pair with no value.
+
+    Iterates the tenant's enabled+required ``tenant_attribute_config`` rows
+    cross-joined with active users, then filters to pairs where the user
+    has no row (or a NULL/empty value) in ``user_attributes``. Used by the
+    admin Todo view to surface incomplete profiles without firing N+1
+    queries.
+
+    Returns a list of dicts with:
+        - user_id (str)
+        - first_name (str)
+        - last_name (str)
+        - email (str | None)
+        - attribute_key (str)
+        - locked_for_users (bool)
+
+    Inactivated and anonymized users are excluded. Service users (linked
+    to OAuth2 clients) are excluded.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select u.id as user_id,
+               u.first_name,
+               u.last_name,
+               ue.email,
+               c.attribute_key,
+               c.locked_for_users
+          from tenant_attribute_config c
+          cross join users u
+          left join user_attributes ua
+                 on ua.user_id = u.id
+                and ua.attribute_key = c.attribute_key
+          left join user_emails ue
+                 on ue.user_id = u.id
+                and ue.is_primary = true
+         where c.enabled = true
+           and c.required = true
+           and u.is_inactivated = false
+           and u.is_anonymized = false
+           and not exists (
+               select 1 from oauth2_clients oc
+                where oc.service_user_id = u.id
+           )
+           and (ua.value is null or btrim(ua.value) = '')
+         order by u.last_name, u.first_name, c.attribute_key
+        """,
+        {},
+    )

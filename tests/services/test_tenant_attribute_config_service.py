@@ -87,19 +87,23 @@ def test_list_tenant_attribute_config_super_admin_succeeds(test_tenant):
     assert len(rows) == 14
 
 
-def test_list_tenant_attribute_config_member_forbidden(test_tenant):
+def test_list_tenant_attribute_config_member_allowed(test_tenant):
+    """Iter 7 relaxed: members need to read tenant attribute config to render
+    their own profile editing UI (force_profile_completion gate would otherwise
+    be inescapable for non-admin users).
+    """
     seed_tenant_attribute_config(str(test_tenant["id"]))
     member = RequestingUser(id=str(uuid4()), tenant_id=str(test_tenant["id"]), role="member")
-    with pytest.raises(ForbiddenError):
-        list_tenant_attribute_config(member)
+    rows = list_tenant_attribute_config(member)
+    assert len(rows) == 14
 
 
-def test_list_tenant_attribute_config_admin_forbidden(test_tenant):
-    """Iteration spec: super_admin only for tenant settings updates and reads."""
+def test_list_tenant_attribute_config_admin_allowed(test_tenant):
+    """Iter 7 relaxed: any authenticated user in the tenant can read."""
     seed_tenant_attribute_config(str(test_tenant["id"]))
     admin = RequestingUser(id=str(uuid4()), tenant_id=str(test_tenant["id"]), role="admin")
-    with pytest.raises(ForbiddenError):
-        list_tenant_attribute_config(admin)
+    rows = list_tenant_attribute_config(admin)
+    assert len(rows) == 14
 
 
 def test_update_tenant_attribute_config_super_admin_succeeds(test_tenant):

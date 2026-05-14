@@ -19,6 +19,7 @@ from database.users.audit_export import (
     get_last_sso_assertions,
 )
 from database.users.authentication import (
+    bulk_set_force_profile_completion,
     bulk_set_password_reset_required,
     clear_hibp_data,
     count_active_super_admins,
@@ -26,6 +27,7 @@ from database.users.authentication import (
     get_password_hash,
     get_users_with_hibp_prefix,
     get_users_with_weak_policy,
+    set_force_profile_completion,
     set_password_reset_required,
     update_mfa_status,
     update_password,
@@ -130,6 +132,8 @@ __all__ = [
     "clear_hibp_data",
     "get_users_with_weak_policy",
     "bulk_set_password_reset_required",
+    "set_force_profile_completion",
+    "bulk_set_force_profile_completion",
     # saml_assignment
     "get_user_auth_info",
     "update_user_saml_idp",

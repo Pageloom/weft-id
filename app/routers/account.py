@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Annotated
 
+from constants.user_attributes import ATTRIBUTES_BY_KEY
 from dependencies import (
     build_requesting_user,
     get_current_user,
@@ -85,6 +86,14 @@ def profile_settings(
     missing_pairs = users_service.compute_missing_required(tenant_id, str(user["id"]))
     missing_unlocked_keys = {key for key, locked in missing_pairs if not locked}
 
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+    invalid_attribute_label: str | None = None
+    if error and error.startswith("invalid_"):
+        attr = ATTRIBUTES_BY_KEY.get(error[len("invalid_") :])
+        if attr:
+            invalid_attribute_label = attr.default_friendly_name
+
     return templates.TemplateResponse(
         request,
         "settings_profile.html",
@@ -95,6 +104,9 @@ def profile_settings(
             can_edit_profile=can_edit_profile,
             force_profile_completion=force_profile_completion,
             missing_unlocked_keys=list(missing_unlocked_keys),
+            success=success,
+            error=error,
+            invalid_attribute_label=invalid_attribute_label,
         ),
     )
 

@@ -4,6 +4,26 @@
 
 {% block content %}
 <div class="max-w-4xl space-y-6">
+    {% if success == 'attributes_saved' %}
+    <div class="p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md" role="status">
+        <p class="text-sm text-green-800 dark:text-green-300">Profile attributes saved.</p>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md" role="alert">
+        <p class="text-sm text-red-800 dark:text-red-300">
+            {% if error == 'save_failed' %}
+            Could not save profile attributes. Try again.
+            {% elif error.startswith('invalid_') %}
+            Could not save {{ invalid_attribute_label or 'profile attribute' }}: please check the value.
+            {% else %}
+            An error occurred. Try again.
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+
     {% if force_profile_completion %}
     <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 px-4 py-3 rounded flex items-start gap-3" role="alert">
         {{ icon("exclamation-triangle", class="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400") }}

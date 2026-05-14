@@ -44,6 +44,8 @@
             Invitation resent.
             {% elif success == 'passkey_revoked' %}
             Passkey revoked.
+            {% elif success == 'attributes_saved' %}
+            Profile attributes saved.
             {% else %}
             Operation completed.
             {% endif %}
@@ -116,6 +118,10 @@
             Passkey not found.
             {% elif error == 'cannot_revoke_own_passkey' %}
             You cannot revoke your own passkey from the admin view. Go to Account > Sign-in Methods to manage your own passkeys.
+            {% elif error == 'save_failed' %}
+            Could not save profile attributes. Try again.
+            {% elif error.startswith('invalid_') %}
+            Could not save {{ invalid_attribute_label or 'profile attribute' }}: please check the value.
             {% else %}
             An error occurred. Try again.
             {% endif %}

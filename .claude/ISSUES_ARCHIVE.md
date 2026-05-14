@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [BUG] Flash banners missing on profile save
+
+**Status:** Resolved (2026-05-14)
+**Found in:** `app/routers/account.py`, `app/routers/users/detail.py`, `app/templates/settings_profile.html`, `app/templates/user_detail_base.html`
+**Severity:** Medium (user-visible silent save)
+**Resolution:** Both profile-attribute save endpoints redirect with `?success=attributes_saved` or `?error=invalid_<key>` / `?error=save_failed`. Neither template rendered them. Fix: the GET handlers now read `success`/`error` from the query string and, for `invalid_<key>`, resolve a friendly attribute name via `ATTRIBUTES_BY_KEY` (`default_friendly_name`). `settings_profile.html` gained a top-of-page banner block; `user_detail_base.html` got the new codes wired into its existing success/error mapping. Tests added for both routes covering success, save_failed, known invalid key, and unknown invalid key.
+
+---
+
 ### [COPY] "two-step verification" wording on Authentication settings page
 
 **Status:** Resolved (2026-04-24)

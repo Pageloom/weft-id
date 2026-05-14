@@ -3,6 +3,7 @@
 import logging
 from typing import Annotated
 
+from constants.user_attributes import ATTRIBUTES_BY_KEY
 from dependencies import (
     build_requesting_user,
     get_current_user,
@@ -81,6 +82,11 @@ def _load_user_common(
 
     success = request.query_params.get("success")
     error = request.query_params.get("error")
+    invalid_attribute_label: str | None = None
+    if error and error.startswith("invalid_"):
+        attr = ATTRIBUTES_BY_KEY.get(error[len("invalid_") :])
+        if attr:
+            invalid_attribute_label = attr.default_friendly_name
 
     return {
         "requesting_user": requesting_user,
@@ -89,6 +95,7 @@ def _load_user_common(
         "app_count": app_count,
         "success": success,
         "error": error,
+        "invalid_attribute_label": invalid_attribute_label,
     }
 
 
@@ -169,6 +176,7 @@ def user_detail_profile(
             app_count=common["app_count"],
             success=common["success"],
             error=common["error"],
+            invalid_attribute_label=common["invalid_attribute_label"],
         ),
     )
 

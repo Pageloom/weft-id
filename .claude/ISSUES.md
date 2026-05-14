@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 3 | File Structure (pre-existing), Design (new), UX (new) |
+| Medium | 2 | File Structure (pre-existing), Design (new) |
 | Low | 6 | Duplication (pre-existing), UX (new), Security hardening (new), Test coverage (new) |
 | Deps | 4 | urllib3, pip, python-multipart, pygments (pre-existing) |
 
@@ -86,20 +86,6 @@ The two-space pivot intentionally keeps mirrored canonical values in `user_attri
 - Cross-reference the admin IdP-attributes panel against canonical to expose "value came from this IdP, IdP is gone"
 
 **Files Affected:** `app/services/saml/admin.py` (IdP delete path), `app/templates/user_detail_tab_profile.html`, potentially `db-init/migrations/...`
-
----
-
-## [BUG] Flash banners missing on profile save (tech-writer M-tw1)
-
-**Discovered:** 2026-05-14 (tech-writer final-pass review)
-**Severity:** Medium (user-visible silent save)
-**Source:** Tech-writer review M-tw1
-
-`app/routers/account.py:172-174` and `app/routers/users/detail.py:346-350` redirect after `/account/profile/update-attributes` / `/users/{id}/update-attributes` with `?success=attributes_saved` or `?error=invalid_<key>` / `?error=save_failed`. Neither `settings_profile.html` nor `user_detail_tab_profile.html` renders these query params. Users get no feedback after clicking Save.
-
-**Suggested Fix:** Add a success/error banner block in both templates (mirror the pattern in `admin_todo_user_attributes.html`). Map `invalid_<key>` codes to a human-readable per-field error using the attribute registry's `default_friendly_name`.
-
-**Files Affected:** `app/templates/settings_profile.html`, `app/templates/user_detail_tab_profile.html`
 
 ---
 

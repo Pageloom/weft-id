@@ -209,3 +209,84 @@ def test_profile_page_super_admin_always_can_edit(test_super_admin_user, overrid
     assert context["can_edit_profile"] is True
     # The setting helper may or may not be called; the truthy result is what matters.
     _ = can_edit
+
+
+def test_profile_page_surfaces_success_banner_context(test_user, override_auth, mocker):
+    """?success=attributes_saved is plumbed into the template context."""
+    override_auth(test_user)
+    mocker.patch(f"{SERVICES_SETTINGS}.list_tenant_attribute_config", return_value=[])
+    mocker.patch(f"{SERVICES_USERS}.list_user_attributes", return_value=[])
+    mocker.patch(f"{SERVICES_SETTINGS}.can_user_edit_profile", return_value=True)
+
+    mock_template = mocker.patch(
+        f"{ROUTERS_ACCOUNT}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>ok</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/account/profile?success=attributes_saved")
+    assert response.status_code == 200
+    context = mock_template.call_args.args[2]
+    assert context["success"] == "attributes_saved"
+    assert context["error"] is None
+    assert context["invalid_attribute_label"] is None
+
+
+def test_profile_page_surfaces_invalid_attribute_label(test_user, override_auth, mocker):
+    """?error=invalid_<key> resolves to the registry's friendly name in context."""
+    override_auth(test_user)
+    mocker.patch(f"{SERVICES_SETTINGS}.list_tenant_attribute_config", return_value=[])
+    mocker.patch(f"{SERVICES_USERS}.list_user_attributes", return_value=[])
+    mocker.patch(f"{SERVICES_SETTINGS}.can_user_edit_profile", return_value=True)
+
+    mock_template = mocker.patch(
+        f"{ROUTERS_ACCOUNT}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>ok</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/account/profile?error=invalid_job_title")
+    assert response.status_code == 200
+    context = mock_template.call_args.args[2]
+    assert context["error"] == "invalid_job_title"
+    assert context["invalid_attribute_label"] == "jobTitle"
+
+
+def test_profile_page_unknown_invalid_key_falls_back(test_user, override_auth, mocker):
+    """invalid_<unknown-key> still passes through error but with no friendly label."""
+    override_auth(test_user)
+    mocker.patch(f"{SERVICES_SETTINGS}.list_tenant_attribute_config", return_value=[])
+    mocker.patch(f"{SERVICES_USERS}.list_user_attributes", return_value=[])
+    mocker.patch(f"{SERVICES_SETTINGS}.can_user_edit_profile", return_value=True)
+
+    mock_template = mocker.patch(
+        f"{ROUTERS_ACCOUNT}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>ok</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/account/profile?error=invalid_does_not_exist")
+    assert response.status_code == 200
+    context = mock_template.call_args.args[2]
+    assert context["error"] == "invalid_does_not_exist"
+    assert context["invalid_attribute_label"] is None
+
+
+def test_profile_page_save_failed_passes_through(test_user, override_auth, mocker):
+    """?error=save_failed surfaces but no friendly label."""
+    override_auth(test_user)
+    mocker.patch(f"{SERVICES_SETTINGS}.list_tenant_attribute_config", return_value=[])
+    mocker.patch(f"{SERVICES_USERS}.list_user_attributes", return_value=[])
+    mocker.patch(f"{SERVICES_SETTINGS}.can_user_edit_profile", return_value=True)
+
+    mock_template = mocker.patch(
+        f"{ROUTERS_ACCOUNT}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>ok</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/account/profile?error=save_failed")
+    assert response.status_code == 200
+    context = mock_template.call_args.args[2]
+    assert context["error"] == "save_failed"
+    assert context["invalid_attribute_label"] is None

@@ -222,3 +222,68 @@ def test_user_detail_profile_skips_idp_panel_when_empty(test_admin_user, mocker,
     assert response.status_code == 200
     context = mock_template.call_args.args[2]
     assert context["idp_attribute_groups"] == []
+
+
+def test_user_detail_profile_surfaces_success_banner_context(
+    test_admin_user, mocker, override_auth
+):
+    """?success=attributes_saved is plumbed into the template context."""
+    override_auth(test_admin_user, level="admin")
+    _patch_common(mocker)
+    mocker.patch(f"{USERS_DETAIL}.build_attribute_groups_for_admin", return_value=[])
+    mocker.patch(f"{USERS_DETAIL}.build_idp_attribute_panel", return_value=[])
+
+    mock_template = mocker.patch(
+        f"{USERS_DETAIL}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>ok</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/profile?success=attributes_saved")
+    assert response.status_code == 200
+    context = mock_template.call_args.args[2]
+    assert context["success"] == "attributes_saved"
+    assert context["error"] is None
+    assert context["invalid_attribute_label"] is None
+
+
+def test_user_detail_profile_surfaces_invalid_attribute_label(
+    test_admin_user, mocker, override_auth
+):
+    """?error=invalid_<key> resolves to the registry's friendly name in context."""
+    override_auth(test_admin_user, level="admin")
+    _patch_common(mocker)
+    mocker.patch(f"{USERS_DETAIL}.build_attribute_groups_for_admin", return_value=[])
+    mocker.patch(f"{USERS_DETAIL}.build_idp_attribute_panel", return_value=[])
+
+    mock_template = mocker.patch(
+        f"{USERS_DETAIL}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>ok</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/profile?error=invalid_phone_work")
+    assert response.status_code == 200
+    context = mock_template.call_args.args[2]
+    assert context["error"] == "invalid_phone_work"
+    assert context["invalid_attribute_label"] == "phoneWork"
+
+
+def test_user_detail_profile_unknown_invalid_key_falls_back(test_admin_user, mocker, override_auth):
+    """invalid_<unknown-key> still passes through error but with no friendly label."""
+    override_auth(test_admin_user, level="admin")
+    _patch_common(mocker)
+    mocker.patch(f"{USERS_DETAIL}.build_attribute_groups_for_admin", return_value=[])
+    mocker.patch(f"{USERS_DETAIL}.build_idp_attribute_panel", return_value=[])
+
+    mock_template = mocker.patch(
+        f"{USERS_DETAIL}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>ok</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/profile?error=invalid_made_up_key")
+    assert response.status_code == 200
+    context = mock_template.call_args.args[2]
+    assert context["error"] == "invalid_made_up_key"
+    assert context["invalid_attribute_label"] is None

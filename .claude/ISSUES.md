@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 2 | File Structure (pre-existing), Design (new) |
-| Low | 6 | Duplication (pre-existing), UX (new), Security hardening (new), Test coverage (new) |
+| Low | 5 | Duplication (pre-existing), Security hardening (new), Test coverage (new) |
 | Deps | 4 | urllib3, pip, python-multipart, pygments (pre-existing) |
 
 **Last security scan:** 2026-04-24 (targeted: all code from last 14 days, all OWASP categories; 3 findings, all resolved)
@@ -42,18 +42,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
 
 ---
-
----
-
-## [BUG] UX: "Enable all" category checkbox on tenant attribute settings is misleading
-
-**Found in:** `app/templates/settings_user_attributes.html` (tenant attribute config page, iter 3 of user_attributes feature)
-**Impact:** Low
-**Category:** UX
-**Description:** Each category section (Contact, Professional, Location, Profile) has an "Enable all in [Category]" checkbox at the top. The checkbox renders as **checked** if any single attribute in the category is enabled, even though the label implies it reflects "all in this category enabled." Toggling it then enables/disables every row in the category, surprising users who only had one row enabled.
-**Why It Matters:** The control's checked state does not match the meaning of the label, and clicking it can wipe out a deliberately partial selection.
-**Suggested Fix:** Least-surprising option is to remove the category-level toggle entirely. Per-row checkboxes already cover the use case. If kept, change the control to a button (e.g., "Enable all" / "Disable all" buttons that always show both options) or change the checkbox to reflect "all enabled" precisely (only checked when every row is on, indeterminate when partial).
-**Files Affected:** `app/templates/settings_user_attributes.html`, related JS in the same file.
 
 ---
 

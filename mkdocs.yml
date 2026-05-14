@@ -78,6 +78,7 @@ nav:
       - Sessions: admin-guide/security/sessions.md
       - Certificates: admin-guide/security/certificates.md
       - Permissions: admin-guide/security/permissions.md
+      - User Attributes: admin-guide/security/user-attributes.md
       - Two-Step Verification: admin-guide/security/two-step-verification.md
       - Authentication Policy: admin-guide/security/authentication-policy.md
     - Branding:

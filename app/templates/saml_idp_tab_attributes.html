@@ -11,9 +11,11 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Attribute Mapping</h2>
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        Configure how your platform interprets SAML attributes from the identity provider.
+        Map SAML attributes from this IdP to WeftID user fields. Values appear in the user's
+        profile (and downstream SAML assertions) once enabled.
         {% if not advertised_attributes %}
-        This IdP did not advertise attribute expectations in its metadata. Attribute names must be entered based on your IdP's documentation.
+        This IdP did not advertise attribute expectations in its metadata. Enter names based
+        on your IdP's documentation.
         {% endif %}
     </p>
 

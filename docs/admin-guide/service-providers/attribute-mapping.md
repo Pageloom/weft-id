@@ -13,6 +13,24 @@ Every assertion includes these attributes:
 | `lastName` | User's last name |
 | `displayName` | First and last name combined |
 
+## Standard profile attributes
+
+In addition to the defaults, your tenant's
+[standard profile attributes](../security/user-attributes.md) can flow through to
+this SP. Whether an attribute appears in the mapping depends on two flags:
+
+* **Send to new SPs** (tenant level). When on, newly-registered SPs get this
+  attribute added to their default mapping. Existing SPs are unaffected.
+* The per-SP mapping itself. The **Attributes** tab on each SP lists every attribute
+  currently in the mapping. Tenant-enabled attributes that are *not* in the mapping
+  appear under **Enabled, not sent to this SP**, and can be added with one click.
+
+Once an attribute is in the mapping, the SAML attribute name can be edited per-SP.
+For each row with a known SAML registry OID, a **Use SAML OID** link swaps the
+attribute name to the registry value (for example,
+`urn:oid:2.5.4.20` for telephone number) so applications that expect OIDs receive
+the right name.
+
 ## Attribute resilience
 
 When processing incoming SAML assertions from upstream identity providers, WeftID handles missing attributes gracefully:

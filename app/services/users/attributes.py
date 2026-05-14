@@ -593,6 +593,14 @@ def bulk_set_force_profile_completion(
     require_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
 
+    # Pre-flight: every user_id must belong to the requesting tenant.
+    # RLS would silently classify a foreign UUID as ``skipped_complete``;
+    # we surface it as a 404 instead so the audit log never references
+    # users outside the actor's tenant.
+    missing_ids = [uid for uid in user_ids if database.users.get_user_by_id(tenant_id, uid) is None]
+    if missing_ids:
+        raise NotFoundError(f"User(s) not found: {', '.join(missing_ids)}")
+
     flagged: list[str] = []
     skipped_locked: list[str] = []
     skipped_complete: list[str] = []

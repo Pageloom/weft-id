@@ -151,7 +151,7 @@
 
             {% if attribute_categories %}
             <div class="pt-6 border-t border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Standard Attributes</h2>
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Profile attributes</h2>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
                     Optional. Leave fields blank to let the user fill them in later.
                 </p>
@@ -178,7 +178,7 @@
                                    maxlength="{{ attr.max_length }}"
                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                             {% if not attr.locked %}
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Or the invited user will be asked to enter this value.</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The user can fill this in later if you leave it blank.</p>
                             {% endif %}
                         </div>
                         {% endfor %}

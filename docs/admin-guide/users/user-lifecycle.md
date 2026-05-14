@@ -60,6 +60,26 @@ Any authenticated action counts as activity: signing in, triggering an SSO flow,
 
 Users created via SAML JIT provisioning skip the password-setting step during onboarding. After verifying their email address, they are redirected to sign in through their identity provider instead of being prompted to create a password.
 
+## Forced profile completion
+
+If your tenant requires certain [profile attributes](../security/user-attributes.md)
+and a user is missing values, an admin can require them to complete their profile
+before they can use the site.
+
+1. Navigate to **Admin > Todo > User attributes**. Each user is listed with the
+   missing attributes split by whether the user can fill them (unlocked) or only
+   an admin can (locked).
+2. Select users with missing unlocked attributes.
+3. Click **Force profile completion**.
+
+Flagged users land on their profile page on the next request with the required
+fields highlighted. They cannot navigate elsewhere until every unlocked-required
+attribute has a value. The gate also blocks SAML SSO to downstream applications.
+
+Users whose only missing values are locked attributes cannot be force-completed
+(they would never be able to clear the gate). Fill those values from the user
+detail page instead.
+
 ## Anonymized
 
 Anonymization is a permanent, irreversible operation for GDPR right-to-be-forgotten requests. Only super admins can anonymize a user. When a user is anonymized:

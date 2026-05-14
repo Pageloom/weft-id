@@ -10,8 +10,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 1 | File Structure (pre-existing) |
-| Low | 2 | Duplication (pre-existing), UX (new) |
+| Medium | 3 | File Structure (pre-existing), Design (new), UX (new) |
+| Low | 6 | Duplication (pre-existing), UX (new), Security hardening (new), Test coverage (new) |
 | Deps | 4 | urllib3, pip, python-multipart, pygments (pre-existing) |
 
 **Last security scan:** 2026-04-24 (targeted: all code from last 14 days, all OWASP categories; 3 findings, all resolved)
@@ -71,6 +71,92 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
+
+## [DESIGN] Stale mirrored attributes after IdP disconnect (deferred from user_attributes final review)
+
+**Discovered:** 2026-05-14 (security agent final-pass review)
+**Severity:** Medium (admin UX, not a bug)
+**Source:** Security review finding M2
+
+The two-space pivot intentionally keeps mirrored canonical values in `user_attributes` after an IdP is disconnected (mirror is one-way; canonical is then owned by user/admin). Confirmed correct as designed. The follow-on UX question: when an admin disconnects an IdP, should they be given the option to scrub canonical values that came from that IdP? Today there is no surfacing at all that a given canonical value was originally mirrored from an IdP that no longer exists.
+
+**Possible enhancements:**
+- IdP-delete confirmation prompt: "scrub mirrored canonical values?"
+- Record `last_mirror_idp_id` on `user_attributes` rows so the admin UI can flag "sourced from disconnected IdP"
+- Cross-reference the admin IdP-attributes panel against canonical to expose "value came from this IdP, IdP is gone"
+
+**Files Affected:** `app/services/saml/admin.py` (IdP delete path), `app/templates/user_detail_tab_profile.html`, potentially `db-init/migrations/...`
+
+---
+
+## [BUG] Flash banners missing on profile save (tech-writer M-tw1)
+
+**Discovered:** 2026-05-14 (tech-writer final-pass review)
+**Severity:** Medium (user-visible silent save)
+**Source:** Tech-writer review M-tw1
+
+`app/routers/account.py:172-174` and `app/routers/users/detail.py:346-350` redirect after `/account/profile/update-attributes` / `/users/{id}/update-attributes` with `?success=attributes_saved` or `?error=invalid_<key>` / `?error=save_failed`. Neither `settings_profile.html` nor `user_detail_tab_profile.html` renders these query params. Users get no feedback after clicking Save.
+
+**Suggested Fix:** Add a success/error banner block in both templates (mirror the pattern in `admin_todo_user_attributes.html`). Map `invalid_<key>` codes to a human-readable per-field error using the attribute registry's `default_friendly_name`.
+
+**Files Affected:** `app/templates/settings_profile.html`, `app/templates/user_detail_tab_profile.html`
+
+---
+
+## [SECURITY] Hardening: structured event log for IdP mirror failures
+
+**Discovered:** 2026-05-14 (security agent final-pass review L1)
+**Severity:** Low
+**Source:** Security review L1
+
+`_apply_idp_attributes_safe` in `app/services/saml/provisioning.py` catches `Exception` broadly so SAML login never fails on mirror-write errors. Today it only emits `logger.warning`. A recurring failure would never reach the admin audit UI. Add a `user_idp_attribute_mirror_failed` event log entry (system actor) so the failure is surfaced as part of the standard audit stream.
+
+**Files Affected:** `app/services/saml/provisioning.py`, `app/constants/event_types.py`, `app/constants/event_types.lock`
+
+---
+
+## [SECURITY] PII spillover in user_profile_updated event metadata
+
+**Discovered:** 2026-05-14 (security agent final-pass review L2)
+**Severity:** Low (compliance / data export consideration)
+**Source:** Security review L2
+
+The `user_profile_updated` events emit raw attribute values in metadata `changes` dict, including phone, mobile, street address, postal code, and employee ID. By design for audit traceability, but worth a follow-up review for event-log exports (PII redaction filter, sensitive-value hash, or category tagging).
+
+**Files Affected:** `app/services/users/attributes.py`, `app/services/event_log.py`, event-log export utilities
+
+---
+
+## [DOCS] API endpoint docstring claims "super_admin only" but service is relaxed
+
+**Discovered:** 2026-05-14 (security agent final-pass review L3)
+**Severity:** Low (cosmetic)
+**Source:** Security review L3
+
+`list_tenant_attribute_config` was deliberately relaxed to any authenticated user during iter 7 so the force-completion gate is escapable for non-admin users. The API endpoint `GET /api/v1/tenant/attribute-config` is still super-admin-gated at the router layer, but the service docstring previously documented "super_admin only." Verify and update docstring wording.
+
+**Files Affected:** `app/services/settings/attributes.py`, `app/routers/api/v1/settings.py`
+
+---
+
+## [TEST] Regression anchors for user_attributes feature
+
+**Discovered:** 2026-05-14 (test agent final-pass review)
+**Severity:** Low (deferred regression coverage)
+**Source:** Test review (M-test1 + L bundle)
+
+Useful regression anchors, none are current bugs:
+
+- E2E for admin → user fills → SP receives (full cross-iteration journey)
+- `apply_idp_attributes` "overwrites user-set canonical value when mirror=on" explicit test
+- `apply_idp_attributes` "preserves unrelated canonical rows" explicit test
+- Dashboard banner empty-case test (`missing_required == []`)
+- JIT-provisioned user mirror-failure path (sibling to existing existing-user test)
+- Admin user-detail route integration test for `user_profile_updated` event emission
+
+**Files Affected:** `tests/services/test_saml_attribute_ingestion.py`, `tests/services/test_user_attributes_service.py`, `tests/routers/test_auth.py`, `tests/routers/test_user_detail_profile.py`, `tests/e2e/`
+
+---
 
 ## [DEPS] Transitive/pinned CVEs blocking `make check`
 

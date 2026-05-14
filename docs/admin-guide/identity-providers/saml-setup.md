@@ -60,6 +60,22 @@ WeftID maps SAML assertion attributes to user fields. Default mappings are pre-f
 
 You can customize these mappings on the IdP's **Attributes** tab.
 
+### Standard profile attributes
+
+If your tenant has any [standard profile attributes](../security/user-attributes.md)
+enabled with **Mirror from IdP** turned on, each one appears on the **Attributes** tab
+as an additional mapping row. Enter the SAML attribute name the IdP uses for that
+field. On the next sign-in:
+
+* If the IdP includes the attribute in the assertion, the value is copied into the
+  user's profile (and into the per-IdP audit record on the user detail page).
+* If **Mirror from IdP** is off for that attribute (tenant setting), the value is
+  recorded in the audit record but is not copied into the profile.
+* If the assertion omits the attribute, the existing profile value is preserved.
+
+Use the per-user **Connected IdP attributes** section on the user detail page to
+verify what each IdP is sending.
+
 ### Attribute resilience
 
 WeftID handles missing or incomplete attributes gracefully:

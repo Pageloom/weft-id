@@ -111,9 +111,10 @@
         {% if attribute_categories %}
         <!-- Standard Attributes -->
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h2 class="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Standard Attributes</h2>
+            <h2 class="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Profile attributes</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Tenant-configured profile attributes. Leave a field empty to clear it.
+                Tenant-configured profile fields. Leave a field empty to clear it. Admins can
+                edit locked fields here.
             </p>
 
             <form method="post" action="/users/{{ target_user.id }}/update-attributes" class="space-y-6">

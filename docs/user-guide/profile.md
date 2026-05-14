@@ -6,6 +6,23 @@ Edit your personal information and preferences from the profile page at **Accoun
 
 Update your first and last name. This may be disabled by your administrator.
 
+## Profile attributes
+
+Your organization may collect additional profile fields beyond your name and email
+(for example, phone number, job title, or office location). The exact set depends
+on your administrator's configuration.
+
+- **Required fields** are marked with a red asterisk (`*`). Your profile is
+  considered incomplete until each required field has a value.
+- **Locked fields** show a shield icon and are read-only. Only an administrator
+  can change these.
+- Leave a field empty to clear its current value.
+
+If your profile is missing required information, a banner appears on the dashboard
+linking you to this page. If your administrator has turned on forced completion,
+you will not be able to navigate elsewhere or sign in to your applications until
+the required fields are filled.
+
 ## Theme
 
 Choose between light mode, dark mode, or system (follows your device's preference).

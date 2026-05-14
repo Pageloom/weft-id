@@ -6,7 +6,13 @@ Navigate to **Settings > Security > Permissions**.
 
 ## Allow users to edit their profile
 
-When enabled, users can change their own name on the profile page. When disabled, only admins can update user names.
+When enabled, users can change their own name on the profile page, and edit any
+unlocked [profile attributes](user-attributes.md). When disabled, only admins can
+update user names and attribute values.
+
+Individual attributes can also be locked independently of this setting. See
+[User attributes](user-attributes.md) for the full catalog of profile fields and
+the per-attribute lock flag.
 
 ## Group assertion scope
 

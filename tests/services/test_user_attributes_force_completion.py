@@ -296,6 +296,28 @@ def test_bulk_set_force_profile_completion_with_mixed_users_splits_results(test_
     assert result["flagged"] == []
 
 
+def test_bulk_set_force_profile_completion_rejects_unknown_user_ids(test_user):
+    """A user_id that does not belong to the tenant raises NotFoundError.
+
+    Without the pre-flight check, RLS would silently classify the foreign
+    UUID as ``skipped_complete`` and the audit log would record an
+    artifact_id from outside the actor's tenant.
+    """
+    from services.exceptions import NotFoundError
+
+    _seed_config(test_user["tenant_id"], key="job_title", required=True)
+    admin = _admin_requester(test_user["tenant_id"])
+
+    bogus = str(uuid4())
+    with pytest.raises(NotFoundError) as exc_info:
+        bulk_set_force_profile_completion(admin, [str(test_user["id"]), bogus])
+    assert bogus in str(exc_info.value)
+
+    # Confirm the real user was NOT flagged (atomic-all-or-nothing).
+    refreshed = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
+    assert refreshed["force_profile_completion"] is False
+
+
 # ---------------------------------------------------------------------------
 # set_user_attribute auto-clears force_profile_completion
 # ---------------------------------------------------------------------------

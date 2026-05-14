@@ -194,3 +194,99 @@ class TestGetCurrentUserApiCsrfIntegration:
             )
 
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Force-profile-completion gate on cookie-authed API callers
+# ---------------------------------------------------------------------------
+
+
+class TestGetCurrentUserApiForceProfileCompletion:
+    """The force_profile_completion gate must block cookie-authed API access."""
+
+    def _make_app(self, mock_user):
+        from api_dependencies import get_current_user_api
+        from dependencies import get_tenant_id_from_request
+        from fastapi import Depends, FastAPI
+        from starlette.middleware.sessions import SessionMiddleware
+
+        app = FastAPI()
+        app.add_middleware(SessionMiddleware, secret_key="test-secret-key")
+        app.dependency_overrides[get_tenant_id_from_request] = lambda: mock_user["tenant_id"]
+
+        @app.get("/api/v1/test-endpoint")
+        def test_endpoint(user: dict = Depends(get_current_user_api)):
+            return {"user_id": str(user["id"])}
+
+        return app
+
+    def _flagged_user(self):
+        return {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "tenant_id": "00000000-0000-0000-0000-000000000099",
+            "role": "admin",
+            "force_profile_completion": True,
+        }
+
+    def test_cookie_authed_flagged_user_is_blocked(self):
+        """A force-flagged cookie-authed caller gets 403 with the expected error code."""
+        from fastapi.testclient import TestClient
+
+        user = self._flagged_user()
+        app = self._make_app(user)
+
+        with patch("utils.auth.get_current_user", return_value=user):
+            client = TestClient(app)
+            resp = client.get("/api/v1/test-endpoint")
+
+        assert resp.status_code == 403
+        body = resp.json()
+        # FastAPI wraps the structured detail under "detail"
+        assert body["detail"]["error_code"] == "profile_completion_required"
+        assert "Profile completion required" in body["detail"]["detail"]
+
+    def test_bearer_authed_flagged_user_is_allowed(self):
+        """Bearer-token clients (machine API) bypass the gate."""
+        from fastapi.testclient import TestClient
+
+        user = self._flagged_user()
+        app = self._make_app(user)
+        token_data = {"user_id": user["id"], "client_id": "00000000-0000-0000-0000-000000000010"}
+        client_data = {"client_id": "test-client", "name": "Test", "client_type": "b2b"}
+
+        with (
+            patch("database.oauth2.validate_token", return_value=token_data),
+            patch("database.users.get_user_by_id", return_value=user),
+            patch("database.oauth2.get_client_by_id", return_value=client_data),
+            patch(
+                "database.user_emails.get_primary_email",
+                return_value={"email": "admin@example.com"},
+            ),
+        ):
+            client = TestClient(app)
+            resp = client.get(
+                "/api/v1/test-endpoint",
+                headers={"Authorization": "Bearer fake-token"},
+            )
+
+        assert resp.status_code == 200
+
+    def test_cookie_authed_unflagged_user_is_allowed(self):
+        """The gate is a no-op when force_profile_completion is false."""
+        from fastapi.testclient import TestClient
+
+        user = self._flagged_user()
+        user["force_profile_completion"] = False
+        app = self._make_app(user)
+
+        with (
+            patch("utils.auth.get_current_user", return_value=user),
+            patch(
+                "database.user_emails.get_primary_email",
+                return_value={"email": "admin@example.com"},
+            ),
+        ):
+            client = TestClient(app)
+            resp = client.get("/api/v1/test-endpoint")
+
+        assert resp.status_code == 200

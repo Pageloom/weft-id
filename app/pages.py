@@ -429,6 +429,7 @@ PAGES = [
                         title="User attributes",
                         permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/security/user-attributes/",
                     ),
                     Page(
                         path="/admin/settings/branding",
@@ -564,6 +565,7 @@ PAGES = [
                         title="User Attributes",
                         permission=PagePermission.ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/users/user-lifecycle/#forced-profile-completion",
                     ),
                 ],
             ),

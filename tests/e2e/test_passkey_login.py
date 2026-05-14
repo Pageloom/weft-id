@@ -44,7 +44,7 @@ def test_passkey_register_then_sign_in(page, idp_config):
     page.locator("#email").fill(email)
     page.locator("#emailForm button[type='submit']").click()
     page.wait_for_url("**/login?**show_password**", timeout=10000)
-    page.wait_for_selector("#loginForm:not(.hidden)", timeout=10000)
+    page.wait_for_selector("#loginForm:not(.hidden)", timeout=20000)
 
     page.locator("input[name='password']").fill(password)
     page.locator("#loginForm button[type='submit']").click()
@@ -113,6 +113,6 @@ def test_passkey_first_hidden_for_password_only_user(page, sp_config):
 
     # Passkey-flow div exists but JS hides it after begin returns 404.
     # Password form becomes visible.
-    page.wait_for_selector("#loginForm:not(.hidden)", timeout=10000)
+    page.wait_for_selector("#loginForm:not(.hidden)", timeout=20000)
     assert page.locator("#passkey-flow.hidden").count() == 1
     assert page.locator("#loginForm input[name='password']").count() == 1

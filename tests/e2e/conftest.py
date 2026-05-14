@@ -296,7 +296,9 @@ def enter_email_and_reach_password_form(page, base_url, email, password):
     # passkey-first variant unconditionally (passkey-existence oracle fix);
     # the loginForm is hidden until the WebAuthn begin call returns 404.
     page.wait_for_url("**/login?**show_password**", timeout=10000)
-    page.wait_for_selector("#loginForm:not(.hidden)", timeout=10000)
+    # The WebAuthn begin call can take >10s under E2E contention before the
+    # un-hide fires; allow more headroom to keep the helper non-flaky.
+    page.wait_for_selector("#loginForm:not(.hidden)", timeout=20000)
     page.locator("input[name='password']").fill(password)
     page.locator("#loginForm button[type='submit']").click()
 

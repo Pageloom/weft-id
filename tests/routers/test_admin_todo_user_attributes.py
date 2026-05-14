@@ -43,7 +43,7 @@ def test_admin_todo_user_attributes_page_renders(test_admin_user, override_auth,
     client = TestClient(app)
     response = client.get("/admin/todo/user-attributes")
     assert response.status_code == 200
-    assert "Incomplete User Profiles" in response.text
+    assert "Incomplete user profiles" in response.text
     assert "job_title" in response.text
 
 
@@ -96,6 +96,24 @@ def test_force_complete_bulk_action_flags_user(test_admin_user, override_auth, t
 
     refreshed = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
     assert refreshed["force_profile_completion"] is True
+
+
+def test_force_complete_success_banner_renders_parsed_counts(
+    test_admin_user, override_auth, test_user
+):
+    """The success-suffix query param is parsed into a human-readable banner."""
+    _seed_required(test_user["tenant_id"], "job_title")
+    override_auth(test_admin_user, level="admin")
+    client = TestClient(app)
+    response = client.get(
+        "/admin/todo/user-attributes?success=flagged_3_skipped_locked_1_complete_0"
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "Flagged 3 users" in body
+    assert "Skipped 1 with only locked fields missing" in body
+    # Raw suffix must not leak into rendered text.
+    assert "flagged_3_skipped_locked_1_complete_0" not in body
 
 
 def test_force_complete_bulk_action_no_selection_redirects_with_error(

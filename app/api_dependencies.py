@@ -98,6 +98,17 @@ def get_current_user_api(
     user = auth.get_current_user(request, tenant_id)
     if user:
         _validate_session_csrf(request)
+        # Force-profile-completion gate: cookie-authed callers cannot use the
+        # API while flagged. Bearer-token clients (machine API) are exempt
+        # since they cannot complete a profile.
+        if user.get("force_profile_completion"):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "detail": "Profile completion required",
+                    "error_code": "profile_completion_required",
+                },
+            )
         # Add primary email to user dict (API responses include email)
         primary_email = database.user_emails.get_primary_email(tenant_id, user["id"])
         if primary_email:

@@ -1,5 +1,6 @@
 """Admin routes for event log viewer."""
 
+import re
 from datetime import date
 from typing import Annotated
 
@@ -447,6 +448,7 @@ def todo_user_attributes_list(
 
     success = request.query_params.get("success")
     error = request.query_params.get("error")
+    success_counts = _parse_force_complete_success(success)
 
     # Filter dropdown options: distinct attribute keys with at least one
     # missing row in the tenant (so filters are always useful).
@@ -462,9 +464,33 @@ def todo_user_attributes_list(
             filter_key=filter_key,
             available_keys=all_keys,
             success=success,
+            success_counts=success_counts,
             error=error,
         ),
     )
+
+
+_FORCE_COMPLETE_SUFFIX = re.compile(
+    r"^flagged_(?P<flagged>\d+)_skipped_locked_(?P<locked>\d+)_complete_(?P<complete>\d+)$"
+)
+
+
+def _parse_force_complete_success(value: str | None) -> dict[str, int] | None:
+    """Parse the ``flagged_X_skipped_locked_Y_complete_Z`` suffix into counts.
+
+    Returns ``None`` for any other ``success`` value (including ``None``)
+    so the template falls back to its generic success banner.
+    """
+    if not value:
+        return None
+    match = _FORCE_COMPLETE_SUFFIX.match(value)
+    if not match:
+        return None
+    return {
+        "flagged": int(match.group("flagged")),
+        "skipped_locked": int(match.group("locked")),
+        "skipped_complete": int(match.group("complete")),
+    }
 
 
 @router.post("/todo/user-attributes/force-complete")

@@ -7,9 +7,8 @@
     <div class="mb-6">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">User attributes</h1>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Choose which standard user attributes this tenant collects, where they come from,
-            and which ones are sent to service providers by default. Changes save individually
-            per row.
+            Choose which profile fields your tenant collects, where they come from, and which
+            ones are sent to service providers by default. Each row saves on change.
         </p>
     </div>
 
@@ -45,19 +44,19 @@
                     <thead class="bg-gray-50 dark:bg-gray-700/40 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                         <tr>
                             <th class="px-6 py-3">Attribute</th>
-                            <th class="px-3 py-3 text-center" title="Attribute is in use by this tenant.">Enabled</th>
-                            <th class="px-3 py-3 text-center" title="Profile is incomplete without this value.">Required</th>
+                            <th class="px-3 py-3 text-center" title="Collect this attribute for users in this tenant.">Enabled</th>
+                            <th class="px-3 py-3 text-center" title="Users must provide a value. Missing values block sign-in when force-completion is on.">Required</th>
                             <th class="px-3 py-3 text-center"
-                                title="When an IdP sends this attribute, copy it into the user's profile. Otherwise, the IdP value is shown only as read-only info.">
+                                title="When an upstream IdP sends this attribute, copy it into the user's profile. If off, the IdP value is stored as read-only audit data only.">
                                 Mirror from IdP
                             </th>
                             <th class="px-3 py-3 text-center"
-                                title="Only admins can edit this. Users see it read-only.">
+                                title="Users see this field as read-only. Only admins can change it.">
                                 Locked for users
                             </th>
                             <th class="px-3 py-3 text-center"
-                                title="Include this attribute in assertions to newly-added SPs.">
-                                Send to SPs by default
+                                title="Include this attribute in SAML assertions to newly-registered service providers. Per-SP mappings override this.">
+                                Send to new SPs
                             </th>
                         </tr>
                     </thead>

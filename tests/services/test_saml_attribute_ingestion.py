@@ -426,6 +426,65 @@ class TestMirrorFlagEndToEnd:
         idp_row_map = {r["attribute_key"]: r["value"] for r in idp_rows}
         assert idp_row_map.get("department") == "Research"
 
+    def test_mirror_flag_flip_does_not_retract_prior_canonical_value(
+        self, test_tenant, test_super_admin_user, test_user, idp_data_no_mapping
+    ):
+        """Toggling mirror_from_idp=true→false leaves the prior canonical row in place.
+
+        The two-space pivot deliberately makes mirroring a one-way copy:
+        once a value lands in ``user_attributes`` it is owned by the
+        user/admin. Disabling the mirror flag stops FUTURE IdP logins from
+        overwriting the canonical row, but does not retract values already
+        mirrored. Pin this so a future refactor cannot accidentally
+        introduce a "clear canonical on flag-off" side effect.
+        """
+        import database
+        from schemas.saml import IdPCreate
+        from services import saml as saml_service
+
+        requesting = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+        # Enable + mirror=true, IdP login writes canonical.
+        self._set_attribute_policy(requesting, "job_title", enabled=True, mirror_from_idp=True)
+        idp = saml_service.create_identity_provider(
+            requesting,
+            IdPCreate(**idp_data_no_mapping, is_enabled=True),
+            "https://test.example.com",
+        )
+        saml_service.authenticate_via_saml(
+            test_tenant["id"],
+            self._make_saml_result(idp.id, test_user["email"], {"job_title": "Engineer"}),
+        )
+        canonical = database.user_attributes.get_attribute(
+            test_tenant["id"], str(test_user["id"]), "job_title"
+        )
+        assert canonical is not None and canonical["value"] == "Engineer"
+
+        # Admin flips mirror_from_idp=false; canonical row must persist.
+        self._set_attribute_policy(requesting, "job_title", enabled=True, mirror_from_idp=False)
+        canonical = database.user_attributes.get_attribute(
+            test_tenant["id"], str(test_user["id"]), "job_title"
+        )
+        assert canonical is not None
+        assert canonical["value"] == "Engineer"
+
+        # Next IdP login with a new value: canonical must NOT be overwritten
+        # because mirror is now off. IdP-mirror table receives the new value.
+        saml_service.authenticate_via_saml(
+            test_tenant["id"],
+            self._make_saml_result(idp.id, test_user["email"], {"job_title": "Senior Engineer"}),
+        )
+        canonical = database.user_attributes.get_attribute(
+            test_tenant["id"], str(test_user["id"]), "job_title"
+        )
+        assert canonical["value"] == "Engineer"  # unchanged
+
+        idp_rows = database.user_idp_attributes.list_attributes_for_idp(
+            test_tenant["id"], str(test_user["id"]), idp.id
+        )
+        idp_row_map = {r["attribute_key"]: r["value"] for r in idp_rows}
+        assert idp_row_map.get("job_title") == "Senior Engineer"
+
 
 # ---------------------------------------------------------------------------
 # Schema validation

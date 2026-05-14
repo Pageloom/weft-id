@@ -5,7 +5,8 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">User Attribute Mapping</h2>
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        How user attributes are sent to the SP during sign-in.
+        Which user attributes are sent to this SP during sign-in, and the SAML attribute name
+        each one is sent as.
         {% if not sp.sp_requested_attributes %}
         This SP did not declare attribute expectations in its metadata. Default attribute names are used.
         {% endif %}
@@ -184,10 +185,10 @@
 
         {% if available_attribute_groups %}
         <div class="mt-6 mb-4">
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Available, not sent</h3>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Enabled, not sent to this SP</h3>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                These attributes are enabled for the tenant but not currently sent to this SP. Click "Send to this SP"
-                to add a row to the mapping.
+                Tenant-enabled attributes that are not currently in this SP's mapping. Click
+                "Send to this SP" to add a row.
             </p>
             {% for group in available_attribute_groups %}
             <p class="mt-3 mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">

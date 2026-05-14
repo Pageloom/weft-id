@@ -7,4 +7,5 @@ Configure authentication policy, password policy, session behavior, certificate 
 - [Sessions](sessions.md) — Session timeout, persistent sessions, inactivation thresholds
 - [Certificates](certificates.md) — Certificate validity and rotation windows
 - [Permissions](permissions.md) — User self-service permissions
+- [User attributes](user-attributes.md) — Configure the standard profile attribute catalog and required fields
 - [Two-Step Verification](two-step-verification.md) — Per-IdP verification requirement and admin resets

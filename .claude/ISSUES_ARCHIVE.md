@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [BUG] UX: "Enable all" category checkbox on tenant attribute settings is misleading
+
+**Status:** Resolved (2026-05-14)
+**Found in:** `app/templates/settings_user_attributes.html`
+**Severity:** Low
+**Resolution:** Removed the per-category "Enable all in [Category]" checkbox. Its checked state reflected "any enabled" not "all enabled" (mismatched label) and toggling it could overwrite a deliberately partial selection. Per-row checkboxes already cover the use case. Kept the "on/off" status badge (informative, not actionable) so admins still see at a glance whether a category has any attributes enabled. JS handler and the toggle's reference in `refreshCategoryStatus` removed.
+
+---
+
 ### [BUG] Flash banners missing on profile save
 
 **Status:** Resolved (2026-05-14)

@@ -30,13 +30,6 @@
                         {% if category.any_enabled %}on{% else %}off{% endif %}
                     </span>
                 </div>
-                <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                    <span>Enable all in {{ category.label }}</span>
-                    <input type="checkbox"
-                           class="category-toggle h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
-                           data-category="{{ category.key }}"
-                           {% if category.any_enabled %}checked{% endif %}>
-                </label>
             </header>
 
             <div class="overflow-x-auto">
@@ -170,10 +163,6 @@
             badge.classList.toggle('dark:bg-gray-700', !anyEnabled);
             badge.classList.toggle('dark:text-gray-300', !anyEnabled);
         }
-        const toggle = section.querySelector('.category-toggle');
-        if (toggle) {
-            toggle.checked = anyEnabled;
-        }
     };
 
     const saveRow = async (row) => {
@@ -213,27 +202,6 @@
                 }
                 await saveRow(row);
             });
-        });
-    });
-
-    document.querySelectorAll('.category-toggle').forEach((toggle) => {
-        toggle.addEventListener('change', async () => {
-            const categoryKey = toggle.dataset.category;
-            const section = document.querySelector(`section[data-category="${categoryKey}"]`);
-            if (!section) return;
-            const newEnabled = toggle.checked;
-            const rows = Array.from(section.querySelectorAll('.attribute-row'));
-            const changed = rows.filter((row) => {
-                const enabledInput = row.querySelector('.flag-enabled');
-                if (enabledInput.checked === newEnabled) return false;
-                enabledInput.checked = newEnabled;
-                refreshSecondaryDisabledState(row);
-                return true;
-            });
-            refreshCategoryStatus(categoryKey);
-            for (const row of changed) {
-                await saveRow(row);
-            }
         });
     });
 })();

@@ -260,6 +260,52 @@ def get_users_with_weak_policy(
     )
 
 
+def set_force_profile_completion(tenant_id: TenantArg, user_id: str, required: bool) -> int:
+    """
+    Set or clear the force_profile_completion flag on a user.
+
+    When set to true, the user is redirected to their profile page after
+    sign-in and blocked from navigating elsewhere until they fill the
+    required+unlocked attributes (the profile submit handler clears the
+    flag once all such fields are populated).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to update
+        required: Whether profile completion is required
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        "update users set force_profile_completion = :required where id = :user_id",
+        {"required": required, "user_id": user_id},
+    )
+
+
+def bulk_set_force_profile_completion(tenant_id: TenantArg, user_ids: list[str]) -> int:
+    """
+    Set ``force_profile_completion = true`` for multiple users at once.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_ids: List of user IDs to flag
+
+    Returns:
+        Number of rows affected
+    """
+    if not user_ids:
+        return 0
+    return execute(
+        tenant_id,
+        """update users
+           set force_profile_completion = true
+           where id = any(:user_ids)""",
+        {"user_ids": user_ids},
+    )
+
+
 def bulk_set_password_reset_required(tenant_id: TenantArg, user_ids: list[str]) -> int:
     """
     Set password_reset_required for multiple users at once.

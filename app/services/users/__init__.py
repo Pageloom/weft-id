@@ -30,10 +30,13 @@ from services.users._validation import _validate_role_change
 # Re-export from attributes module
 from services.users.attributes import (
     apply_idp_attributes,
+    bulk_set_force_profile_completion,
     clear_user_attribute,
+    compute_missing_required,
     get_user_attribute,
     list_user_attributes,
     list_user_idp_attributes,
+    list_users_with_missing_required,
     set_user_attribute,
 )
 
@@ -104,10 +107,13 @@ from services.users.utilities import (
 __all__ = [
     # Attributes
     "apply_idp_attributes",
+    "bulk_set_force_profile_completion",
     "clear_user_attribute",
+    "compute_missing_required",
     "get_user_attribute",
     "list_user_attributes",
     "list_user_idp_attributes",
+    "list_users_with_missing_required",
     "set_user_attribute",
     # Auth policy
     "user_must_enroll_enhanced",

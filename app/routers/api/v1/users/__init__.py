@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 from routers.api.v1.users.admin import router as admin_router
+from routers.api.v1.users.attributes import literal_router as attributes_literal_router
 from routers.api.v1.users.attributes import me_router as attributes_me_router
 from routers.api.v1.users.attributes import router as attributes_router
 from routers.api.v1.users.bulk_ops import router as bulk_ops_router
@@ -34,6 +35,10 @@ from utils.email import (
 )
 
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
+
+# Literal-path admin endpoints must be registered BEFORE admin_router so
+# they don't get shadowed by the latter's ``/{user_id}`` catch-all.
+router.include_router(attributes_literal_router)
 
 router.include_router(profile_router)
 router.include_router(password_router)

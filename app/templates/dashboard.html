@@ -4,6 +4,17 @@
 
 {% block content %}
 <div class="max-w-4xl">
+    {% if missing_required %}
+    <div class="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 px-4 py-3 rounded flex items-start gap-3" role="alert">
+        {{ icon("exclamation-triangle", class="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400") }}
+        <div class="flex-1">
+            <p class="font-medium">Your profile is incomplete.</p>
+            <p class="text-sm mt-1">
+                <a href="/account/profile" class="underline font-medium hover:text-amber-700 dark:hover:text-amber-100">Update profile.</a>
+            </p>
+        </div>
+    </div>
+    {% endif %}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Dashboard</h1>
 

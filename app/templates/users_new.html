@@ -149,6 +149,45 @@
                 </p>
             </div>
 
+            {% if attribute_categories %}
+            <div class="pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Standard Attributes</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    Optional. Leave fields blank to let the user fill them in later.
+                </p>
+                {% for category in attribute_categories %}
+                <section data-category="{{ category.key }}" class="mb-6">
+                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{{ category.label }}</h3>
+                    <div class="space-y-4">
+                        {% for attr in category.attributes %}
+                        <div>
+                            <label for="new-attr-{{ attr.key }}" class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <span>{{ attr.label }}</span>
+                                {% if attr.locked %}
+                                {{ icon("shield-check", class="w-4 h-4 text-gray-400") }}
+                                {% endif %}
+                                {% if attr.required %}
+                                <span class="text-red-500" title="Required">*</span>
+                                {% endif %}
+                            </label>
+                            {% set field_name = "attr_" ~ attr.key %}
+                            {% set input_type = "tel" if attr.value_type == "phone" else "text" %}
+                            <input type="{{ input_type }}"
+                                   id="new-attr-{{ attr.key }}"
+                                   name="{{ field_name }}"
+                                   maxlength="{{ attr.max_length }}"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                            {% if not attr.locked %}
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Or the invited user will be asked to enter this value.</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </section>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             <!-- Submit Buttons -->
             <div class="flex gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button

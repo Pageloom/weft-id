@@ -14,6 +14,27 @@ Lock and policy enforcement happen here, not in the database. Admins
 always bypass the per-attribute lock. The IdP-mirror writer is also not
 subject to the lock -- "users can't edit" is not "the system can't
 update".
+
+Force profile completion (Iteration 7)
+-------------------------------------
+
+Two distinct surfaces compute "incomplete profile" status:
+
+* ``compute_missing_required(tenant_id, user_id)`` returns every required+
+  enabled attribute the user is missing, paired with the ``locked`` flag
+  from tenant config. Callers decide how to use it:
+    - Dashboard banner / force-completion flow: filter to ``locked=False``.
+      Those are the fields the user can fix themselves.
+    - Admin Todo view: shows both locked and unlocked.
+
+* ``list_users_with_missing_required(requesting_user)`` aggregates the
+  same data across every user in the tenant, in one query, so the admin
+  Todo view renders without an N+1 fan-out.
+
+``force_profile_completion`` on ``users`` is set by
+``bulk_set_force_profile_completion`` (admin bulk action) and cleared
+inside ``set_user_attribute`` once the user no longer has any unlocked
+missing required attributes.
 """
 
 from __future__ import annotations
@@ -25,6 +46,7 @@ from constants.user_attributes import (
     serialize,
 )
 from services.activity import track_activity
+from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import (
     ForbiddenError,
@@ -209,6 +231,11 @@ def set_user_attribute(
                 },
             },
         )
+
+    # If this user is in the force-profile-completion flow, re-evaluate
+    # the gate. Once every required+unlocked attribute has a value the
+    # flag clears automatically.
+    _maybe_clear_force_profile_completion(tenant_id, user_id)
 
     return row
 
@@ -424,6 +451,181 @@ def apply_idp_attributes(
 
 
 # ---------------------------------------------------------------------------
+# Required-field enforcement (Iteration 7)
+# ---------------------------------------------------------------------------
+
+
+def compute_missing_required(tenant_id: str, user_id: str) -> list[tuple[str, bool]]:
+    """Return the list of required+enabled attributes the user is missing.
+
+    Each entry is ``(attribute_key, locked)`` where ``locked`` reflects
+    the tenant's ``locked_for_users`` flag for that attribute. Callers
+    decide whether to act on locked-vs-unlocked separately:
+
+    * Dashboard banner / force-completion gate: filter to ``locked=False``
+      (the user can only act on those).
+    * Admin Todo view: surfaces both.
+
+    The function is a pure read (no event log, no activity tracking) so
+    it is safe to call inside hot paths such as the dashboard render or
+    a middleware-level gate. The caller is responsible for any audit
+    surfacing.
+    """
+    config_rows = database.tenant_attribute_config.list_config(tenant_id)
+    required_keys = [
+        row["attribute_key"] for row in config_rows if row.get("enabled") and row.get("required")
+    ]
+    if not required_keys:
+        return []
+    locked_by_key = {row["attribute_key"]: bool(row.get("locked_for_users")) for row in config_rows}
+
+    existing_rows = database.user_attributes.list_attributes(tenant_id, user_id)
+    present_keys = {
+        row["attribute_key"]
+        for row in existing_rows
+        if row.get("value") and str(row["value"]).strip()
+    }
+
+    return [
+        (key, locked_by_key.get(key, False)) for key in required_keys if key not in present_keys
+    ]
+
+
+def _maybe_clear_force_profile_completion(tenant_id: str, user_id: str) -> None:
+    """Clear ``force_profile_completion`` if the user-fixable gate is satisfied.
+
+    Called from ``set_user_attribute`` after each successful upsert. The
+    flag is cleared only when every required+enabled+UNLOCKED attribute
+    has a value (locked fields are admin-only and cannot block the user
+    from leaving the gated flow).
+    """
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user or not user.get("force_profile_completion"):
+        return
+    missing = compute_missing_required(tenant_id, user_id)
+    user_fixable_missing = [key for key, locked in missing if not locked]
+    if not user_fixable_missing:
+        database.users.set_force_profile_completion(tenant_id, user_id, False)
+
+
+def list_users_with_missing_required(
+    requesting_user: RequestingUser,
+) -> list[dict]:
+    """Return one row per (user, missing-required-attribute) pair.
+
+    Authorization: admin / super_admin only.
+
+    Returns a list of dicts (admin Todo view payload) shaped as:
+
+        {
+            "user_id": str,
+            "first_name": str,
+            "last_name": str,
+            "email": str | None,
+            "attribute_key": str,
+            "locked": bool,
+            "force_profile_completion": bool,
+        }
+
+    The query is one DB round-trip; callers can group/filter in
+    application code. Service users and inactivated/anonymized users are
+    excluded by the database query.
+    """
+    require_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+    track_activity(tenant_id, requesting_user["id"])
+
+    rows = database.user_attributes.list_missing_required_for_tenant(tenant_id)
+    if not rows:
+        return []
+
+    # Fetch force_profile_completion flag per unique user in a single query
+    # to keep this O(unique users) rather than O(rows).
+    user_ids = list({str(r["user_id"]) for r in rows})
+    flag_rows = database.fetchall(
+        tenant_id,
+        """
+        select id, force_profile_completion
+          from users
+         where id = any(:ids)
+        """,
+        {"ids": user_ids},
+    )
+    flag_by_user = {str(r["id"]): bool(r["force_profile_completion"]) for r in flag_rows}
+
+    return [
+        {
+            "user_id": str(r["user_id"]),
+            "first_name": r["first_name"],
+            "last_name": r["last_name"],
+            "email": r["email"],
+            "attribute_key": r["attribute_key"],
+            "locked": bool(r["locked_for_users"]),
+            "force_profile_completion": flag_by_user.get(str(r["user_id"]), False),
+        }
+        for r in rows
+    ]
+
+
+def bulk_set_force_profile_completion(
+    requesting_user: RequestingUser,
+    user_ids: list[str],
+) -> dict:
+    """Flag selected users for forced profile completion.
+
+    Authorization: admin / super_admin only. For each candidate user, the
+    flag is set ONLY if every missing required attribute on that user is
+    unlocked. If any missing attribute is locked (admin-only), the user
+    is skipped (a force-completion redirect would loop forever because
+    the user can't fix the locked field themselves).
+
+    Emits ``user_force_profile_completion_set`` per user flagged.
+
+    Returns:
+        ``{"flagged": list[str], "skipped_locked": list[str], "skipped_complete": list[str]}``
+
+        - ``flagged`` -- users newly flagged.
+        - ``skipped_locked`` -- users with at least one missing required
+          LOCKED attribute (no-op; the user couldn't escape the gate).
+        - ``skipped_complete`` -- users who had nothing missing at all
+          (no-op; nothing to force).
+    """
+    require_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+
+    flagged: list[str] = []
+    skipped_locked: list[str] = []
+    skipped_complete: list[str] = []
+
+    for user_id in user_ids:
+        missing = compute_missing_required(tenant_id, user_id)
+        if not missing:
+            skipped_complete.append(user_id)
+            continue
+        if any(locked for _key, locked in missing):
+            skipped_locked.append(user_id)
+            continue
+        database.users.set_force_profile_completion(tenant_id, user_id, True)
+        flagged.append(user_id)
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="user_force_profile_completion_set",
+            metadata={
+                "missing_keys": [key for key, _locked in missing],
+            },
+        )
+
+    return {
+        "flagged": flagged,
+        "skipped_locked": skipped_locked,
+        "skipped_complete": skipped_complete,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Public re-exports for the registry helper used in tests
 # ---------------------------------------------------------------------------
 
@@ -433,9 +635,12 @@ def apply_idp_attributes(
 __all__ = [
     "ATTRIBUTES_BY_KEY",
     "apply_idp_attributes",
+    "bulk_set_force_profile_completion",
     "clear_user_attribute",
+    "compute_missing_required",
     "get_user_attribute",
     "list_user_attributes",
     "list_user_idp_attributes",
+    "list_users_with_missing_required",
     "set_user_attribute",
 ]

@@ -59,24 +59,55 @@ def get_current_user(
     return auth.get_current_user(request, tenant_id)
 
 
+# Paths that remain accessible while ``force_profile_completion`` is true.
+# Anything not on this list redirects to ``/account/profile``. Keep the
+# set deliberately tiny: the profile page itself, its form-submit
+# endpoint, the static asset directories the page needs, and logout.
+_FORCED_PROFILE_WHITELIST_EXACT = frozenset(
+    {
+        "/account/profile",
+        "/account/profile/update-attributes",
+        "/logout",
+    }
+)
+
+
+def _is_forced_profile_path(path: str) -> bool:
+    """Return True if ``path`` is allowed while force_profile_completion=true."""
+    if path in _FORCED_PROFILE_WHITELIST_EXACT:
+        return True
+    # Static assets and CSP-reportable scripts/styles must keep working so
+    # the profile page renders normally.
+    if path.startswith("/static/"):
+        return True
+    return False
+
+
 def require_current_user(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
 ) -> dict:
     """Require authentication, redirect to /login if not authenticated.
 
-    This dependency should be used at the router level or individual route level
-    to enforce authentication before the handler executes.
+    Also enforces the ``force_profile_completion`` gate: if the user is
+    flagged for forced profile completion, redirect to ``/account/profile``
+    and block navigation everywhere except the whitelist
+    (profile page + its submit endpoint + logout + static assets).
 
     Returns:
         dict: The authenticated user data
 
     Raises:
-        RedirectResponse: Redirects to /login if user is not authenticated
+        RedirectResponse: Redirects to /login if not authenticated, or
+                          /account/profile if force_profile_completion is set.
     """
     user = auth.get_current_user(request, tenant_id)
     if not user:
         raise RedirectError(url="/login", status_code=303)
+
+    if user.get("force_profile_completion") and not _is_forced_profile_path(request.url.path):
+        raise RedirectError(url="/account/profile", status_code=303)
+
     return user
 
 
@@ -99,6 +130,9 @@ def require_admin(
     user = auth.get_current_user(request, tenant_id)
     if not user:
         raise RedirectError(url="/login", status_code=303)
+
+    if user.get("force_profile_completion") and not _is_forced_profile_path(request.url.path):
+        raise RedirectError(url="/account/profile", status_code=303)
 
     user_role = user.get("role")
     if user_role not in ("admin", "super_admin"):
@@ -126,6 +160,9 @@ def require_super_admin(
     user = auth.get_current_user(request, tenant_id)
     if not user:
         raise RedirectError(url="/login", status_code=303)
+
+    if user.get("force_profile_completion") and not _is_forced_profile_path(request.url.path):
+        raise RedirectError(url="/account/profile", status_code=303)
 
     user_role = user.get("role")
     if user_role != "super_admin":

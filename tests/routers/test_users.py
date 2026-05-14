@@ -3783,3 +3783,242 @@ def test_remove_user_from_group_service_error(test_admin_user, mocker, override_
     )
 
     assert response.status_code == 500
+
+
+# ============================================================================
+# /users/new -- standard attribute integration (Iteration 7)
+# ============================================================================
+
+
+def test_new_user_page_surfaces_enabled_attribute_categories(
+    test_admin_user, mocker, override_auth
+):
+    """GET /users/new passes attribute_categories with enabled tenant config."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user)
+
+    mock_template = mocker.patch(f"{USERS_CREATION}.templates.TemplateResponse")
+    mock_template.return_value = HTMLResponse(content="<html>New User</html>")
+    mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains", return_value=[])
+
+    # Two enabled attributes (different categories), one disabled
+    mocker.patch(
+        f"{USERS_CREATION}.settings_service.list_tenant_attribute_config",
+        return_value=[
+            {
+                "attribute_key": "job_title",
+                "enabled": True,
+                "required": False,
+                "locked_for_users": False,
+                "mirror_from_idp": False,
+                "send_to_sps_default": False,
+            },
+            {
+                "attribute_key": "country",
+                "enabled": True,
+                "required": True,
+                "locked_for_users": False,
+                "mirror_from_idp": False,
+                "send_to_sps_default": False,
+            },
+            {
+                "attribute_key": "phone_number",
+                "enabled": False,
+                "required": False,
+                "locked_for_users": False,
+                "mirror_from_idp": False,
+                "send_to_sps_default": False,
+            },
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.get("/users/new")
+
+    assert response.status_code == 200
+    # TemplateResponse(request, template, context)
+    context = mock_template.call_args[0][2]
+    cats = context.get("attribute_categories", [])
+    assert cats, "Expected at least one category"
+    all_keys = {item["key"] for group in cats for item in group["attributes"]}
+    assert "job_title" in all_keys
+    assert "country" in all_keys
+    # disabled attribute is excluded
+    assert "phone_number" not in all_keys
+
+
+def test_new_user_page_empty_categories_when_no_enabled_config(
+    test_admin_user, mocker, override_auth
+):
+    """GET /users/new yields empty attribute_categories when nothing is enabled."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user)
+
+    mock_template = mocker.patch(f"{USERS_CREATION}.templates.TemplateResponse")
+    mock_template.return_value = HTMLResponse(content="<html>New User</html>")
+    mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains", return_value=[])
+    mocker.patch(
+        f"{USERS_CREATION}.settings_service.list_tenant_attribute_config",
+        return_value=[],
+    )
+
+    client = TestClient(app)
+    response = client.get("/users/new")
+
+    assert response.status_code == 200
+    context = mock_template.call_args[0][2]
+    assert context.get("attribute_categories") == []
+
+
+def test_create_new_user_with_attribute_values(test_admin_user, mocker, override_auth):
+    """POST /users/new sets enabled attribute values via service layer."""
+    override_auth(test_admin_user)
+
+    mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain", return_value=True)
+    mock_user = type("obj", (object,), {"id": "new-user-123"})()
+    mocker.patch(f"{SERVICES_USERS}.create_user", return_value=mock_user)
+    mocker.patch(
+        f"{SERVICES_USERS}.add_verified_email_with_nonce",
+        return_value={"id": "email-123", "set_password_nonce": 1},
+    )
+    mocker.patch(f"{SERVICES_USERS}.get_tenant_name", return_value="Org")
+    mocker.patch(f"{USERS_CREATION}.send_new_user_privileged_domain_notification")
+
+    mocker.patch(
+        f"{USERS_CREATION}.settings_service.list_tenant_attribute_config",
+        return_value=[
+            {
+                "attribute_key": "job_title",
+                "enabled": True,
+                "required": False,
+                "locked_for_users": False,
+                "mirror_from_idp": False,
+                "send_to_sps_default": False,
+            },
+        ],
+    )
+    mock_set_attr = mocker.patch(f"{SERVICES_USERS}.set_user_attribute")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": "newuser@privileged.com",
+            "first_name": "New",
+            "last_name": "User",
+            "role": "member",
+            "attr_job_title": "Engineer",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    mock_set_attr.assert_called_once()
+    call_args = mock_set_attr.call_args
+    # set_user_attribute(requesting_user, user_id, key, value)
+    assert call_args.args[1] == "new-user-123"
+    assert call_args.args[2] == "job_title"
+    assert call_args.args[3] == "Engineer"
+
+
+def test_create_new_user_silently_drops_invalid_attribute(test_admin_user, mocker, override_auth):
+    """An invalid attribute value must not fail user creation -- it's silently dropped."""
+    from services.exceptions import ValidationError
+
+    override_auth(test_admin_user)
+
+    mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain", return_value=True)
+    mock_user = type("obj", (object,), {"id": "new-user-456"})()
+    mocker.patch(f"{SERVICES_USERS}.create_user", return_value=mock_user)
+    mocker.patch(
+        f"{SERVICES_USERS}.add_verified_email_with_nonce",
+        return_value={"id": "email-456", "set_password_nonce": 1},
+    )
+    mocker.patch(f"{SERVICES_USERS}.get_tenant_name", return_value="Org")
+    mocker.patch(f"{USERS_CREATION}.send_new_user_privileged_domain_notification")
+
+    mocker.patch(
+        f"{USERS_CREATION}.settings_service.list_tenant_attribute_config",
+        return_value=[
+            {
+                "attribute_key": "country",
+                "enabled": True,
+                "required": False,
+                "locked_for_users": False,
+                "mirror_from_idp": False,
+                "send_to_sps_default": False,
+            },
+        ],
+    )
+    mock_set_attr = mocker.patch(
+        f"{SERVICES_USERS}.set_user_attribute",
+        side_effect=ValidationError(message="bad country code", code="invalid_country"),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": "newuser2@privileged.com",
+            "first_name": "New",
+            "last_name": "User",
+            "role": "member",
+            "attr_country": "not_a_code",
+        },
+        follow_redirects=False,
+    )
+
+    # User creation succeeded despite the bad attribute value
+    assert response.status_code == 303
+    assert "/users/new-user-456" in response.headers["location"]
+    assert "success=user_created" in response.headers["location"]
+    mock_set_attr.assert_called_once()
+
+
+def test_create_new_user_ignores_disabled_attribute(test_admin_user, mocker, override_auth):
+    """A submitted attribute that is not enabled in tenant config must be ignored."""
+    override_auth(test_admin_user)
+
+    mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain", return_value=True)
+    mock_user = type("obj", (object,), {"id": "new-user-789"})()
+    mocker.patch(f"{SERVICES_USERS}.create_user", return_value=mock_user)
+    mocker.patch(
+        f"{SERVICES_USERS}.add_verified_email_with_nonce",
+        return_value={"id": "email-789", "set_password_nonce": 1},
+    )
+    mocker.patch(f"{SERVICES_USERS}.get_tenant_name", return_value="Org")
+    mocker.patch(f"{USERS_CREATION}.send_new_user_privileged_domain_notification")
+
+    mocker.patch(
+        f"{USERS_CREATION}.settings_service.list_tenant_attribute_config",
+        return_value=[
+            {
+                "attribute_key": "phone_number",
+                "enabled": False,
+                "required": False,
+                "locked_for_users": False,
+                "mirror_from_idp": False,
+                "send_to_sps_default": False,
+            },
+        ],
+    )
+    mock_set_attr = mocker.patch(f"{SERVICES_USERS}.set_user_attribute")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": "newuser3@privileged.com",
+            "first_name": "New",
+            "last_name": "User",
+            "role": "member",
+            "attr_phone_number": "+15551234567",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    # The disabled attribute must NOT be set
+    mock_set_attr.assert_not_called()

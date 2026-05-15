@@ -114,22 +114,149 @@ def get_app_path() -> Path:
 
 
 # =============================================================================
-# Principle 1: Service Layer Architecture (Router Import Violations)
+# Principle 1: Service Layer Architecture (Layering Violations)
 # =============================================================================
+#
+# Declarative table of layering rules. Each rule says: "files under
+# ``importer_prefix`` may not import from the package ``forbidden_target``".
+# The principle: lower-layer modules must not import from higher-layer
+# modules, and leaf code (utils, middleware) must not reach into
+# layered subsystems (database, services).
+#
+# Rule shape:
+#   (importer_prefix, forbidden_target, severity, reason, suggested_fix)
+#
+# ``importer_prefix`` is a path prefix relative to the project root
+# (matches ``str(py_file.relative_to(get_project_root()))``).
+# ``forbidden_target`` is the top-level package name as it appears in
+# ``import X`` / ``from X import ...`` statements. Both the unqualified
+# (``database``) and ``app.``-prefixed (``app.database``) forms are
+# checked automatically.
+
+LAYERING_RULES: list[tuple[str, str, str, str, str]] = [
+    (
+        "app/routers/",
+        "database",
+        "high",
+        "Router imports directly from database layer",
+        "Call service layer functions instead of database functions directly",
+    ),
+    (
+        "app/utils/",
+        "database",
+        "high",
+        "Util imports directly from database layer (utils are leaf code)",
+        "Move the function into the service layer (e.g. app/services/<area>/)",
+    ),
+    (
+        "app/utils/",
+        "services",
+        "medium",
+        "Util imports from services layer (utils are leaf code)",
+        "Move the function into the service layer or invert the dependency",
+    ),
+    (
+        "app/middleware/",
+        "database",
+        "high",
+        "Middleware imports directly from database layer",
+        "Call service layer functions or move the read into a service",
+    ),
+    (
+        "app/jobs/",
+        "database",
+        "high",
+        "Job handler imports directly from database layer",
+        "Call service layer functions; jobs are service callers",
+    ),
+]
+
+
+# Files that pre-date the expanded LAYERING_RULES rule set (Iteration 2 of
+# PR #106 cleanup). These are real architectural debt -- a util reaching
+# into ``database`` is the same class of violation that motivated moving
+# ``build_idp_attribute_panel`` out of ``app/utils/profile_attributes.py``
+# -- but rewriting them is out of scope for this iteration. Future
+# refactors should drain this list. Each entry is a project-root-relative
+# path that the scanner will skip.
+#
+# When adding a new module, do NOT add it here. The right answer is to
+# put service-reaching code in the service layer (or invert the
+# dependency by moving the pure helper into utils).
+LAYERING_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        # Utils that reach into services / database (pre-existing debt).
+        "app/utils/auth.py",
+        "app/utils/email_branding.py",
+        "app/utils/mfa.py",
+        "app/utils/ratelimit.py",
+        "app/utils/service_errors.py",
+        "app/utils/template_context.py",
+        "app/utils/webauthn.py",
+        # Job handlers that reach into database directly (pre-existing
+        # debt -- these should be refactored to call into services).
+        "app/jobs/bulk_add_secondary_emails.py",
+        "app/jobs/bulk_change_primary_email.py",
+        "app/jobs/bulk_group_assignment.py",
+        "app/jobs/bulk_inactivate_users.py",
+        "app/jobs/bulk_reactivate_users.py",
+        "app/jobs/check_hibp_breaches.py",
+        "app/jobs/cleanup_exports.py",
+        "app/jobs/cleanup_saml_debug.py",
+        "app/jobs/export_events.py",
+        "app/jobs/export_users.py",
+        "app/jobs/inactivate_idle_users.py",
+        "app/jobs/redact_verbose_event_pii.py",
+        "app/jobs/rotate_certificates.py",
+    }
+)
+
+
+def _import_targets(node: ast.AST) -> list[tuple[str, str]]:
+    """Return ``(top_package, evidence)`` pairs for one import node.
+
+    ``top_package`` is the leading dotted segment with any leading
+    ``app.`` stripped, so the caller can compare a single canonical
+    form against the rule's ``forbidden_target``.
+
+    Returns an empty list for nodes that are not imports.
+    """
+    out: list[tuple[str, str]] = []
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            name = alias.name
+            top = name.split(".", 1)[0]
+            if top == "app" and "." in name:
+                top = name.split(".", 2)[1]
+            out.append((top, f"import {name}"))
+    elif isinstance(node, ast.ImportFrom):
+        module = node.module or ""
+        # Skip relative imports (``from . import x``); they cannot cross
+        # the top-level package boundary in a way the rules care about.
+        if node.level and not module:
+            return out
+        top = module.split(".", 1)[0]
+        if top == "app" and "." in module:
+            top = module.split(".", 2)[1]
+        names = ", ".join(alias.name for alias in node.names)
+        out.append((top, f"from {module} import {names}"))
+    return out
 
 
 def check_architecture_violations(report: ComplianceReport) -> None:
-    """
-    Check that routers don't import directly from the database layer.
+    """Check layering rules across every Python module under ``app/``.
 
-    Violation: Router files importing from 'database' or 'app.database'
+    Each ``LAYERING_RULES`` entry forbids a directory of importers from
+    reaching into a target top-level package. Both bare (``database``)
+    and ``app.``-prefixed (``app.database``) imports are caught.
     """
-    routers_path = get_app_path() / "routers"
-
-    if not routers_path.exists():
+    app_path = get_app_path()
+    if not app_path.exists():
         return
 
-    for py_file in routers_path.rglob("*.py"):
+    project_root = get_project_root()
+
+    for py_file in app_path.rglob("*.py"):
         if py_file.name.startswith("__"):
             continue
 
@@ -142,63 +269,35 @@ def check_architecture_violations(report: ComplianceReport) -> None:
         except (SyntaxError, UnicodeDecodeError):
             continue
 
-        for node in ast.walk(tree):
-            # Check 'import database' or 'import app.database'
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name == "database" or alias.name.startswith("database."):
-                        report.add(
-                            Violation(
-                                principle="Service Layer Architecture",
-                                severity="high",
-                                file_path=str(py_file.relative_to(get_project_root())),
-                                line_number=node.lineno,
-                                function_name=None,
-                                description="Router imports directly from database layer",
-                                evidence=f"import {alias.name}",
-                                suggested_fix=(
-                                    "Import from services layer instead: "
-                                    "from services import module_name"
-                                ),
-                            )
-                        )
-                    if alias.name.startswith("app.database"):
-                        report.add(
-                            Violation(
-                                principle="Service Layer Architecture",
-                                severity="high",
-                                file_path=str(py_file.relative_to(get_project_root())),
-                                line_number=node.lineno,
-                                function_name=None,
-                                description="Router imports directly from database layer",
-                                evidence=f"import {alias.name}",
-                                suggested_fix="Import from services layer instead",
-                            )
-                        )
+        rel_path = str(py_file.relative_to(project_root))
 
-            # Check 'from database import ...' or 'from app.database import ...'
-            if isinstance(node, ast.ImportFrom):
-                if node.module and (
-                    node.module == "database"
-                    or node.module.startswith("database.")
-                    or node.module.startswith("app.database")
-                ):
-                    names = ", ".join(alias.name for alias in node.names)
-                    report.add(
-                        Violation(
-                            principle="Service Layer Architecture",
-                            severity="high",
-                            file_path=str(py_file.relative_to(get_project_root())),
-                            line_number=node.lineno,
-                            function_name=None,
-                            description="Router imports directly from database layer",
-                            evidence=f"from {node.module} import {names}",
-                            suggested_fix=(
-                                "Call service layer functions instead of "
-                                "database functions directly"
-                            ),
+        if rel_path in LAYERING_ALLOWLIST:
+            continue
+
+        # Find every rule whose importer prefix this file matches; for
+        # a file under app/utils/, two rules can apply (database, services).
+        applicable = [r for r in LAYERING_RULES if rel_path.startswith(r[0])]
+        if not applicable:
+            continue
+
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+            for top, evidence in _import_targets(node):
+                for importer_prefix, target, severity, reason, fix in applicable:
+                    if top == target:
+                        report.add(
+                            Violation(
+                                principle="Service Layer Architecture",
+                                severity=severity,
+                                file_path=rel_path,
+                                line_number=node.lineno,
+                                function_name=None,
+                                description=reason,
+                                evidence=evidence,
+                                suggested_fix=fix,
+                            )
                         )
-                    )
 
 
 # =============================================================================

@@ -27,8 +27,16 @@ from services.users._converters import (
 # Re-export validation helpers for backwards compatibility
 from services.users._validation import _validate_role_change
 
+# Re-export from attribute_views module (template-facing view builders)
+from services.users.attribute_views import (
+    build_attribute_groups_for_admin,
+    build_attribute_groups_for_self,
+    build_idp_attribute_panel,
+)
+
 # Re-export from attributes module
 from services.users.attributes import (
+    apply_attribute_form_updates,
     apply_idp_attributes,
     bulk_set_force_profile_completion,
     clear_user_attribute,
@@ -106,6 +114,7 @@ from services.users.utilities import (
 
 __all__ = [
     # Attributes
+    "apply_attribute_form_updates",
     "apply_idp_attributes",
     "bulk_set_force_profile_completion",
     "clear_user_attribute",
@@ -115,6 +124,10 @@ __all__ = [
     "list_user_idp_attributes",
     "list_users_with_missing_required",
     "set_user_attribute",
+    # Attribute view builders
+    "build_attribute_groups_for_admin",
+    "build_attribute_groups_for_self",
+    "build_idp_attribute_panel",
     # Auth policy
     "user_must_enroll_enhanced",
     # CRUD

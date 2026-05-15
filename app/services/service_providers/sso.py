@@ -130,7 +130,7 @@ def _build_assertion_attributes(
     # keep leaking the value out to that SP.
     try:
         config_rows = database.tenant_attribute_config.list_config(tenant_id)
-    except Exception:  # noqa: BLE001 -- never break SSO over an attribute fetch
+    except Exception as exc:  # noqa: BLE001 -- never break SSO over an attribute fetch
         logger.warning(
             "Failed to load tenant_attribute_config for tenant_id=%s; "
             "assertion omits standard attrs",
@@ -138,18 +138,66 @@ def _build_assertion_attributes(
             exc_info=True,
         )
         config_rows = []
+        # Audit-trail event so a recurring outage surfaces in the admin
+        # event log, not just container stderr. Wrapped in try/except so
+        # an audit-log failure (e.g. the same DB outage that broke this
+        # read) still cannot cascade into the SSO path. The exception
+        # message is deliberately excluded -- it may carry SQL fragments
+        # or connection-string fragments depending on the failure mode.
+        try:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=user_id,
+                artifact_type="tenant",
+                artifact_id=tenant_id,
+                event_type="tenant_attribute_config_read_failed",
+                metadata={
+                    "phase": "config",
+                    "error_class": type(exc).__name__,
+                },
+            )
+        except Exception:
+            logger.warning(
+                "Failed to emit tenant_attribute_config_read_failed event for tenant_id=%s",
+                tenant_id,
+                exc_info=True,
+            )
     enabled_tenant_keys = {row.get("attribute_key") for row in config_rows if row.get("enabled")}
 
     # Standard attributes from EAV. Read once; merge by registry key.
     try:
         rows = database.user_attributes.list_attributes(tenant_id, user_id)
-    except Exception:  # noqa: BLE001 -- never break SSO over an attribute fetch
+    except Exception as exc:  # noqa: BLE001 -- never break SSO over an attribute fetch
         logger.warning(
             "Failed to load user_attributes for user_id=%s; assertion omits standard attrs",
             user_id,
             exc_info=True,
         )
         rows = []
+        # Mirror the same audit precedent as the config read above. We
+        # reuse the ``tenant_attribute_config_read_failed`` event type
+        # with ``phase=user_attributes`` rather than minting a second
+        # type because both failures share the same operational signal
+        # (DB read for assertion attributes failed) and the same
+        # admin-side remediation (check the database).
+        try:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=user_id,
+                artifact_type="user",
+                artifact_id=user_id,
+                event_type="tenant_attribute_config_read_failed",
+                metadata={
+                    "phase": "user_attributes",
+                    "error_class": type(exc).__name__,
+                },
+            )
+        except Exception:
+            logger.warning(
+                "Failed to emit tenant_attribute_config_read_failed event for user_id=%s",
+                user_id,
+                exc_info=True,
+            )
 
     # When attribute_mapping is provided, only include keys present in the
     # mapping. Otherwise, include every value the user has. This honors the

@@ -104,3 +104,13 @@ To enable logging for successful assertions (for temporary debugging), toggle **
 ## Deleting an IdP
 
 An IdP cannot be deleted while it has email domain bindings. Remove all domain bindings first, then delete. Any IdP-synced groups will be marked as invalid but preserved for audit purposes.
+
+### Scrubbing mirrored attributes
+
+When you delete an IdP, user profile values that were mirrored from it are left in place. Most of the time this is what you want: the user still has a valid display name, job title, etc. even though the source IdP is gone.
+
+For the cases where you want a clean slate (compliance off-boarding, swapping an IdP that mirrored sensitive fields), the delete dialog has a **Scrub mirrored attributes** checkbox. When ticked, WeftID clears any canonical user profile values that still match the IdP's last-mirrored snapshot. Values that the user or an admin has since changed are preserved.
+
+The scrubbed keys per user are recorded in the audit log via `user_profile_updated` events. The `saml_idp_deleted` event records `scrubbed: true` and the total user count.
+
+The same option is available via the API: `DELETE /api/v1/saml/idps/{id}?scrub_mirrored_attributes=true`.

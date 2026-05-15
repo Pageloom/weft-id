@@ -95,3 +95,7 @@ most recent values received from each identity provider, with a **Mirrored into
 profile** badge on rows that were copied into the user's profile (per the mirror
 flag). Use this to verify that an IdP is sending what you expect, even if you
 choose not to mirror it.
+
+## Removing mirrored values when an IdP is disconnected
+
+When you delete an IdP, mirrored profile values stay on the user record. To clear values that still match the IdP's last-mirrored snapshot, tick **Scrub mirrored attributes** in the IdP delete dialog. See [Deleting an IdP](../identity-providers/saml-setup.md#scrubbing-mirrored-attributes) for details.

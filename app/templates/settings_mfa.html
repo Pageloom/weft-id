@@ -104,7 +104,7 @@
             {% endif %}
             {% if passkey_error %}
             <div class="mb-4 px-4 py-3 rounded border text-sm bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300" role="alert">
-                Could not complete passkey action ({{ passkey_error }}).
+                Passkey action failed: {{ passkey_error }}
             </div>
             {% endif %}
 

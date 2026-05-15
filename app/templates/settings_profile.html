@@ -14,11 +14,11 @@
     <div class="p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md" role="alert">
         <p class="text-sm text-red-800 dark:text-red-300">
             {% if error == 'save_failed' %}
-            Could not save profile attributes. Try again.
+            Failed to save profile attributes. Try again.
             {% elif error.startswith('invalid_') %}
-            Could not save {{ invalid_attribute_label or 'profile attribute' }}: please check the value.
+            Invalid value for {{ invalid_attribute_label or 'profile attribute' }}.
             {% else %}
-            An error occurred. Try again.
+            Something went wrong. Try again.
             {% endif %}
         </p>
     </div>

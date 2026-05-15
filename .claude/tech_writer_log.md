@@ -1,5 +1,54 @@
 # Tech Writer Log
 
+## 2026-05-15 - Copy + Docs for User Attributes, Passkeys, 1.5.0
+
+**Starting commit:** 106624e
+**Ending commit:** d14df71
+**Mode:** Both (copy review + documentation)
+
+### Changes Since Last Session
+
+~85 commits. Major themes: full passkey/WebAuthn implementation (login, registration, admin tooling, clone detection), tenant auth strength policy with forced TOTP enrollment, enhanced auth policy enforcement per-route, standard user attributes (data model, settings page, profile UI, IdP mirroring, force-completion gate, downstream SAML emission, scrub-on-disconnect), 1.4.0/1.4.1/1.5.0 releases.
+
+A lot of copy and doc work was already done inline (commits 7024078, 9388483, 8796ccd, 5b922e5, 9388483, 9814d47), so this session focused on residual gaps.
+
+### Direct Copy Fixes (2 files, 4 edits)
+
+1. **settings_profile.html:16-22** -- Error block rewritten. "Could not save profile attributes. Try again." -> "Failed to save profile attributes. Try again." Invalid-attribute message dropped "please" filler. Generic "An error occurred. Try again." -> "Something went wrong. Try again."
+2. **settings_mfa.html:107** -- "Could not complete passkey action ({{ passkey_error }})." -> "Passkey action failed: {{ passkey_error }}" (active voice, drops parenthetical).
+
+### Documentation Updates (4 pages + site rebuild)
+
+1. **self-hosting/index.md** -- Updated version examples from 1.3.0/1.2.0 to 1.5.0/1.4.1 (upgrade procedure, rollback, tag list, `WEFT_VERSION` description).
+2. **admin-guide/identity-providers/saml-setup.md** -- Added "Scrubbing mirrored attributes" subsection under "Deleting an IdP" covering checkbox behavior, value preservation, audit events, and API query parameter.
+3. **admin-guide/security/user-attributes.md** -- Added "Removing mirrored values when an IdP is disconnected" section cross-linking to the saml-setup scrub docs.
+4. **admin-guide/audit/index.md** -- Added "profile updated" to Users event-type row. Added new "User attributes" row covering tenant settings changes, IdP mirroring, and scrub-on-disconnect.
+5. **site/** -- Rebuilt with `make docs`.
+
+### Already Documented (No Changes Needed)
+
+- Passkey login, registration, management, admin tooling (covered in user-guide/passkeys.md, admin-guide/security/two-step-verification.md, authentication-policy.md)
+- Tenant auth strength policy and enhanced auth enrollment (admin-guide/security/authentication-policy.md including SP-initiated SAML SSO hold)
+- Standard user attributes catalog, five flags, force-completion gate, IdP mirroring, downstream SAML emission (admin-guide/security/user-attributes.md, service-providers/attribute-mapping.md "Standard profile attributes" section)
+- Two-step verification rename for passkey accuracy (already swept)
+
+### Not Changed (Intentional)
+
+- **enroll_enhanced_auth.html "Your administrator requires stronger sign-in"** -- Subagent suggested dropping framing, but the page is reached by forced redirect; explaining *why* the user landed there is important context. Kept.
+- **saml_idp_tab_danger.html "Also clear user profile values"** -- "Also" reads as "in addition to deletion." Kept for clarity.
+
+### Areas Reviewed
+
+- 31 templates changed since 106624e (parallel review via Explore agent)
+- All major feature docs (security/, identity-providers/, service-providers/, audit/, self-hosting/)
+- mkdocs.yml nav (clean)
+
+### Screenshots Requested
+
+None.
+
+---
+
 ## 2026-04-13 - Copy Review + Docs for Security Sweep, SAML Features
 
 **Starting commit:** 106624e

@@ -66,7 +66,8 @@ Events cover all areas of the platform:
 | Category | Examples |
 |----------|---------|
 | Authentication | Sign-in, sign-out, password changes, password resets, breach detection, passkey sign-in |
-| Users | Created, updated, inactivated, reactivated, anonymized |
+| Users | Created, updated, inactivated, reactivated, anonymized, profile updated |
+| User attributes | Tenant attribute settings changed, IdP attribute values mirrored at sign-in, mirrored values scrubbed on IdP delete |
 | Groups | Created, deleted, members added/removed, relationships changed |
 | Identity providers | Created, updated, trust established, deleted |
 | Service providers | Created, updated, deleted, SSO assertions issued |

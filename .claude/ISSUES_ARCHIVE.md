@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [DEPS] python-multipart, urllib3, pip CVEs blocking `make check`
+
+**Status:** Resolved (2026-05-15)
+**Found in:** `pyproject.toml`, `poetry.lock`
+**Severity:** Mixed (3 HIGH, 2 MEDIUM resolved; 1 LOW pygments remains, see ISSUES.md)
+**Resolution:** Bumped `python-multipart` constraint from `^0.0.26` to `^0.0.27` to clear CVE-2026-42561 (HIGH DoS via unbounded multipart headers, directly exploitable on FastAPI form endpoints). Ran `poetry update urllib3 pip` to pick up urllib3 2.7.0 (clears CVE-2026-44431 cross-origin redirect leak and CVE-2026-44432 streaming API issue, both HIGH but only transitive) and pip 26.1.1 (clears CVE-2026-6357; CVE-2026-3219 is unfixed upstream but dev/build-only). `deps_check.py` now reports 1 LOW (pygments) and exits 0; full unit test suite (5317 tests) and `make fix` both pass.
+
+---
+
 ### [DESIGN] Stale mirrored attributes after IdP disconnect
 
 **Status:** Resolved (2026-05-15)

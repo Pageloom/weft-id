@@ -12,12 +12,12 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 5 | Duplication (pre-existing), Security hardening (new), Test coverage (new) |
-| Deps | 4 | urllib3, pip, python-multipart, pygments (pre-existing) |
+| Deps | 1 | pygments (LOW, blocked by upstream) |
 
 **Last security scan:** 2026-04-24 (targeted: all code from last 14 days, all OWASP categories; 3 findings, all resolved)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
 **Last API coverage audit:** 2026-04-23 (3 gaps resolved: group clear relationships, IdP reimport XML, SAML debug entries)
-**Last dependency audit:** 2026-02-23 (all clear; werkzeug upgraded to 3.1.6, pip upgraded to 26.0.1)
+**Last dependency audit:** 2026-05-15 (python-multipart, urllib3, pip bumped; pygments still pinned `<2.20`, see [DEPS] entry below)
 **Last refactor scan:** 2026-03-21 (standard: new code since 2026-02-27, all categories; 5 new issues)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
@@ -115,24 +115,25 @@ Useful regression anchors, none are current bugs:
 
 ---
 
-## [DEPS] Transitive/pinned CVEs blocking `make check`
+## [DEPS] pygments 2.19.2 — CVE-2026-4539 (LOW, blocked by upstream)
 
-**Discovered:** 2026-05-12 (iter 6 close-out)
-**Severity:** Mixed (1 HIGH, 2 MEDIUM, 1 LOW)
+**Discovered:** 2026-05-12, re-confirmed 2026-05-15
+**Severity:** Low
 **Source:** `python dev/deps_check.py`
 
-`make check` fails because `deps_check.py` reports 4 CVEs that all pre-date the
-`feature/user-attributes` branch (confirmed by stashing the working tree).
+**CVE-2026-4539** (GHSA-5239-wwwm-4pmq): ReDoS in `AdlLexer`
+(`pygments/lexers/archetype.py`).
 
-- **urllib3 2.6.3 → 2.7.0** (HIGH, transitive)
-- **pip 26.0.1 → 26.1** (MEDIUM, build tool, not a project dep)
-- **python-multipart 0.0.26 → 0.0.27** (MEDIUM, pinned `^0.0.26` in `pyproject.toml`)
-- **pygments 2.19.2 → 2.20.0** (LOW, pinned `<2.20` because 2.20.0 breaks
-  `pymdownx.superfences` — requires upstream fix or a swap to the new API
-  before bumping)
+**Exploitability in this project: NONE.** Pygments is only used to
+syntax-highlight code blocks in the docs site (built at image time, not
+user-facing input). No Adl/archetype files are rendered.
 
-Hold off on a one-line bump until `/deps` does a full audit; pygments needs an
-upstream fix or a switch off `pymdownx.superfences`. Track here until resolved.
+**Remediation: BLOCKED.** Pinned `<2.20` in `pyproject.toml` because
+`pymdownx.superfences` (via `zensical`) crashes on pygments 2.20.0
+(`filename=None` regression). Wait for an upstream `pymdownx.superfences`
+fix or swap to the new API before bumping.
+
+Does not block `make check` (deps_check only fails on critical/high).
 
 **Files Affected:** `pyproject.toml`, `poetry.lock`
 

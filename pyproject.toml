@@ -9,7 +9,7 @@ packages = [{include = "app"}]
 [tool.poetry.dependencies]
 python = "^3.12"
 fastapi = "^0.135.2"
-uvicorn = {extras = ["standard"], version = "^0.42.0"}
+uvicorn = {extras = ["standard"], version = "^0.47.0"}
 psycopg = {extras = ["binary"], version = "^3.3.3"}
 psycopg-pool = "^3.3.0"
 argh = "^0.31.0"
@@ -18,7 +18,7 @@ jinja2 = "^3.1.0"
 python-multipart = ">=0.0.27,<0.0.29"
 itsdangerous = "^2.2.0"
 pyotp = "^2.9.0"
-cryptography = "^46.0.5"
+cryptography = "^48.0.0"
 babel = "^2.17.0"
 email-validator = "^2.0.0"
 pydantic = {extras = ["email"], version = "^2.12.5"}

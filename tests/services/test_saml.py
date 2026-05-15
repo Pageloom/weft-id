@@ -4,6 +4,8 @@ This test file covers SAML IdP CRUD operations, SP certificate management,
 and authorization checks for the services/saml.py module.
 """
 
+from unittest.mock import patch
+
 import pytest
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError
 from services.types import RequestingUser
@@ -7170,3 +7172,297 @@ def test_delete_idp_without_scrub_records_zero_scrubbed_count(
     meta = events[0]["metadata"]
     assert meta["scrubbed"] is False
     assert meta["scrubbed_count"] == 0
+
+
+def test_delete_idp_scrub_uses_set_based_delete(test_tenant, test_super_admin_user, test_idp_data):
+    """Concern 6: the mirror-scrub uses a single set-based DELETE ... USING ...
+    RETURNING, not one DELETE per (user, key) tuple.
+
+    With ``n`` users and ``m`` keys each, the previous per-row implementation
+    issued ``n * m`` round-trips. The set-based form executes a single DELETE
+    statement (plus the constant overhead of opening the session). This test
+    seeds three users with two keys each and asserts:
+
+    1. Exactly one DELETE-against-user_attributes statement is issued.
+    2. All six canonical rows are scrubbed.
+    3. One ``user_profile_updated`` event is emitted per affected user
+       (three events), each listing both cleared keys.
+    """
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=False)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Three users with two mirrored attributes each. Reusing the
+    # super-admin user is fine: it is just another user_id from the scrub's
+    # perspective.
+    from argon2 import PasswordHasher
+
+    ph = PasswordHasher()
+    user_ids = [str(test_super_admin_user["id"])]
+    for nth in range(2):
+        row = database.fetchone(
+            tenant_id,
+            """
+            INSERT INTO users (tenant_id, password_hash, first_name, last_name, role)
+            VALUES (:tenant_id, :password_hash, :first_name, 'Scrub', 'member')
+            RETURNING id
+            """,
+            {
+                "tenant_id": tenant_id,
+                "password_hash": ph.hash("password"),
+                "first_name": f"User{nth}",
+            },
+        )
+        user_ids.append(str(row["id"]))
+
+    for uid in user_ids:
+        _seed_mirrored_attributes(
+            tenant_id,
+            uid,
+            idp.id,
+            {"job_title": "Engineer", "department": "Platform"},
+        )
+
+    # Count DELETE statements against user_attributes by wrapping the
+    # cursor returned by ``database.session`` so we observe every execute()
+    # call without mutating the read-only cursor attributes.
+    delete_stmt_count = 0
+    real_session = database.session
+
+    from contextlib import contextmanager
+
+    class _CursorSpy:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def execute(self, query, params=None):
+            nonlocal delete_stmt_count
+            if isinstance(query, str):
+                normalized = " ".join(query.lower().split())
+                if normalized.startswith("delete from user_attributes"):
+                    delete_stmt_count += 1
+            if params is None:
+                return self._inner.execute(query)
+            return self._inner.execute(query, params)
+
+        def fetchall(self):
+            return self._inner.fetchall()
+
+        def fetchone(self):
+            return self._inner.fetchone()
+
+        @property
+        def rowcount(self):
+            return self._inner.rowcount
+
+        def __iter__(self):
+            return iter(self._inner)
+
+    @contextmanager
+    def _spy_session(*args, **kwargs):
+        with real_session(*args, **kwargs) as cur:
+            yield _CursorSpy(cur)
+
+    with patch("services.saml.providers.database.session", _spy_session):
+        saml_service.delete_identity_provider(
+            requesting_user, idp.id, scrub_mirrored_attributes=True
+        )
+
+    # Single set-based DELETE, regardless of user_count * key_count.
+    assert delete_stmt_count == 1, f"expected exactly 1 set-based DELETE, got {delete_stmt_count}"
+
+    # All six rows scrubbed.
+    remaining = database.fetchall(
+        tenant_id,
+        "SELECT user_id, attribute_key FROM user_attributes WHERE user_id = ANY(:ids)",
+        {"ids": user_ids},
+    )
+    assert remaining == []
+
+    # One event per user, listing both cleared keys.
+    for uid in user_ids:
+        events = database.event_log.list_events(
+            tenant_id,
+            artifact_type="user",
+            artifact_id=uid,
+            event_type="user_profile_updated",
+            limit=50,
+        )
+        scrub_events = [
+            e for e in events if (e.get("metadata") or {}).get("cause") == "idp_disconnect_scrub"
+        ]
+        assert len(scrub_events) == 1, (
+            f"user {uid}: expected 1 scrub event, got {len(scrub_events)}"
+        )
+        assert set(scrub_events[0]["metadata"]["cleared_keys"]) == {"job_title", "department"}
+
+
+def test_delete_idp_scrub_does_not_leak_across_tenants(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Concern 6 (cross-tenant): the set-based ``DELETE ... USING`` join must
+    NOT scrub canonical rows belonging to a different tenant.
+
+    Why this matters: the scrub statement joins ``user_attributes`` against
+    ``user_idp_attributes`` on ``(user_id, attribute_key, value)`` with a
+    filter on ``uia.idp_id`` and ``ua.tenant_id``. PostgreSQL row-level
+    security policies are scoped to the connection's ``app.tenant_id``
+    GUC, so the query MUST only see rows in tenant A. A regression where a
+    join condition is dropped (or the RLS GUC is not set on the session)
+    could let tenant B's canonical rows match and be deleted -- a
+    safety-critical cross-tenant leak.
+
+    Setup: two tenants, each with a user holding a canonical attribute
+    AND a paired mirror row from an IdP in their own tenant. We
+    disconnect tenant A's IdP with ``scrub=True`` and assert tenant B's
+    canonical rows are untouched (the value matched the mirror in BOTH
+    tenants, so an RLS-broken join would clear both).
+    """
+    from uuid import uuid4
+
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    from tests.conftest import TEST_PASSWORD_HASH
+
+    # Tenant A: the one we will disconnect.
+    requesting_user_a = _make_requesting_user(
+        test_super_admin_user, test_tenant["id"], "super_admin"
+    )
+    tenant_a_id = str(test_tenant["id"])
+    user_a_id = str(test_super_admin_user["id"])
+
+    idp_a = saml_service.create_identity_provider(
+        requesting_user_a,
+        IdPCreate(**test_idp_data, is_enabled=False),
+        "https://test.example.com",
+    )
+
+    _seed_mirrored_attributes(
+        tenant_a_id,
+        user_a_id,
+        idp_a.id,
+        {"job_title": "Engineer", "department": "Platform"},
+    )
+
+    # Tenant B: a completely separate tenant with its own user, its own
+    # IdP, and a user whose canonical attribute values happen to match
+    # those in tenant A. If the scrub join leaks across tenants the
+    # value-equality match will sweep both.
+    tenant_b_subdomain = f"foreign-{uuid4().hex[:8]}"
+    database.execute(
+        database.UNSCOPED,
+        "INSERT INTO tenants (subdomain, name) VALUES (:s, :n)",
+        {"s": tenant_b_subdomain, "n": "Foreign"},
+    )
+    tenant_b = database.fetchone(
+        database.UNSCOPED,
+        "SELECT id FROM tenants WHERE subdomain = :s",
+        {"s": tenant_b_subdomain},
+    )
+    assert tenant_b is not None
+    tenant_b_id = str(tenant_b["id"])
+
+    try:
+        user_b = database.fetchone(
+            tenant_b_id,
+            """
+            INSERT INTO users (tenant_id, password_hash, first_name, last_name, role)
+            VALUES (:tenant_id, :pw, 'Foreign', 'User', 'admin')
+            RETURNING id
+            """,
+            {"tenant_id": tenant_b_id, "pw": TEST_PASSWORD_HASH},
+        )
+        user_b_id = str(user_b["id"])
+
+        idp_b_row = database.fetchone(
+            tenant_b_id,
+            """
+            INSERT INTO saml_identity_providers (
+                tenant_id, name, provider_type, entity_id, sso_url,
+                certificate_pem, sp_entity_id, created_by
+            ) VALUES (
+                :tenant_id, 'foreign-idp', 'generic', :entity_id,
+                'https://idp.example.com/sso', 'cert', 'https://sp.example.com',
+                :created_by
+            ) RETURNING id
+            """,
+            {
+                "tenant_id": tenant_b_id,
+                "entity_id": f"https://idp-{uuid4().hex[:8]}.example.com",
+                "created_by": user_b_id,
+            },
+        )
+        idp_b_id = str(idp_b_row["id"])
+
+        # Same key/value pair as tenant A so a leaky join would match.
+        _seed_mirrored_attributes(
+            tenant_b_id,
+            user_b_id,
+            idp_b_id,
+            {"job_title": "Engineer", "department": "Platform"},
+        )
+
+        # Sanity: tenant B has its canonical rows before the scrub.
+        b_rows_before = database.fetchall(
+            tenant_b_id,
+            "SELECT attribute_key FROM user_attributes WHERE user_id = :u",
+            {"u": user_b_id},
+        )
+        assert {r["attribute_key"] for r in b_rows_before} == {"job_title", "department"}
+
+        # Disconnect tenant A's IdP WITH scrub. The set-based DELETE
+        # must only sweep tenant A.
+        saml_service.delete_identity_provider(
+            requesting_user_a, idp_a.id, scrub_mirrored_attributes=True
+        )
+
+        # Tenant A: rows gone (sanity that the scrub did its job).
+        a_remaining = database.fetchall(
+            tenant_a_id,
+            "SELECT attribute_key FROM user_attributes WHERE user_id = :u",
+            {"u": user_a_id},
+        )
+        assert a_remaining == [], "tenant A scrub did not run; cannot assert tenant B isolation"
+
+        # Tenant B: rows MUST still be present. A regression where the
+        # DELETE join is not RLS-bounded (e.g. someone removes the
+        # ``ua.tenant_id = ...`` filter, or RLS is not enforced on the
+        # USING-joined table) would clear these too.
+        b_remaining = database.fetchall(
+            tenant_b_id,
+            "SELECT attribute_key FROM user_attributes WHERE user_id = :u",
+            {"u": user_b_id},
+        )
+        assert {r["attribute_key"] for r in b_remaining} == {"job_title", "department"}, (
+            "Cross-tenant leak: tenant B canonical rows were swept by tenant A's scrub"
+        )
+
+        # And no scrub event ever references tenant B's user.
+        b_events = database.event_log.list_events(
+            tenant_b_id,
+            artifact_type="user",
+            artifact_id=user_b_id,
+            event_type="user_profile_updated",
+            limit=50,
+        )
+        scrub_events_b = [
+            e for e in b_events if (e.get("metadata") or {}).get("cause") == "idp_disconnect_scrub"
+        ]
+        assert scrub_events_b == [], (
+            "Cross-tenant audit-log leak: tenant A scrub emitted an event "
+            "into tenant B's audit stream"
+        )
+    finally:
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE id = :id",
+            {"id": tenant_b["id"]},
+        )

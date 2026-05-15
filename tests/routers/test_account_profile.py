@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from uuid import UUID
 
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
@@ -290,3 +291,99 @@ def test_profile_page_save_failed_passes_through(test_user, override_auth, mocke
     context = mock_template.call_args.args[2]
     assert context["error"] == "save_failed"
     assert context["invalid_attribute_label"] is None
+
+
+# ============================================================================
+# Route-level integration: NO service-layer mocking
+# ----------------------------------------------------------------------------
+# These tests intentionally let the request reach the real
+# ``users_service.set_user_attribute`` / ``clear_user_attribute`` so that
+# router-to-service plumbing bugs (e.g. the UUID-vs-str regression that hid
+# behind a mocked service layer) are caught at the route boundary.
+# ============================================================================
+
+
+def test_update_attributes_self_edit_member_returns_303_not_403(test_user, override_auth):
+    """A non-admin updating their OWN attributes must succeed with 303 + flash.
+
+    Regression coverage: ``user["id"]`` is a ``UUID`` while
+    ``requesting_user["id"]`` is a ``str``. The service-layer self-edit
+    check compares those values; passing a raw UUID makes the service
+    treat the request as "non-admin acting on someone else" and emit
+    ``ForbiddenError``. The router must coerce to ``str`` so the policy
+    check sees self.
+    """
+    from services.settings.attributes import seed_tenant_attribute_config
+    from services.users import set_user_attribute
+
+    # Hardening assertions: this regression test is load-bearing only if the
+    # fixture still produces a non-admin user with a raw-UUID id. An admin
+    # would bypass the self-edit check entirely (so a 303 would be vacuous),
+    # and a str-typed id would mask the UUID-vs-str comparison bug. If the
+    # fixture ever changes shape, fail loudly here rather than silently
+    # degrade into a green test that no longer pins the behaviour.
+    assert test_user["role"] == "member", (
+        "Regression test requires a non-admin fixture; admin would bypass the "
+        "self-edit policy check that hides the bug."
+    )
+    assert isinstance(test_user["id"], UUID), (
+        "Regression test requires a raw UUID id; a str-typed id would let the "
+        "buggy router code pass without the str() coercion under test."
+    )
+
+    override_auth(test_user)
+
+    # Seed the tenant_attribute_config table (test_tenant fixture creates
+    # the tenant directly, bypassing the seed helper).
+    tenant_id = str(test_user["tenant_id"])
+    seed_tenant_attribute_config(tenant_id)
+
+    # Enable job_title so the form field is processed by the loop.
+    requesting_user = {"id": str(test_user["id"]), "tenant_id": tenant_id, "role": "super_admin"}
+    from services.settings.attributes import update_tenant_attribute_config
+
+    update_tenant_attribute_config(
+        requesting_user,
+        "job_title",
+        enabled=True,
+        required=False,
+        mirror_from_idp=False,
+        locked_for_users=False,
+        send_to_sps_default=True,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/profile/update-attributes",
+        data={"attr_job_title": "Engineer"},
+        follow_redirects=False,
+    )
+
+    # Must be a 303 success redirect with the saved flash, NOT a 403 or
+    # an error redirect.
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/profile?success=attributes_saved"
+
+    # The value actually landed in user_attributes (real service was called).
+    self_requesting_user = {
+        "id": str(test_user["id"]),
+        "tenant_id": tenant_id,
+        "role": "member",
+    }
+    # Use the service to confirm the row exists.
+    from services.users import get_user_attribute
+
+    stored = get_user_attribute(self_requesting_user, str(test_user["id"]), "job_title")
+    assert stored is not None
+    assert stored["value"] == "Engineer"
+
+    # Sanity check the service still rejects a UUID-vs-str mismatch when a
+    # non-admin targets a different user. This guards the assertion above
+    # against accidental authorization-bypass regressions: the service is
+    # still doing the self check, the router just stringifies first.
+    import pytest
+    from services.exceptions import ForbiddenError
+
+    other_id = "00000000-0000-0000-0000-000000000001"
+    with pytest.raises(ForbiddenError):
+        set_user_attribute(self_requesting_user, other_id, "job_title", "x")

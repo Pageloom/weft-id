@@ -439,6 +439,88 @@ def test_apply_idp_attributes_emits_event_when_canonical_changed(test_user):
     assert metadata["changes"] == {"job_title": "added"}
 
 
+def test_apply_idp_attributes_diff_reads_state_inside_transaction(test_user):
+    """Concern 3: the change-diff for ``user_profile_updated`` is computed from
+    state read INSIDE the database session, not from a stale pre-transaction
+    snapshot.
+
+    Why this matters: ``apply_idp_attributes`` builds the event-log diff by
+    comparing the IdP-supplied value against the existing canonical value.
+    If that comparison used a snapshot read before the transaction opened,
+    a concurrent writer (or even a recovered-from-pool ordering quirk) could
+    let the diff disagree with what we actually overwrote. Moving the read
+    into the transaction means the diff and the write share a consistent
+    snapshot.
+
+    Verification: patch the legacy pre-transaction read path
+    (``database.user_attributes.list_attributes``) so it cannot be used; if
+    the diff still resolves correctly, the snapshot is coming from the
+    in-session cursor as required. Then verify the diff metadata reports the
+    actual transition.
+    """
+    _seed_config(test_user["tenant_id"], mirror_from_idp=True)
+    idp = _make_idp(test_user["tenant_id"], test_user["id"])
+    tenant_id = str(test_user["tenant_id"])
+    user_id = str(test_user["id"])
+
+    # Seed an existing canonical value via the service. This row is the
+    # "stale" snapshot a buggy implementation would have captured before
+    # opening the transaction.
+    set_user_attribute(
+        _make_requester(test_user, "super_admin"),
+        user_id,
+        "job_title",
+        "Engineer",
+    )
+
+    # Now simulate a concurrent write: change the canonical value via the
+    # raw DB layer AFTER any pre-transaction read would have happened. A
+    # buggy implementation that snapshots before the txn would see the old
+    # value here; the in-transaction read sees the up-to-date row.
+    database.execute(
+        tenant_id,
+        """
+        UPDATE user_attributes
+           SET value = :v
+         WHERE user_id = :u
+           AND attribute_key = 'job_title'
+        """,
+        {"v": "Staff Engineer", "u": user_id},
+    )
+
+    # Patch the legacy module-level reads to blow up if anyone tries to use
+    # them as the diff source. The new code reads the existing-rows snapshot
+    # AND the tenant_attribute_config via the in-session cursor, so neither
+    # of these legacy helpers may be called. One patch fails the test if the
+    # canonical-row migration regresses; the other fails if the config read
+    # backslides to a pre-transaction call.
+    with (
+        patch(
+            "database.user_attributes.list_attributes",
+            side_effect=AssertionError("user_attributes snapshot must be read inside transaction"),
+        ),
+        patch(
+            "database.tenant_attribute_config.list_config",
+            side_effect=AssertionError("tenant_attribute_config must be read inside transaction"),
+        ),
+        patch("services.users.attributes.log_event") as mock_log,
+    ):
+        apply_idp_attributes(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            idp_id=str(idp["id"]),
+            attributes={"job_title": "Principal Engineer"},
+            actor_user_id=user_id,
+        )
+
+    # Diff must reflect the transition from the in-transaction "Staff
+    # Engineer" snapshot, NOT the stale "Engineer". Since the prior value
+    # exists, this is an "updated", not "added".
+    assert mock_log.call_count == 1
+    metadata = mock_log.call_args.kwargs["metadata"]
+    assert metadata["changes"] == {"job_title": "updated"}
+
+
 def test_apply_idp_attributes_no_event_when_canonical_unchanged(test_user):
     """Re-running with the same value emits no event (mirror stays in sync)."""
     _seed_config(test_user["tenant_id"], mirror_from_idp=True)

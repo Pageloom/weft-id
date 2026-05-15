@@ -276,6 +276,51 @@ class TestBuildAssertionAttributes:
         assert "displayName" not in result
 
     @patch("services.service_providers.sso.database")
+    def test_display_name_dedup_runs_for_unmapped_sp(self, mock_db):
+        """Blocker 2: when the SP has no attribute_mapping configured and the
+        user has BOTH a fixed displayName (from first+last) AND an EAV
+        display_name value, the result must contain exactly one of them.
+
+        Without this guard, build_saml_response emits two ``<saml:Attribute>``
+        elements for what is logically the same field. The EAV value wins.
+        """
+        mock_db.user_attributes.list_attributes.return_value = [
+            {"attribute_key": "display_name", "value": "Custom Display"},
+        ]
+        mock_db.tenant_attribute_config.list_config.return_value = _all_enabled_config()
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="Alice",
+            last_name="Smith",
+            group_names=[],
+            attribute_mapping=None,  # <-- unmapped SP
+        )
+        # EAV display_name wins; fixed displayName is dropped.
+        assert result["display_name"] == "Custom Display"
+        assert "displayName" not in result
+
+    @patch("services.service_providers.sso.database")
+    def test_display_name_unmapped_no_eav_keeps_fixed_composition(self, mock_db):
+        """Blocker 2: unmapped SP, no EAV display_name => fixed displayName
+        is preserved (the existing behaviour when there is nothing to dedup
+        against)."""
+        mock_db.user_attributes.list_attributes.return_value = []
+        mock_db.tenant_attribute_config.list_config.return_value = _all_enabled_config()
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="Alice",
+            last_name="Smith",
+            group_names=[],
+            attribute_mapping=None,
+        )
+        assert result["displayName"] == "Alice Smith"
+        assert "display_name" not in result
+
+    @patch("services.service_providers.sso.database")
     def test_display_name_falls_back_to_fixed_composition(self, mock_db):
         """Fix 2: when display_name is mapped but the user has no stored
         value, the fixed firstName+lastName composition fills the wire slot."""

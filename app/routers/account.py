@@ -160,6 +160,13 @@ async def update_profile_attributes(
     form = await request.form()
     config_rows = settings_service.list_tenant_attribute_config(requesting_user)
 
+    # IMPORTANT: stringify the user id before passing it to the service. The
+    # service-layer self-edit check compares ``requesting_user["id"]`` (str)
+    # to the target ``user_id`` and treats a UUID-vs-str mismatch as
+    # ``ForbiddenError`` (a non-admin acting on someone else), which would
+    # surface as a spurious 403 on a non-admin's own profile.
+    target_user_id = str(user["id"])
+
     error_code: str | None = None
     for cfg in config_rows:
         if not cfg.get("enabled"):
@@ -173,9 +180,9 @@ async def update_profile_attributes(
         raw = str(form.get(field, "")).strip()
         try:
             if raw:
-                users_service.set_user_attribute(requesting_user, user["id"], key, raw)
+                users_service.set_user_attribute(requesting_user, target_user_id, key, raw)
             else:
-                users_service.clear_user_attribute(requesting_user, user["id"], key)
+                users_service.clear_user_attribute(requesting_user, target_user_id, key)
         except ValidationError:
             error_code = error_code or f"invalid_{key}"
         except ServiceError:

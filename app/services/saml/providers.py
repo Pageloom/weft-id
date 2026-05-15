@@ -420,45 +420,33 @@ def _scrub_canonical_matches_mirror(
     ``cause: idp_disconnect_scrub`` listing the cleared keys. Returns the
     total number of canonical rows deleted.
     """
-    rows = database.fetchall(
-        tenant_id,
-        """
-        select uia.user_id, uia.attribute_key, uia.value as mirror_value
-        from user_idp_attributes uia
-        join user_attributes ua
-          on ua.user_id = uia.user_id
-         and ua.attribute_key = uia.attribute_key
-        where uia.idp_id = :idp_id
-          and ua.value = uia.value
-        order by uia.user_id, uia.attribute_key
-        """,
-        {"idp_id": idp_id},
-    )
-    if not rows:
+    # Single set-based DELETE ... USING ... RETURNING. The previous
+    # implementation issued one DELETE per (user, key) tuple, which made
+    # IdP disconnects O(n*m) round-trips. The set-based form is O(1) and
+    # returns the actually-deleted (user_id, attribute_key) pairs so we can
+    # group in Python and emit one event per affected user.
+    with database.session(tenant_id=tenant_id) as cur:
+        cur.execute(
+            """
+            delete from user_attributes ua
+            using user_idp_attributes uia
+            where ua.user_id = uia.user_id
+              and ua.attribute_key = uia.attribute_key
+              and ua.value = uia.value
+              and uia.idp_id = %(idp_id)s
+              and ua.tenant_id = %(tenant_id)s
+            returning ua.user_id, ua.attribute_key
+            """,
+            {"idp_id": idp_id, "tenant_id": tenant_id},
+        )
+        deleted_rows = cur.fetchall()
+
+    if not deleted_rows:
         return 0
 
-    by_user: dict[str, list[tuple[str, str]]] = {}
-    for r in rows:
-        by_user.setdefault(str(r["user_id"]), []).append((r["attribute_key"], r["mirror_value"]))
-
-    scrubbed_total = 0
-    with database.session(tenant_id=tenant_id) as cur:
-        for user_id, keys in by_user.items():
-            for attribute_key, mirror_value in keys:
-                cur.execute(
-                    """
-                    delete from user_attributes
-                    where user_id = %(user_id)s
-                      and attribute_key = %(attribute_key)s
-                      and value = %(value)s
-                    """,
-                    {
-                        "user_id": user_id,
-                        "attribute_key": attribute_key,
-                        "value": mirror_value,
-                    },
-                )
-                scrubbed_total += cur.rowcount or 0
+    by_user: dict[str, list[str]] = {}
+    for r in deleted_rows:
+        by_user.setdefault(str(r["user_id"]), []).append(r["attribute_key"])
 
     for user_id, keys in by_user.items():
         log_event(
@@ -470,11 +458,11 @@ def _scrub_canonical_matches_mirror(
             metadata={
                 "cause": "idp_disconnect_scrub",
                 "idp_id": idp_id,
-                "cleared_keys": [k for k, _ in keys],
+                "cleared_keys": keys,
             },
         )
 
-    return scrubbed_total
+    return len(deleted_rows)
 
 
 def establish_idp_trust(

@@ -346,33 +346,53 @@ def apply_idp_attributes(
             # won't carry it. Future iterations may surface a warning.
             continue
 
-    # Determine which keys also flow into user_attributes.
-    config_rows = database.tenant_attribute_config.list_config(tenant_id)
-    config_by_key = {r["attribute_key"]: r for r in config_rows}
-
-    mirror_writes: dict[str, str] = {}
-    for key, value in serialized_attributes.items():
-        cfg = config_by_key.get(key)
-        if cfg and cfg.get("enabled") and cfg.get("mirror_from_idp"):
-            mirror_writes[key] = value
-
-    # Pre-compute the change actions for the event log (only canonical
-    # changes are logged; the IdP-mirror snapshot is its own audit
-    # surface). We deliberately record only the per-key action and not the
-    # raw before/after values: IdP-mirrored attributes include phone,
-    # address, employee ID etc., and the audit/event-log stream must not
-    # be a PII sink.
-    existing_rows = {
-        r["attribute_key"]: r["value"]
-        for r in database.user_attributes.list_attributes(tenant_id, user_id)
-    }
     changes: dict[str, str] = {}
-    for key, new_value in mirror_writes.items():
-        old_value = existing_rows.get(key)
-        if old_value != new_value:
-            changes[key] = "added" if old_value is None else "updated"
 
     with database.session(tenant_id=tenant_id) as cur:
+        # Read tenant_attribute_config and the existing canonical snapshot
+        # INSIDE the transaction so the change-diff and the mirror-write set
+        # both reflect the row state at the moment of the write. Reading them
+        # before the transaction begins would let a concurrent admin toggle
+        # ``mirror_from_idp`` (or another writer edit ``user_attributes``)
+        # sneak between the read and the write, producing a stale diff in the
+        # emitted ``user_profile_updated`` event.
+        cur.execute(
+            """
+            select attribute_key, enabled, mirror_from_idp
+              from tenant_attribute_config
+             where tenant_id = %(tenant_id)s
+            """,
+            {"tenant_id": tenant_id},
+        )
+        config_rows = cur.fetchall()
+        config_by_key = {r["attribute_key"]: r for r in config_rows}
+
+        mirror_writes: dict[str, str] = {}
+        for key, value in serialized_attributes.items():
+            cfg = config_by_key.get(key)
+            if cfg and cfg.get("enabled") and cfg.get("mirror_from_idp"):
+                mirror_writes[key] = value
+
+        # Snapshot of existing canonical values BEFORE the write, so the
+        # change-diff is built from the same row state we are about to
+        # overwrite. We deliberately record only the per-key action and not the
+        # raw before/after values: IdP-mirrored attributes include phone,
+        # address, employee ID etc., and the audit/event-log stream must not
+        # be a PII sink.
+        cur.execute(
+            """
+            select attribute_key, value
+              from user_attributes
+             where user_id = %(user_id)s
+            """,
+            {"user_id": user_id},
+        )
+        existing_rows = {r["attribute_key"]: r["value"] for r in cur.fetchall()}
+        for key, new_value in mirror_writes.items():
+            old_value = existing_rows.get(key)
+            if old_value != new_value:
+                changes[key] = "added" if old_value is None else "updated"
+
         # Replace the IdP-mirror snapshot for this IdP.
         if serialized_attributes:
             cur.execute(
@@ -602,10 +622,17 @@ def bulk_set_force_profile_completion(
     # Pre-flight: every user_id must belong to the requesting tenant.
     # RLS would silently classify a foreign UUID as ``skipped_complete``;
     # we surface it as a 404 instead so the audit log never references
-    # users outside the actor's tenant.
-    missing_ids = [uid for uid in user_ids if database.users.get_user_by_id(tenant_id, uid) is None]
-    if missing_ids:
-        raise NotFoundError(f"User(s) not found: {', '.join(missing_ids)}")
+    # users outside the actor's tenant. One round-trip via ANY(:ids).
+    if user_ids:
+        found_rows = database.fetchall(
+            tenant_id,
+            "select id from users where id = any(:ids)",
+            {"ids": user_ids},
+        )
+        found_ids = {str(r["id"]) for r in found_rows}
+        missing_ids = [uid for uid in user_ids if uid not in found_ids]
+        if missing_ids:
+            raise NotFoundError(f"User(s) not found: {', '.join(missing_ids)}")
 
     flagged: list[str] = []
     skipped_locked: list[str] = []

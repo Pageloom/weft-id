@@ -185,17 +185,22 @@ def _build_assertion_attributes(
             continue
         result[key] = typed
 
-    # Resolve display_name / displayName wire-name collision: if the EAV merge
-    # placed a non-empty ``display_name`` AND that key is in the mapping, drop
-    # the fixed ``displayName`` so build_saml_response does not emit two
-    # ``<saml:Attribute Name="...">`` elements that resolve to the same wire
-    # name. The registry value wins (admin intent: explicit > composed).
-    if (
-        "display_name" in result
-        and attribute_mapping is not None
-        and "display_name" in attribute_mapping
-        and result.get("display_name")
-    ):
+    # Resolve display_name / displayName collision: when the EAV merge placed a
+    # non-empty ``display_name`` value, drop the fixed ``displayName`` so the
+    # downstream emitter never produces two ``<saml:Attribute>`` elements that
+    # represent the same logical field. The registry-sourced value wins (admin
+    # intent: explicit > composed).
+    #
+    # This runs in BOTH branches:
+    #   - When ``attribute_mapping`` is provided: the fixed key would otherwise
+    #     emit its mapped wire name (e.g. ``displayName``) alongside the EAV
+    #     key's mapped wire name (also ``displayName`` per the standard preset),
+    #     producing two ``<saml:Attribute Name="displayName">`` elements.
+    #   - When ``attribute_mapping`` is None: the fixed key falls back to the
+    #     ``SAML_ATTRIBUTE_URIS["displayName"]`` URI, while the EAV key falls
+    #     back to ``display_name``. The SP still sees two attributes carrying
+    #     the same logical field; the same drop rule yields exactly one.
+    if "display_name" in result and result.get("display_name"):
         result.pop("displayName", None)
 
     return result

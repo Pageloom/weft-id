@@ -296,6 +296,160 @@ def test_bulk_set_force_profile_completion_with_mixed_users_splits_results(test_
     assert result["flagged"] == []
 
 
+def test_bulk_set_force_profile_completion_preflight_one_round_trip(test_user, test_tenant):
+    """Nit 11: the preflight existence check uses ONE round-trip via ANY(:ids),
+    not one SELECT per user.
+
+    The previous implementation looped and issued ``N`` ``SELECT id FROM users
+    WHERE id = :id`` statements. With even a few hundred candidate users that
+    turns into a noticeable latency spike on every admin bulk action. The
+    set-based form (``WHERE id = ANY(:ids)``) is one query regardless of
+    ``len(user_ids)``.
+
+    Verification: wrap ``database.session`` so we observe every cursor
+    ``execute()`` call without mutating the cursor's read-only attributes,
+    and count the statements that start with ``select id from users``. The
+    preflight is the only call site for that exact statement on this path,
+    so the count IS the round-trip count for the existence check.
+    """
+    _seed_config(test_user["tenant_id"], key="job_title", required=True)
+
+    # Three valid users in the same tenant so the preflight has multiple
+    # ids to check. If the implementation backslides to a per-user loop,
+    # this will record 3 SELECT statements instead of 1.
+    extra_user_ids = [str(test_user["id"])]
+    for nth in range(2):
+        row = database.fetchone(
+            test_tenant["id"],
+            """
+            INSERT INTO users (tenant_id, first_name, last_name, role)
+            VALUES (:tenant_id, :first_name, 'Bulk', 'member') RETURNING id
+            """,
+            {"tenant_id": test_tenant["id"], "first_name": f"Bulk{nth}"},
+        )
+        extra_user_ids.append(str(row["id"]))
+
+    select_users_count = 0
+    real_session = database.session
+
+    from contextlib import contextmanager
+
+    class _CursorSpy:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def execute(self, query, params=None):
+            nonlocal select_users_count
+            if isinstance(query, str):
+                normalized = " ".join(query.lower().split())
+                if normalized.startswith("select id from users"):
+                    select_users_count += 1
+            if params is None:
+                return self._inner.execute(query)
+            return self._inner.execute(query, params)
+
+        def fetchall(self):
+            return self._inner.fetchall()
+
+        def fetchone(self):
+            return self._inner.fetchone()
+
+        @property
+        def rowcount(self):
+            return self._inner.rowcount
+
+        def __iter__(self):
+            return iter(self._inner)
+
+    @contextmanager
+    def _spy_session(*args, **kwargs):
+        with real_session(*args, **kwargs) as cur:
+            yield _CursorSpy(cur)
+
+    admin = _admin_requester(test_user["tenant_id"])
+
+    with patch("database._core.session", _spy_session):
+        result = bulk_set_force_profile_completion(admin, extra_user_ids)
+
+    # One preflight SELECT regardless of N candidates.
+    assert select_users_count == 1, (
+        f"expected exactly 1 preflight SELECT for {len(extra_user_ids)} ids, "
+        f"got {select_users_count}"
+    )
+
+    # Sanity: the call still functions correctly (test_user has the missing
+    # required key; the two new users have no email/missing-row history but
+    # are still real users in the tenant, so the preflight doesn't 404).
+    # We don't assert on the exact contents of flagged/skipped here -- the
+    # other tests pin behaviour. The point is the round-trip count.
+    assert isinstance(result, dict)
+    assert "flagged" in result
+    assert "skipped_locked" in result
+    assert "skipped_complete" in result
+
+
+def test_bulk_set_force_profile_completion_empty_user_ids_short_circuits(test_user):
+    """Nit 11: an empty ``user_ids`` list must NOT issue the preflight SELECT.
+
+    psycopg cannot infer the element type of an empty ``ARRAY[]`` literal and
+    chokes with ``cannot determine type of empty array``. Without the
+    ``if user_ids:`` guard, the bulk helper would raise a database-level error
+    on a no-op call.
+
+    Verification: spy the cursor and assert ZERO ``select id from users``
+    statements are issued; the function returns the expected empty result;
+    no exception is raised.
+    """
+    _seed_config(test_user["tenant_id"], key="job_title", required=True)
+
+    select_users_count = 0
+    real_session = database.session
+
+    from contextlib import contextmanager
+
+    class _CursorSpy:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def execute(self, query, params=None):
+            nonlocal select_users_count
+            if isinstance(query, str):
+                normalized = " ".join(query.lower().split())
+                if normalized.startswith("select id from users"):
+                    select_users_count += 1
+            if params is None:
+                return self._inner.execute(query)
+            return self._inner.execute(query, params)
+
+        def fetchall(self):
+            return self._inner.fetchall()
+
+        def fetchone(self):
+            return self._inner.fetchone()
+
+        @property
+        def rowcount(self):
+            return self._inner.rowcount
+
+        def __iter__(self):
+            return iter(self._inner)
+
+    @contextmanager
+    def _spy_session(*args, **kwargs):
+        with real_session(*args, **kwargs) as cur:
+            yield _CursorSpy(cur)
+
+    admin = _admin_requester(test_user["tenant_id"])
+
+    with patch("database._core.session", _spy_session):
+        result = bulk_set_force_profile_completion(admin, [])
+
+    assert select_users_count == 0, (
+        f"empty user_ids must not issue a preflight SELECT, got {select_users_count}"
+    )
+    assert result == {"flagged": [], "skipped_locked": [], "skipped_complete": []}
+
+
 def test_bulk_set_force_profile_completion_rejects_unknown_user_ids(test_user):
     """A user_id that does not belong to the tenant raises NotFoundError.
 

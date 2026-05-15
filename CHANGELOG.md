@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-05-15
+
+### Added
+
+- Standard user attributes: a 14-attribute registry (contact, professional, location, profile categories) with per-tenant configuration for enable/required/mirror-from-IdP/locked-for-users/send-to-SPs flags
+- Tenant attribute configuration settings page (`/admin/settings/user-attributes`) with per-row toggles and category bulk enable/disable
+- Self-service profile attribute editing on the user profile page and admin attribute editing on the user detail tab, grouped by category
+- Admin-only "Connected IdP attributes" panel showing the per-IdP mirror snapshot for each user
+- IdP-driven attribute mirroring: SAML logins extract registry-keyed values via the per-IdP attribute mapping and mirror them into canonical user profiles
+- Downstream SAML assertion emission for enabled tenant attributes, with a per-SP "available, not sent" view and per-row SAML OID toggle in the admin attribute tab
+- Tenant-required attribute enforcement: dashboard banner for missing user-fixable fields, Admin Todo view listing every user with any missing required attribute, and a bulk force-profile-completion action that gates navigation until missing unlocked-required fields are filled
+- Opt-in scrub of mirrored attributes when disconnecting an IdP: web checkbox on the danger tab and `?scrub_mirrored_attributes=true` on the DELETE API. Diverged values are preserved
+- API endpoints: `GET/PUT /api/v1/tenant/attribute-config`, `/api/v1/users/{id}/attributes`, and `/api/v1/me/attributes` for canonical and IdP-mirror reads/writes
+- Audit events: `user_idp_attribute_mirror_failed` (admin tier) and `tenant_attribute_config_read_failed` for visibility into mirror-write and config-read failures during SSO
+
+### Changed
+
+- Per-IdP `attribute_mapping` now accepts registry keys (jobTitle, phoneWork, etc.) alongside the existing fixed email/first_name/last_name/groups
+- New SPs are seeded with the tenant's default sendable attribute set; existing SPs are untouched
+- `mirror_from_idp` defaults to true on newly-enabled attributes so enabling an attribute does the obvious thing; tenants who want IdP values held only as read-only diagnostic info can turn the flag off
+- `user_profile_updated` event metadata now records an action per key (added/updated/cleared) instead of `{old, new}` values, keeping phone/mobile/address/postal-code/employee-ID values out of the event stream
+- Copy: unified "Profile attributes" naming, softer forced-mode banner, clarified flag tooltips, "Send to new SPs" replaces "Send to SPs by default", and a new docs page for user attributes
+- Documentation: scrub-on-disconnect section in the SAML setup guide, expanded audit event-type table, and seven admin/user guide pages updated for the new feature
+
+### Fixed
+
+- Removed the misleading "Enable all in <category>" checkbox on the tenant attribute settings page (it overwrote partial selections)
+- Profile attribute save errors and successes now render as flash banners instead of silently appearing in the URL
+- Passkey E2E tests no longer race the auto-ceremony redirect on slow runs and leave the shared test tenant with a lingering passkey
+- Several pre-release correctness fixes on the user attributes feature (self-edit 403 on non-string user IDs, duplicate `displayName` SAML attribute when SPs had no mapping, stale event-log diffs, RLS-safe set-based mirror scrub)
+
+### Security
+
+- Bumped `cryptography` 46.0.7 → 48.0.0 and `uvicorn` 0.42.0 → 0.47.0
+- Bumped `python-multipart`, `pyopenssl`, `certifi`, `urllib3`, and `pip` to clear the dependency CVE backlog
+- Removed raw PII (phone, mobile, address, postal code, employee ID) from `user_profile_updated` audit event metadata. The audit signal (who changed which key, when, how) is preserved
+- IdP attribute mirror-write failures and tenant attribute config read failures during SSO are now surfaced as admin-tier audit events instead of only container logs
+
 ## [1.5.0] - 2026-04-25
 
 ### Added

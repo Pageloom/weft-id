@@ -11,10 +11,10 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 5 | Duplication (pre-existing), Security hardening (new), Test coverage (new) |
+| Low | 3 | Duplication (pre-existing), Docs (pre-existing), Test coverage (pre-existing) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
-**Last security scan:** 2026-04-24 (targeted: all code from last 14 days, all OWASP categories; 3 findings, all resolved)
+**Last security scan:** 2026-05-15 (mirror-failure audit event + user_profile_updated PII redaction landed on feature/user-attributes; remaining low items unchanged)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
 **Last API coverage audit:** 2026-04-23 (3 gaps resolved: group clear relationships, IdP reimport XML, SAML debug entries)
 **Last dependency audit:** 2026-05-15 (python-multipart, urllib3, pip bumped; pygments still pinned `<2.20`, see [DEPS] entry below)
@@ -59,30 +59,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-
-## [SECURITY] Hardening: structured event log for IdP mirror failures
-
-**Discovered:** 2026-05-14 (security agent final-pass review L1)
-**Severity:** Low
-**Source:** Security review L1
-
-`_apply_idp_attributes_safe` in `app/services/saml/provisioning.py` catches `Exception` broadly so SAML login never fails on mirror-write errors. Today it only emits `logger.warning`. A recurring failure would never reach the admin audit UI. Add a `user_idp_attribute_mirror_failed` event log entry (system actor) so the failure is surfaced as part of the standard audit stream.
-
-**Files Affected:** `app/services/saml/provisioning.py`, `app/constants/event_types.py`, `app/constants/event_types.lock`
-
----
-
-## [SECURITY] PII spillover in user_profile_updated event metadata
-
-**Discovered:** 2026-05-14 (security agent final-pass review L2)
-**Severity:** Low (compliance / data export consideration)
-**Source:** Security review L2
-
-The `user_profile_updated` events emit raw attribute values in metadata `changes` dict, including phone, mobile, street address, postal code, and employee ID. By design for audit traceability, but worth a follow-up review for event-log exports (PII redaction filter, sensitive-value hash, or category tagging).
-
-**Files Affected:** `app/services/users/attributes.py`, `app/services/event_log.py`, event-log export utilities
-
----
 
 ## [DOCS] API endpoint docstring claims "super_admin only" but service is relaxed
 

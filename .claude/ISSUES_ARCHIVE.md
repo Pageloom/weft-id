@@ -5,6 +5,24 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Hardening: structured event log for IdP mirror failures
+
+**Status:** Resolved (2026-05-15)
+**Found in:** `app/services/saml/provisioning.py`, `app/constants/event_types.py`, `app/constants/event_types.lock`
+**Severity:** Low
+**Resolution:** `_apply_idp_attributes_safe` now emits a structured `user_idp_attribute_mirror_failed` event (admin tier) in addition to its existing `logger.warning`, so a recurring mirror-write failure surfaces in the admin audit UI instead of only the container logs. The event metadata carries `idp_id` and the exception class name only; the raw exception message is deliberately omitted to avoid leaking SQL fragments or user data. The audit-log call is wrapped in its own try/except so a downstream logging failure (e.g. the same DB outage that broke the mirror write) still cannot abort the SAML sign-in flow. A pre-existing wrapper-failure test was extended and a new test covers the "log_event also raises" path.
+
+---
+
+### [SECURITY] PII spillover in user_profile_updated event metadata
+
+**Status:** Resolved (2026-05-15)
+**Found in:** `app/services/users/attributes.py`
+**Severity:** Low
+**Resolution:** Standard-attribute writers (`set_user_attribute`, `clear_user_attribute`, `apply_idp_attributes`) no longer place raw attribute values in the `user_profile_updated` event `changes` dict. Each changed key now maps to an action string ("added" / "updated" / "cleared") instead of an `{old, new}` value sub-dict, so phone numbers, street addresses, postal codes, employee IDs, etc. stop flowing into the audit event stream and any future event-log exports. The audit signal (who changed which attribute, when, how) is preserved. `profile.py` and `users/crud.py` writers (first/last name, theme, timezone, locale, role) were intentionally left on the old shape: those fields are already broadly exposed on the user record and were out of scope per the original finding. Existing rows are unchanged; only newly written events use the new shape.
+
+---
+
 ### [DEPS] python-multipart, urllib3, pip CVEs blocking `make check`
 
 **Status:** Resolved (2026-05-15)

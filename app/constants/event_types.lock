@@ -139,6 +139,7 @@ user_enhanced_auth_enrolled
 user_export_task_created
 user_force_profile_completion_set
 user_groups_bulk_added
+user_idp_attribute_mirror_failed
 user_inactivated
 user_profile_updated
 user_reactivated

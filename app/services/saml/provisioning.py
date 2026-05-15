@@ -311,7 +311,9 @@ def _apply_idp_attributes_safe(
     The IdP-mirror write must never break the authentication flow. Internal
     validation already drops malformed values silently; this wrapper only
     catches infrastructure failures (DB outages, etc.) so the user can still
-    sign in.
+    sign in. On failure we both log to stderr (for ops) and emit a structured
+    ``user_idp_attribute_mirror_failed`` audit event so a recurring failure
+    surfaces in the admin event log instead of only the container logs.
     """
     try:
         apply_idp_attributes(
@@ -321,10 +323,33 @@ def _apply_idp_attributes_safe(
             attributes=saml_result.standard_attributes,
             actor_user_id=user_id,
         )
-    except Exception:
+    except Exception as exc:
         logger.warning(
             "Failed to apply IdP attributes for user %s (idp %s)",
             user_id,
             saml_result.idp_id,
             exc_info=True,
         )
+        # Audit-trail event. Wrapped in its own try/except so a downstream
+        # logging failure (e.g. the same DB outage that broke the mirror
+        # write) still cannot abort the SAML sign-in flow. We deliberately
+        # do NOT include the exception message: it may carry SQL fragments,
+        # connection strings, or user data depending on the failure mode.
+        try:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=user_id,
+                artifact_type="user",
+                artifact_id=user_id,
+                event_type="user_idp_attribute_mirror_failed",
+                metadata={
+                    "idp_id": saml_result.idp_id,
+                    "error_class": type(exc).__name__,
+                },
+            )
+        except Exception:
+            logger.warning(
+                "Failed to emit user_idp_attribute_mirror_failed event for user %s",
+                user_id,
+                exc_info=True,
+            )

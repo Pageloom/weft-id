@@ -86,19 +86,26 @@ def test_passkey_register_then_sign_in(page, idp_config):
     page.locator("#emailForm button[type='submit']").click()
 
     page.wait_for_url("**/login?**show_password**", timeout=10000)
-    # Passkey-first UI markers
-    assert page.locator("#passkey-flow").count() == 1
-    # Ceremony completes and lands on the dashboard without password or MFA.
-    page.wait_for_url("**/dashboard**", timeout=15000)
-
-    # 6. Clean up: delete the passkey so sibling tests that log in with
-    # password + MFA still see the plain password form. Tenants in the
-    # session-scoped testbed are shared across tests.
-    page.goto(f"{base_url}/account/mfa")
-    delete_form = page.locator("form[action*='/delete']").first
-    if delete_form.count() > 0:
-        delete_form.evaluate("form => form.submit()")
-        page.wait_for_url("**/account/mfa?**", timeout=10000)
+    # The passkey-first variant auto-completes the ceremony and redirects to
+    # the dashboard. We do NOT assert on ``#passkey-flow`` here: the auto-
+    # ceremony can race the locator check and redirect before the assert
+    # runs. The dashboard URL is the real success signal.
+    try:
+        page.wait_for_url("**/dashboard**", timeout=15000)
+    finally:
+        # 6. Clean up: delete the passkey so sibling tests that log in with
+        # password + MFA still see the plain password form. Tenants in the
+        # session-scoped testbed are shared across tests. Run unconditionally
+        # so a failure above does not pollute downstream tests.
+        try:
+            page.goto(f"{base_url}/account/mfa")
+            delete_form = page.locator("form[action*='/delete']").first
+            if delete_form.count() > 0:
+                delete_form.evaluate("form => form.submit()")
+                page.wait_for_url("**/account/mfa?**", timeout=10000)
+        except Exception:
+            # Cleanup is best-effort; do not mask the original failure.
+            pass
 
 
 def test_passkey_first_hidden_for_password_only_user(page, sp_config):

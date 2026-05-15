@@ -6960,3 +6960,213 @@ class TestJitProvisionRaceCondition:
 
             with pytest.raises(ValidationError, match="race condition"):
                 jit_provision_user(tenant_id, saml_result, idp)
+
+
+# =============================================================================
+# IdP Delete: Scrub Mirrored Attributes
+# =============================================================================
+
+
+def _seed_mirrored_attributes(tenant_id, user_id, idp_id, attributes):
+    """Insert paired rows into user_attributes and user_idp_attributes.
+
+    ``attributes`` is a {key: value} dict so the mirror snapshot is set in a
+    single ``replace_idp_attributes`` call (which deletes keys not in the dict).
+    """
+    import database
+
+    for key, value in attributes.items():
+        database.user_attributes.upsert_attribute(
+            tenant_id, str(tenant_id), str(user_id), key, value
+        )
+    database.user_idp_attributes.replace_idp_attributes(
+        tenant_id, str(tenant_id), str(user_id), str(idp_id), dict(attributes)
+    )
+
+
+def test_delete_idp_scrub_clears_matching_canonical_values(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """With scrub=True, canonical rows matching the mirror snapshot are deleted."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+    user_id = str(test_user["id"])
+
+    # Disabled IdP (delete requires disabled)
+    data = IdPCreate(**test_idp_data, is_enabled=False)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    _seed_mirrored_attributes(
+        tenant_id,
+        user_id,
+        idp.id,
+        {"job_title": "Engineer", "department": "Eng"},
+    )
+
+    saml_service.delete_identity_provider(requesting_user, idp.id, scrub_mirrored_attributes=True)
+
+    # Canonical rows for the matched keys are gone.
+    assert database.user_attributes.get_attribute(tenant_id, user_id, "job_title") is None
+    assert database.user_attributes.get_attribute(tenant_id, user_id, "department") is None
+
+
+def test_delete_idp_scrub_preserves_diverged_canonical_values(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Canonical rows that no longer match the mirror snapshot are preserved."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=False)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Mirror snapshot says "Engineer", but canonical has since been edited.
+    _seed_mirrored_attributes(tenant_id, user_id, idp.id, {"job_title": "Engineer"})
+    database.user_attributes.upsert_attribute(
+        tenant_id, tenant_id, user_id, "job_title", "Staff Engineer"
+    )
+
+    saml_service.delete_identity_provider(requesting_user, idp.id, scrub_mirrored_attributes=True)
+
+    canonical = database.user_attributes.get_attribute(tenant_id, user_id, "job_title")
+    assert canonical is not None
+    assert canonical["value"] == "Staff Engineer"
+
+
+def test_delete_idp_without_scrub_preserves_canonical_values(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Default behavior (scrub=False) leaves canonical rows untouched."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=False)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    _seed_mirrored_attributes(tenant_id, user_id, idp.id, {"job_title": "Engineer"})
+
+    saml_service.delete_identity_provider(requesting_user, idp.id)
+
+    canonical = database.user_attributes.get_attribute(tenant_id, user_id, "job_title")
+    assert canonical is not None
+    assert canonical["value"] == "Engineer"
+
+
+def test_delete_idp_scrub_emits_per_user_event(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """A scrub emits one user_profile_updated event per affected user."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=False)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    _seed_mirrored_attributes(
+        tenant_id,
+        user_id,
+        idp.id,
+        {"job_title": "Engineer", "department": "Eng"},
+    )
+
+    saml_service.delete_identity_provider(requesting_user, idp.id, scrub_mirrored_attributes=True)
+
+    events = database.event_log.list_events(
+        tenant_id,
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="user_profile_updated",
+        limit=50,
+    )
+    scrub_events = [
+        e for e in events if (e.get("metadata") or {}).get("cause") == "idp_disconnect_scrub"
+    ]
+    assert len(scrub_events) == 1
+    meta = scrub_events[0]["metadata"]
+    assert str(meta["idp_id"]) == idp.id
+    assert set(meta["cleared_keys"]) == {"job_title", "department"}
+
+
+def test_delete_idp_scrub_records_count_in_idp_deleted_event(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """saml_idp_deleted metadata records scrubbed flag and count."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=False)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    _seed_mirrored_attributes(
+        tenant_id,
+        user_id,
+        idp.id,
+        {"job_title": "Engineer", "department": "Eng"},
+    )
+
+    saml_service.delete_identity_provider(requesting_user, idp.id, scrub_mirrored_attributes=True)
+
+    events = database.event_log.list_events(
+        tenant_id,
+        artifact_type="saml_identity_provider",
+        artifact_id=idp.id,
+        event_type="saml_idp_deleted",
+        limit=5,
+    )
+    assert len(events) == 1
+    meta = events[0]["metadata"]
+    assert meta["scrubbed"] is True
+    assert meta["scrubbed_count"] == 2
+
+
+def test_delete_idp_without_scrub_records_zero_scrubbed_count(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Default delete records scrubbed=False and count=0."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=False)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    saml_service.delete_identity_provider(requesting_user, idp.id)
+
+    events = database.event_log.list_events(
+        tenant_id,
+        artifact_type="saml_identity_provider",
+        artifact_id=idp.id,
+        event_type="saml_idp_deleted",
+        limit=5,
+    )
+    assert len(events) == 1
+    meta = events[0]["metadata"]
+    assert meta["scrubbed"] is False
+    assert meta["scrubbed_count"] == 0

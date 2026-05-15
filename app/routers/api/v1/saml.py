@@ -201,6 +201,7 @@ def delete_identity_provider(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_super_admin_api)],
     idp_id: str,
+    scrub_mirrored_attributes: Annotated[bool, Query()] = False,
 ):
     """
     Delete a SAML Identity Provider.
@@ -210,11 +211,21 @@ def delete_identity_provider(
     Path parameters:
     - idp_id: UUID of the IdP
 
+    Query parameters:
+    - scrub_mirrored_attributes: When true, also clear canonical
+      user_attributes rows whose value still matches this IdP's
+      last-mirrored snapshot. Values that have diverged are left alone.
+      Defaults to false.
+
     Returns 204 No Content on success.
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
-        saml_service.delete_identity_provider(requesting_user, idp_id)
+        saml_service.delete_identity_provider(
+            requesting_user,
+            idp_id,
+            scrub_mirrored_attributes=scrub_mirrored_attributes,
+        )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

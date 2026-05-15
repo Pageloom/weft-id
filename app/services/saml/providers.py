@@ -305,15 +305,25 @@ def update_identity_provider(
 def delete_identity_provider(
     requesting_user: RequestingUser,
     idp_id: str,
+    *,
+    scrub_mirrored_attributes: bool = False,
 ) -> None:
     """
     Delete an IdP configuration.
 
     Authorization: Requires super_admin role.
-    Logs: saml_idp_deleted event.
+    Logs: saml_idp_deleted event, plus one user_profile_updated event per
+    affected user when scrub_mirrored_attributes is true.
 
     Security: Cannot delete if users are assigned or domains are bound.
     Must explicitly migrate users/unbind domains first.
+
+    Args:
+        scrub_mirrored_attributes: When true, also clear canonical
+            user_attributes rows whose value still matches this IdP's
+            last-mirrored snapshot. Canonical values that have diverged
+            (because a user/admin edited them after the mirror write)
+            are left alone.
     """
     require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
@@ -369,6 +379,16 @@ def delete_identity_provider(
             existing["name"],
         )
 
+    # Optional scrub of canonical attributes still matching this IdP's mirror.
+    # Must run before the IdP delete because the cascade wipes the mirror rows.
+    scrubbed_count = 0
+    if scrub_mirrored_attributes:
+        scrubbed_count = _scrub_canonical_matches_mirror(
+            tenant_id=tenant_id,
+            idp_id=idp_id,
+            actor_user_id=requesting_user["id"],
+        )
+
     database.saml.delete_identity_provider(tenant_id, idp_id)
 
     log_event(
@@ -377,8 +397,84 @@ def delete_identity_provider(
         artifact_type="saml_identity_provider",
         artifact_id=idp_id,
         event_type="saml_idp_deleted",
-        metadata={"name": existing["name"]},
+        metadata={
+            "name": existing["name"],
+            "scrubbed": scrub_mirrored_attributes,
+            "scrubbed_count": scrubbed_count,
+        },
     )
+
+
+def _scrub_canonical_matches_mirror(
+    *,
+    tenant_id: str,
+    idp_id: str,
+    actor_user_id: str,
+) -> int:
+    """Delete canonical user_attributes rows whose value still equals this
+    IdP's last-mirrored snapshot value.
+
+    Canonical rows that have diverged from the mirror snapshot (because the
+    user or an admin edited them after the mirror write) are left alone.
+    Emits one ``user_profile_updated`` event per affected user with
+    ``cause: idp_disconnect_scrub`` listing the cleared keys. Returns the
+    total number of canonical rows deleted.
+    """
+    rows = database.fetchall(
+        tenant_id,
+        """
+        select uia.user_id, uia.attribute_key, uia.value as mirror_value
+        from user_idp_attributes uia
+        join user_attributes ua
+          on ua.user_id = uia.user_id
+         and ua.attribute_key = uia.attribute_key
+        where uia.idp_id = :idp_id
+          and ua.value = uia.value
+        order by uia.user_id, uia.attribute_key
+        """,
+        {"idp_id": idp_id},
+    )
+    if not rows:
+        return 0
+
+    by_user: dict[str, list[tuple[str, str]]] = {}
+    for r in rows:
+        by_user.setdefault(str(r["user_id"]), []).append((r["attribute_key"], r["mirror_value"]))
+
+    scrubbed_total = 0
+    with database.session(tenant_id=tenant_id) as cur:
+        for user_id, keys in by_user.items():
+            for attribute_key, mirror_value in keys:
+                cur.execute(
+                    """
+                    delete from user_attributes
+                    where user_id = %(user_id)s
+                      and attribute_key = %(attribute_key)s
+                      and value = %(value)s
+                    """,
+                    {
+                        "user_id": user_id,
+                        "attribute_key": attribute_key,
+                        "value": mirror_value,
+                    },
+                )
+                scrubbed_total += cur.rowcount or 0
+
+    for user_id, keys in by_user.items():
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=actor_user_id,
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="user_profile_updated",
+            metadata={
+                "cause": "idp_disconnect_scrub",
+                "idp_id": idp_id,
+                "cleared_keys": [k for k, _ in keys],
+            },
+        )
+
+    return scrubbed_total
 
 
 def establish_idp_trust(

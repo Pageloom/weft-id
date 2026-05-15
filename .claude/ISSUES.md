@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 2 | File Structure (pre-existing), Design (new) |
+| Medium | 1 | File Structure (pre-existing) |
 | Low | 5 | Duplication (pre-existing), Security hardening (new), Test coverage (new) |
 | Deps | 4 | urllib3, pip, python-multipart, pygments (pre-existing) |
 
@@ -59,23 +59,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-
-## [DESIGN] Stale mirrored attributes after IdP disconnect (deferred from user_attributes final review)
-
-**Discovered:** 2026-05-14 (security agent final-pass review)
-**Severity:** Medium (admin UX, not a bug)
-**Source:** Security review finding M2
-
-The two-space pivot intentionally keeps mirrored canonical values in `user_attributes` after an IdP is disconnected (mirror is one-way; canonical is then owned by user/admin). Confirmed correct as designed. The follow-on UX question: when an admin disconnects an IdP, should they be given the option to scrub canonical values that came from that IdP? Today there is no surfacing at all that a given canonical value was originally mirrored from an IdP that no longer exists.
-
-**Possible enhancements:**
-- IdP-delete confirmation prompt: "scrub mirrored canonical values?"
-- Record `last_mirror_idp_id` on `user_attributes` rows so the admin UI can flag "sourced from disconnected IdP"
-- Cross-reference the admin IdP-attributes panel against canonical to expose "value came from this IdP, IdP is gone"
-
-**Files Affected:** `app/services/saml/admin.py` (IdP delete path), `app/templates/user_detail_tab_profile.html`, potentially `db-init/migrations/...`
-
----
 
 ## [SECURITY] Hardening: structured event log for IdP mirror failures
 

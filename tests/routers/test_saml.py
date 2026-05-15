@@ -359,6 +359,54 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
     assert "success=deleted" in location or "/admin/settings/identity-providers" in location
 
 
+def test_delete_idp_via_admin_with_scrub_mirrored_flag(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, test_user
+):
+    """Posting scrub_mirrored=on clears canonical rows matching the mirror snapshot."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+    tenant_id = str(test_tenant["id"])
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(
+        name="Scrub Web Form IdP",
+        provider_type="generic",
+        entity_id="https://scrub-web.example.com/entity",
+        sso_url="https://scrub-web.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+-----END CERTIFICATE-----""",
+        is_enabled=False,
+    )
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    database.user_attributes.upsert_attribute(
+        tenant_id, tenant_id, user_id, "job_title", "Engineer"
+    )
+    database.user_idp_attributes.replace_idp_attributes(
+        tenant_id, tenant_id, user_id, idp.id, {"job_title": "Engineer"}
+    )
+
+    response = super_admin_session.post(
+        f"/admin/settings/identity-providers/{idp.id}/delete",
+        headers={"Host": test_tenant_host},
+        data={"scrub_mirrored": "on"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert database.user_attributes.get_attribute(tenant_id, user_id, "job_title") is None
+
+
 def test_view_idp_detail_redirects_to_details_tab(
     super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
 ):

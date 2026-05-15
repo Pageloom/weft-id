@@ -318,6 +318,42 @@ def test_delete_idp_as_super_admin(
     assert get_response.status_code == 404
 
 
+def test_delete_idp_with_scrub_mirrored_query_param(
+    client, test_tenant_host, oauth2_super_admin_header, sample_idp_data, test_tenant, test_user
+):
+    """?scrub_mirrored_attributes=true clears canonical rows matching mirror snapshot."""
+    import database
+
+    create_response = client.post(
+        "/api/v1/saml/idps",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json=sample_idp_data,
+    )
+    idp_id = create_response.json()["id"]
+
+    client.post(
+        f"/api/v1/saml/idps/{idp_id}/disable",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    tenant_id = str(test_tenant["id"])
+    user_id = str(test_user["id"])
+    database.user_attributes.upsert_attribute(
+        tenant_id, tenant_id, user_id, "job_title", "Engineer"
+    )
+    database.user_idp_attributes.replace_idp_attributes(
+        tenant_id, tenant_id, user_id, idp_id, {"job_title": "Engineer"}
+    )
+
+    response = client.delete(
+        f"/api/v1/saml/idps/{idp_id}?scrub_mirrored_attributes=true",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 204
+    assert database.user_attributes.get_attribute(tenant_id, user_id, "job_title") is None
+
+
 def test_delete_idp_not_found(client, test_tenant_host, oauth2_super_admin_header):
     """Deleting non-existent IdP returns 404."""
     fake_id = str(uuid.uuid4())

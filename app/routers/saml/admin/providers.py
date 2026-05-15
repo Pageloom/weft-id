@@ -818,12 +818,16 @@ def delete_idp(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
+    scrub_mirrored: Annotated[str | None, Form(max_length=10)] = None,
 ):
     """Delete an identity provider."""
     requesting_user = build_requesting_user(user, tenant_id, request)
+    scrub = scrub_mirrored in ("on", "true", "1")
 
     try:
-        saml_service.delete_identity_provider(requesting_user, idp_id)
+        saml_service.delete_identity_provider(
+            requesting_user, idp_id, scrub_mirrored_attributes=scrub
+        )
     except NotFoundError:
         return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
     except ServiceError as e:

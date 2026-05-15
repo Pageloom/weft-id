@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [DESIGN] Stale mirrored attributes after IdP disconnect
+
+**Status:** Resolved (2026-05-15)
+**Found in:** `app/services/saml/providers.py`, `app/routers/saml/admin/providers.py`, `app/routers/api/v1/saml.py`, `app/templates/saml_idp_tab_danger.html`
+**Severity:** Medium (admin UX)
+**Resolution:** Added an opt-in scrub on IdP delete. `delete_identity_provider` accepts `scrub_mirrored_attributes`; when true it deletes canonical `user_attributes` rows whose value still equals the IdP's last-mirrored snapshot (rows the user or admin has since edited are preserved). Each affected user gets a `user_profile_updated` event with `cause: idp_disconnect_scrub` listing the cleared keys, and the `saml_idp_deleted` event metadata records `scrubbed` and `scrubbed_count`. The danger-tab template gained a checkbox; the API endpoint accepts `?scrub_mirrored_attributes=true`. Mirrored canonical values still remain by default (unchanged behavior).
+
+---
+
 ### [BUG] UX: "Enable all" category checkbox on tenant attribute settings is misleading
 
 **Status:** Resolved (2026-05-14)

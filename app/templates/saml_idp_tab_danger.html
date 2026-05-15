@@ -28,8 +28,16 @@
         {{ domain_count }} domain{{ 's' if domain_count != 1 else '' }} bound. Unbind them first.
     </p>
     {% endif %}
-    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/delete" class="inline mt-2">
+    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/delete" class="mt-2">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="flex items-start gap-2 mb-3 text-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" name="scrub_mirrored" value="on"
+                   class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-red-600 focus:ring-red-500">
+            <span>
+                Also clear user profile values that still match this IdP's last-mirrored snapshot.
+                Values that users or admins have since changed are left alone.
+            </span>
+        </label>
         <button type="submit"
                 class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                 data-confirm="Delete {{ idp.name }}?&#10;&#10;This will remove all configuration, attribute mappings, and domain bindings. This cannot be undone."

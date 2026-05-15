@@ -132,35 +132,24 @@ def test_user_detail_profile_idp_panel_rendered_when_rows_exist(
 
 
 def test_admin_update_attributes_calls_set_and_clear(test_admin_user, mocker, override_auth):
-    """POST /users/{id}/update-attributes routes each present field to set or clear."""
+    """POST /users/{id}/update-attributes routes the form into the helper.
+
+    The router translates ``attr_<key>`` form fields into the helper's
+    ``{key: raw}`` dict with ``enforce_user_lock=False`` (admin path).
+    Per-key dispatch is covered in
+    ``tests/services/test_apply_attribute_form_updates.py``.
+    """
     override_auth(test_admin_user, level="admin")
 
-    def _cfg(key, **flags):
-        base = {
-            "id": f"id-{key}",
-            "tenant_id": "tenant-1",
-            "attribute_key": key,
-            "category": "professional",
-            "enabled": True,
-            "required": False,
-            "mirror_from_idp": True,
-            "locked_for_users": False,
-            "send_to_sps_default": True,
-            "updated_at": datetime.now(UTC),
-        }
-        base.update(flags)
-        return base
-
-    mocker.patch(
-        f"{SERVICES_SETTINGS}.list_tenant_attribute_config",
-        return_value=[
-            _cfg("job_title"),
-            _cfg("department"),
-            _cfg("phone_work", enabled=False),
-        ],
+    apply_helper = mocker.patch(
+        f"{SERVICES_USERS}.apply_attribute_form_updates",
+        return_value={
+            "error_code": None,
+            "set_keys": ["job_title"],
+            "cleared_keys": ["department"],
+            "skipped_locked_keys": [],
+        },
     )
-    set_attr = mocker.patch(f"{SERVICES_USERS}.set_user_attribute")
-    clear_attr = mocker.patch(f"{SERVICES_USERS}.clear_user_attribute")
 
     client = TestClient(app)
     response = client.post(
@@ -178,12 +167,47 @@ def test_admin_update_attributes_calls_set_and_clear(test_admin_user, mocker, ov
     assert "/users/user-123/profile" in response.headers["location"]
     assert "success=attributes_saved" in response.headers["location"]
 
-    set_keys = [c.args[2] for c in set_attr.call_args_list]
-    clear_keys = [c.args[2] for c in clear_attr.call_args_list]
-    assert "job_title" in set_keys
-    assert "department" in clear_keys
-    # Disabled config row is silently skipped even though admin posted it.
-    assert "phone_work" not in set_keys and "phone_work" not in clear_keys
+    apply_helper.assert_called_once()
+    target_user_id = apply_helper.call_args.args[1]
+    form_data = apply_helper.call_args.args[2]
+    assert target_user_id == "user-123"
+    assert form_data == {
+        "job_title": "Director",
+        "department": "",
+        "phone_work": "ignored",
+    }
+    # Admin path -> locks are bypassed.
+    assert apply_helper.call_args.kwargs == {"enforce_user_lock": False}
+
+
+def test_admin_update_attributes_user_not_found_redirects_to_list(
+    test_admin_user, mocker, override_auth
+):
+    """When the helper reports user_not_found, the admin bulk-update endpoint
+    303-redirects to the users list with ``?error=user_not_found`` (not back
+    to the (now-missing) profile page)."""
+    override_auth(test_admin_user, level="admin")
+
+    apply_helper = mocker.patch(
+        f"{SERVICES_USERS}.apply_attribute_form_updates",
+        return_value={
+            "error_code": "user_not_found",
+            "set_keys": [],
+            "cleared_keys": [],
+            "skipped_locked_keys": [],
+        },
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-attributes",
+        data={"csrf_token": "test-token", "attr_job_title": "x"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/users/list?error=user_not_found"
+    apply_helper.assert_called_once()
 
 
 def test_admin_update_attributes_member_blocked(test_user, mocker, override_auth):

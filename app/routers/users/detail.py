@@ -22,12 +22,12 @@ from services import settings as settings_service
 from services import users as users_service
 from services import webauthn as webauthn_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
-from starlette.responses import Response
-from utils.email import send_new_user_invitation, send_new_user_privileged_domain_notification
-from utils.profile_attributes import (
+from services.users.attribute_views import (
     build_attribute_groups_for_admin,
     build_idp_attribute_panel,
 )
+from starlette.responses import Response
+from utils.email import send_new_user_invitation, send_new_user_privileged_domain_notification
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -325,34 +325,30 @@ async def update_user_attributes(
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     form = await request.form()
+
+    # Same ``attr_<key>`` -> ``{key: raw}`` translation as the self-service
+    # path in ``account.py``. The helper iterates tenant config and ignores
+    # unknown keys, so submitting extra fields is harmless.
+    form_data: dict[str, str | None] = {
+        name[len("attr_") :]: str(form.get(name, "")) for name in form if name.startswith("attr_")
+    }
+
     try:
-        config_rows = settings_service.list_tenant_attribute_config(requesting_user)
+        result = users_service.apply_attribute_form_updates(
+            requesting_user,
+            user_id,
+            form_data,
+            enforce_user_lock=False,  # admin path: locks do not apply
+        )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    error_code: str | None = None
-    for cfg in config_rows:
-        if not cfg.get("enabled"):
-            continue
-        key = cfg["attribute_key"]
-        field = f"attr_{key}"
-        if field not in form:
-            continue
-        raw = str(form.get(field, "")).strip()
-        try:
-            if raw:
-                users_service.set_user_attribute(requesting_user, user_id, key, raw)
-            else:
-                users_service.clear_user_attribute(requesting_user, user_id, key)
-        except NotFoundError:
-            return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
-        except ValidationError:
-            error_code = error_code or f"invalid_{key}"
-        except ServiceError:
-            error_code = error_code or "save_failed"
-
-    if error_code:
-        return RedirectResponse(url=f"/users/{user_id}/profile?error={error_code}", status_code=303)
+    if result["error_code"] == "user_not_found":
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    if result["error_code"]:
+        return RedirectResponse(
+            url=f"/users/{user_id}/profile?error={result['error_code']}", status_code=303
+        )
     return RedirectResponse(
         url=f"/users/{user_id}/profile?success=attributes_saved", status_code=303
     )

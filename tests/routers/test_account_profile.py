@@ -104,20 +104,26 @@ def test_profile_page_can_edit_profile_false_when_disabled(test_user, override_a
 
 
 def test_update_attributes_calls_set_for_present_fields(test_user, override_auth, mocker):
-    """POST /account/profile/update-attributes sets each present field via the service."""
+    """POST /account/profile/update-attributes dispatches each present field to the helper.
+
+    The router translates ``attr_<key>`` form fields into the helper's
+    ``{key: raw}`` dict and forwards them. The helper's per-key dispatch
+    (set/clear/skip-disabled/skip-locked) is covered separately in
+    ``tests/services/test_apply_attribute_form_updates.py``; here we just
+    verify the router wires the form into the helper.
+    """
     override_auth(test_user)
 
     mocker.patch(f"{SERVICES_SETTINGS}.can_user_edit_profile", return_value=True)
-    mocker.patch(
-        f"{SERVICES_SETTINGS}.list_tenant_attribute_config",
-        return_value=[
-            _config_row("job_title", "professional"),
-            _config_row("phone_work", "contact"),
-            _config_row("department", "professional", enabled=False),
-        ],
+    apply_helper = mocker.patch(
+        f"{SERVICES_USERS}.apply_attribute_form_updates",
+        return_value={
+            "error_code": None,
+            "set_keys": ["job_title"],
+            "cleared_keys": ["phone_work"],
+            "skipped_locked_keys": [],
+        },
     )
-    set_attr = mocker.patch(f"{SERVICES_USERS}.set_user_attribute")
-    clear_attr = mocker.patch(f"{SERVICES_USERS}.clear_user_attribute")
 
     client = TestClient(app)
     response = client.post(
@@ -133,25 +139,31 @@ def test_update_attributes_calls_set_for_present_fields(test_user, override_auth
 
     assert response.status_code == 303
     assert "success=attributes_saved" in response.headers["location"]
-    set_calls = [c.args[2] for c in set_attr.call_args_list]
-    clear_calls = [c.args[2] for c in clear_attr.call_args_list]
-    assert "job_title" in set_calls
-    assert "phone_work" in clear_calls
-    # Disabled attribute is silently skipped.
-    assert "department" not in set_calls and "department" not in clear_calls
+    apply_helper.assert_called_once()
+    form_data = apply_helper.call_args.args[2]
+    assert form_data == {
+        "job_title": "Engineer",
+        "phone_work": "",
+        "department": "Skipped (disabled)",
+    }
+    # Member (non-admin) -> locks apply.
+    assert apply_helper.call_args.kwargs == {"enforce_user_lock": True}
 
 
 def test_update_attributes_skips_locked_for_member(test_user, override_auth, mocker):
-    """Members never reach the service for locked-for-users attributes."""
+    """Members invoke the helper with enforce_user_lock=True so locked keys are skipped."""
     override_auth(test_user)
 
     mocker.patch(f"{SERVICES_SETTINGS}.can_user_edit_profile", return_value=True)
-    mocker.patch(
-        f"{SERVICES_SETTINGS}.list_tenant_attribute_config",
-        return_value=[_config_row("job_title", "professional", locked_for_users=True)],
+    apply_helper = mocker.patch(
+        f"{SERVICES_USERS}.apply_attribute_form_updates",
+        return_value={
+            "error_code": None,
+            "set_keys": [],
+            "cleared_keys": [],
+            "skipped_locked_keys": ["job_title"],
+        },
     )
-    set_attr = mocker.patch(f"{SERVICES_USERS}.set_user_attribute")
-    clear_attr = mocker.patch(f"{SERVICES_USERS}.clear_user_attribute")
 
     client = TestClient(app)
     response = client.post(
@@ -161,17 +173,16 @@ def test_update_attributes_skips_locked_for_member(test_user, override_auth, moc
     )
 
     assert response.status_code == 303
-    set_attr.assert_not_called()
-    clear_attr.assert_not_called()
+    apply_helper.assert_called_once()
+    assert apply_helper.call_args.kwargs == {"enforce_user_lock": True}
 
 
 def test_update_attributes_blocked_when_profile_editing_disabled(test_user, override_auth, mocker):
-    """Members hit a redirect when allow_users_edit_profile=false."""
+    """Members hit a redirect when allow_users_edit_profile=false; the helper never runs."""
     override_auth(test_user)
 
     mocker.patch(f"{SERVICES_SETTINGS}.can_user_edit_profile", return_value=False)
-    list_cfg = mocker.patch(f"{SERVICES_SETTINGS}.list_tenant_attribute_config")
-    set_attr = mocker.patch(f"{SERVICES_USERS}.set_user_attribute")
+    apply_helper = mocker.patch(f"{SERVICES_USERS}.apply_attribute_form_updates")
 
     client = TestClient(app)
     response = client.post(
@@ -182,8 +193,7 @@ def test_update_attributes_blocked_when_profile_editing_disabled(test_user, over
 
     assert response.status_code == 303
     assert response.headers["location"] == "/account/profile"
-    list_cfg.assert_not_called()
-    set_attr.assert_not_called()
+    apply_helper.assert_not_called()
 
 
 def test_profile_page_super_admin_always_can_edit(test_super_admin_user, override_auth, mocker):

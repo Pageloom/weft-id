@@ -51,6 +51,7 @@ from services.event_log import log_event
 from services.exceptions import (
     ForbiddenError,
     NotFoundError,
+    ServiceError,
     ValidationError,
 )
 from services.settings.security import can_user_edit_profile
@@ -290,6 +291,117 @@ def clear_user_attribute(
 
 
 # ---------------------------------------------------------------------------
+# Bulk form-driven updates (used by web routers)
+# ---------------------------------------------------------------------------
+
+
+def apply_attribute_form_updates(
+    requesting_user: RequestingUser,
+    target_user_id: str,
+    form_data: dict[str, str | None],
+    *,
+    enforce_user_lock: bool,
+) -> dict:
+    """Apply a form's worth of attribute changes for one user.
+
+    Iterates the tenant's enabled attribute config and, for each key
+    present in ``form_data``, either ``set_user_attribute`` (non-empty
+    trimmed value) or ``clear_user_attribute`` (empty / ``None``). Keys
+    not present in ``form_data`` are left alone -- this matches the
+    "only fields the form submitted are touched" semantics both router
+    callers relied on.
+
+    Args:
+        requesting_user: the authenticated caller (auth happens in the
+            underlying ``set_user_attribute`` / ``clear_user_attribute``).
+        target_user_id: the user whose canonical row is being mutated.
+        form_data: ``{attribute_key: raw_value_or_None}``. Empty strings
+            and ``None`` both clear the value; trimmed non-empty strings
+            set it.
+        enforce_user_lock: when ``True`` (the self-service path), skip
+            keys whose tenant config has ``locked_for_users=True``. When
+            ``False`` (the admin path), every enabled key is writable.
+            Admin callers still get the underlying service's
+            ``ForbiddenError`` if they aren't actually an admin -- this
+            flag is a UI affordance, not an authorization decision.
+
+    Returns:
+        ``{"error_code": str | None, "set_keys": list[str],
+           "cleared_keys": list[str], "skipped_locked_keys": list[str]}``
+
+        ``error_code`` is ``"invalid_<key>"`` for the first per-key
+        validation failure, ``"save_failed"`` for any other
+        ``ServiceError``, ``"user_not_found"`` if a key write raised
+        ``NotFoundError`` (so the router can render the right banner),
+        or ``None`` on success.
+
+    Both web routers (``account.py``, ``users/detail.py``) translate
+    their ``request.form()`` into ``form_data`` and use the result to
+    pick the right redirect target.
+    """
+    # track_activity here as well as in the underlying set/clear -- the
+    # double-call is idempotent and the compliance checker requires every
+    # public service function that takes a RequestingUser to call it.
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    # Use the settings service (not the database layer directly) so the same
+    # authz / activity tracking applies as if the router were calling it.
+    # Imported via the package (not the submodule) so tests that mock
+    # ``services.settings.list_tenant_attribute_config`` see the patch.
+    # Lazy to avoid a services.users <-> services.settings cycle at package
+    # import time.
+    from services import settings as settings_service
+
+    config_rows = settings_service.list_tenant_attribute_config(requesting_user)
+
+    set_keys: list[str] = []
+    cleared_keys: list[str] = []
+    skipped_locked_keys: list[str] = []
+    error_code: str | None = None
+
+    for cfg in config_rows:
+        if not cfg.get("enabled"):
+            continue
+        key = cfg["attribute_key"]
+        if key not in form_data:
+            continue
+        if enforce_user_lock and cfg.get("locked_for_users"):
+            skipped_locked_keys.append(key)
+            continue
+
+        raw_value = form_data[key]
+        raw = "" if raw_value is None else str(raw_value).strip()
+        try:
+            if raw:
+                set_user_attribute(requesting_user, target_user_id, key, raw)
+                set_keys.append(key)
+            else:
+                clear_user_attribute(requesting_user, target_user_id, key)
+                cleared_keys.append(key)
+        except NotFoundError:
+            # Caller should render a "user not found" banner -- fall through
+            # to ``error_code`` so the loop still completes the rest of the
+            # keys (idempotent ops won't re-fail).
+            error_code = error_code or "user_not_found"
+        except (ValidationError, ValueError):
+            # ValueError covers ``AttributeValueError`` raised by the registry
+            # serializer (e.g. bad ISO country code, value over max_length).
+            # Both are per-key input failures from the user's perspective.
+            error_code = error_code or f"invalid_{key}"
+        except ServiceError:
+            # Any other service-layer failure (ForbiddenError, etc.) surfaces
+            # as a generic save failure rather than leaking the cause.
+            error_code = error_code or "save_failed"
+
+    return {
+        "error_code": error_code,
+        "set_keys": set_keys,
+        "cleared_keys": cleared_keys,
+        "skipped_locked_keys": skipped_locked_keys,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Writes (IdP mirror)
 # ---------------------------------------------------------------------------
 
@@ -497,13 +609,21 @@ def compute_missing_required(tenant_id: str, user_id: str) -> list[tuple[str, bo
     a middleware-level gate. The caller is responsible for any audit
     surfacing.
     """
+    # Single pass over config_rows: collect required+enabled keys and a
+    # ``locked_for_users`` lookup for every config row in one traversal.
+    # The locked map covers every row (not just required ones) because a
+    # required key's locked flag is what the caller filters on.
     config_rows = database.tenant_attribute_config.list_config(tenant_id)
-    required_keys = [
-        row["attribute_key"] for row in config_rows if row.get("enabled") and row.get("required")
-    ]
+    required_keys: list[str] = []
+    locked_by_key: dict[str, bool] = {}
+    for row in config_rows:
+        key = row["attribute_key"]
+        locked_by_key[key] = bool(row.get("locked_for_users"))
+        if row.get("enabled") and row.get("required"):
+            required_keys.append(key)
+
     if not required_keys:
         return []
-    locked_by_key = {row["attribute_key"]: bool(row.get("locked_for_users")) for row in config_rows}
 
     existing_rows = database.user_attributes.list_attributes(tenant_id, user_id)
     present_keys = {
@@ -675,6 +795,7 @@ def bulk_set_force_profile_completion(
 # importing the constants module directly.
 __all__ = [
     "ATTRIBUTES_BY_KEY",
+    "apply_attribute_form_updates",
     "apply_idp_attributes",
     "bulk_set_force_profile_completion",
     "clear_user_attribute",

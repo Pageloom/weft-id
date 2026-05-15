@@ -223,6 +223,116 @@ class TestBuildAssertionAttributes:
         assert result["email"] == "a@b.com"
         assert "job_title" not in result
 
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_config_read_failure_emits_audit_event_with_phase_config(self, mock_db, mock_log_event):
+        """tenant_attribute_config read failure logs an audit event with
+        ``phase=config`` and the exception class name, and the assertion
+        still builds without raising."""
+
+        class FakeConfigDBError(RuntimeError):
+            pass
+
+        mock_db.tenant_attribute_config.list_config.side_effect = FakeConfigDBError("kaboom")
+        mock_db.user_attributes.list_attributes.return_value = []
+
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="A",
+            last_name="B",
+            group_names=[],
+            attribute_mapping={"job_title": "jobTitle"},
+        )
+
+        # Assertion still built.
+        assert result["email"] == "a@b.com"
+
+        # Find the config-phase audit event among any log_event calls.
+        config_calls = [
+            c
+            for c in mock_log_event.call_args_list
+            if c.kwargs.get("event_type") == "tenant_attribute_config_read_failed"
+            and c.kwargs.get("metadata", {}).get("phase") == "config"
+        ]
+        assert len(config_calls) == 1
+        call = config_calls[0]
+        assert call.kwargs["tenant_id"] == "tenant-1"
+        assert call.kwargs["actor_user_id"] == "user-1"
+        assert call.kwargs["artifact_type"] == "tenant"
+        assert call.kwargs["artifact_id"] == "tenant-1"
+        assert call.kwargs["metadata"]["error_class"] == "FakeConfigDBError"
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_user_attributes_read_failure_emits_audit_event_with_phase_user_attributes(
+        self, mock_db, mock_log_event
+    ):
+        """user_attributes read failure logs an audit event with
+        ``phase=user_attributes`` and the exception class name, and the
+        assertion still builds without raising."""
+
+        class FakeUserAttrDBError(RuntimeError):
+            pass
+
+        mock_db.tenant_attribute_config.list_config.return_value = _all_enabled_config()
+        mock_db.user_attributes.list_attributes.side_effect = FakeUserAttrDBError("nope")
+
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="A",
+            last_name="B",
+            group_names=[],
+            attribute_mapping={"job_title": "jobTitle"},
+        )
+
+        # Assertion still built; fixed key intact.
+        assert result["email"] == "a@b.com"
+        assert "job_title" not in result
+
+        user_attr_calls = [
+            c
+            for c in mock_log_event.call_args_list
+            if c.kwargs.get("event_type") == "tenant_attribute_config_read_failed"
+            and c.kwargs.get("metadata", {}).get("phase") == "user_attributes"
+        ]
+        assert len(user_attr_calls) == 1
+        call = user_attr_calls[0]
+        assert call.kwargs["tenant_id"] == "tenant-1"
+        assert call.kwargs["actor_user_id"] == "user-1"
+        assert call.kwargs["artifact_type"] == "user"
+        assert call.kwargs["artifact_id"] == "user-1"
+        assert call.kwargs["metadata"]["error_class"] == "FakeUserAttrDBError"
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_log_event_failure_does_not_cascade_into_sso(self, mock_db, mock_log_event):
+        """If the audit ``log_event`` itself raises (e.g. the same DB outage
+        that broke the config read also breaks event logging), the SSO
+        assertion still builds. The nested try/except is the guard."""
+        mock_db.tenant_attribute_config.list_config.side_effect = RuntimeError("db down")
+        mock_db.user_attributes.list_attributes.return_value = []
+        mock_log_event.side_effect = RuntimeError("event log also down")
+
+        # Must not raise.
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="A",
+            last_name="B",
+            group_names=[],
+            attribute_mapping={"job_title": "jobTitle"},
+        )
+
+        # Fixed keys still emitted; standard attrs are absent because the
+        # config read failed.
+        assert result["email"] == "a@b.com"
+        assert "job_title" not in result
+
     @patch("services.service_providers.sso.database")
     def test_tenant_disabled_attribute_does_not_leak(self, mock_db):
         """Fix 1: a tenant-disabled standard attribute is NOT emitted even when

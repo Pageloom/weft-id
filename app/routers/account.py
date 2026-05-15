@@ -28,8 +28,8 @@ from services.exceptions import (
     ServiceError,
     ValidationError,
 )
+from services.users.attribute_views import build_attribute_groups_for_self
 from utils.email import send_mfa_code_email
-from utils.profile_attributes import build_attribute_groups_for_self
 from utils.qr import generate_qr_code_base64
 from utils.ratelimit import HOUR, ratelimit
 from utils.service_errors import render_error_page
@@ -158,7 +158,6 @@ async def update_profile_attributes(
         return RedirectResponse(url="/account/profile", status_code=303)
 
     form = await request.form()
-    config_rows = settings_service.list_tenant_attribute_config(requesting_user)
 
     # IMPORTANT: stringify the user id before passing it to the service. The
     # service-layer self-edit check compares ``requesting_user["id"]`` (str)
@@ -167,29 +166,24 @@ async def update_profile_attributes(
     # surface as a spurious 403 on a non-admin's own profile.
     target_user_id = str(user["id"])
 
-    error_code: str | None = None
-    for cfg in config_rows:
-        if not cfg.get("enabled"):
-            continue
-        key = cfg["attribute_key"]
-        field = f"attr_{key}"
-        if field not in form:
-            continue
-        if cfg.get("locked_for_users") and not is_admin:
-            continue
-        raw = str(form.get(field, "")).strip()
-        try:
-            if raw:
-                users_service.set_user_attribute(requesting_user, target_user_id, key, raw)
-            else:
-                users_service.clear_user_attribute(requesting_user, target_user_id, key)
-        except ValidationError:
-            error_code = error_code or f"invalid_{key}"
-        except ServiceError:
-            error_code = error_code or "save_failed"
+    # Map ``attr_<key>`` form fields into the helper's ``{key: raw}`` shape.
+    # Non-prefixed fields are ignored; the helper itself iterates the
+    # tenant config and only touches keys whose ``attr_<key>`` is present.
+    form_data: dict[str, str | None] = {
+        name[len("attr_") :]: str(form.get(name, "")) for name in form if name.startswith("attr_")
+    }
 
-    if error_code:
-        return RedirectResponse(url=f"/account/profile?error={error_code}", status_code=303)
+    result = users_service.apply_attribute_form_updates(
+        requesting_user,
+        target_user_id,
+        form_data,
+        enforce_user_lock=not is_admin,
+    )
+
+    if result["error_code"]:
+        return RedirectResponse(
+            url=f"/account/profile?error={result['error_code']}", status_code=303
+        )
     return RedirectResponse(url="/account/profile?success=attributes_saved", status_code=303)
 
 

@@ -1,16 +1,29 @@
-"""Helpers for rendering tenant attribute groups on profile templates.
+"""View-builder helpers for tenant attribute rendering on profile templates.
 
-Used by both the self-service profile page and the admin user-detail
-profile tab. Returns a category-grouped, registry-ordered structure with
-all the metadata templates need to render labeled inputs (or read-only
-fields for locked attributes).
+These functions compose data from the tenant attribute config, the user's
+canonical attribute values, and (for the admin IdP-mirror panel) the
+per-IdP snapshot rows into structures the templates can render
+directly. They live in the service layer because they reach into both
+``services.settings`` and ``database`` (for the IdP display-name lookup)
+and orchestrate read calls across multiple service surfaces.
+
+Used by:
+
+* ``app/routers/account.py`` -- self-service profile page.
+* ``app/routers/users/detail.py`` -- admin user-detail profile + IdP-mirror tab.
+
+The functions deliberately swallow ``ServiceError`` (the underlying
+read failures) into empty results so the rest of the profile page can
+still render when a transient read fails. Hard failures are not the
+caller's concern here.
 """
 
 from __future__ import annotations
 
+import database
 from constants.user_attributes import CATEGORIES, STANDARD_ATTRIBUTES
 from services import settings as settings_service
-from services import users as users_service
+from services.activity import track_activity
 from services.exceptions import ServiceError
 from services.types import RequestingUser
 
@@ -38,6 +51,10 @@ def _build_groups(
         config_rows = []
     config_by_key = {row["attribute_key"]: row for row in config_rows}
 
+    # Late import via the package so test patches against
+    # ``services.users.list_user_attributes`` propagate here.
+    from services import users as users_service
+
     try:
         attribute_rows = users_service.list_user_attributes(requesting_user, target_user_id)
     except ServiceError:
@@ -56,6 +73,7 @@ def build_attribute_groups_for_self(
     so the template can render them read-only. Disabled attributes are
     filtered out (they are not in scope for this tenant).
     """
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
     config_by_key, values_by_key = _build_groups(requesting_user, requesting_user["id"])
 
     grouped: list[dict] = []
@@ -101,6 +119,7 @@ def build_attribute_groups_for_admin(
     a small indicator next to admin-only attributes. ``mirror_from_idp``
     is also surfaced so the template can label rows the IdP will refill.
     """
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
     config_by_key, values_by_key = _build_groups(requesting_user, target_user_id)
 
     grouped: list[dict] = []
@@ -148,6 +167,11 @@ def build_idp_attribute_panel(
     ``mirror_from_idp`` config so admins see at a glance which rows are
     already in the canonical store.
     """
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    # Late import via the package so test patches propagate.
+    from services import users as users_service
+
     try:
         rows = users_service.list_user_idp_attributes(requesting_user, target_user_id)
     except ServiceError:
@@ -164,8 +188,6 @@ def build_idp_attribute_panel(
 
     # Per-IdP display name lookup. The reads are scoped to the same
     # tenant by RLS; missing IdPs are tagged "Unknown IdP" defensively.
-    import database  # local import to avoid widening the module's import surface
-
     idp_lookup: dict[str, str] = {}
 
     grouped: list[dict] = []

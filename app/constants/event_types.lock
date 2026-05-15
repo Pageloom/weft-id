@@ -123,6 +123,7 @@ sp_signing_certificate_rotated
 sso_assertion_issued
 sso_consent_denied
 super_admin_self_reactivated
+tenant_attribute_config_read_failed
 tenant_attribute_config_updated
 tenant_auth_policy_updated
 tenant_certificate_lifetime_updated

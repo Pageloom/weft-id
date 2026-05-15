@@ -34,6 +34,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "user_updated": "User account updated",
     "user_profile_updated": "User profile updated",
     "user_attributes_synced": "User attributes synced from upstream IdP assertion",
+    "user_idp_attribute_mirror_failed": (
+        "IdP attribute mirror write failed during SAML authentication"
+    ),
     "user_force_profile_completion_set": "Forced profile completion flag set on a user",
     "user_deleted": "User account deleted",
     "user_inactivated": "User account deactivated",
@@ -261,6 +264,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "user_updated": "admin",
     "user_profile_updated": "admin",
     "user_attributes_synced": "operational",
+    "user_idp_attribute_mirror_failed": "admin",
     "user_force_profile_completion_set": "admin",
     "invitation_resent": "admin",
     "email_added": "admin",

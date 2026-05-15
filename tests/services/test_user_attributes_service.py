@@ -170,7 +170,8 @@ def test_set_user_attribute_logs_event_with_cause_self_edit(test_user):
     metadata = mock_log.call_args.kwargs["metadata"]
     assert metadata["cause"] == "self_edit"
     assert metadata["idp_id"] is None
-    assert metadata["changes"]["job_title"]["new"] == "Engineer"
+    # Action-only metadata (no raw values, to keep PII out of the event log).
+    assert metadata["changes"] == {"job_title": "added"}
 
 
 def test_set_user_attribute_logs_event_with_cause_admin_edit(test_user):
@@ -434,7 +435,8 @@ def test_apply_idp_attributes_emits_event_when_canonical_changed(test_user):
     metadata = mock_log.call_args.kwargs["metadata"]
     assert metadata["cause"] == "idp_mirror"
     assert metadata["idp_id"] == str(idp["id"])
-    assert "job_title" in metadata["changes"]
+    # Action-only metadata, no raw IdP-supplied PII values.
+    assert metadata["changes"] == {"job_title": "added"}
 
 
 def test_apply_idp_attributes_no_event_when_canonical_unchanged(test_user):

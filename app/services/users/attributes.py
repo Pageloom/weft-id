@@ -217,6 +217,7 @@ def set_user_attribute(
 
     if old_value != serialized:
         cause = "self_edit" if requesting_user["id"] == user_id else "admin_edit"
+        action = "added" if old_value is None else "updated"
         log_event(
             tenant_id=tenant_id,
             actor_user_id=requesting_user["id"],
@@ -226,9 +227,11 @@ def set_user_attribute(
             metadata={
                 "cause": cause,
                 "idp_id": None,
-                "changes": {
-                    attribute_key: {"old": old_value, "new": serialized},
-                },
+                # Record only the action per attribute key. The raw before/after
+                # values are deliberately omitted to keep PII (phone, address,
+                # employee ID, etc.) out of the audit event stream and any
+                # downstream event-log exports.
+                "changes": {attribute_key: action},
             },
         )
 
@@ -279,9 +282,8 @@ def clear_user_attribute(
         metadata={
             "cause": cause,
             "idp_id": None,
-            "changes": {
-                attribute_key: {"old": existing["value"], "new": None},
-            },
+            # See set_user_attribute: action only, no PII values.
+            "changes": {attribute_key: "cleared"},
         },
     )
     return True
@@ -354,17 +356,21 @@ def apply_idp_attributes(
         if cfg and cfg.get("enabled") and cfg.get("mirror_from_idp"):
             mirror_writes[key] = value
 
-    # Pre-compute changes for the event log (only canonical changes are
-    # logged; the IdP-mirror snapshot is its own audit surface).
+    # Pre-compute the change actions for the event log (only canonical
+    # changes are logged; the IdP-mirror snapshot is its own audit
+    # surface). We deliberately record only the per-key action and not the
+    # raw before/after values: IdP-mirrored attributes include phone,
+    # address, employee ID etc., and the audit/event-log stream must not
+    # be a PII sink.
     existing_rows = {
         r["attribute_key"]: r["value"]
         for r in database.user_attributes.list_attributes(tenant_id, user_id)
     }
-    changes: dict[str, dict[str, str | None]] = {}
+    changes: dict[str, str] = {}
     for key, new_value in mirror_writes.items():
         old_value = existing_rows.get(key)
         if old_value != new_value:
-            changes[key] = {"old": old_value, "new": new_value}
+            changes[key] = "added" if old_value is None else "updated"
 
     with database.session(tenant_id=tenant_id) as cur:
         # Replace the IdP-mirror snapshot for this IdP.

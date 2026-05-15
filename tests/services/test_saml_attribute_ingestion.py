@@ -299,13 +299,69 @@ class TestAuthenticateViaSAMLWiring:
             std_attrs={"job_title": "Engineer"},
         )
 
-        with patch(
-            "services.saml.provisioning.apply_idp_attributes",
-            side_effect=RuntimeError("simulated DB outage"),
+        with (
+            patch(
+                "services.saml.provisioning.apply_idp_attributes",
+                side_effect=RuntimeError("simulated DB outage"),
+            ),
+            patch("services.saml.provisioning.log_event") as mock_log,
         ):
             user = saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
 
         # Login still succeeds.
+        assert str(user["id"]) == str(test_user["id"])
+
+        # A user_idp_attribute_mirror_failed event is emitted with the IdP
+        # context and the exception class, but no raw exception message
+        # (avoid leaking DB internals / user data into the audit trail).
+        mirror_failed_calls = [
+            c
+            for c in mock_log.call_args_list
+            if c.kwargs.get("event_type") == "user_idp_attribute_mirror_failed"
+        ]
+        assert len(mirror_failed_calls) == 1
+        meta = mirror_failed_calls[0].kwargs["metadata"]
+        assert meta == {"idp_id": idp.id, "error_class": "RuntimeError"}
+
+    def test_apply_idp_attributes_failure_log_event_failure_does_not_break_login(
+        self, test_tenant, test_super_admin_user, test_user, idp_data_no_mapping
+    ):
+        """Even if log_event itself fails for the mirror-failure event, auth still succeeds."""
+        from schemas.saml import IdPCreate
+        from services import saml as saml_service
+
+        requesting = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        idp = saml_service.create_identity_provider(
+            requesting,
+            IdPCreate(**idp_data_no_mapping, is_enabled=True),
+            "https://test.example.com",
+        )
+
+        saml_result = self._make_saml_result(
+            idp.id,
+            test_user["email"],
+            std_attrs={"job_title": "Engineer"},
+        )
+
+        # Only fail log_event when the mirror-failure event is emitted; the
+        # other auth-flow events (user_signed_in_saml, etc.) succeed.
+        def _selective_failure(*args, **kwargs):
+            if kwargs.get("event_type") == "user_idp_attribute_mirror_failed":
+                raise RuntimeError("audit log unreachable")
+            return None
+
+        with (
+            patch(
+                "services.saml.provisioning.apply_idp_attributes",
+                side_effect=RuntimeError("simulated DB outage"),
+            ),
+            patch(
+                "services.saml.provisioning.log_event",
+                side_effect=_selective_failure,
+            ),
+        ):
+            user = saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
         assert str(user["id"]) == str(test_user["id"])
 
 

@@ -392,6 +392,68 @@ EVENT_TYPE_TIERS: dict[str, str] = {
 }
 
 
+# Outbound SCIM dispatch triggers per event type.
+#
+# When a tagged event is written via `log_event()`, the dispatcher
+# (`services.scim.dispatch.scim_dispatch`) runs the matching trigger which
+# enqueues `scim_push_queue` rows for downstream SPs. Untagged events do
+# not trigger dispatch.
+#
+# Triggers:
+# - "enqueue_user_self": user lifecycle/attribute event; artifact_id is
+#   the user id. Enqueues that user for every SCIM-enabled SP in scope.
+# - "enqueue_membership_change": group-membership event; artifact_id is
+#   the group, metadata["user_id"] or ["user_ids"] is the user(s).
+#   Enqueues each user for every SCIM-enabled SP whose grant-group is the
+#   group or an ancestor of it. For direct-mode SPs the group resource is
+#   also enqueued.
+# - "enqueue_grant_fan_out": SP-group assignment event; artifact_id is
+#   the SP, metadata["group_id"] or ["group_ids"] is the group(s).
+#   Enqueues every transitive member of the group plus the group itself.
+#
+# Every key here MUST also exist in EVENT_TYPE_DESCRIPTIONS (enforced by
+# a validation test). Adding a sync-relevant event? Tag it here.
+EVENT_TYPE_SCIM_TRIGGERS: dict[str, str] = {
+    # User lifecycle and attribute mutations.
+    "user_created": "enqueue_user_self",
+    "user_created_jit": "enqueue_user_self",
+    "user_updated": "enqueue_user_self",
+    "user_profile_updated": "enqueue_user_self",
+    "user_attributes_synced": "enqueue_user_self",
+    "user_inactivated": "enqueue_user_self",
+    "user_reactivated": "enqueue_user_self",
+    "user_auto_inactivated": "enqueue_user_self",
+    "user_reactivated_cli": "enqueue_user_self",
+    "super_admin_self_reactivated": "enqueue_user_self",
+    "user_anonymized": "enqueue_user_self",
+    "user_deleted": "enqueue_user_self",
+    "primary_email_changed": "enqueue_user_self",
+    "email_added": "enqueue_user_self",
+    "email_deleted": "enqueue_user_self",
+    "email_verified": "enqueue_user_self",
+    # Group lifecycle (name/description change, deletion). The group
+    # resource itself ships to every SCIM-enabled SP that grants via the
+    # group or any ancestor of it. Members are not re-pushed for a pure
+    # group-metadata change; that's handled by the membership triggers
+    # when memberships actually change.
+    "group_created": "enqueue_group_self",
+    "group_updated": "enqueue_group_self",
+    "group_deleted": "enqueue_group_self",
+    # Group-membership mutations.
+    "group_member_added": "enqueue_membership_change",
+    "group_member_removed": "enqueue_membership_change",
+    "group_members_bulk_added": "enqueue_membership_change",
+    "group_members_bulk_removed": "enqueue_membership_change",
+    # IdP-driven membership changes flow through the same trigger.
+    "idp_group_member_added": "enqueue_membership_change",
+    "idp_group_member_removed": "enqueue_membership_change",
+    # SP-group grant changes.
+    "sp_group_assigned": "enqueue_grant_fan_out",
+    "sp_group_unassigned": "enqueue_grant_fan_out",
+    "sp_groups_bulk_assigned": "enqueue_grant_fan_out",
+}
+
+
 def get_event_description(event_type: str) -> str | None:
     """Get the human-readable description for an event type.
 

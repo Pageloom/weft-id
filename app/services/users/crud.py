@@ -500,6 +500,17 @@ def delete_user(
     primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
     user_email = primary_email["email"] if primary_email else None
 
+    # Pre-resolve SCIM SP scope BEFORE deletion. `group_memberships.user_id`
+    # has ON DELETE CASCADE, so the SCIM dispatch trigger that runs after
+    # `log_event("user_deleted", ...)` would see zero memberships and resolve
+    # zero SPs. Stash the in-scope SP ids on the event metadata so the
+    # `enqueue_user_self` trigger can short-circuit the post-delete query.
+    try:
+        scim_sps = database.scim_scope.scim_sps_granting_user(tenant_id, user_id)
+        pre_resolved_sps = [str(sp["id"]) for sp in scim_sps]
+    except Exception:  # noqa: BLE001 -- never block delete on SCIM scope lookup
+        pre_resolved_sps = []
+
     # Delete user
     database.users.delete_user(tenant_id, user_id)
 
@@ -514,5 +525,6 @@ def delete_user(
             "deleted_user_name": f"{user['first_name']} {user['last_name']}",
             "deleted_user_email": user_email,
             "deleted_user_role": user["role"],
+            "scim_pre_resolved_sps": pre_resolved_sps,
         },
     )

@@ -457,3 +457,61 @@ Pull-based rather than push-based, because Workspace does not push directory eve
 - Independent of **Outbound SCIM**, but most valuable when combined with it (sync in from Google → push out to downstream apps).
 
 ---
+
+## Outbound SCIM: Additional Vendor Quirks and Connector Types
+
+**User Story:**
+As a tenant admin,
+I want WeftID's outbound SCIM to support more downstream applications out of the box,
+So that I can connect WeftID to the SaaS my organization uses without falling back to the spec-correct generic profile (which may not work for vendors that diverge from SCIM 2.0).
+
+**Context:**
+
+The initial Outbound SCIM release shipped with quirk modules for **Slack, GitHub, Atlassian, and GitLab**, plus a spec-correct generic profile. Real-world SaaS diverges from SCIM 2.0 in vendor-specific ways, so each new high-profile vendor benefits from a small quirk module that adjusts payload shape, PATCH semantics, error interpretation, or authentication.
+
+Two related extensions also belong here: connector types that don't fit the "generic SCIM 2.0 client with quirks" mold (1Password Business uses a self-hosted bridge; Box wraps SCIM in OAuth2 client-credentials auth).
+
+**Design Notes:**
+
+- Each new vendor is a small file under `app/services/scim/quirks/<vendor>.py` plus recorded fixtures under `tests/fixtures/scim/<vendor>/`. The vendor's name extends the `service_providers.scim_kind` CHECK constraint and appears in the SP detail page's "Application type" dropdown.
+- Alternate connector types (bridge model, alternate auth) are larger work: a new transport layer alongside the generic HTTP-bearer client. Likely a `scim_transport VARCHAR(50)` column or a separate `sp_scim_connector_kind` table, with `http_bearer` as the default.
+- Priority within this backlog item should be driven by customer demand. The list below is "next-most-likely-to-be-asked-for," not a commitment to ship all of them.
+
+**Candidate vendor quirks (incremental, ship as customer demand surfaces):**
+
+- **Zoom**: `userName` must be the email address, even when `emails[]` carries it separately
+- **Notion**: PUT-only for users (no PATCH); architecturally distinct enough that the quirk module needs to translate PATCH ops into full-resource PUTs
+- **Linear**: custom role attributes via schema extension
+- **PagerDuty**: split between team membership and schedule membership (both modelled as "groups" in WeftID; quirk decides which)
+- **Datadog**: tenant-specific URL pattern (region in the base URL)
+- **Vercel**: project-membership model differs from flat groups
+- **Figma**: distinguishes editor vs viewer seats in non-standard ways
+- **AWS IAM Identity Center**: email as the immutable identifier; strict
+- **Snowflake**: custom role mapping via attribute extensions
+- **CircleCI**: org structure differs from spec's flat groups
+- **HashiCorp Cloud Platform**: mostly compliant; minor differences
+- **Sentry**: SCIM on Business+; mostly compliant
+- **Cloudflare Zero Trust**: mostly compliant
+
+**Candidate alternate connector types (each is a larger, distinct piece of work):**
+
+- **1Password Business** -- self-hosted SCIM bridge. Admins deploy a 1Password-provided bridge container in their own infra; WeftID pushes to the bridge, not directly to 1Password's cloud. Requires a new connector kind and likely a different config UX (bridge URL + bridge auth, not 1Password cloud credentials).
+- **Box** -- OAuth2 client-credentials in front of SCIM. Bearer token is short-lived and refreshed; WeftID needs a token-management layer (acquire, cache, refresh) rather than the static-bearer model used by everyone else.
+
+**Acceptance Criteria (per increment -- each vendor or connector type is its own sub-deliverable):**
+
+- [ ] Per vendor quirk: new `app/services/scim/quirks/<vendor>.py` module with the appropriate transforms and error interpretation
+- [ ] Per vendor quirk: recorded request/response fixtures in `tests/fixtures/scim/<vendor>/`
+- [ ] Per vendor quirk: `scim_kind` CHECK constraint extended via migration; dropdown updated
+- [ ] Per vendor quirk: documentation walkthrough added under `docs/admin-guide/` with screenshots of the vendor's bearer-token acquisition flow
+- [ ] Per alternate connector type: new transport layer in `app/services/scim/transports/` with its own auth model
+- [ ] Per alternate connector type: UI accommodates the new config shape (bridge URL, OAuth2 client ID/secret, etc.)
+- [ ] Per alternate connector type: integration tests against a recorded or sandbox instance
+
+**Effort:** Variable. Single vendor quirk = XS (one file + fixtures + docs page). Alternate connector type = M (new transport + UI + auth refresh logic).
+**Value:** Per-vendor: scales with how many prospects ask for that vendor. Bridge/OAuth2 connectors: unlock specific high-value prospects who use those products.
+**Version impact:** Each vendor quirk is a patch release (additive). Each alternate connector type is a minor release (new auth surface, new config columns).
+
+**Dependencies:** Requires **Outbound SCIM (WeftID → Downstream Service Providers)** to be shipped first. This backlog item is the follow-on wave.
+
+---

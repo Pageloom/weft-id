@@ -98,6 +98,10 @@ saml_idp_verbose_logging_disabled
 saml_idp_verbose_logging_enabled
 saml_sp_certificate_created
 saml_sp_certificate_rotated
+scim_config_updated
+scim_token_created
+scim_token_revoked
+scim_token_rotated
 service_provider_created
 service_provider_deleted
 service_provider_disabled

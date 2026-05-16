@@ -201,6 +201,11 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "group_avatar_style_updated": "Tenant group avatar style setting updated",
     "sp_logo_uploaded": "Custom logo uploaded for service provider",
     "sp_logo_removed": "Custom logo removed from service provider",
+    # Outbound SCIM (admin actions only; push outcomes live in scim_sync_log)
+    "scim_config_updated": "Outbound SCIM configuration updated for service provider",
+    "scim_token_created": "Outbound SCIM bearer token created",
+    "scim_token_rotated": "Outbound SCIM bearer token rotated",
+    "scim_token_revoked": "Outbound SCIM bearer token revoked",
     # IdP Group Integration
     "idp_group_created": "Group auto-created for identity provider",
     "idp_group_discovered": "New group discovered from identity provider",
@@ -346,6 +351,10 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "sp_logo_removed": "admin",
     "sso_consent_denied": "admin",
     "assertion_preview_viewed": "admin",
+    "scim_config_updated": "admin",
+    "scim_token_created": "admin",
+    "scim_token_rotated": "admin",
+    "scim_token_revoked": "admin",
     # Operational tier
     "sso_assertion_issued": "operational",
     "slo_sp_initiated": "operational",

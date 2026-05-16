@@ -304,3 +304,156 @@ So that unit tests never leak queries to PostgreSQL, producing noisy error logs 
 **Effort:** M
 **Value:** Medium (developer experience, test reliability, CI log clarity)
 **Version impact:** None (test infrastructure only)
+
+---
+
+## Outbound SCIM (WeftID → Downstream Service Providers)
+
+**User Story:**
+As a tenant admin,
+I want WeftID to expose a SCIM 2.0 endpoint per registered Service Provider,
+So that downstream SaaS apps (Slack, Zoom, GitHub, Atlassian, etc.) can receive user and group changes in real time and deprovision access when a user is removed from WeftID.
+
+**Context:**
+
+Pure SAML cannot solve the "deprovisioned user retains downstream SaaS access" gap, because SAML only acts at login. SCIM closes the loop by letting WeftID push lifecycle and group-membership changes to each SP between logins.
+
+This is the first piece of the "federation-native directory" positioning: it makes WeftID a directory *for* downstream apps, not just an SSO broker.
+
+**Design Notes:**
+
+- Endpoint shape: `/scim/v2/<sp-slug>/...`, served by a new `app/routers/scim/` package and `app/services/scim/` service layer.
+- Auth: bearer token per SP, stored in a new SCIM-token table, with rotation (token versioning + overlap window).
+- Scope of exposed users: **only users with SP access via existing group grants**, not the entire tenant directory. Adding/removing a user from a granting group must enqueue a SCIM push job to the SP (use the existing `app/jobs/` worker).
+- DAG groups: default to projecting **effective (flattened) membership** via `group_lineage`; configurable per-SP to expose direct membership only when needed.
+- SCIM 2.0 core: Users + Groups resources, Enterprise User extension. Skip bulk operations and exotic PATCH filter paths.
+- Compatibility target: real-world SP implementations (Slack, Zoom, GitHub, Atlassian, Google Workspace's SCIM-out side) over RFC purity. Their quirks define "works."
+
+**Acceptance Criteria:**
+
+- [ ] Migration adds `scim_tokens` table (tenant-scoped, SP-scoped, supports rotation with overlap)
+- [ ] `app/routers/scim/` package with endpoints under `/scim/v2/<sp-slug>/`:
+  - [ ] `GET /Users`, `GET /Users/{id}`, `POST /Users`, `PUT /Users/{id}`, `PATCH /Users/{id}`, `DELETE /Users/{id}`
+  - [ ] `GET /Groups`, `GET /Groups/{id}`, `POST /Groups`, `PUT /Groups/{id}`, `PATCH /Groups/{id}`, `DELETE /Groups/{id}`
+  - [ ] `GET /ServiceProviderConfig`, `GET /ResourceTypes`, `GET /Schemas`
+- [ ] `app/services/scim/` enforces SP scoping: only users granted access to the SP are visible
+- [ ] Bearer-token auth middleware validates SCIM tokens, scopes the request to one SP
+- [ ] DAG groups projected as flattened effective membership by default; per-SP setting for direct-only
+- [ ] Change events on grants, group memberships, and user lifecycle enqueue SCIM push jobs
+- [ ] Push jobs are idempotent and retry with backoff on transient failures
+- [ ] Admin UI: SCIM token management per SP (create, rotate, revoke; secret shown once)
+- [ ] API endpoints mirror admin UI per the API-first rule
+- [ ] Audit events: `scim_token_created`, `scim_token_rotated`, `scim_token_revoked`, `scim_user_pushed`, `scim_group_pushed`, `scim_push_failed`
+- [ ] Test coverage includes real-world request shapes from Slack, Okta SCIM client, and Entra SCIM client (recorded fixtures)
+- [ ] Documentation page in `docs/admin-guide/` covering SCIM setup per SP
+
+**Effort:** M (2–3 weeks focused work)
+**Value:** High (single largest unlock for moving WeftID from "SSO broker" to "directory"; closes the deprovisioning gap that pure SAML cannot)
+**Version impact:** Minor (new endpoints, new table, new auth surface, additive only)
+
+**Dependencies:** None. Builds entirely on existing SP, user, group, and group-grant models.
+
+---
+
+## Inbound SCIM (Okta and Entra → WeftID)
+
+**User Story:**
+As a tenant admin whose company uses Okta or Entra as the source of truth,
+I want my IdP to push user and group changes into WeftID via SCIM,
+So that WeftID reflects directory state without waiting for users to log in, and downstream apps (via outbound SCIM) get changes promptly.
+
+**Context:**
+
+Today, WeftID only learns about a user when they log in (JIT). This means a deprovisioned upstream user is not removed from WeftID until their next (failed) login, and an admin cannot grant SP access to a user who has not yet logged in.
+
+Inbound SCIM makes WeftID a true **reflection directory** rather than a JIT cache. Combined with outbound SCIM, this is the end-to-end "federation-native directory" story.
+
+Explicitly scoped to **Okta and Entra** for the initial release. Those are the two SCIM 2.0 client implementations enterprises actually run, and their quirks define what "works" means more than the RFC does.
+
+**Design Notes:**
+
+- Endpoint shape: `/scim/v2/inbound/<idp-connection-id>/...`, bearer token per IdP connection.
+- Reuses existing `group_type='idp'` (read-only externally-synced groups).
+- Reuses existing user lifecycle states. SCIM DELETE maps to **soft-delete / deactivate** (never hard-delete; preserves MFA enrollment, audit history, granted access on reactivation).
+- Conflict resolution: **SCIM-wins-always** for the initial release. Do not build a per-attribute mastering rules engine. Layer that on later only if a customer asks. Correct for the federation use case and ships faster.
+- Idempotent merge on `externalId` or email: a user created by JIT login *before* SCIM provisioning catches up must be merged into the SCIM-managed user, not duplicated.
+- Compatibility realities: Okta SCIM and Entra SCIM both claim 2.0 compliance and both have known quirks (Entra's batched PATCH semantics, Okta's group `members[]` add/remove patterns, both differ on `meta.resourceType` casing). Tests must use recorded request fixtures from real tenants.
+
+**Acceptance Criteria:**
+
+- [ ] Migration adds `scim_inbound_tokens` table tied to IdP connections
+- [ ] `app/routers/scim/inbound/` package with endpoints under `/scim/v2/inbound/<idp-connection-id>/`:
+  - [ ] Full Users CRUD (GET, POST, PUT, PATCH, DELETE)
+  - [ ] Full Groups CRUD (GET, POST, PUT, PATCH, DELETE)
+  - [ ] `GET /ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`
+- [ ] Bearer-token auth middleware validates inbound SCIM tokens and scopes to one IdP connection
+- [ ] Users created via inbound SCIM are merged with any pre-existing JIT user on `externalId` or canonical email match (no duplicates)
+- [ ] DELETE soft-deletes (deactivates) the user, preserving MFA enrollment and audit history
+- [ ] Groups created via inbound SCIM use `group_type='idp'` (read-only in WeftID)
+- [ ] Group membership changes from SCIM update memberships and trigger any downstream outbound SCIM pushes
+- [ ] **SCIM-wins-always:** any user/group attribute write from SCIM overrides local edits without conflict prompts
+- [ ] Test fixtures cover real-world Okta and Entra request shapes (recorded from sandbox tenants)
+- [ ] Admin UI: inbound SCIM token management per IdP connection
+- [ ] Documentation page in `docs/admin-guide/` covering inbound SCIM setup for Okta and Entra (step-by-step screenshots)
+- [ ] Audit events: `scim_inbound_token_created`, `scim_inbound_token_rotated`, `scim_inbound_token_revoked`, `scim_user_received`, `scim_group_received`, `scim_user_deactivated`, `scim_membership_synced`
+
+**Effort:** M
+**Value:** High (closes the JIT-only gap; required to be credible as a directory product; combined with outbound SCIM, completes the directory story)
+**Version impact:** Minor (new endpoints, new table, no breaking changes to existing flows)
+
+**Dependencies:**
+- Independent of Outbound SCIM (can ship in either order), but the SCIM router/auth scaffolding from Outbound is reusable, so doing Inbound second is cheaper.
+- Shares conflict-resolution plumbing and `group_type='idp'` integration with Google Workspace sync; whichever ships second of the two reuses the merge/soft-delete code.
+
+---
+
+## Google Workspace Directory Sync
+
+**User Story:**
+As a tenant admin whose company uses Google Workspace,
+I want WeftID to sync users and groups from my Workspace customer domain,
+So that my directory reflection works the same way it does for Okta and Entra customers, even though Google does not push SCIM.
+
+**Context:**
+
+Google Workspace does **not** implement SCIM 2.0. Directory provisioning uses the Google Admin SDK Directory API instead. This is a separate connector from inbound SCIM, not a variant of it.
+
+The destination data model and conflict semantics are identical to inbound SCIM (creates `group_type='idp'` groups, soft-deletes on removal, Google-wins-always), so most of the merge/lifecycle code is shared.
+
+Pull-based rather than push-based, because Workspace does not push directory events. Implemented as a scheduled job in `app/jobs/`.
+
+**Design Notes:**
+
+- Auth: OAuth2 service account with domain-wide delegation, or admin-consented OAuth2 app. Service account is the standard pattern for non-interactive directory sync.
+- Sync surface: users (active, suspended, deleted) and groups (with members) from a Workspace customer domain.
+- Pull cadence: scheduled job, configurable interval per tenant (default e.g. 15 minutes), plus an on-demand "sync now" admin action.
+- Incremental sync where Google's API supports it (`syncToken` / change-list APIs), full sync otherwise. Full sync as a fallback when sync state is lost or first run.
+- Reuses the inbound-SCIM merge/conflict/soft-delete code paths (idempotent merge on Google's `id` or canonical email; soft-delete on removal; Google-wins-always for attribute conflicts).
+- Connector identity stored alongside other IdP connections so the admin UI is unified.
+
+**Acceptance Criteria:**
+
+- [ ] Migration adds `google_workspace_connections` table (tenant-scoped, holds service account credentials encrypted, customer domain, sync state, sync interval)
+- [ ] Admin UI: connect Google Workspace (upload/paste service account key, specify customer domain, configure sync interval)
+- [ ] Admin UI: "sync now" button, last sync time, last sync status, error surface
+- [ ] Scheduled job in `app/jobs/` runs at the configured interval per connection
+- [ ] On-demand sync enqueues a one-off job
+- [ ] Incremental sync uses Google's change-list API where available; falls back to full sync
+- [ ] Users created via Google sync are merged with any pre-existing JIT user on `externalId` (Google `id`) or canonical email match
+- [ ] Removed users are soft-deleted (deactivated), preserving MFA enrollment and audit history
+- [ ] Groups synced from Google use `group_type='idp'` (read-only in WeftID)
+- [ ] **Google-wins-always** for attribute conflicts
+- [ ] Service account key is encrypted at rest using existing HKDF-derived key infrastructure
+- [ ] Audit events: `google_workspace_connection_created`, `google_workspace_connection_updated`, `google_workspace_connection_deleted`, `google_workspace_sync_started`, `google_workspace_sync_completed`, `google_workspace_sync_failed`, `google_workspace_user_synced`, `google_workspace_user_deactivated`, `google_workspace_group_synced`
+- [ ] Documentation page in `docs/admin-guide/` covering Google Workspace setup (service account creation in Google Cloud, domain-wide delegation, scope grants, connection in WeftID)
+- [ ] Test coverage with mocked Google Admin SDK responses (no live API calls in tests)
+
+**Effort:** M
+**Value:** High (Google Workspace is the third major enterprise IdP; without it, the reflection-directory story has a gap that prospects will probe)
+**Version impact:** Minor (new connector, new table, new job, new scopes; no breaking changes)
+
+**Dependencies:**
+- Reuses the merge/soft-delete/conflict-resolution plumbing from **Inbound SCIM**. Whichever of the two ships second is cheaper. Recommended order: Inbound SCIM first (it establishes the reflection-directory data flow and is more familiar territory), then Google Workspace as the second connector.
+- Independent of **Outbound SCIM**, but most valuable when combined with it (sync in from Google → push out to downstream apps).
+
+---

@@ -936,6 +936,104 @@ def test_delete_user_captures_user_info_before_deletion(
         assert call_kwargs["metadata"]["deleted_user_email"] == email
 
 
+def test_delete_user_pre_resolves_scim_sps_before_deletion(
+    make_requesting_user, make_user_dict, make_email_dict
+):
+    """`delete_user` must resolve SCIM SP scope BEFORE calling
+    `database.users.delete_user`, because `group_memberships.user_id`
+    has ON DELETE CASCADE. The resolved SP ids must be stashed on the
+    event metadata as `scim_pre_resolved_sps` (a list of stringified ids)
+    so the dispatch trigger can fan out without re-querying.
+    """
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    user_to_delete_id = str(uuid4())
+    sp_a = uuid4()
+    sp_b = uuid4()
+
+    user_to_delete = make_user_dict(
+        user_id=user_to_delete_id,
+        tenant_id=tenant_id,
+        role="member",
+    )
+    email = make_email_dict(user_id=user_to_delete_id)
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
+
+    call_order: list[str] = []
+
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.log_event") as mock_log,
+    ):
+        mock_db.users.get_user_by_id.return_value = user_to_delete
+        mock_db.users.is_service_user.return_value = False
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        def record_scope(*_a, **_kw):
+            call_order.append("scim_scope")
+            return [
+                {"id": sp_a, "scim_membership_mode": "effective"},
+                {"id": sp_b, "scim_membership_mode": "direct"},
+            ]
+
+        def record_delete(*_a, **_kw):
+            call_order.append("delete")
+
+        mock_db.scim_scope.scim_sps_granting_user.side_effect = record_scope
+        mock_db.users.delete_user.side_effect = record_delete
+
+        users_service.delete_user(requesting_user, user_to_delete_id)
+
+        # Ordering: scope MUST be resolved before the cascading delete.
+        assert call_order == ["scim_scope", "delete"]
+
+        # Scope query was for the right tenant and user.
+        mock_db.scim_scope.scim_sps_granting_user.assert_called_once_with(
+            tenant_id, user_to_delete_id
+        )
+
+        # Metadata carries the resolved SP ids (stringified, list).
+        call_kwargs = mock_log.call_args.kwargs
+        assert call_kwargs["event_type"] == "user_deleted"
+        pre_resolved = call_kwargs["metadata"]["scim_pre_resolved_sps"]
+        assert isinstance(pre_resolved, list)
+        assert set(pre_resolved) == {str(sp_a), str(sp_b)}
+
+
+def test_delete_user_swallows_scim_scope_lookup_error(
+    make_requesting_user, make_user_dict, make_email_dict
+):
+    """If the SCIM scope query fails, `delete_user` must still proceed.
+    A SCIM dispatch failure must never block a user-initiated delete; the
+    metadata simply records an empty pre-resolved list.
+    """
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    user_to_delete_id = str(uuid4())
+    user_to_delete = make_user_dict(user_id=user_to_delete_id, tenant_id=tenant_id, role="member")
+    email = make_email_dict(user_id=user_to_delete_id)
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.log_event") as mock_log,
+    ):
+        mock_db.users.get_user_by_id.return_value = user_to_delete
+        mock_db.users.is_service_user.return_value = False
+        mock_db.user_emails.get_primary_email.return_value = email
+        mock_db.scim_scope.scim_sps_granting_user.side_effect = RuntimeError("db down")
+
+        users_service.delete_user(requesting_user, user_to_delete_id)
+
+        mock_db.users.delete_user.assert_called_once()
+        call_kwargs = mock_log.call_args.kwargs
+        assert call_kwargs["metadata"]["scim_pre_resolved_sps"] == []
+
+
 # =============================================================================
 # Current User Profile Tests
 # =============================================================================

@@ -57,6 +57,7 @@ def log_event(
     event_type: str,
     metadata: dict[str, Any] | None = None,
     request_metadata: dict[str, Any] | None = None,
+    dispatch_scim: bool = True,
 ) -> None:
     """
     Log a service layer write operation.
@@ -77,6 +78,12 @@ def log_event(
         metadata: Optional context-specific details as dict (custom event data)
         request_metadata: Optional explicit request metadata override
             (IP, user agent, device, session). If not provided, reads from contextvar.
+        dispatch_scim: When True (default), runs the SCIM dispatch hook after
+            the event row is written. Tagged event types in
+            `EVENT_TYPE_SCIM_TRIGGERS` fan out into `scim_push_queue`
+            upserts. Seed scripts, replay/backfill, and any code path that
+            should not trigger downstream syncs pass False. Dispatch
+            failures never propagate to the caller.
 
     Raises:
         ValueError: If event_type is not defined in EVENT_TYPE_DESCRIPTIONS.
@@ -165,6 +172,36 @@ def log_event(
     # Skip for system actor since it's not a real user
     if actor_user_id != SYSTEM_ACTOR_ID:
         track_activity(tenant_id, actor_user_id, force=True)
+
+    # Outbound SCIM dispatch (best-effort, never raises).
+    #
+    # Runs after the event row is written so a dispatch failure cannot
+    # roll back the audit record. The dispatch module looks up the event
+    # type in EVENT_TYPE_SCIM_TRIGGERS and fans out into scim_push_queue.
+    # Untagged events return immediately. Imported lazily to avoid a
+    # circular import between services.event_log and services.scim.
+    if dispatch_scim:
+        try:
+            from services.scim.dispatch import scim_dispatch
+
+            scim_dispatch(
+                event_type=event_type,
+                tenant_id=tenant_id,
+                actor_user_id=actor_user_id,
+                artifact_type=artifact_type,
+                artifact_id=artifact_id,
+                metadata=metadata,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                "SCIM dispatch failed: %s (tenant=%s, actor=%s, artifact=%s/%s, event=%s)",
+                str(e),
+                tenant_id,
+                actor_user_id,
+                artifact_type,
+                artifact_id,
+                event_type,
+            )
 
 
 # ============================================================================

@@ -5,6 +5,39 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [BUG] user_deleted skips SCIM deprovisioning (FK cascade ordering)
+
+**Status:** Resolved (2026-05-16)
+**Found in:** `app/services/users/crud.py` (the `delete_user` flow)
+**Severity:** High
+**Resolution:** `delete_user` now resolves `database.scim_scope.scim_sps_granting_user(tenant_id, user_id)` BEFORE calling `database.users.delete_user`, stringifies the resulting SP UUIDs into a list, and passes them through `metadata["scim_pre_resolved_sps"]` on the `log_event("user_deleted", ...)` call. The scope query is wrapped in a try/except so a lookup failure produces an empty list and never blocks the delete (best-effort). The `enqueue_user_self` trigger in `app/services/scim/dispatch.py` now reads `metadata.get("scim_pre_resolved_sps")` first: if present (including the empty-list case), it uses that list directly and skips the live `scim_sps_granting_user` query; if absent, it falls through to the original behavior. This generalises beyond `user_deleted` -- any future flow that destroys its own scope before logging can pass the same metadata hint.
+
+Three unit tests in `tests/services/scim/test_dispatch.py` (`test_enqueue_user_self_uses_metadata_pre_resolved_sps_when_present`, `test_enqueue_user_self_empty_pre_resolved_list_is_clean_noop`, `test_enqueue_user_self_falls_through_to_query_when_no_metadata_hint`) cover the trigger contract; two service tests in `tests/services/test_users.py` cover the `delete_user` call ordering and the scope-lookup-failure swallow; and a new end-to-end integration test in `tests/services/scim/test_dispatch_hard_delete.py` exercises the real FK cascade, creating a user with grant access to a SCIM-enabled SP and asserting a `scim_push_queue` row exists after the hard delete.
+
+---
+
+### [BUG] available_to_all SPs silently excluded from SCIM scope
+
+**Status:** Resolved (2026-05-16)
+**Found in:** `app/database/scim_scope.py:scim_sps_granting_user`
+**Severity:** High (caught during Iteration 3 review before commit)
+**Resolution:** `scim_sps_granting_user` now matches SPs where `scim_enabled=true AND (available_to_all=true OR user-has-grant-access-via-lineage)`. Previously it excluded `available_to_all=true` SPs entirely, citing the backlog phrase "only users with SP access via existing group grants, not the entire tenant directory." That interpretation was wrong: `available_to_all=true` is itself a scoping decision made by the admin (every tenant user is granted access), so users-via-`available_to_all` are in scope for that SP -- there is no data-leakage risk because every user already has SSO access. The exclusion broke the central deprovisioning promise of the feature for the most common SP configuration (company-wide tools like Slack, Notion, the wiki). The other two scope queries (`scim_sps_granting_via_group`, `transitive_user_ids_for_group`) were intentionally not changed: group-membership changes don't affect `available_to_all` SPs' user scope (every user is already in scope regardless), and group-grant changes by definition aren't for `available_to_all` SPs.
+
+A separate concern surfaced during this fix: when an admin flips `available_to_all` on a SCIM-enabled SP, every tenant user becomes (or stops being) in scope, which requires a full tenant fan-out enqueue. The SP-config write path doesn't exist for SCIM columns yet, so this is iteration 5's responsibility -- noted in the iteration file's reconceptualisations.
+
+Test `test_scim_sps_granting_user_includes_available_to_all_sp` in `tests/database/test_scim_scope.py` replaced the prior misnamed `test_scim_sps_granting_user_excludes_available_to_all_sp_with_no_grants` and locks in the new behavior.
+
+---
+
+### [BUG] Verify `idp_group_member_added/removed` carry `metadata["user_id"]`
+
+**Status:** Resolved (2026-05-16; no code change required)
+**Found in:** `app/services/scim/dispatch.py:enqueue_membership_change`
+**Severity:** Medium
+**Resolution:** Audit confirmed all seven `log_event` call sites in `app/services/groups/idp.py` (lines 278, 327, 524, 557, 602, 643, 677) already pass `metadata["user_id"]` as a top-level string key. The `enqueue_membership_change` trigger's `metadata.get("user_id")` read works correctly for both `idp_group_member_added` and `idp_group_member_removed` events across all SAML-authentication, idp-assignment, and idp-reassignment sync sources. A parametrized regression test `test_enqueue_membership_change_handles_real_idp_event_metadata` in `tests/services/scim/test_dispatch.py` locks in the contract using fixtures copied verbatim from the four real IdP call-site shapes (with and without `user_email`, across both sync_source variants and both events). No code change to the IdP emitters or the trigger.
+
+---
+
 ### [SECURITY] Hardening: structured event log for IdP mirror failures
 
 **Status:** Resolved (2026-05-15)

@@ -78,6 +78,20 @@ def _load_verbose_event_pii_redaction() -> Any:
     return redact_verbose_event_pii()
 
 
+def _load_scim_push_queue() -> Any:
+    """Import and run one drain pass of the outbound SCIM push queue."""
+    from jobs.process_scim_push_queue import process_scim_push_queue
+
+    return process_scim_push_queue()
+
+
+def _load_scim_sync_log_cleanup() -> Any:
+    """Import and run the nightly SCIM sync-log retention cleanup."""
+    from jobs.cleanup_scim_sync_log import cleanup_scim_sync_log
+
+    return cleanup_scim_sync_log()
+
+
 class PeriodicJob:
     """A periodic background job with interval-based scheduling."""
 
@@ -101,6 +115,8 @@ class Worker:
         saml_refresh_interval_hours: int = 24,
         cert_rotation_interval_hours: int = 24,
         hibp_check_interval_hours: int = 168,
+        scim_push_interval_seconds: int = 60,
+        scim_sync_log_cleanup_interval_hours: int = 24,
     ) -> None:
         """Initialize the worker.
 
@@ -111,6 +127,8 @@ class Worker:
             saml_refresh_interval_hours: Hours between SAML metadata refresh runs
             cert_rotation_interval_hours: Hours between certificate rotation/cleanup checks
             hibp_check_interval_hours: Hours between HIBP breach checks (default: weekly)
+            scim_push_interval_seconds: Seconds between outbound SCIM push drains
+            scim_sync_log_cleanup_interval_hours: Hours between SCIM sync-log retention sweeps
         """
         self.poll_interval = poll_interval
         self.running = True
@@ -149,6 +167,16 @@ class Worker:
                 "verbose event PII redaction",
                 _load_verbose_event_pii_redaction,
                 timedelta(hours=1),
+            ),
+            PeriodicJob(
+                "outbound SCIM push queue",
+                _load_scim_push_queue,
+                timedelta(seconds=scim_push_interval_seconds),
+            ),
+            PeriodicJob(
+                "SCIM sync-log retention cleanup",
+                _load_scim_sync_log_cleanup,
+                timedelta(hours=scim_sync_log_cleanup_interval_hours),
             ),
         ]
 

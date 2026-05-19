@@ -2,7 +2,7 @@
 
 import json
 
-from database._core import TenantArg, execute, fetchall, fetchone
+from database._core import UNSCOPED, TenantArg, execute, fetchall, fetchone
 
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, encryption_certificate_pem,
@@ -336,4 +336,57 @@ def delete_service_provider(tenant_id: TenantArg, sp_id: str) -> int:
         tenant_id,
         "delete from service_providers where id = :sp_id",
         {"sp_id": sp_id},
+    )
+
+
+def get_scim_target(tenant_id: TenantArg, sp_id: str) -> dict | None:
+    """Get the SCIM transport-relevant columns for one SP.
+
+    Returns the subset of `service_providers` columns the SCIM client and
+    push worker need: id, name, scim_enabled, scim_target_url, scim_kind,
+    scim_membership_mode, scim_log_retention, available_to_all. Returns
+    None when the SP does not exist.
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select id, name, scim_enabled, scim_target_url, scim_kind,
+               scim_membership_mode, scim_log_retention, available_to_all
+        from service_providers
+        where id = :sp_id
+        """,
+        {"sp_id": sp_id},
+    )
+
+
+def list_scim_enabled_sps(tenant_id: TenantArg) -> list[dict]:
+    """List all SCIM-enabled SPs for a tenant.
+
+    Returns id and scim_log_retention only -- this is the data the cleanup
+    job needs. Used by `cleanup_scim_sync_log`.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select id, scim_log_retention
+        from service_providers
+        where scim_enabled = true
+        """,
+    )
+
+
+def list_scim_enabled_sps_all_tenants() -> list[dict]:
+    """Cross-tenant scan of every SCIM-enabled SP plus its retention policy.
+
+    Returns id, tenant_id, and scim_log_retention. Used by the nightly
+    sync-log cleanup job to walk every SP across every tenant. Uses
+    UNSCOPED to bypass RLS (system task).
+    """
+    return fetchall(
+        UNSCOPED,
+        """
+        select id, tenant_id, scim_log_retention
+        from service_providers
+        where scim_enabled = true
+        """,
     )

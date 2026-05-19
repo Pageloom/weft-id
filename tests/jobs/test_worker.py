@@ -48,7 +48,7 @@ def test_worker_init_defaults():
 
     assert worker.poll_interval == 10
     assert worker.running is True
-    assert len(worker._periodic_jobs) == 7
+    assert len(worker._periodic_jobs) == 9
 
     cleanup = worker._periodic_jobs[0]
     assert cleanup.name == "cleanup"
@@ -135,7 +135,7 @@ def test_check_periodic_jobs_first_run(mock_datetime):
 
     worker._check_periodic_jobs()
 
-    assert worker._run_job.call_count == 7
+    assert worker._run_job.call_count == 9
     for job in worker._periodic_jobs:
         assert job.last_run == now
 
@@ -150,9 +150,10 @@ def test_check_periodic_jobs_respects_interval(mock_datetime):
 
     worker = Worker(cleanup_interval_hours=1)
     worker._run_job = MagicMock()
-    # Set all as recently run (30 min ago, well within all intervals)
+    # Set all as recently run, within their shortest interval (the SCIM
+    # push queue runs every 60 seconds, so set last_run to 1 second ago).
     for job in worker._periodic_jobs:
-        job.last_run = now - timedelta(minutes=30)
+        job.last_run = now - timedelta(seconds=1)
 
     worker._check_periodic_jobs()
 
@@ -169,21 +170,16 @@ def test_check_periodic_jobs_runs_overdue_only(mock_datetime):
 
     worker = Worker(cleanup_interval_hours=1)
     worker._run_job = MagicMock()
-    # Only cleanup is overdue (2h ago vs 1h interval)
+    # Only cleanup is overdue (2h ago vs 1h interval).
+    # All others are 1 second ago, well within every other interval
+    # (including the 60-second SCIM push queue cadence).
     worker._periodic_jobs[0].last_run = now - timedelta(hours=2)
-    worker._periodic_jobs[1].last_run = now - timedelta(minutes=5)
-    worker._periodic_jobs[2].last_run = now - timedelta(minutes=5)
-    worker._periodic_jobs[3].last_run = now - timedelta(minutes=5)
-    worker._periodic_jobs[4].last_run = now - timedelta(minutes=5)
-    worker._periodic_jobs[5].last_run = now - timedelta(minutes=5)
-    worker._periodic_jobs[6].last_run = now - timedelta(minutes=5)
+    for i in range(1, len(worker._periodic_jobs)):
+        worker._periodic_jobs[i].last_run = now - timedelta(seconds=1)
 
-    old_last_run_1 = worker._periodic_jobs[1].last_run
-    old_last_run_2 = worker._periodic_jobs[2].last_run
-    old_last_run_3 = worker._periodic_jobs[3].last_run
-    old_last_run_4 = worker._periodic_jobs[4].last_run
-    old_last_run_5 = worker._periodic_jobs[5].last_run
-    old_last_run_6 = worker._periodic_jobs[6].last_run
+    old_last_runs = [
+        worker._periodic_jobs[i].last_run for i in range(1, len(worker._periodic_jobs))
+    ]
 
     worker._check_periodic_jobs()
 
@@ -191,12 +187,8 @@ def test_check_periodic_jobs_runs_overdue_only(mock_datetime):
     assert worker._run_job.call_args[0][0].name == "cleanup"
     assert worker._periodic_jobs[0].last_run == now
     # Others unchanged
-    assert worker._periodic_jobs[1].last_run == old_last_run_1
-    assert worker._periodic_jobs[2].last_run == old_last_run_2
-    assert worker._periodic_jobs[3].last_run == old_last_run_3
-    assert worker._periodic_jobs[4].last_run == old_last_run_4
-    assert worker._periodic_jobs[5].last_run == old_last_run_5
-    assert worker._periodic_jobs[6].last_run == old_last_run_6
+    for idx, old in zip(range(1, len(worker._periodic_jobs)), old_last_runs, strict=True):
+        assert worker._periodic_jobs[idx].last_run == old
 
 
 # =============================================================================

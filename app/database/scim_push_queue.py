@@ -11,7 +11,7 @@ The push worker skips rows where `dead_letter_at IS NOT NULL`.
 
 from typing import Any
 
-from ._core import TenantArg, execute, fetchall, fetchone
+from ._core import UNSCOPED, TenantArg, execute, fetchall, fetchone
 
 
 def upsert_entry(
@@ -197,6 +197,25 @@ def delete_entry(tenant_id: TenantArg, entry_id: str) -> int:
         "delete from scim_push_queue where id = :id",
         {"id": entry_id},
     )
+
+
+def list_tenants_with_ready_entries() -> list[str]:
+    """List distinct tenant ids that have at least one ready queue entry.
+
+    Cross-tenant scan used by the push worker to discover which tenants need
+    processing without iterating over every tenant unnecessarily. Uses
+    UNSCOPED to bypass RLS (system task).
+    """
+    rows = fetchall(
+        UNSCOPED,
+        """
+        select distinct tenant_id
+        from scim_push_queue
+        where dead_letter_at is null
+          and (next_attempt_at is null or next_attempt_at <= now())
+        """,
+    )
+    return [str(row["tenant_id"]) for row in rows]
 
 
 def count_pending_for_sp(tenant_id: TenantArg, sp_id: str) -> dict:

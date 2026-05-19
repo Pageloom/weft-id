@@ -203,9 +203,11 @@ LAYERING_ALLOWLIST: frozenset[str] = frozenset(
         "app/jobs/check_hibp_breaches.py",
         "app/jobs/cleanup_exports.py",
         "app/jobs/cleanup_saml_debug.py",
+        "app/jobs/cleanup_scim_sync_log.py",
         "app/jobs/export_events.py",
         "app/jobs/export_users.py",
         "app/jobs/inactivate_idle_users.py",
+        "app/jobs/process_scim_push_queue.py",
         "app/jobs/redact_verbose_event_pii.py",
         "app/jobs/rotate_certificates.py",
     }

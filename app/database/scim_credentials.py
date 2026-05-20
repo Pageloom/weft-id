@@ -1,10 +1,9 @@
 """Outbound SCIM bearer credential database operations.
 
 Bearer tokens issued to WeftID by downstream Service Providers. Stored as
-SHA-256 hashes (for verification) plus an encrypted plaintext copy
-(`encrypted_plaintext`) so the outbound push worker can send the value the
-downstream SP expects. Multiple active rows per SP are supported for
-rotation-overlap windows.
+Fernet-encrypted plaintext (`encrypted_plaintext`) so the outbound push
+worker can send the value the downstream SP expects. Multiple active rows
+per SP are supported for rotation-overlap windows.
 """
 
 import re
@@ -23,9 +22,8 @@ def create_credential(
     tenant_id: TenantArg,
     tenant_id_value: str,
     sp_id: str,
-    token_hash: str,
     created_by_user_id: str,
-    encrypted_plaintext: bytes | None = None,
+    encrypted_plaintext: bytes,
 ) -> dict:
     """Create a new SCIM bearer credential for a service provider.
 
@@ -33,33 +31,29 @@ def create_credential(
         tenant_id: Tenant scope for RLS.
         tenant_id_value: Tenant id as a string for the INSERT.
         sp_id: Service provider id this token belongs to.
-        token_hash: SHA-256 hex digest of the plaintext token.
         created_by_user_id: User id of the admin creating the token.
         encrypted_plaintext: Fernet-encrypted plaintext token (bytes) so the
             outbound push worker can recover the value it must send to the
-            downstream SP. Optional only for the iter-1 inbound code path
-            that does not yet have a plaintext to store; iter-5 admin flows
-            always provide it.
+            downstream SP.
 
     Returns:
-        Dict with id, sp_id, tenant_id, token_hash, created_by_user_id,
-        created_at, revoked_at, last_used_at.
+        Dict with id, sp_id, tenant_id, created_by_user_id, created_at,
+        revoked_at, last_used_at.
     """
     result = fetchone(
         tenant_id,
         """
         insert into sp_scim_credentials (
-            tenant_id, sp_id, token_hash, created_by_user_id, encrypted_plaintext
+            tenant_id, sp_id, created_by_user_id, encrypted_plaintext
         ) values (
-            :tenant_id, :sp_id, :token_hash, :created_by_user_id, :encrypted_plaintext
+            :tenant_id, :sp_id, :created_by_user_id, :encrypted_plaintext
         )
-        returning id, tenant_id, sp_id, token_hash, created_by_user_id,
+        returning id, tenant_id, sp_id, created_by_user_id,
                   created_at, revoked_at, last_used_at
         """,
         {
             "tenant_id": tenant_id_value,
             "sp_id": sp_id,
-            "token_hash": token_hash,
             "created_by_user_id": created_by_user_id,
             "encrypted_plaintext": encrypted_plaintext,
         },
@@ -116,7 +110,7 @@ def list_active_credentials(tenant_id: TenantArg, sp_id: str) -> list[dict]:
     return fetchall(
         tenant_id,
         """
-        select id, tenant_id, sp_id, token_hash, created_by_user_id,
+        select id, tenant_id, sp_id, created_by_user_id,
                created_at, revoked_at, last_used_at
         from sp_scim_credentials
         where sp_id = :sp_id and revoked_at is null
@@ -138,7 +132,7 @@ def list_usable_credentials(tenant_id: TenantArg, sp_id: str) -> list[dict]:
     return fetchall(
         tenant_id,
         """
-        select id, tenant_id, sp_id, token_hash, created_by_user_id,
+        select id, tenant_id, sp_id, created_by_user_id,
                created_at, revoked_at, last_used_at
         from sp_scim_credentials
         where sp_id = :sp_id
@@ -154,27 +148,13 @@ def list_all_credentials(tenant_id: TenantArg, sp_id: str) -> list[dict]:
     return fetchall(
         tenant_id,
         """
-        select id, tenant_id, sp_id, token_hash, created_by_user_id,
+        select id, tenant_id, sp_id, created_by_user_id,
                created_at, revoked_at, last_used_at
         from sp_scim_credentials
         where sp_id = :sp_id
         order by created_at desc
         """,
         {"sp_id": sp_id},
-    )
-
-
-def get_credential_by_hash(tenant_id: TenantArg, token_hash: str) -> dict | None:
-    """Look up a credential by token hash. Used to authenticate inbound use."""
-    return fetchone(
-        tenant_id,
-        """
-        select id, tenant_id, sp_id, token_hash, created_by_user_id,
-               created_at, revoked_at, last_used_at
-        from sp_scim_credentials
-        where token_hash = :token_hash
-        """,
-        {"token_hash": token_hash},
     )
 
 

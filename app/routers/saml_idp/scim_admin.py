@@ -13,7 +13,7 @@ from typing import Annotated
 from dependencies import (
     get_current_user,
     get_tenant_id_from_request,
-    require_admin,
+    require_super_admin,
 )
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/admin/settings/service-providers",
     tags=["saml-idp", "scim"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_super_admin)],
     include_in_schema=False,
 )
 

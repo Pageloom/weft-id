@@ -89,6 +89,32 @@ def test_list_scim_enabled_sps_all_tenants_returns_only_enabled(test_tenant, tes
             assert r["scim_log_retention"] == "6"
 
 
+def test_service_providers_rls_strict_for_unscoped_select(test_tenant, test_user):
+    """Strict RLS on `service_providers`: an unscoped raw SELECT must see zero rows.
+
+    Migration 0040 reverted the 0037 widening of this table back to strict
+    isolation, and routed the cleanup job through a SECURITY DEFINER
+    function instead. The widening was kept on the SCIM-specific tables
+    (`scim_push_queue`, `scim_sync_log`, `sp_scim_credentials`) -- they
+    are low blast radius -- but the `service_providers` table is broad
+    enough that an unset `app.tenant_id` must NOT yield cross-tenant rows.
+    """
+    from database._core import fetchall as _fetchall
+
+    _create_sp(test_tenant["id"], test_user["id"], scim_enabled=True)
+
+    # A direct UNSCOPED select on the table itself must return zero rows.
+    rows = _fetchall(
+        database.UNSCOPED,
+        "select id from service_providers limit 5",
+    )
+    assert rows == []
+
+    # The sanctioned SECURITY DEFINER accessor still returns the row.
+    cross_rows = database.service_providers.list_scim_enabled_sps_all_tenants()
+    assert len(cross_rows) >= 1
+
+
 # ---------------------------------------------------------------------------
 # list_tenants_with_ready_entries
 # ---------------------------------------------------------------------------

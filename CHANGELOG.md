@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Outbound SCIM 2.0 provisioning: WeftID can now push user and group changes to downstream applications, closing the gap that pure SAML cannot (a user removed from WeftID no longer retains access to downstream SaaS)
+- SCIM 2.0 push client with per-vendor quirk modules: day-one support for **Slack** (Enterprise Grid), **GitHub Enterprise Cloud**, **Atlassian** (Guard / Access), and **GitLab.com**; a spec-correct **Generic SCIM 2.0** path covers everything else
+- Admin UI under each SP's **SCIM** tab: target URL, application type, group membership mode (effective / direct), sync activity retention (3 / 6 / 12 / 24 months / forever), and bearer-credential management
+- Bearer-credential lifecycle: tokens minted by WeftID, displayed in plaintext exactly once, Fernet-encrypted at rest; **rotation** with a 24-hour overlap window so in-flight pushes complete cleanly; instant **revoke**
+- Sync activity panel: live pending and dead-lettered counters, per-status filtering, and a "Retry dead-lettered" action that re-enqueues every dead row for the SP
+- Per-tenant background worker with retry, exponential backoff, dead-letter on retry-budget exhaustion, and per-SP sequential fan-out within a tenant slice to avoid hammering a single downstream
+- Event-log-driven dispatch: mutations tagged with a `scim_trigger` annotation in the event-type registry enqueue work automatically; eager fan-out at trigger time for group / membership changes so queue depth is a meaningful "work remaining" metric
+- Coalescing outbox keyed `UNIQUE(sp_id, resource_type, resource_id)`: re-enqueues bump `enqueued_at` and reset attempts; the worker re-fetches current resource state at push time so "last state wins" is automatic and deprovision is just "user no longer in scope"
+- Two-log model: admin actions (token create / rotate / revoke, config edits) go to the main audit log with indefinite retention; per-push outcomes go to a dedicated `scim_sync_log` with per-SP retention (default 3 months, configurable to 6 / 12 / 24 months or **forever** for regulated tenants)
+- API endpoints under `/api/v1/service-providers/{sp_id}/scim`: config GET/PUT, credentials CRUD, sync-log paginated read, queue status, and retry-dead-lettered POST
+- Documentation: full admin guide at `docs/admin-guide/service-providers/scim.md` with per-vendor walkthroughs (Slack / GitHub / Atlassian / GitLab), credential lifecycle, sync panel reference, and a troubleshooting section
+- Inline help link from the SP detail SCIM tab to the docs page
+
 ## [1.6.0] - 2026-05-15
 
 ### Added

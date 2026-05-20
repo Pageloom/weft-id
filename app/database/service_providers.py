@@ -389,14 +389,20 @@ def list_scim_enabled_sps_all_tenants() -> list[dict]:
     """Cross-tenant scan of every SCIM-enabled SP plus its retention policy.
 
     Returns id, tenant_id, and scim_log_retention. Used by the nightly
-    sync-log cleanup job to walk every SP across every tenant. Uses
-    UNSCOPED to bypass RLS (system task).
+    sync-log cleanup job to walk every SP across every tenant.
+
+    Routes through the `list_scim_enabled_sps_all_tenants_unscoped()`
+    SECURITY DEFINER function (migration 0040). The function is owned by
+    `appowner` (the table owner, which is exempt from RLS) and exposes
+    exactly the three columns the cleanup job needs. The
+    `service_providers` table's normal RLS policy is otherwise strict and
+    rejects unscoped reads, so this is the only sanctioned cross-tenant
+    accessor for SCIM cleanup.
     """
     return fetchall(
         UNSCOPED,
         """
         select id, tenant_id, scim_log_retention
-        from service_providers
-        where scim_enabled = true
+        from list_scim_enabled_sps_all_tenants_unscoped()
         """,
     )

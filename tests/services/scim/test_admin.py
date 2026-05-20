@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -14,6 +15,29 @@ from services.types import RequestingUser
 from utils.scim_crypto import decrypt_token
 
 
+def _fake_getaddrinfo_to(addr: str):
+    """Return a `getaddrinfo`-shaped sequence that resolves to `addr`.
+
+    Used by SSRF tests so DNS is deterministic (no network in tests).
+    """
+    family = socket.AF_INET6 if ":" in addr else socket.AF_INET
+    sockaddr: tuple = (addr, 0, 0, 0) if family == socket.AF_INET6 else (addr, 0)
+    return [(family, socket.SOCK_STREAM, 6, "", sockaddr)]
+
+
+@pytest.fixture
+def patch_dns_public(monkeypatch):
+    """Patch `socket.getaddrinfo` to resolve any hostname to a public IP.
+
+    Lets the existing tests that set `scim_target_url=https://example.com/...`
+    pass without hitting real DNS while SSRF validation is in force.
+    """
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda host, *_a, **_kw: _fake_getaddrinfo_to("93.184.216.34"),
+    )
+
+
 def _create_sp(tenant_id, user_id, name="SCIM Admin SP"):
     return database.service_providers.create_service_provider(
         tenant_id=tenant_id,
@@ -23,7 +47,7 @@ def _create_sp(tenant_id, user_id, name="SCIM Admin SP"):
     )
 
 
-def _requesting_user(tenant_id, user_id, role="admin") -> RequestingUser:
+def _requesting_user(tenant_id, user_id, role="super_admin") -> RequestingUser:
     return RequestingUser(id=str(user_id), tenant_id=str(tenant_id), role=role)
 
 
@@ -50,7 +74,7 @@ def test_get_scim_config_unknown_sp_raises(test_tenant, test_admin_user):
         scim_admin.get_scim_config(ru, str(uuid4()))
 
 
-def test_update_scim_config_writes_changes_and_logs(test_tenant, test_admin_user):
+def test_update_scim_config_writes_changes_and_logs(test_tenant, test_admin_user, patch_dns_public):
     sp = _create_sp(test_tenant["id"], test_admin_user["id"])
     ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
 
@@ -107,7 +131,9 @@ def test_update_scim_config_enable_without_url_raises(test_tenant, test_admin_us
         scim_admin.update_scim_config(ru, str(sp["id"]), ScimConfigUpdate(scim_enabled=True))
 
 
-def test_update_scim_config_clears_target_url_with_empty_string(test_tenant, test_admin_user):
+def test_update_scim_config_clears_target_url_with_empty_string(
+    test_tenant, test_admin_user, patch_dns_public
+):
     sp = _create_sp(test_tenant["id"], test_admin_user["id"])
     ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
     scim_admin.update_scim_config(
@@ -115,6 +141,141 @@ def test_update_scim_config_clears_target_url_with_empty_string(test_tenant, tes
     )
     cleared = scim_admin.update_scim_config(ru, str(sp["id"]), ScimConfigUpdate(scim_target_url=""))
     assert cleared.scim_target_url is None
+
+
+# ---------------------------------------------------------------------------
+# SSRF allowlist on scim_target_url
+# ---------------------------------------------------------------------------
+
+
+def _try_update_url(test_tenant, test_admin_user, url):
+    """Helper: try to set the SCIM target URL on a fresh SP."""
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+    return scim_admin.update_scim_config(ru, str(sp["id"]), ScimConfigUpdate(scim_target_url=url))
+
+
+def test_scim_target_url_rejects_http_outside_dev(
+    test_tenant, test_admin_user, monkeypatch, patch_dns_public
+):
+    """`http://` is rejected when `IS_DEV` is false."""
+    monkeypatch.setattr("services.scim.admin.settings.IS_DEV", False)
+    with pytest.raises(ValidationError) as excinfo:
+        _try_update_url(test_tenant, test_admin_user, "http://scim.example.com/v2")
+    assert excinfo.value.code == "scim_target_url_invalid"
+
+
+def test_scim_target_url_allows_http_in_dev(
+    test_tenant, test_admin_user, monkeypatch, patch_dns_public
+):
+    """`http://` is allowed when `IS_DEV` is true (tests already set IS_DEV=true)."""
+    monkeypatch.setattr("services.scim.admin.settings.IS_DEV", True)
+    out = _try_update_url(test_tenant, test_admin_user, "http://scim.example.com/v2")
+    assert out.scim_target_url == "http://scim.example.com/v2"
+
+
+def test_scim_target_url_rejects_rfc1918_10(test_tenant, test_admin_user, monkeypatch):
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: _fake_getaddrinfo_to("10.0.5.5"),
+    )
+    with pytest.raises(ValidationError) as excinfo:
+        _try_update_url(test_tenant, test_admin_user, "https://internal.example.com/scim")
+    assert excinfo.value.code == "scim_target_url_invalid"
+
+
+def test_scim_target_url_rejects_rfc1918_172_16(test_tenant, test_admin_user, monkeypatch):
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: _fake_getaddrinfo_to("172.20.1.1"),
+    )
+    with pytest.raises(ValidationError):
+        _try_update_url(test_tenant, test_admin_user, "https://internal.example.com/scim")
+
+
+def test_scim_target_url_rejects_rfc1918_192_168(test_tenant, test_admin_user, monkeypatch):
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: _fake_getaddrinfo_to("192.168.1.5"),
+    )
+    with pytest.raises(ValidationError):
+        _try_update_url(test_tenant, test_admin_user, "https://internal.example.com/scim")
+
+
+def test_scim_target_url_rejects_loopback_v4(test_tenant, test_admin_user, monkeypatch):
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: _fake_getaddrinfo_to("127.0.0.1"),
+    )
+    with pytest.raises(ValidationError):
+        _try_update_url(test_tenant, test_admin_user, "https://loopback.example.com/scim")
+
+
+def test_scim_target_url_rejects_loopback_v6(test_tenant, test_admin_user, monkeypatch):
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: _fake_getaddrinfo_to("::1"),
+    )
+    with pytest.raises(ValidationError):
+        _try_update_url(test_tenant, test_admin_user, "https://loopback6.example.com/scim")
+
+
+def test_scim_target_url_rejects_link_local(test_tenant, test_admin_user, monkeypatch):
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: _fake_getaddrinfo_to("169.254.169.254"),
+    )
+    with pytest.raises(ValidationError):
+        _try_update_url(test_tenant, test_admin_user, "https://metadata.example.com/scim")
+
+
+def test_scim_target_url_rejects_ipv6_ula(test_tenant, test_admin_user, monkeypatch):
+    """ULA (`fc00::/7`) is rejected via ipaddress.is_private."""
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: _fake_getaddrinfo_to("fd12:3456::1"),
+    )
+    with pytest.raises(ValidationError):
+        _try_update_url(test_tenant, test_admin_user, "https://ula.example.com/scim")
+
+
+def test_scim_target_url_rejects_literal_localhost(test_tenant, test_admin_user):
+    """Literal `localhost` is rejected by string match before DNS."""
+    with pytest.raises(ValidationError) as excinfo:
+        _try_update_url(test_tenant, test_admin_user, "https://localhost/scim")
+    assert excinfo.value.code == "scim_target_url_invalid"
+
+
+def test_scim_target_url_accepts_public_https(test_tenant, test_admin_user, patch_dns_public):
+    """A normal https URL to a public IP is accepted."""
+    out = _try_update_url(test_tenant, test_admin_user, "https://scim.example.com/v2")
+    assert out.scim_target_url == "https://scim.example.com/v2"
+
+
+def test_scim_target_url_skips_validation_when_unchanged(
+    test_tenant, test_admin_user, monkeypatch, patch_dns_public
+):
+    """Re-saving the same URL must not re-resolve DNS.
+
+    Critical: the admin can re-save a config (e.g. to flip `scim_enabled`)
+    without re-paying the DNS cost or hitting transient resolution
+    failures.
+    """
+    out = _try_update_url(test_tenant, test_admin_user, "https://scim.example.com/v2")
+    sp_id = out.sp_id
+
+    # Now swap the resolver to one that would FAIL if called. Saving the
+    # same URL again must not call it.
+    def _boom(*_a, **_kw):
+        raise AssertionError("getaddrinfo should not be called for unchanged URL")
+
+    monkeypatch.setattr("services.scim.admin.socket.getaddrinfo", _boom)
+
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+    out2 = scim_admin.update_scim_config(
+        ru, sp_id, ScimConfigUpdate(scim_target_url="https://scim.example.com/v2")
+    )
+    assert out2.scim_target_url == "https://scim.example.com/v2"
 
 
 # ---------------------------------------------------------------------------
@@ -388,13 +549,22 @@ def test_retry_dead_lettered_no_rows_returns_zero(test_tenant, test_admin_user):
         ("retry_dead_lettered", lambda sp_id: (sp_id,)),
     ],
 )
-def test_admin_service_requires_admin_role(fn, args_factory, test_tenant, test_admin_user):
-    """Every admin service entry point must reject non-admin roles."""
+@pytest.mark.parametrize("role", ["user", "admin"])
+def test_admin_service_requires_super_admin_role(
+    fn, args_factory, role, test_tenant, test_admin_user
+):
+    """SCIM admin service entry points are super_admin-only.
+
+    Both `user` and `admin` roles must be rejected; only `super_admin`
+    may invoke them. Iteration 7b promoted these from admin -> super_admin
+    after the final-review security pass flagged token operations as too
+    sensitive for the admin tier.
+    """
     from services.exceptions import ForbiddenError
 
     sp = _create_sp(test_tenant["id"], test_admin_user["id"])
-    non_admin = _requesting_user(test_tenant["id"], test_admin_user["id"], role="user")
+    caller = _requesting_user(test_tenant["id"], test_admin_user["id"], role=role)
 
     func = getattr(scim_admin, fn)
     with pytest.raises(ForbiddenError):
-        func(non_admin, *args_factory(str(sp["id"])))
+        func(caller, *args_factory(str(sp["id"])))

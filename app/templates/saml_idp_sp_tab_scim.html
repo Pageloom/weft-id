@@ -11,6 +11,10 @@
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
         Push user and group changes to this application. Selecting your application type applies known
         compatibility adjustments for that vendor. Use Generic SCIM 2.0 if your provider is not listed.
+        <a href="/docs/admin-guide/service-providers/scim/" target="_blank"
+           class="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+            Learn more about outbound SCIM
+        </a>.
     </p>
 
     <form id="scim-config-form" class="space-y-4">
@@ -150,7 +154,7 @@
                         {% if cred.revoked_at %}
                         {% set rel_revoke = fmt_relative(cred.revoked_at) %}
                         &middot; <span class="text-amber-700 dark:text-amber-300" title="{{ rel_revoke[1] }}">
-                            revokes {{ rel_revoke[0] }}
+                            expires {{ rel_revoke[0] }}
                         </span>
                         {% endif %}
                     </p>
@@ -229,7 +233,7 @@
                             {% elif row.status in ('failed', 'dead_letter') %}bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300
                             {% elif row.status == 'running' %}bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300
                             {% else %}bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300{% endif %}">
-                            {{ row.status }}
+                            {% if row.status == 'dead_letter' %}Dead letter{% else %}{{ row.status | capitalize }}{% endif %}
                         </span>
                     </td>
                     <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{{ row.attempt }}</td>
@@ -386,12 +390,21 @@ const syncStatusFilter = document.getElementById('scim-sync-status-filter');
 const syncTbody = document.getElementById('scim-sync-tbody');
 const syncCount = document.getElementById('scim-sync-count');
 
+const STATUS_LABELS = {
+    pending: 'Pending',
+    running: 'Running',
+    done: 'Done',
+    failed: 'Failed',
+    dead_letter: 'Dead letter',
+};
+
 function statusBadgeHtml(status) {
     let cls = 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
     if (status === 'done') cls = 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300';
     else if (status === 'failed' || status === 'dead_letter') cls = 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300';
     else if (status === 'running') cls = 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300';
-    return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${cls}">${escapeHtml(status)}</span>`;
+    const label = STATUS_LABELS[status] || status;
+    return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${cls}">${escapeHtml(label)}</span>`;
 }
 
 function renderSyncRow(row) {

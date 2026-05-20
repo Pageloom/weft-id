@@ -31,13 +31,13 @@ from utils.scim_crypto import InvalidToken, decrypt_token
 logger = logging.getLogger(__name__)
 
 
-def _resolve_outbound_token(tenant_id: str, sp_id: str) -> str | None:
+def _resolve_outbound_token(tenant_id: str, sp_id: str) -> tuple[str, str] | None:
     """Production token resolver for the SCIM push worker.
 
     Looks up the most-recent non-revoked credential row for the SP whose
     `encrypted_plaintext` is set, decrypts the value with the Fernet key
-    derived from `SECRET_KEY`, and returns the plaintext. Returns None
-    (the safe failure path) when:
+    derived from `SECRET_KEY`, and returns `(credential_id, plaintext)`.
+    Returns None (the safe failure path) when:
 
     - No active credential exists for this SP.
     - The active row is from before iteration 5 (no plaintext stored).
@@ -45,8 +45,10 @@ def _resolve_outbound_token(tenant_id: str, sp_id: str) -> str | None:
       re-encrypt, corrupted bytes, etc.).
 
     The worker dead-letters the queue entry on a None return with reason
-    `no_credential_source`. The tenant-scoped session is already active
-    when this is called.
+    `no_credential_source`. The credential id is returned alongside the
+    plaintext so the worker can call `update_last_used()` after a
+    successful push without re-querying. The tenant-scoped session is
+    already active when this is called.
     """
     try:
         row = database.scim_credentials.get_active_credential_for_outbound(tenant_id, sp_id)
@@ -66,7 +68,7 @@ def _resolve_outbound_token(tenant_id: str, sp_id: str) -> str | None:
         return None
 
     try:
-        return decrypt_token(bytes(ciphertext))
+        plaintext = decrypt_token(bytes(ciphertext))
     except InvalidToken:
         logger.error(
             "SCIM token_resolver: ciphertext invalid (tenant=%s sp=%s credential=%s)",
@@ -75,6 +77,8 @@ def _resolve_outbound_token(tenant_id: str, sp_id: str) -> str | None:
             row.get("id"),
         )
         return None
+
+    return (str(row["id"]), plaintext)
 
 
 def process_scim_push_queue() -> dict[str, Any]:

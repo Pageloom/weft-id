@@ -1,22 +1,369 @@
 # Outbound SCIM Provisioning
 
-WeftID can push user and group changes to downstream applications using SCIM 2.0. When a user is added to a group, has their attributes updated, or loses access, WeftID notifies the downstream application so it can create, update, or deactivate the corresponding account without manual intervention.
+WeftID can push user and group changes to downstream applications using
+SCIM 2.0. When a user is added to a group, has their attributes updated,
+or loses access, WeftID notifies the downstream application so it can
+create, update, or deactivate the corresponding account without manual
+intervention.
 
-This is a placeholder note. The full setup guide (with screenshots, troubleshooting, and per-vendor walkthroughs) lands in the next documentation pass.
+This guide covers what outbound SCIM does, how to enable it on a
+registered service provider, vendor-specific setup walkthroughs, and
+troubleshooting tips.
 
-## Supported vendors (day one)
+## What outbound SCIM does
 
-WeftID ships with quirk modules for four downstream applications:
+WeftID is a SCIM 2.0 *client*: it pushes resource changes to the SP's
+SCIM endpoint. WeftID is not a SCIM server -- inbound provisioning is a
+separate feature.
 
-* **Slack** (Slack Enterprise Grid SCIM)
-* **GitHub Enterprise Cloud** (Enterprise SCIM)
-* **Atlassian** (Atlassian Guard / Access provisioning)
-* **GitLab** (GitLab.com group SAML SCIM)
+Outbound SCIM closes the gap that pure SAML cannot. A user removed from
+WeftID still retains access to downstream SaaS until SCIM tells those
+apps to deprovision. With SCIM enabled on an SP, every relevant user
+and group change in WeftID is replicated to the SP within seconds.
 
-Any other SCIM 2.0 compliant application can be configured using the **Generic** preset; spec-correct behaviour applies and no vendor-specific transforms are used.
+### What triggers a push
 
-## Where to configure
+The following changes enqueue work for the per-tenant SCIM worker:
 
-Each registered service provider has a **SCIM** tab in its detail page. From there, super admins can set the SCIM target URL, application type, membership mode, sync-log retention, and bearer credentials.
+* **User creation, activation, deactivation** -- pushed as a SCIM
+  User create or update.
+* **User profile attribute change** -- pushed as a SCIM User PUT.
+* **Group creation, rename, delete** -- pushed as a SCIM Group
+  create, update, or delete.
+* **Group membership change** -- enqueues both the group itself and
+  every affected user, individually (eager fan-out at trigger time).
+  This keeps queue depth a meaningful "work remaining" metric and
+  lets per-user retries fail in isolation.
+* **Group-to-SP grant change** -- granting or revoking a group's
+  access re-evaluates scope for every member: those who gain access
+  are pushed, those who lose their last grant are deprovisioned.
 
-Bearer tokens are shown in plaintext exactly once at creation or rotation time. Save them to your secrets manager immediately. Tokens can be rotated with a configurable overlap window so the old and new credentials are both accepted for a short period.
+A user is *in scope* for an SP if they belong to any group that has
+been granted access to that SP (or any ancestor group, when the SP is
+configured for effective membership). When a user falls out of scope,
+the worker translates this into a SCIM `DELETE` or a SCIM PUT with
+`active: false`, depending on the vendor's quirks.
+
+## Enabling SCIM on a registered SP
+
+SCIM lives on its own tab on each SP's detail page. Open the SP, click
+**SCIM**, and fill in the configuration.
+
+* **Enable outbound SCIM** -- master switch. The worker only picks up
+  work for SPs with this checkbox set.
+* **Target URL** -- the SCIM 2.0 base URL of the downstream
+  application. WeftID appends `/Users`, `/Groups`, and resource IDs
+  as needed. Vendor-specific base URLs are listed in the vendor
+  sections below.
+* **Application type** -- the vendor preset. Selecting Slack,
+  GitHub, Atlassian, or GitLab applies known compatibility
+  transforms. Use **Generic SCIM 2.0** for spec-correct providers
+  (most other vendors).
+* **Group membership mode** -- *Effective* (default) flattens
+  subgroup membership: a user in a child group is reported as a
+  member of every ancestor group granted access to the SP.
+  *Direct members only* reports only the users explicitly listed in
+  the group. Use Effective unless your downstream app cannot
+  reconcile inheritance for you.
+* **Sync activity retention** -- how long detailed per-row push
+  history is kept in `scim_sync_log`. Choose 3, 6, 12, 24 months, or
+  **Forever**. Older rows are deleted nightly. Admin audit events
+  (token created, rotated, revoked; config changes) are kept
+  indefinitely regardless of this setting.
+
+Save the configuration before creating a bearer token. The API
+rejects credential operations when SCIM is disabled.
+
+## Credential lifecycle
+
+Bearer tokens are how WeftID authenticates its outbound push.
+
+In WeftID's model the *client* (WeftID) mints the bearer secret and
+the operator pastes it into the downstream app's SCIM bearer-token
+field. This matches how Okta-style SCIM connectors work, and is what
+Slack, GitHub Enterprise, Atlassian Guard, GitLab, and most generic
+SCIM 2.0 SPs accept.
+
+For vendors that insist on generating the token themselves (some
+PAT-based flows), a manual-import mode is on the follow-up backlog.
+
+Each token is generated by WeftID, displayed in plaintext exactly
+once at creation, and stored only as a Fernet-encrypted ciphertext.
+
+### Create a token
+
+1. On the SCIM tab, click **Create token**.
+2. The amber box reveals the plaintext token.
+3. Copy the value into your downstream application's SCIM
+   bearer-token field (vendor-specific location below).
+4. Click **Done** to refresh the page. The token appears in the
+   active list, identified by its first eight characters.
+
+> TODO: screenshot - amber plaintext token box right after creation
+
+### Rotate a token
+
+Use **Rotate** when you suspect compromise or on a regular cadence.
+Rotation:
+
+* Creates a fresh token (shown once in the amber box, same UX as
+  Create).
+* Schedules the prior token for revocation after a 24-hour overlap
+  window. Both tokens are accepted during the overlap so in-flight
+  pushes complete cleanly.
+* Emits a `scim_token_rotated` audit event.
+
+Paste the new token into the downstream app during the overlap
+window. If you wait past 24 hours, the old token expires and any
+push using it fails until you update the downstream configuration.
+
+> TODO: screenshot - credential list showing one active token and one scheduled for revocation
+
+### Revoke a token
+
+Use **Revoke** when you need to invalidate a token immediately
+(lost device, departing admin, suspected leak). Revocation is
+instantaneous: any in-flight push that has not yet authenticated
+will fail.
+
+Revocation cannot be undone. Create a fresh token after revoking.
+
+## Sync activity panel
+
+The Sync activity panel at the bottom of the SCIM tab summarizes
+queue depth and the most recent push attempts.
+
+* **Pending** -- queue rows the worker has not yet picked up.
+  Should stay near zero in steady state.
+* **Dead-lettered** -- queue rows that exhausted their retry budget.
+  Always investigate before clicking **Retry dead-lettered**: a
+  dead-lettered row usually points to a real configuration problem
+  (wrong target URL, revoked token, vendor schema mismatch).
+* **Sync log table** -- per-row history of recent pushes. Each row
+  shows the resource type (User or Group), resource ID, status,
+  attempt number, started and completed timestamps, and the
+  truncated error string.
+
+### Status meanings
+
+* `pending` -- enqueued, waiting for the worker.
+* `running` -- worker is currently pushing this row.
+* `done` -- push succeeded.
+* `failed` -- push failed; the row is scheduled for retry with
+  exponential backoff.
+* `dead_letter` -- retry budget exhausted. No further attempts
+  until the admin clicks **Retry dead-lettered**.
+
+> TODO: screenshot - sync activity panel showing a mix of done / failed / dead_letter rows
+
+## Vendor walkthroughs
+
+WeftID ships day-one quirk modules for four widely-used SaaS
+vendors. Any other SCIM 2.0 application can be configured using the
+**Generic SCIM 2.0** preset.
+
+### Slack (Enterprise Grid)
+
+Slack's SCIM API is documented at
+[https://api.slack.com/scim](https://api.slack.com/scim).
+
+* **Application type:** `Slack`
+* **Target URL:** `https://api.slack.com/scim/v2`
+* **Where to paste WeftID's bearer token:**
+  1. Sign in to your Slack Enterprise Grid org as an Org Owner.
+  2. Navigate to **Org admin > Settings > Authentication** and
+     enable SCIM provisioning. SAML SSO must already be configured
+     between Slack and WeftID.
+  3. Slack accepts a long-lived bearer that the SCIM client
+     supplies. Paste the plaintext token from WeftID's amber box
+     into Slack's SCIM-token field.
+* **Quirks the operator should know:**
+  * Slack uses the spec-correct
+    `urn:ietf:params:scim:schemas:core:2.0:User` URN. No vendor
+    extension URN is needed.
+  * Slack strips `$ref` on Group member entries; WeftID drops it
+    before push (no operator action required).
+  * Slack returns `429` with a `Retry-After` header during burst
+    traffic. The worker honors it.
+
+> TODO: screenshot - Slack Org Owner SCIM provisioning settings page
+
+### GitHub Enterprise Cloud
+
+GitHub's Enterprise SCIM API is documented at
+[https://docs.github.com/en/enterprise-cloud@latest/rest/scim](https://docs.github.com/en/enterprise-cloud@latest/rest/scim).
+
+* **Application type:** `GitHub`
+* **Target URL:**
+  `https://api.github.com/scim/v2/enterprises/<your-enterprise-slug>`
+* **Where to paste WeftID's bearer token:**
+  1. Sign in to GitHub as an Enterprise Owner.
+  2. Navigate to **Your enterprises > Settings > Authentication
+     security > SCIM**.
+  3. Configure WeftID's plaintext token as the SCIM bearer for
+     this enterprise. GitHub validates that the bearer carries the
+     `scim:enterprise` scope; ensure the SCIM provisioning flow is
+     enabled before WeftID pushes its first request.
+* **Quirks the operator should know:**
+  * GitHub's SCIM is tied to SAML: a user's SAML NameID **must**
+    match the SCIM `externalId`. If your IdP NameID format
+    diverges from what GitHub expects, users will be
+    SCIM-provisioned but unable to log in. The WeftID IdP setup
+    guide notes how to align NameID with `externalId`.
+  * Group `members` removes use the filter-path PATCH form
+    (`path: members[value eq "<id>"]`) instead of a values list.
+    The quirk module rewrites the spec-correct form into GitHub's
+    form automatically.
+  * GitHub uses `403` for rate-limit responses (with
+    `x-ratelimit-remaining: 0`); the worker classifies these as
+    retryable rather than terminal.
+
+> TODO: screenshot - GitHub Enterprise Settings > Authentication security > SCIM
+
+### Atlassian (Atlassian Guard / Access)
+
+Atlassian's provisioning documentation is at
+[https://support.atlassian.com/provisioning-users/docs/about-scim-provisioning/](https://support.atlassian.com/provisioning-users/docs/about-scim-provisioning/).
+
+* **Application type:** `Atlassian`
+* **Target URL:**
+  `https://api.atlassian.com/scim/directory/<directory-id>` (the
+  directory ID is shown when you set up user provisioning).
+* **Where to paste WeftID's bearer token:**
+  1. Sign in to **admin.atlassian.com** as an Org Admin with
+     Atlassian Guard (or Access).
+  2. Open your organization, then **Security > Identity providers**
+     and pick the IdP linked to this directory.
+  3. Click **Set up user provisioning**. Atlassian displays the
+     SCIM base URL and prompts for the SCIM bearer.
+  4. Copy the plaintext token from WeftID's amber box and paste it
+     into the Atlassian SCIM-bearer field.
+* **Quirks the operator should know:**
+  * Atlassian rejects PATCH `replace` operations with empty
+    `value` arrays; the quirk module drops them client-side.
+  * `displayName` is strict: Atlassian fails the request with a
+    `400 invalidValue` if it is missing or whitespace-only. WeftID
+    trims the value and falls back to `userName` when the
+    canonical `displayName` is empty.
+  * On `404` for a known-provisioned user, the quirk module treats
+    the deprovision as already complete and marks the push `done`
+    instead of `failed`.
+
+> TODO: screenshot - admin.atlassian.com Security > Identity providers > Set up user provisioning
+
+### GitLab.com (Group SAML SCIM)
+
+GitLab's SCIM setup is documented at
+[https://docs.gitlab.com/ee/user/group/saml_sso/scim_setup.html](https://docs.gitlab.com/ee/user/group/saml_sso/scim_setup.html).
+
+* **Application type:** `GitLab`
+* **Target URL:**
+  `https://gitlab.com/api/scim/v2/groups/<your-group-path>`
+* **Where to paste WeftID's bearer token:**
+  1. Sign in to GitLab as the Owner of the top-level group.
+  2. Navigate to **Group > Settings > SAML SSO**. You must have
+     SAML SSO already configured.
+  3. Scroll to **SCIM Token**. GitLab expects the SCIM client to
+     present a bearer of the operator's choice; paste the
+     plaintext token from WeftID's amber box.
+  4. Set the **Target URL** to the SCIM base URL shown above the
+     token field.
+* **Quirks the operator should know:**
+  * GitLab couples `externalId` to the SAML NameID: a mismatch
+    silently breaks login even when SCIM provisioning succeeds.
+    Ensure the IdP attribute mapping for NameID lines up with the
+    `externalId` WeftID sends (the user UUID by default).
+  * GitLab returns `502 Bad Gateway` from its CloudFront layer
+    during deploys; classified as retryable.
+  * `403` with a `License does not allow SCIM provisioning` body
+    is classified as terminal (license-error); the row is
+    dead-lettered immediately rather than retried.
+
+> TODO: screenshot - GitLab Group SAML SSO page with SCIM token section
+
+### Generic SCIM 2.0
+
+Any spec-correct SCIM 2.0 application can be configured with
+**Generic SCIM 2.0** as the application type. The generic path
+sends unmodified, spec-correct payloads and uses the spec's
+`urn:ietf:params:scim:schemas:core:2.0:User` and
+`urn:ietf:params:scim:schemas:core:2.0:Group` URNs.
+
+Use Generic for vendors not in the list above (Zoom, Notion, Linear,
+PagerDuty, Datadog, Vercel, etc.). If a vendor's SCIM diverges from
+the spec in a way that breaks pushes, log a backlog item -- a new
+quirk module is the right fix, not a workaround in the generic
+path.
+
+## Troubleshooting
+
+### "Queue is growing, pushes are failing"
+
+1. Open the SP's SCIM tab and read the **Sync activity** panel.
+2. Inspect the most recent failed rows. The error column gives a
+   truncated reason. Common causes:
+   * `401 Unauthorized` -- the bearer token is invalid (expired,
+     revoked, or not yet pasted into the downstream app).
+   * `404 Not Found` on a User PUT -- the user was deleted in the
+     downstream app. WeftID will create on the next attempt if
+     the user is still in scope.
+   * `400 invalidValue` -- the downstream app rejected a field.
+     For Atlassian, this is usually a missing `displayName`.
+   * `429 Too Many Requests` -- transient; the worker backs off.
+3. If a row is `dead_letter`, do **not** click **Retry
+   dead-lettered** without first fixing the underlying cause.
+   Re-attempting the same broken push wastes the backoff budget.
+4. Once the root cause is fixed, **Retry dead-lettered** revives
+   every dead row for the SP. The worker re-attempts them on its
+   next pass.
+
+### "A user got deprovisioned and I didn't expect it"
+
+1. Open the user's profile and check the **Audit log** tab. The
+   trigger event (`group_membership_removed`, `user_inactivated`,
+   `group_sp_grant_removed`, ...) is logged with actor and
+   timestamp.
+2. Cross-reference with the SP's **Sync activity** panel: the
+   resulting SCIM DELETE or `active: false` push is logged there.
+3. If the trigger event was unexpected, fix the root cause in
+   WeftID (re-add to group, reactivate user, restore grant). The
+   change re-enqueues a SCIM push that re-provisions the user
+   downstream.
+
+### "I rotated the token and now pushes fail"
+
+The overlap window is 24 hours from rotation. If the new token has
+not been pasted into the downstream app within that window, the
+old token has expired and the downstream app rejects every push.
+
+Fix:
+
+1. The new token's plaintext was shown once at rotation. If you
+   captured it, paste it into the downstream app now.
+2. If you did not capture it, click **Revoke** on the active
+   (new) credential, then **Create token** to start over.
+
+### "Old sync history disappeared"
+
+The **Sync activity retention** setting on the SCIM tab controls
+how long detailed per-row history is kept. The default is 3
+months. To keep history indefinitely, set retention to
+**Forever**.
+
+Note that admin audit events (token created, rotated, revoked;
+config changes) are kept indefinitely regardless of this setting.
+The sync log only affects per-resource push history.
+
+### "I configured SCIM but nothing is being pushed"
+
+1. Verify **Enable outbound SCIM** is checked.
+2. Verify the SP has at least one **bearer token** in the active
+   list (not all revoked).
+3. Verify the **Target URL** is reachable from WeftID's worker
+   network. The worker logs DNS failures to the standard worker
+   log.
+4. Verify users are *in scope*: a user with no granting group has
+   no work to push. Add a group grant on the SP's **Groups** tab.
+5. Check that the background worker is running:
+   `docker compose ps worker`. SCIM pushes are processed by the same
+   worker that handles other background jobs, with per-tenant slicing.

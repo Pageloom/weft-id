@@ -83,12 +83,13 @@ def process_pending_pushes(
     Args:
         tenant_id: Tenant scope (already active on the current session).
         now: Optional override for "current time" (tests).
-        token_resolver: Optional callable `(tenant_id, sp_id) -> str | None`
-            that returns the active plaintext bearer token for an SP.
-            Defaults to `_default_token_resolver` which currently returns
-            None (the credential store does not yet persist plaintext --
-            iteration 5 will add it). The worker treats a missing token as
-            a permanent failure and dead-letters the entry immediately.
+        token_resolver: Optional callable
+            `(tenant_id, sp_id) -> tuple[str, str] | str | None` that
+            returns either `(credential_id, plaintext)` or just the
+            plaintext (legacy shape, no last-used tracking) or None.
+            Defaults to `_default_token_resolver` which returns None.
+            The worker treats a missing token as a permanent failure and
+            dead-letters the entry immediately.
         http_client: Optional `httpx.Client` shared across requests.
 
     Returns:
@@ -123,13 +124,23 @@ def process_pending_pushes(
                 summary["skipped"] += 1
             continue
 
-        token = resolver(tenant_id, sp_id)
+        resolved = resolver(tenant_id, sp_id)
+        # Accept both shapes: legacy `str | None` and new `tuple[str, str] | None`.
+        # The production resolver returns the tuple so we can update_last_used
+        # after a successful push; tests typically inject a plain string.
+        credential_id: str | None
+        if isinstance(resolved, tuple):
+            credential_id, token = resolved
+        else:
+            credential_id = None
+            token = resolved
         for entry in sp_entries:
             outcome = _process_entry(
                 tenant_id=tenant_id,
                 sp=sp,
                 entry=entry,
                 token=token,
+                credential_id=credential_id,
                 now=now,
                 http_client=http_client,
             )
@@ -198,6 +209,7 @@ def _process_entry(
     sp: dict,
     entry: dict,
     token: str | None,
+    credential_id: str | None,
     now: datetime,
     http_client: Any,
 ) -> str:
@@ -257,7 +269,7 @@ def _process_entry(
         )
 
     if result.status == "success":
-        return _record_success(tenant_id, entry, log_id)
+        return _record_success(tenant_id, entry, log_id, credential_id)
     if result.status == "permanent":
         return _record_dead_letter(
             tenant_id,
@@ -399,10 +411,28 @@ def _list_direct_members(tenant_id: str, group_id: str) -> list[dict]:
     return members
 
 
-def _record_success(tenant_id: str, entry: dict, log_id: str) -> str:
-    """Drop the queue row and mark the log row done."""
+def _record_success(
+    tenant_id: str,
+    entry: dict,
+    log_id: str,
+    credential_id: str | None,
+) -> str:
+    """Drop the queue row, mark the log row done, bump credential last_used.
+
+    Last-used tracking is best-effort: a failure here must not roll back
+    the push outcome (the downstream SP already accepted the resource).
+    """
     database.scim_push_queue.delete_entry(tenant_id, str(entry["id"]))
     scim_sync_log.mark_done(tenant_id, log_id)
+    if credential_id is not None:
+        try:
+            database.scim_credentials.update_last_used(tenant_id, credential_id)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "SCIM worker: failed to update_last_used (tenant=%s credential=%s)",
+                tenant_id,
+                credential_id,
+            )
     return "succeeded"
 
 

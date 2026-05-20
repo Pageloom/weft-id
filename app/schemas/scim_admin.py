@@ -102,7 +102,7 @@ class ScimCredentialCreated(BaseModel):
     )
     rotated_from_revoke_at: datetime | None = Field(
         None,
-        description="When the prior credential will be fully revoked.",
+        description="Timestamp at which the prior credential will be revoked.",
     )
 
 

@@ -41,7 +41,9 @@
         "externalId": "11111111-1111-1111-1111-111111111111",
         "userName": "jdoe@example.com",
         "active": false,
-        "emails": [{"value": "jdoe@example.com", "primary": true, "type": "work"}]
+        "emails": [{"value": "jdoe@example.com", "primary": true, "type": "work"}],
+        "name": {"givenName": "Jane", "familyName": "Doe", "formatted": "Jane Doe"},
+        "displayName": "Jane Doe"
       }
     },
     "response": {"status": 200, "body": {"id": "atlas-user-123", "active": false}}

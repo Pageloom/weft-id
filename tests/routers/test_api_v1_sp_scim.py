@@ -2,7 +2,8 @@
 
 Covers `/api/v1/service-providers/{sp_id}/scim/...`: config GET/PUT,
 credentials GET/POST/rotate/DELETE, sync log GET, queue status GET, and
-retry-dead-lettered POST. All endpoints require admin role.
+retry-dead-lettered POST. All endpoints require super_admin role
+(promoted from admin during iteration 7b).
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ def api_user():
     return {
         "id": str(uuid4()),
         "tenant_id": tenant_id,
-        "role": "admin",
+        "role": "super_admin",
         "email": "admin@test.com",
         "first_name": "Admin",
         "last_name": "User",
@@ -47,7 +48,7 @@ def api_user():
 
 @pytest.fixture
 def api_client(client, api_user, override_api_auth):
-    override_api_auth(api_user, level="admin")
+    override_api_auth(api_user, level="super_admin")
     return client
 
 
@@ -384,31 +385,35 @@ class TestRetryDeadLettered:
 
 
 class TestAuthorization:
-    def test_user_role_cannot_access(self, client, override_api_auth):
-        non_admin = {
+    @pytest.mark.parametrize("role", ["user", "admin"])
+    def test_non_super_admin_cannot_access(self, role, client, override_api_auth):
+        """Both `user` and `admin` roles must be rejected.
+
+        Iteration 7b promoted the SCIM endpoints from admin -> super_admin
+        because token operations are too sensitive for the admin tier.
+        """
+        non_super = {
             "id": str(uuid4()),
             "tenant_id": str(uuid4()),
-            "role": "user",
-            "email": "u@test.com",
-            "first_name": "U",
-            "last_name": "U",
+            "role": role,
+            "email": f"{role}@test.com",
+            "first_name": "X",
+            "last_name": "Y",
             "tz": "UTC",
             "locale": "en_US",
         }
-        # Authenticate as a `user` only -- the admin-required endpoint
-        # must reject it.
-        override_api_auth(non_admin, level="user")
+        override_api_auth(non_super, level=role)
         sp_id = str(uuid4())
         host = f"test.{settings.BASE_DOMAIN}"
         with patch("dependencies.database") as mock_db:
             mock_db.tenants.get_tenant_by_subdomain.return_value = {
-                "id": non_admin["tenant_id"],
+                "id": non_super["tenant_id"],
                 "subdomain": "test",
             }
             resp = client.get(
                 f"/api/v1/service-providers/{sp_id}/scim/config",
                 headers={"host": host},
             )
-        # The route uses `require_admin_api`; without the admin override it
-        # falls back to the real dependency, which returns 401/403.
+        # The route uses `require_super_admin_api`; the dep returns 401/403
+        # for both `user` and `admin` roles.
         assert resp.status_code in (401, 403)

@@ -38,6 +38,7 @@ openpyxl = "^3.1.0"
 msoffcrypto-tool = "^5.4.0"
 requests = ">=2.33.0"
 webauthn = "^2.5.0"
+idna = ">=3.15"  # CVE-2026-45409, transitive via requests/urllib3
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"
@@ -56,6 +57,7 @@ pytest-testmon = "^2.2.0"
 pip = ">=26.0"
 zensical = "^0.0.28"
 pygments = ">=2.16,<2.20"  # 2.20.0 breaks pymdownx.superfences (filename=None crash)
+pymdown-extensions = ">=10.21.3"  # CVE-2026-46338, transitive via zensical
 
 [tool.poetry.scripts]
 # Note: These are for documentation. Run commands directly:

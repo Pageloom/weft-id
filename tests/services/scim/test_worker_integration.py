@@ -81,6 +81,56 @@ def test_worker_drains_queue_writes_sync_log_on_success(test_tenant, test_user):
     assert log_rows[0]["completed_at"] is not None
 
 
+def test_worker_updates_last_used_on_successful_push(test_tenant, test_user):
+    """Successful push must bump `last_used_at` on the resolved credential.
+
+    The production resolver returns `(credential_id, plaintext)`. The
+    worker threads the id into `_record_success` and calls
+    `update_last_used()` exactly once. Without this, the admin UI's
+    "Last used" column never advances after token creation.
+    """
+    sp = _create_scim_enabled_sp(test_tenant["id"], test_user["id"])
+    database.scim_push_queue.upsert_entry(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        sp["id"],
+        "user",
+        str(test_user["id"]),
+    )
+
+    # Mint a credential row so we have an id to bump.
+    from utils.scim_crypto import encrypt_token
+
+    cred = database.scim_credentials.create_credential(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        sp_id=str(sp["id"]),
+        created_by_user_id=str(test_user["id"]),
+        encrypted_plaintext=encrypt_token("worker-tok"),
+    )
+    assert cred["last_used_at"] is None
+
+    success = scim_client.PushResult(
+        status="success", http_status=201, reason=None, scim_id="ext-1"
+    )
+    with patch("services.scim.worker.scim_client.push_user", return_value=success):
+        result = scim_worker.process_pending_pushes(
+            str(test_tenant["id"]),
+            # Production-shaped resolver: returns (credential_id, plaintext).
+            token_resolver=lambda _t, _s: (str(cred["id"]), "worker-tok"),
+        )
+
+    assert result["succeeded"] == 1
+
+    # Re-fetch the credential row directly to inspect last_used_at.
+    rows = database.fetchall(
+        test_tenant["id"],
+        "select last_used_at from sp_scim_credentials where id = :id",
+        {"id": str(cred["id"])},
+    )
+    assert rows[0]["last_used_at"] is not None
+
+
 def test_worker_dead_letters_after_repeated_retryable_failures(test_tenant, test_user):
     sp = _create_scim_enabled_sp(test_tenant["id"], test_user["id"])
     database.scim_push_queue.upsert_entry(

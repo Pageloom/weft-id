@@ -618,12 +618,12 @@ def preview_assertion(
 @router.get("/{sp_id}/scim/config", response_model=ScimConfig)
 def get_scim_config_endpoint(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_admin_api)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
 ):
     """Get the outbound SCIM configuration for one Service Provider.
 
-    Requires admin role.
+    Requires super_admin role.
 
     Response fields:
     - sp_id: SP UUID.
@@ -647,13 +647,13 @@ def get_scim_config_endpoint(
 @router.put("/{sp_id}/scim/config", response_model=ScimConfig)
 def update_scim_config_endpoint(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_admin_api)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
     data: ScimConfigUpdate,
 ):
     """Update the outbound SCIM configuration for one Service Provider.
 
-    Requires admin role.
+    Requires super_admin role.
 
     Request body (all fields optional, at least one required):
     - scim_enabled: Toggle SCIM push on/off. Requires a `scim_target_url`
@@ -676,12 +676,12 @@ def update_scim_config_endpoint(
 @router.get("/{sp_id}/scim/credentials", response_model=ScimCredentialList)
 def list_scim_credentials_endpoint(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_admin_api)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
 ):
     """List still-usable bearer credentials for an SP.
 
-    Requires admin role.
+    Requires super_admin role.
 
     Includes credentials whose `revoked_at` is in the future (inside the
     rotation overlap window). Plaintext is never returned here -- only
@@ -704,12 +704,12 @@ def list_scim_credentials_endpoint(
 )
 def create_scim_credential_endpoint(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_admin_api)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
 ):
     """Mint a fresh outbound SCIM bearer credential for an SP.
 
-    Requires admin role.
+    Requires super_admin role.
 
     No request body. The server generates a 192-bit URL-safe token,
     encrypts it for storage, and returns the plaintext ONCE in the
@@ -736,14 +736,14 @@ def create_scim_credential_endpoint(
 )
 def rotate_scim_credential_endpoint(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_admin_api)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
     credential_id: str,
     overlap_hours: Annotated[int, Query(ge=0, le=720)] = 24,
 ):
     """Rotate an outbound SCIM bearer credential.
 
-    Requires admin role.
+    Requires super_admin role.
 
     Creates a fresh credential AND schedules the named existing
     credential for revocation after `overlap_hours` (default 24, max
@@ -776,13 +776,13 @@ def rotate_scim_credential_endpoint(
 )
 def revoke_scim_credential_endpoint(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_admin_api)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
     credential_id: str,
 ):
     """Immediately revoke an outbound SCIM bearer credential.
 
-    Requires admin role.
+    Requires super_admin role.
 
     No grace period. Use the rotate endpoint for the safer flow. Emits
     a `scim_token_revoked` audit event.
@@ -797,7 +797,7 @@ def revoke_scim_credential_endpoint(
 @router.get("/{sp_id}/scim/sync-log", response_model=ScimSyncLogList)
 def list_scim_sync_log_endpoint(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_admin_api)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -805,7 +805,7 @@ def list_scim_sync_log_endpoint(
 ):
     """List recent sync activity for one SP.
 
-    Requires admin role.
+    Requires super_admin role.
 
     Ordered by `completed_at DESC NULLS FIRST` so in-flight rows
     (`pending`, `running`) surface ahead of completed ones.
@@ -832,12 +832,12 @@ def list_scim_sync_log_endpoint(
 @router.get("/{sp_id}/scim/queue-status", response_model=ScimQueueStatus)
 def get_scim_queue_status_endpoint(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_admin_api)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
 ):
     """Get a snapshot of the push queue for one SP.
 
-    Requires admin role.
+    Requires super_admin role.
 
     Response fields:
     - sp_id: SP UUID.
@@ -859,12 +859,12 @@ def get_scim_queue_status_endpoint(
 )
 def retry_dead_lettered_endpoint(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_admin_api)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
 ):
     """Revive every dead-lettered queue row for one SP.
 
-    Requires admin role.
+    Requires super_admin role.
 
     Clears `dead_letter_at`, resets `attempts` and `next_attempt_at` so
     the worker re-attempts the row on its next pass. `last_error` is

@@ -6,6 +6,17 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Docs: capture SCIM admin guide screenshots
+
+**Status:** Backlog
+
+**Summary:** `docs/admin-guide/service-providers/scim.md` ships with `TODO: screenshot - ...` placeholders at six locations (amber plaintext token box, credential list mid-rotation, sync activity panel mixed states, Slack provisioning page, GitHub Enterprise SCIM page, Atlassian directory provisioning, GitLab SAML SSO page). Capture the WeftID screenshots first (amber box, credential list, sync panel) since they can be staged against the dev testbed. Vendor screenshots require live tenants and can land later as access becomes available. Remove the `TODO:` lines once each image lands.
+
+**Effort:** S
+**Value:** Medium (lifts the docs above placeholder quality for outbound SCIM)
+
+---
+
 ## Custom User Fields
 
 **Status:** Grooming

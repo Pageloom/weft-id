@@ -35,14 +35,11 @@ def sp_user():
 
 @pytest.fixture
 def sp_admin_session(client, sp_user, override_auth):
+    """Authenticate as super_admin: the SCIM tab is super_admin-only (iter 7b)."""
     override_auth(sp_user, level="super_admin")
-    # The router uses `require_admin`; override that too.
-    from dependencies import require_admin
-    from main import app
-
-    app.dependency_overrides[require_admin] = lambda: sp_user
+    # The router uses `require_super_admin`; the override_auth hierarchy
+    # already covers it at level="super_admin".
     yield client
-    app.dependency_overrides.pop(require_admin, None)
 
 
 @pytest.fixture
@@ -148,30 +145,26 @@ def test_scim_tab_renders(sp_admin_session, sp_host, sample_sp, mocker):
     assert "sync_log" in ctx_kwargs
 
 
-def test_scim_tab_redirects_non_super_admin_to_dashboard(client, sp_user, override_auth, sp_host):
-    """Admin (non-super) is gated by has_page_access -> redirects to /dashboard.
+def test_scim_tab_redirects_non_super_admin(client, sp_user, override_auth, sp_host):
+    """Admin (non-super) is rejected by the router-level `require_super_admin` dep.
 
-    The router's `require_admin` dep accepts admin, but the SCIM page is
-    registered as SUPER_ADMIN. Defence-in-depth: the page-access check
-    redirects to /dashboard for the admin role.
+    Iteration 7b promoted the router dep from `require_admin` to
+    `require_super_admin`. The test asserts the request is redirected
+    (303) and not served (200). The exact location varies between
+    `/dashboard` (logged-in-but-wrong-role) and `/login` (real dep
+    cannot see the test's `get_current_user` override), so we accept
+    both.
     """
-    from dependencies import require_admin
-    from main import app
-
     admin_user = {**sp_user, "role": "admin"}
     override_auth(admin_user, level="admin")
-    app.dependency_overrides[require_admin] = lambda: admin_user
-    try:
-        response = client.get(
-            f"/admin/settings/service-providers/{uuid4()}/scim",
-            headers={"Host": sp_host},
-            follow_redirects=False,
-        )
-    finally:
-        app.dependency_overrides.pop(require_admin, None)
+    response = client.get(
+        f"/admin/settings/service-providers/{uuid4()}/scim",
+        headers={"Host": sp_host},
+        follow_redirects=False,
+    )
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/dashboard"
+    assert response.headers["location"] in ("/dashboard", "/login")
 
 
 def test_scim_tab_redirects_when_sp_missing(sp_admin_session, sp_host):

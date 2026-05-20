@@ -91,6 +91,179 @@ Useful regression anchors, none are current bugs:
 
 ---
 
+## [SECURITY HIGH] Outbound SCIM worker: no row-level lock on queue ready-set scan
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage; deferred for follow-up)
+**Severity:** High
+**Source:** Security review of `outbound-scim` branch
+
+`database.scim_push_queue.list_ready_entries` and the cleared
+`next_attempt_at` reset run under tenant RLS but use no row-level lock.
+Running multiple worker containers (the documented horizontal-scale
+story) means two workers can pick up the same queue row and double-push
+to a downstream SP. The current per-tenant `with session(...)` loop in
+`app/jobs/process_scim_push_queue.py` masks this in dev but not at scale.
+
+**Suggested fix:** Add `FOR UPDATE SKIP LOCKED` to the
+`list_ready_entries` query, or take a per-tenant advisory lock around
+the drain loop. Either approach is bounded scope.
+
+**Files affected:** `app/database/scim_push_queue.py`, possibly
+`app/jobs/process_scim_push_queue.py`.
+
+---
+
+## [SECURITY MEDIUM] Bearer-token scrubbing in scim_sync_log.error
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Medium
+
+A misbehaving downstream SP can echo the inbound `Authorization: Bearer
+...` header in the 4xx/5xx response body. That body lands in
+`scim_sync_log.error`, where it is rendered in the admin UI's Sync
+activity panel and exported via the API. Bearer plaintext should never
+leak back into our own logs.
+
+**Suggested fix:** In each quirk module's `interpret_error`, scrub
+`Authorization: Bearer ...` (and `Bearer\s+\S+`) before recording the
+reason string. The base `interpret_error` is the natural home.
+
+**Files affected:** `app/services/scim/quirks/*.py` (or a shared
+sanitiser in `app/services/scim/client.py`).
+
+---
+
+## [SECURITY MEDIUM] scim_config_updated audit metadata stores raw old/new URL
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Medium
+
+`services.scim.admin.update_scim_config` writes the previous and new
+`scim_target_url` verbatim into the `scim_config_updated` audit event's
+metadata. The renderer for that event in the audit log UI does not yet
+escape user-controlled URLs, opening a log-injection / phishing surface
+(a malicious super-admin could set a target URL that renders as a
+clickable link to a phishing page).
+
+**Suggested fix:** Either restrict what gets stored (record only the
+hostname or a redacted form), or harden the audit-log renderer to
+HTML-escape URL values consistently.
+
+**Files affected:** `app/services/scim/admin.py`,
+`app/templates/audit_event_detail.html`.
+
+---
+
+## [SECURITY LOW] Credential rotation TOCTOU
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Low
+
+`services.scim.admin.rotate_credential` reads the active credentials,
+mints a new row, then schedules the old one for revocation. Two
+concurrent rotates against the same credential produce two new
+credentials and double-schedule the old one for revocation. The blast
+radius is small (an extra dangling token, not a security regression),
+but the path should serialise via a SELECT ... FOR UPDATE or per-SP
+advisory lock.
+
+**Files affected:** `app/services/scim/admin.py`,
+`app/database/scim_credentials.py`.
+
+---
+
+## [SECURITY LOW] No rate limit on POST /scim/credentials
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Low
+
+A super-admin can spam `POST /api/v1/service-providers/{sp_id}/scim/credentials`
+to mint unbounded credential rows. Operational rather than security risk
+(the table is small and the role is highly privileged), but a sensible
+defence-in-depth cap (e.g. 10/min/SP) would prevent runaway scripts.
+
+**Files affected:** `app/routers/api/v1/service_providers.py`.
+
+---
+
+## [TEST MEDIUM] SCIM admin UI: rotate / revoke / retry-dead-lettered flows not in E2E
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Medium
+
+`tests/e2e/test_scim_admin_e2e.py` covers create-token plaintext display
+but not rotation, revoke, or the retry-dead-lettered button. Add three
+short Playwright tests modelled on the existing create-token flow.
+
+**Files affected:** `tests/e2e/test_scim_admin_e2e.py`.
+
+---
+
+## [TEST MEDIUM] Decrypt-failure path has no admin-UI signal
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Medium
+
+`jobs.process_scim_push_queue._resolve_outbound_token` returns None
+both when no credential ever existed AND when `InvalidToken` fires on
+Fernet decryption (key rotation without a re-encrypt). The worker dead-
+letters with the same `no_credential_source` reason in both cases, so
+the admin UI cannot distinguish "configure a token" from "your key is
+out of sync." Add a distinct reason string (e.g. `credential_decrypt_failed`)
+and surface it in the sync-log panel.
+
+**Files affected:** `app/jobs/process_scim_push_queue.py`,
+`app/services/scim/worker.py`.
+
+---
+
+## [TEST MEDIUM] enqueue_sp_tenant_fan_out has no batching cap for large tenants
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Medium
+
+For a tenant with 10k users, the SP enable / scope-change fan-out fires
+10k queue upserts under the calling request's thread. The request still
+returns quickly because each upsert is small, but the burst can starve
+other DB work briefly. Either batch the upserts into a single INSERT
+... SELECT, or off-load to a one-shot background task.
+
+**Files affected:** `app/services/scim/dispatch.py` (or wherever
+`enqueue_sp_tenant_fan_out` lives).
+
+---
+
+## [COMPLIANCE LOW] RLS widening on SCIM tables relies on developer discipline
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Low
+
+Migration 0037 widened RLS on `scim_push_queue`, `scim_sync_log`, and
+`sp_scim_credentials` so the worker can scan cross-tenant. The widening
+is necessary but creates a footgun: any future code path that performs
+an UNSCOPED read on those tables outside `app/jobs/` could leak across
+tenants. The compliance check should grow a rule that flags `UNSCOPED`
+reads of tenant-scoped tables when the call site is not under
+`app/jobs/` or `app/services/scim/`.
+
+**Files affected:** `dev/compliance_check.py`.
+
+---
+
+## [DOCS] SCIM admin guide MEDIUM tech-writer findings (W4-W10)
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage; deferred per lead)
+**Severity:** Medium (docs polish)
+
+Tech-writer agent flagged seven medium-severity copy / structure issues
+in `docs/admin-guide/service-providers/scim.md` (the W4-W10 items in the
+iter-7 final-review notes). Defer to a documentation-only pass; none
+block release.
+
+**Files affected:** `docs/admin-guide/service-providers/scim.md`.
+
+---
+
 ## [DEPS] markdown 3.10.2 -- PYSEC-2026-89 / CVE-2025-69534 (HIGH, blocked by upstream)
 
 **Discovered:** 2026-05-20 (newly catalogued in GitHub Advisory DB; surfaced by `make check`)

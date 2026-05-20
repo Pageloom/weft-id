@@ -19,11 +19,15 @@ audit event via `log_event()`. Reads call `track_activity()`.
 
 from __future__ import annotations
 
+import ipaddress
 import secrets
+import socket
 from datetime import datetime, timedelta
 from typing import Any, cast
+from urllib.parse import urlparse
 
 import database
+import settings
 from schemas.scim_admin import (
     ScimConfig,
     ScimConfigUpdate,
@@ -41,7 +45,7 @@ from schemas.scim_admin import (
     ScimSyncStatus,
 )
 from services.activity import track_activity
-from services.auth import require_admin
+from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
@@ -55,6 +59,93 @@ DEFAULT_ROTATION_OVERLAP_HOURS = 24
 # Token shape: 192 bits of entropy, urlsafe base64 -- long enough that
 # operators won't try to reuse them across SPs, short enough to copy/paste.
 _TOKEN_BYTES = 24
+
+# Short DNS resolution timeout for the SSRF allowlist check. The validator
+# runs only when the admin changes the URL, so a few seconds is acceptable.
+_DNS_TIMEOUT_SECONDS = 3.0
+
+
+def _validate_scim_target_url(url: str) -> None:
+    """Reject SCIM target URLs that point to private or internal addresses.
+
+    Enforced rules:
+    - Scheme must be `https`. `http` is permitted only when `IS_DEV=true`
+      so that local development against the testbed still works.
+    - Hostname must not be literal `localhost` (string match) and must
+      not resolve to RFC1918 (`10/8`, `172.16/12`, `192.168/16`),
+      loopback (`127/8`, `::1`), link-local (`169.254/16`, `fe80::/10`),
+      or IPv6 ULA (`fc00::/7`) addresses.
+
+    Raises `ValidationError` with an actionable message on failure.
+    """
+    parsed = urlparse(url)
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in ("http", "https"):
+        raise ValidationError(
+            message="SCIM target URL must use https",
+            code="scim_target_url_invalid",
+        )
+    if scheme == "http" and not settings.IS_DEV:
+        raise ValidationError(
+            message="SCIM target URL must use https",
+            code="scim_target_url_invalid",
+        )
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        raise ValidationError(
+            message="SCIM target URL must include a hostname",
+            code="scim_target_url_invalid",
+        )
+
+    # Literal `localhost` even when it isn't in /etc/hosts.
+    if hostname == "localhost":
+        raise ValidationError(
+            message="SCIM target URL must not point to a private or internal address",
+            code="scim_target_url_invalid",
+        )
+
+    # Resolve the hostname (or accept a literal IP) and reject anything in a
+    # private / loopback / link-local / ULA range. A tight timeout avoids
+    # hanging on unresponsive DNS.
+    try:
+        socket.setdefaulttimeout(_DNS_TIMEOUT_SECONDS)
+        try:
+            infos = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+        finally:
+            socket.setdefaulttimeout(None)
+    except OSError as exc:
+        raise ValidationError(
+            message="SCIM target URL hostname could not be resolved",
+            code="scim_target_url_invalid",
+        ) from exc
+
+    for _family, _socktype, _proto, _canonname, sockaddr in infos:
+        raw_addr = sockaddr[0] if isinstance(sockaddr, tuple) and sockaddr else None
+        if not isinstance(raw_addr, str) or not raw_addr:
+            continue
+        # Strip an IPv6 zone identifier (`fe80::1%en0`) before parsing.
+        addr_str = raw_addr.split("%", 1)[0]
+        try:
+            addr = ipaddress.ip_address(addr_str)
+        except ValueError:
+            # Defensive: should not happen for getaddrinfo output.
+            raise ValidationError(
+                message="SCIM target URL must not point to a private or internal address",
+                code="scim_target_url_invalid",
+            ) from None
+        if (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_reserved
+            or addr.is_unspecified
+            or addr.is_multicast
+        ):
+            raise ValidationError(
+                message="SCIM target URL must not point to a private or internal address",
+                code="scim_target_url_invalid",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +216,7 @@ def get_scim_config(requesting_user: RequestingUser, sp_id: str) -> ScimConfig:
 
     Authorization: Requires admin role.
     """
-    require_admin(requesting_user)
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     sp = _require_sp(requesting_user["tenant_id"], sp_id)
@@ -142,7 +233,7 @@ def update_scim_config(
     Authorization: Requires admin role.
     Logs: `scim_config_updated` (always when any field changes).
     """
-    require_admin(requesting_user)
+    require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
 
     existing = _require_sp(tenant_id, sp_id)
@@ -153,7 +244,13 @@ def update_scim_config(
         updates["scim_enabled"] = bool(data.scim_enabled)
     if "scim_target_url" in fields:
         # Empty string means "clear" -> NULL.
-        updates["scim_target_url"] = data.scim_target_url or None
+        new_url = data.scim_target_url or None
+        # Validate only when the URL actually changes -- not on every config
+        # write. A null/clear value bypasses validation; only a non-null URL
+        # that differs from the stored one is exercised.
+        if new_url and new_url != existing.get("scim_target_url"):
+            _validate_scim_target_url(new_url)
+        updates["scim_target_url"] = new_url
     if "scim_kind" in fields and data.scim_kind:
         updates["scim_kind"] = data.scim_kind
     if "scim_membership_mode" in fields and data.scim_membership_mode:
@@ -209,7 +306,7 @@ def list_credentials(requesting_user: RequestingUser, sp_id: str) -> ScimCredent
 
     Authorization: Requires admin role.
     """
-    require_admin(requesting_user)
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -234,7 +331,7 @@ def create_credential(
     Authorization: Requires admin role.
     Logs: `scim_token_created`.
     """
-    require_admin(requesting_user)
+    require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
     _require_sp(tenant_id, sp_id)
 
@@ -281,7 +378,7 @@ def rotate_credential(
     Authorization: Requires admin role.
     Logs: `scim_token_rotated` on the old credential.
     """
-    require_admin(requesting_user)
+    require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
     _require_sp(tenant_id, sp_id)
 
@@ -356,7 +453,7 @@ def revoke_credential(
     Authorization: Requires admin role.
     Logs: `scim_token_revoked`.
     """
-    require_admin(requesting_user)
+    require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
     _require_sp(tenant_id, sp_id)
 
@@ -395,7 +492,7 @@ def list_sync_log(
 
     Authorization: Requires admin role.
     """
-    require_admin(requesting_user)
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -423,7 +520,7 @@ def get_queue_status(requesting_user: RequestingUser, sp_id: str) -> ScimQueueSt
 
     Authorization: Requires admin role.
     """
-    require_admin(requesting_user)
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -451,7 +548,7 @@ def retry_dead_lettered(
     retry-dead-lettered action. (No dedicated event type to keep the
     registry small; the metadata distinguishes it.)
     """
-    require_admin(requesting_user)
+    require_super_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
     _require_sp(tenant_id, sp_id)
 

@@ -370,9 +370,84 @@ def _resolve_group_ids_from_grant_metadata(metadata: dict[str, Any]) -> list[str
 # ---------------------------------------------------------------------------
 
 
+def enqueue_sp_tenant_fan_out(
+    tenant_id: str,
+    artifact_id: str,
+    metadata: dict[str, Any],
+) -> None:
+    """SP `available_to_all` toggle. `artifact_id` is the SP id.
+
+    When an SP with `available_to_all=true` is flipped (true->false or
+    false->true), every tenant user's scope for that SP changes. This
+    trigger walks every tenant user and enqueues a per-user push (the
+    worker re-evaluates "still in scope?" at push time and emits the
+    right verb: a deprovision for users who lost access, a create for
+    users who gained it).
+
+    The trigger reads `metadata["available_to_all"]` to confirm the
+    change applies and `metadata["previous_available_to_all"]` to skip
+    no-op events. If `available_to_all` is unchanged the dispatch is a
+    no-op (this is the common case for `sp_access_mode_updated` events
+    emitted by other shape changes in the future).
+    """
+    import database
+
+    sp_id = artifact_id
+    new_value = metadata.get("available_to_all")
+    previous_value = metadata.get("previous_available_to_all")
+
+    # If the metadata doesn't carry the toggle we cannot tell what
+    # changed; bail to avoid enqueuing a tenant-wide fan-out by accident.
+    if new_value is None:
+        logger.warning(
+            "enqueue_sp_tenant_fan_out: missing available_to_all metadata (sp=%s tenant=%s)",
+            sp_id,
+            tenant_id,
+        )
+        return
+
+    # No actual change -> no fan-out.
+    if previous_value is not None and bool(previous_value) == bool(new_value):
+        return
+
+    try:
+        scim_enabled = database.scim_scope.is_scim_enabled_sp(tenant_id, sp_id)
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "enqueue_sp_tenant_fan_out: SP lookup failed (tenant=%s sp=%s)",
+            tenant_id,
+            sp_id,
+        )
+        return
+
+    if not scim_enabled:
+        return
+
+    try:
+        user_ids = database.scim_scope.tenant_user_ids(tenant_id)
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "enqueue_sp_tenant_fan_out: tenant user lookup failed (tenant=%s)",
+            tenant_id,
+        )
+        return
+
+    for user_id in user_ids:
+        try:
+            queue.enqueue_user(tenant_id, sp_id, user_id)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "enqueue_sp_tenant_fan_out: enqueue failed (tenant=%s sp=%s user=%s)",
+                tenant_id,
+                sp_id,
+                user_id,
+            )
+
+
 _TRIGGERS: dict[str, Callable[[str, str, dict[str, Any]], None]] = {
     "enqueue_user_self": enqueue_user_self,
     "enqueue_group_self": enqueue_group_self,
     "enqueue_membership_change": enqueue_membership_change,
     "enqueue_grant_fan_out": enqueue_grant_fan_out,
+    "enqueue_sp_tenant_fan_out": enqueue_sp_tenant_fan_out,
 }

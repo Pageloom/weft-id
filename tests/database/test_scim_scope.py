@@ -309,3 +309,52 @@ def test_is_scim_enabled_sp_false_when_disabled(test_tenant, test_user):
 
 def test_is_scim_enabled_sp_false_when_missing(test_tenant):
     assert database.scim_scope.is_scim_enabled_sp(test_tenant["id"], str(uuid4())) is False
+
+
+# ---------------------------------------------------------------------------
+# tenant_user_ids
+# ---------------------------------------------------------------------------
+
+
+def test_tenant_user_ids_returns_real_users(test_tenant, test_user):
+    """Every real user (active or inactive) in the tenant is returned.
+
+    Used by `enqueue_sp_tenant_fan_out` to walk every tenant user when an
+    SP's `available_to_all` flag changes. Service-account rows (linked from
+    `oauth2_clients.service_user_id`) must be excluded.
+    """
+    other_a = _create_user(test_tenant["id"])
+    other_b = _create_user(test_tenant["id"])
+
+    ids = set(database.scim_scope.tenant_user_ids(test_tenant["id"]))
+    assert str(test_user["id"]) in ids
+    assert str(other_a["id"]) in ids
+    assert str(other_b["id"]) in ids
+
+
+def test_tenant_user_ids_excludes_service_accounts(test_tenant, test_user):
+    """Rows referenced from `oauth2_clients.service_user_id` are excluded."""
+    service_user = _create_user(test_tenant["id"], email_suffix="svc")
+    # Mark the user as a service account by inserting a matching oauth2 client.
+    database.execute(
+        test_tenant["id"],
+        """
+        INSERT INTO oauth2_clients (
+            tenant_id, client_id, name, client_secret_hash, client_type,
+            service_user_id, created_by, redirect_uris
+        ) VALUES (
+            :tenant_id, :cid, 'svc', 'h', 'b2b',
+            :svc, :created_by, NULL
+        )
+        """,
+        {
+            "tenant_id": str(test_tenant["id"]),
+            "cid": f"client-{uuid4().hex[:8]}",
+            "svc": str(service_user["id"]),
+            "created_by": str(test_user["id"]),
+        },
+    )
+
+    ids = set(database.scim_scope.tenant_user_ids(test_tenant["id"]))
+    assert str(service_user["id"]) not in ids
+    assert str(test_user["id"]) in ids

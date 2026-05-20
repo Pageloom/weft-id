@@ -3119,7 +3119,12 @@ class TestUpdateSPAvailableToAll:
             assert mock_log.call_count == 2
             access_mode_call = mock_log.call_args_list[1]
             assert access_mode_call.kwargs["event_type"] == "sp_access_mode_updated"
-            assert access_mode_call.kwargs["metadata"] == {"available_to_all": True}
+            # `previous_available_to_all` is required by the SCIM dispatch
+            # trigger to short-circuit no-op writes; the test must enforce it.
+            assert access_mode_call.kwargs["metadata"] == {
+                "available_to_all": True,
+                "previous_available_to_all": False,
+            }
 
     def test_no_event_when_value_unchanged(self, make_requesting_user):
         """Does not emit sp_access_mode_updated when value is the same."""

@@ -1,8 +1,10 @@
 """Outbound SCIM bearer credential database operations.
 
 Bearer tokens issued to WeftID by downstream Service Providers. Stored as
-SHA-256 hashes only; plaintext is never persisted. Multiple active rows per
-SP are supported for rotation-overlap windows.
+SHA-256 hashes (for verification) plus an encrypted plaintext copy
+(`encrypted_plaintext`) so the outbound push worker can send the value the
+downstream SP expects. Multiple active rows per SP are supported for
+rotation-overlap windows.
 """
 
 import re
@@ -23,6 +25,7 @@ def create_credential(
     sp_id: str,
     token_hash: str,
     created_by_user_id: str,
+    encrypted_plaintext: bytes | None = None,
 ) -> dict:
     """Create a new SCIM bearer credential for a service provider.
 
@@ -32,6 +35,11 @@ def create_credential(
         sp_id: Service provider id this token belongs to.
         token_hash: SHA-256 hex digest of the plaintext token.
         created_by_user_id: User id of the admin creating the token.
+        encrypted_plaintext: Fernet-encrypted plaintext token (bytes) so the
+            outbound push worker can recover the value it must send to the
+            downstream SP. Optional only for the iter-1 inbound code path
+            that does not yet have a plaintext to store; iter-5 admin flows
+            always provide it.
 
     Returns:
         Dict with id, sp_id, tenant_id, token_hash, created_by_user_id,
@@ -41,9 +49,9 @@ def create_credential(
         tenant_id,
         """
         insert into sp_scim_credentials (
-            tenant_id, sp_id, token_hash, created_by_user_id
+            tenant_id, sp_id, token_hash, created_by_user_id, encrypted_plaintext
         ) values (
-            :tenant_id, :sp_id, :token_hash, :created_by_user_id
+            :tenant_id, :sp_id, :token_hash, :created_by_user_id, :encrypted_plaintext
         )
         returning id, tenant_id, sp_id, token_hash, created_by_user_id,
                   created_at, revoked_at, last_used_at
@@ -53,6 +61,7 @@ def create_credential(
             "sp_id": sp_id,
             "token_hash": token_hash,
             "created_by_user_id": created_by_user_id,
+            "encrypted_plaintext": encrypted_plaintext,
         },
     )
     # Defensive: should never happen on INSERT with RETURNING
@@ -60,8 +69,50 @@ def create_credential(
     return result
 
 
+def get_active_credential_for_outbound(
+    tenant_id: TenantArg,
+    sp_id: str,
+) -> dict | None:
+    """Look up the most recent non-revoked credential for outbound push.
+
+    Picks the newest row where `revoked_at IS NULL OR revoked_at > now()`
+    (i.e. still inside the rotation overlap window if any). Returns the
+    `encrypted_plaintext` so the worker can decrypt it via the Fernet key.
+    A row without `encrypted_plaintext` (legacy / test fixture) is skipped
+    -- the worker dead-letters those with `no_credential_source`.
+
+    Args:
+        tenant_id: Tenant scope (RLS active when called from the worker
+            inside a tenant-scoped session).
+        sp_id: Service provider id.
+
+    Returns:
+        Dict with id, encrypted_plaintext, or None when no usable row.
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select id, encrypted_plaintext
+        from sp_scim_credentials
+        where sp_id = :sp_id
+          and encrypted_plaintext is not null
+          and (revoked_at is null or revoked_at > now())
+        order by created_at desc
+        limit 1
+        """,
+        {"sp_id": sp_id},
+    )
+
+
 def list_active_credentials(tenant_id: TenantArg, sp_id: str) -> list[dict]:
-    """List non-revoked credentials for a service provider, newest first."""
+    """List non-revoked credentials for a service provider, newest first.
+
+    "Non-revoked" here means `revoked_at IS NULL` strictly. A credential
+    whose `revoked_at` is set in the future is excluded (the column has
+    been written, even if the row remains usable until that timestamp).
+    Use `list_usable_credentials` for the rotation-aware listing the
+    admin UI needs.
+    """
     return fetchall(
         tenant_id,
         """
@@ -69,6 +120,29 @@ def list_active_credentials(tenant_id: TenantArg, sp_id: str) -> list[dict]:
                created_at, revoked_at, last_used_at
         from sp_scim_credentials
         where sp_id = :sp_id and revoked_at is null
+        order by created_at desc
+        """,
+        {"sp_id": sp_id},
+    )
+
+
+def list_usable_credentials(tenant_id: TenantArg, sp_id: str) -> list[dict]:
+    """List credentials that are still accepted, newest first.
+
+    A row is usable when `revoked_at IS NULL OR revoked_at > now()`. The
+    rotation-overlap window keeps the old token usable for a configurable
+    period after rotation; this listing surfaces both the new token and
+    the pending-revocation old token so the admin UI can show "active"
+    and "expiring at ..." badges side by side.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select id, tenant_id, sp_id, token_hash, created_by_user_id,
+               created_at, revoked_at, last_used_at
+        from sp_scim_credentials
+        where sp_id = :sp_id
+          and (revoked_at is null or revoked_at > now())
         order by created_at desc
         """,
         {"sp_id": sp_id},

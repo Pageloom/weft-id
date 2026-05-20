@@ -398,6 +398,13 @@ PAGES = [
                                         creates_nav_level=False,
                                     ),
                                     Page(
+                                        path="/admin/settings/service-providers/detail/scim",
+                                        title="SCIM",
+                                        permission=PagePermission.SUPER_ADMIN,
+                                        show_in_nav=False,
+                                        creates_nav_level=False,
+                                    ),
+                                    Page(
                                         path="/admin/settings/service-providers/detail/certificates",
                                         title="Certificates",
                                         permission=PagePermission.SUPER_ADMIN,

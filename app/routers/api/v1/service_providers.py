@@ -4,7 +4,16 @@ from typing import Annotated
 
 from api_dependencies import get_current_user_api, require_admin_api, require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Request, UploadFile, status
+from fastapi import APIRouter, Depends, Query, Request, UploadFile, status
+from schemas.scim_admin import (
+    ScimConfig,
+    ScimConfigUpdate,
+    ScimCredentialCreated,
+    ScimCredentialList,
+    ScimQueueStatus,
+    ScimRetryResult,
+    ScimSyncLogList,
+)
 from schemas.service_providers import (
     AssertionPreview,
     SPConfig,
@@ -29,6 +38,7 @@ from schemas.service_providers import (
 from services import branding as branding_service
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
+from services.scim import admin as scim_admin_service
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/service-providers", tags=["Service Providers"])
@@ -596,6 +606,276 @@ def preview_assertion(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return sp_service.preview_assertion(requesting_user, sp_id, user_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Outbound SCIM (admin)
+# =============================================================================
+
+
+@router.get("/{sp_id}/scim/config", response_model=ScimConfig)
+def get_scim_config_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+):
+    """Get the outbound SCIM configuration for one Service Provider.
+
+    Requires admin role.
+
+    Response fields:
+    - sp_id: SP UUID.
+    - scim_enabled: Whether SCIM push is active for this SP.
+    - scim_target_url: Downstream SCIM 2.0 base URL.
+    - scim_kind: Application-type preset (`generic`, `slack`, `github`,
+      `atlassian`, `gitlab`). Unknown values fall back to `generic` at
+      push time.
+    - scim_membership_mode: Group push mode (`effective` flattens via
+      `group_lineage`, `direct` uses only direct membership rows).
+    - scim_log_retention: How long sync activity is retained (`3`, `6`,
+      `12`, `24` months, or `forever`).
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return scim_admin_service.get_scim_config(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.put("/{sp_id}/scim/config", response_model=ScimConfig)
+def update_scim_config_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+    data: ScimConfigUpdate,
+):
+    """Update the outbound SCIM configuration for one Service Provider.
+
+    Requires admin role.
+
+    Request body (all fields optional, at least one required):
+    - scim_enabled: Toggle SCIM push on/off. Requires a `scim_target_url`
+      to already be set or set in the same payload.
+    - scim_target_url: Downstream SCIM 2.0 base URL.
+    - scim_kind: Application-type preset.
+    - scim_membership_mode: Group push mode.
+    - scim_log_retention: Retention selector value.
+
+    Emits a `scim_config_updated` audit event with a `changed_fields`
+    metadata list. Returns the new configuration.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return scim_admin_service.update_scim_config(requesting_user, sp_id, data)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/{sp_id}/scim/credentials", response_model=ScimCredentialList)
+def list_scim_credentials_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+):
+    """List still-usable bearer credentials for an SP.
+
+    Requires admin role.
+
+    Includes credentials whose `revoked_at` is in the future (inside the
+    rotation overlap window). Plaintext is never returned here -- only
+    metadata. Use `POST` to mint a fresh credential.
+
+    Response fields per item: id, sp_id, created_by_user_id, created_at,
+    revoked_at, last_used_at.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return scim_admin_service.list_credentials(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post(
+    "/{sp_id}/scim/credentials",
+    response_model=ScimCredentialCreated,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_scim_credential_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+):
+    """Mint a fresh outbound SCIM bearer credential for an SP.
+
+    Requires admin role.
+
+    No request body. The server generates a 192-bit URL-safe token,
+    encrypts it for storage, and returns the plaintext ONCE in the
+    response. Capture and store it securely; subsequent reads return
+    metadata only.
+
+    Emits a `scim_token_created` audit event with the new credential id
+    in metadata.
+
+    Response fields: id, sp_id, created_at, plaintext, rotated_from_id
+    (null for fresh tokens), rotated_from_revoke_at (null for fresh
+    tokens).
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return scim_admin_service.create_credential(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post(
+    "/{sp_id}/scim/credentials/{credential_id}/rotate",
+    response_model=ScimCredentialCreated,
+)
+def rotate_scim_credential_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+    credential_id: str,
+    overlap_hours: Annotated[int, Query(ge=0, le=720)] = 24,
+):
+    """Rotate an outbound SCIM bearer credential.
+
+    Requires admin role.
+
+    Creates a fresh credential AND schedules the named existing
+    credential for revocation after `overlap_hours` (default 24, max
+    720 = 30 days). Both tokens are accepted by the worker during the
+    overlap window so an in-flight push cannot fail mid-rotation.
+
+    Query parameters:
+    - overlap_hours: Hours the existing credential stays valid after
+      rotation (default 24, range 0..720). Pass 0 for immediate
+      revocation.
+
+    Emits a `scim_token_rotated` audit event with old_credential_id,
+    new_credential_id, and overlap_hours in metadata.
+
+    Response fields: id (new credential), sp_id, created_at, plaintext,
+    rotated_from_id (old credential), rotated_from_revoke_at.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return scim_admin_service.rotate_credential(
+            requesting_user, sp_id, credential_id, overlap_hours=overlap_hours
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.delete(
+    "/{sp_id}/scim/credentials/{credential_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def revoke_scim_credential_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+    credential_id: str,
+):
+    """Immediately revoke an outbound SCIM bearer credential.
+
+    Requires admin role.
+
+    No grace period. Use the rotate endpoint for the safer flow. Emits
+    a `scim_token_revoked` audit event.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        scim_admin_service.revoke_credential(requesting_user, sp_id, credential_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/{sp_id}/scim/sync-log", response_model=ScimSyncLogList)
+def list_scim_sync_log_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+    status_filter: Annotated[str | None, Query(alias="status", max_length=20)] = None,
+):
+    """List recent sync activity for one SP.
+
+    Requires admin role.
+
+    Ordered by `completed_at DESC NULLS FIRST` so in-flight rows
+    (`pending`, `running`) surface ahead of completed ones.
+
+    Query parameters:
+    - page: 1-indexed page number (default 1).
+    - page_size: Rows per page (default 50, max 200).
+    - status: Optional filter. One of `pending`, `running`, `done`,
+      `failed`, `dead_letter`.
+
+    Response: items (list of sync log entries), total, page, page_size.
+    Each entry: id, sp_id, resource_type, resource_id, status, attempt,
+    error, started_at, completed_at, created_at.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return scim_admin_service.list_sync_log(
+            requesting_user, sp_id, page=page, page_size=page_size, status=status_filter
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/{sp_id}/scim/queue-status", response_model=ScimQueueStatus)
+def get_scim_queue_status_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+):
+    """Get a snapshot of the push queue for one SP.
+
+    Requires admin role.
+
+    Response fields:
+    - sp_id: SP UUID.
+    - pending: Count of queue rows awaiting a push attempt.
+    - dead_lettered: Count of queue rows the worker has given up on
+      after 5 failures (or a permanent error). Use the retry endpoint
+      to revive them after fixing the underlying issue.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return scim_admin_service.get_queue_status(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post(
+    "/{sp_id}/scim/queue/retry-dead-lettered",
+    response_model=ScimRetryResult,
+)
+def retry_dead_lettered_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+):
+    """Revive every dead-lettered queue row for one SP.
+
+    Requires admin role.
+
+    Clears `dead_letter_at`, resets `attempts` and `next_attempt_at` so
+    the worker re-attempts the row on its next pass. `last_error` is
+    preserved as a breadcrumb.
+
+    No request body. Response fields: sp_id, revived (count of rows
+    revived).
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return scim_admin_service.retry_dead_lettered(requesting_user, sp_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

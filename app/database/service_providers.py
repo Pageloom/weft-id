@@ -11,6 +11,8 @@ _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
                slo_url, include_group_claims, group_assertion_scope,
                sp_requested_attributes,
                attribute_mapping, enabled, trust_established, available_to_all,
+               scim_enabled, scim_target_url, scim_kind,
+               scim_membership_mode, scim_log_retention,
                created_by, created_at, updated_at"""
 
 # Qualified columns for queries with JOINs (avoids ambiguous column errors)
@@ -21,6 +23,8 @@ _SP_COLUMNS_Q = """sp.id, sp.tenant_id, sp.name, sp.description, sp.entity_id, s
                sp.slo_url, sp.include_group_claims, sp.group_assertion_scope,
                sp.sp_requested_attributes,
                sp.attribute_mapping, sp.enabled, sp.trust_established, sp.available_to_all,
+               sp.scim_enabled, sp.scim_target_url, sp.scim_kind,
+               sp.scim_membership_mode, sp.scim_log_retention,
                sp.created_by, sp.created_at, sp.updated_at"""
 
 
@@ -170,6 +174,12 @@ def update_service_provider(
         "attribute_mapping",
         "enabled",
         "available_to_all",
+        # Outbound SCIM columns (iter-5).
+        "scim_enabled",
+        "scim_target_url",
+        "scim_kind",
+        "scim_membership_mode",
+        "scim_log_retention",
     }
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:

@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 3 | Duplication (pre-existing), Docs (pre-existing), Test coverage (pre-existing) |
-| Deps | 1 | pygments (LOW, blocked by upstream) |
+| Deps | 2 | markdown (HIGH, blocked by upstream; blocks deps gate), pygments (LOW, blocked by upstream) |
 
 **Last security scan:** 2026-05-15 (mirror-failure audit event + user_profile_updated PII redaction landed on feature/user-attributes; remaining low items unchanged)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
@@ -88,6 +88,39 @@ Useful regression anchors, none are current bugs:
 - Admin user-detail route integration test for `user_profile_updated` event emission
 
 **Files Affected:** `tests/services/test_saml_attribute_ingestion.py`, `tests/services/test_user_attributes_service.py`, `tests/routers/test_auth.py`, `tests/routers/test_user_detail_profile.py`, `tests/e2e/`
+
+---
+
+## [DEPS] markdown 3.10.2 -- PYSEC-2026-89 / CVE-2025-69534 (HIGH, blocked by upstream)
+
+**Discovered:** 2026-05-20 (newly catalogued in GitHub Advisory DB; surfaced by `make check`)
+**Severity:** High
+**Source:** `python dev/deps_check.py`
+
+**PYSEC-2026-89 (CVE-2025-69534):** Malformed HTML-like sequences cause
+`html.parser.HTMLParser` to raise an unhandled `AssertionError` during
+Markdown parsing. Any caller that does not catch `AssertionError` will
+crash on attacker-controlled input.
+
+**Exploitability in this project: NONE.** `markdown` is a transitive
+dep of `zensical` and `pymdown-extensions`, used only by the docs site
+build at Docker image-build time. Markdown is never parsed at request
+time; the deployed site serves pre-built static HTML. No user-supplied
+markdown is ever fed to the library.
+
+**Remediation: BLOCKED.** `markdown` 3.10.2 is the latest release; no
+upstream fix has shipped (advisory does not list a Fixed-in version as
+of 2026-05-20). Pinning to an older version would not help; the issue
+is present from 3.8 onward.
+
+**Blocks `make check` deps gate** (deps_check exits 1 on any HIGH or
+critical finding). Until upstream patches, every `make check` /
+`make quality-all` run will fail at the dependency stage. Individual
+stages (lint, format, types, compliance, tests, e2e) all pass.
+
+Re-check periodically; bump as soon as a patched release lands.
+
+**Files Affected:** `pyproject.toml`, `poetry.lock`
 
 ---
 

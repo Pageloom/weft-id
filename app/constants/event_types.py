@@ -451,6 +451,15 @@ EVENT_TYPE_SCIM_TRIGGERS: dict[str, str] = {
     "sp_group_assigned": "enqueue_grant_fan_out",
     "sp_group_unassigned": "enqueue_grant_fan_out",
     "sp_groups_bulk_assigned": "enqueue_grant_fan_out",
+    # SP `available_to_all` toggle: when an admin flips this flag on a
+    # SCIM-enabled SP, every tenant user's scope changes. The dispatch
+    # walks every user and enqueues; the worker re-evaluates scope at
+    # push time and emits create / deprovision per user. The event
+    # `sp_access_mode_updated` carries
+    # metadata["available_to_all"] (the new value) and
+    # metadata["previous_available_to_all"] (set when the value
+    # actually changed) so the trigger can short-circuit no-op events.
+    "sp_access_mode_updated": "enqueue_sp_tenant_fan_out",
 }
 
 

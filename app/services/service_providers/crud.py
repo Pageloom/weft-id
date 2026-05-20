@@ -519,6 +519,12 @@ def update_service_provider(
             event_type="sp_access_mode_updated",
             metadata={
                 "available_to_all": update_fields["available_to_all"],
+                # Previous value lets the SCIM dispatch trigger
+                # `enqueue_sp_tenant_fan_out` confirm a real change and
+                # short-circuit no-op writes (where another column was
+                # changed alongside this one but available_to_all itself
+                # ended up at the same value it had).
+                "previous_available_to_all": bool(existing.get("available_to_all", False)),
             },
         )
 

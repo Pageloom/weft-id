@@ -90,6 +90,31 @@ def transitive_user_ids_for_group(tenant_id: TenantArg, group_id: str) -> list[s
     return [str(row["user_id"]) for row in rows]
 
 
+def tenant_user_ids(tenant_id: TenantArg) -> list[str]:
+    """Return every real user id in the tenant.
+
+    "Real user" excludes service accounts (rows with a matching
+    `oauth2_clients.service_user_id`). Inactivated and anonymized rows are
+    included so the worker can still emit deprovisioning calls -- the
+    payload builder reflects the current state of each row.
+
+    Used by `enqueue_sp_tenant_fan_out` when an SP's `available_to_all`
+    flag flips and every tenant user's scope for that SP changes.
+    """
+    rows = fetchall(
+        tenant_id,
+        """
+        select u.id
+        from users u
+        where not exists (
+            select 1 from oauth2_clients oc where oc.service_user_id = u.id
+        )
+        """,
+        {},
+    )
+    return [str(row["id"]) for row in rows]
+
+
 def is_scim_enabled_sp(tenant_id: TenantArg, sp_id: str) -> bool:
     """Return True if the SP exists and has SCIM enabled.
 

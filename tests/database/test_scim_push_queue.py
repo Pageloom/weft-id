@@ -250,6 +250,75 @@ def test_count_pending_for_sp(test_tenant, test_user):
     assert str(rows[0]["id"]) == str(pending["id"])
 
 
+# -- revive_dead_lettered_for_sp ----------------------------------------------
+
+
+def test_revive_dead_lettered_for_sp_clears_flag_and_resets_attempts(test_tenant, test_user):
+    """Reviving dead-lettered rows clears the flag, resets attempts/next_attempt_at.
+
+    last_error is preserved as a diagnostic breadcrumb.
+    """
+    sp = _create_sp(test_tenant["id"], test_user["id"])
+    dead_a = database.scim_push_queue.upsert_entry(
+        test_tenant["id"], str(test_tenant["id"]), sp["id"], "user", str(uuid4())
+    )
+    dead_b = database.scim_push_queue.upsert_entry(
+        test_tenant["id"], str(test_tenant["id"]), sp["id"], "user", str(uuid4())
+    )
+    pending = database.scim_push_queue.upsert_entry(
+        test_tenant["id"], str(test_tenant["id"]), sp["id"], "user", str(uuid4())
+    )
+    database.scim_push_queue.mark_dead_letter(test_tenant["id"], str(dead_a["id"]), error="boom_a")
+    database.scim_push_queue.mark_dead_letter(test_tenant["id"], str(dead_b["id"]), error="boom_b")
+
+    count = database.scim_push_queue.revive_dead_lettered_for_sp(test_tenant["id"], sp["id"])
+    assert count == 2
+
+    counts = database.scim_push_queue.count_pending_for_sp(test_tenant["id"], sp["id"])
+    assert counts == {"pending": 3, "dead_lettered": 0}
+
+    revived_a = database.scim_push_queue.get_entry(test_tenant["id"], str(dead_a["id"]))
+    assert revived_a is not None
+    assert revived_a["dead_letter_at"] is None
+    assert revived_a["attempts"] == 0
+    assert revived_a["next_attempt_at"] is None
+    # last_error preserved
+    assert revived_a["last_error"] == "boom_a"
+
+    # Pending row left alone
+    pending_after = database.scim_push_queue.get_entry(test_tenant["id"], str(pending["id"]))
+    assert pending_after is not None
+    assert pending_after["dead_letter_at"] is None
+
+
+def test_revive_dead_lettered_for_sp_no_dead_letters(test_tenant, test_user):
+    """No dead-lettered rows -> 0 revived, no changes."""
+    sp = _create_sp(test_tenant["id"], test_user["id"])
+    database.scim_push_queue.upsert_entry(
+        test_tenant["id"], str(test_tenant["id"]), sp["id"], "user", str(uuid4())
+    )
+
+    count = database.scim_push_queue.revive_dead_lettered_for_sp(test_tenant["id"], sp["id"])
+    assert count == 0
+
+
+def test_revive_dead_lettered_for_sp_scoped_to_sp(test_tenant, test_user):
+    """Reviving on SP A must not touch SP B's dead-lettered rows."""
+    sp_a = _create_sp(test_tenant["id"], test_user["id"], name="A")
+    sp_b = _create_sp(test_tenant["id"], test_user["id"], name="B")
+    dead_b = database.scim_push_queue.upsert_entry(
+        test_tenant["id"], str(test_tenant["id"]), sp_b["id"], "user", str(uuid4())
+    )
+    database.scim_push_queue.mark_dead_letter(test_tenant["id"], str(dead_b["id"]), error="boom")
+
+    count = database.scim_push_queue.revive_dead_lettered_for_sp(test_tenant["id"], sp_a["id"])
+    assert count == 0
+
+    after = database.scim_push_queue.get_entry(test_tenant["id"], str(dead_b["id"]))
+    assert after is not None
+    assert after["dead_letter_at"] is not None
+
+
 # -- RLS scoping --------------------------------------------------------------
 
 

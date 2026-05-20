@@ -229,6 +229,127 @@ def test_update_last_used(test_tenant, test_user):
     assert fetched["last_used_at"] is not None
 
 
+# -- list_usable_credentials --------------------------------------------------
+
+
+def test_list_usable_includes_pending_revocation(test_tenant, test_user):
+    """A credential whose `revoked_at` is set in the future is still usable.
+
+    Rotation overlap relies on this: the old token must remain valid until
+    its scheduled revocation time so in-flight pushes complete cleanly.
+    """
+    sp = _create_sp(test_tenant["id"], test_user["id"])
+    pending = database.scim_credentials.create_credential(
+        test_tenant["id"], str(test_tenant["id"]), sp["id"], _hash("pending"), str(test_user["id"])
+    )
+    database.scim_credentials.schedule_revocation(
+        test_tenant["id"], str(pending["id"]), overlap_interval="1 hour"
+    )
+
+    usable = database.scim_credentials.list_usable_credentials(test_tenant["id"], sp["id"])
+    assert str(pending["id"]) in {str(r["id"]) for r in usable}
+
+    active = database.scim_credentials.list_active_credentials(test_tenant["id"], sp["id"])
+    assert str(pending["id"]) not in {str(r["id"]) for r in active}
+
+
+def test_list_usable_excludes_revoked(test_tenant, test_user):
+    sp = _create_sp(test_tenant["id"], test_user["id"])
+    cred = database.scim_credentials.create_credential(
+        test_tenant["id"], str(test_tenant["id"]), sp["id"], _hash("u-rev"), str(test_user["id"])
+    )
+    database.scim_credentials.mark_revoked(test_tenant["id"], str(cred["id"]))
+
+    usable = database.scim_credentials.list_usable_credentials(test_tenant["id"], sp["id"])
+    assert str(cred["id"]) not in {str(r["id"]) for r in usable}
+
+
+# -- get_active_credential_for_outbound ---------------------------------------
+
+
+def test_get_active_credential_for_outbound_picks_newest(test_tenant, test_user):
+    """The newest non-revoked credential with plaintext is returned."""
+    sp = _create_sp(test_tenant["id"], test_user["id"])
+    database.scim_credentials.create_credential(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        sp["id"],
+        _hash("old"),
+        str(test_user["id"]),
+        encrypted_plaintext=b"older-cipher",
+    )
+    newest = database.scim_credentials.create_credential(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        sp["id"],
+        _hash("new"),
+        str(test_user["id"]),
+        encrypted_plaintext=b"newest-cipher",
+    )
+
+    row = database.scim_credentials.get_active_credential_for_outbound(test_tenant["id"], sp["id"])
+    assert row is not None
+    assert str(row["id"]) == str(newest["id"])
+    assert bytes(row["encrypted_plaintext"]) == b"newest-cipher"
+
+
+def test_get_active_credential_for_outbound_skips_rows_without_plaintext(test_tenant, test_user):
+    """Iter-1 rows that were created without plaintext must be skipped.
+
+    Returning a row whose `encrypted_plaintext` is NULL would lead the
+    worker to dead-letter the queue entry with a confusing reason; better
+    to skip cleanly and let the resolver return None.
+    """
+    sp = _create_sp(test_tenant["id"], test_user["id"])
+    database.scim_credentials.create_credential(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        sp["id"],
+        _hash("legacy"),
+        str(test_user["id"]),
+        encrypted_plaintext=None,
+    )
+
+    row = database.scim_credentials.get_active_credential_for_outbound(test_tenant["id"], sp["id"])
+    assert row is None
+
+
+def test_get_active_credential_for_outbound_returns_none_when_revoked(test_tenant, test_user):
+    sp = _create_sp(test_tenant["id"], test_user["id"])
+    cred = database.scim_credentials.create_credential(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        sp["id"],
+        _hash("revoked"),
+        str(test_user["id"]),
+        encrypted_plaintext=b"will-be-revoked",
+    )
+    database.scim_credentials.mark_revoked(test_tenant["id"], str(cred["id"]))
+
+    row = database.scim_credentials.get_active_credential_for_outbound(test_tenant["id"], sp["id"])
+    assert row is None
+
+
+def test_get_active_credential_for_outbound_returns_pending_revocation(test_tenant, test_user):
+    """Inside the overlap window the soon-to-be-revoked credential is still active."""
+    sp = _create_sp(test_tenant["id"], test_user["id"])
+    cred = database.scim_credentials.create_credential(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        sp["id"],
+        _hash("pending-active"),
+        str(test_user["id"]),
+        encrypted_plaintext=b"still-usable",
+    )
+    database.scim_credentials.schedule_revocation(
+        test_tenant["id"], str(cred["id"]), overlap_interval="2 hours"
+    )
+
+    row = database.scim_credentials.get_active_credential_for_outbound(test_tenant["id"], sp["id"])
+    assert row is not None
+    assert str(row["id"]) == str(cred["id"])
+
+
 # -- RLS scoping --------------------------------------------------------------
 
 

@@ -218,6 +218,26 @@ def list_tenants_with_ready_entries() -> list[str]:
     return [str(row["tenant_id"]) for row in rows]
 
 
+def revive_dead_lettered_for_sp(tenant_id: TenantArg, sp_id: str) -> int:
+    """Clear `dead_letter_at` on every dead-lettered row for one SP.
+
+    Resets `attempts` and `next_attempt_at` on each revived row so the
+    worker treats them as fresh entries. `last_error` is preserved as a
+    breadcrumb. Returns the number of rows revived.
+    """
+    return execute(
+        tenant_id,
+        """
+        update scim_push_queue
+        set dead_letter_at = null,
+            attempts = 0,
+            next_attempt_at = null
+        where sp_id = :sp_id and dead_letter_at is not null
+        """,
+        {"sp_id": sp_id},
+    )
+
+
 def count_pending_for_sp(tenant_id: TenantArg, sp_id: str) -> dict:
     """Get pending and dead-letter counts for a service provider."""
     row = fetchone(

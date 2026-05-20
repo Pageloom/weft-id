@@ -26,8 +26,55 @@ from typing import Any
 import database
 from database._core import session
 from services.scim import worker as scim_worker
+from utils.scim_crypto import InvalidToken, decrypt_token
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_outbound_token(tenant_id: str, sp_id: str) -> str | None:
+    """Production token resolver for the SCIM push worker.
+
+    Looks up the most-recent non-revoked credential row for the SP whose
+    `encrypted_plaintext` is set, decrypts the value with the Fernet key
+    derived from `SECRET_KEY`, and returns the plaintext. Returns None
+    (the safe failure path) when:
+
+    - No active credential exists for this SP.
+    - The active row is from before iteration 5 (no plaintext stored).
+    - The ciphertext fails Fernet validation (key rotation without a
+      re-encrypt, corrupted bytes, etc.).
+
+    The worker dead-letters the queue entry on a None return with reason
+    `no_credential_source`. The tenant-scoped session is already active
+    when this is called.
+    """
+    try:
+        row = database.scim_credentials.get_active_credential_for_outbound(tenant_id, sp_id)
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "SCIM token_resolver: lookup failed (tenant=%s sp=%s)",
+            tenant_id,
+            sp_id,
+        )
+        return None
+
+    if row is None:
+        return None
+
+    ciphertext = row.get("encrypted_plaintext")
+    if ciphertext is None:
+        return None
+
+    try:
+        return decrypt_token(bytes(ciphertext))
+    except InvalidToken:
+        logger.error(
+            "SCIM token_resolver: ciphertext invalid (tenant=%s sp=%s credential=%s)",
+            tenant_id,
+            sp_id,
+            row.get("id"),
+        )
+        return None
 
 
 def process_scim_push_queue() -> dict[str, Any]:
@@ -49,7 +96,10 @@ def process_scim_push_queue() -> dict[str, Any]:
     for tenant_id in tenant_ids:
         try:
             with session(tenant_id=tenant_id):
-                tenant_summary = scim_worker.process_pending_pushes(tenant_id)
+                tenant_summary = scim_worker.process_pending_pushes(
+                    tenant_id,
+                    token_resolver=_resolve_outbound_token,
+                )
         except Exception as exc:  # noqa: BLE001
             logger.exception("SCIM push queue: tenant %s failed: %s", tenant_id, exc)
             summary["details"].append({"tenant_id": tenant_id, "error": str(exc)})

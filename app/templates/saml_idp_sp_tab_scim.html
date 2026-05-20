@@ -1,0 +1,452 @@
+{% extends "saml_idp_sp_base.html" %}
+
+{% block tab_content %}
+<script type="application/json" id="page-data">{{ {"sp_id": sp.id, "scim_kind": scim_config.scim_kind, "scim_membership_mode": scim_config.scim_membership_mode, "scim_log_retention": scim_config.scim_log_retention, "scim_enabled": scim_config.scim_enabled} | tojson }}</script>
+
+{# -------------------------------------------------------------------- #}
+{# Configuration                                                        #}
+{# -------------------------------------------------------------------- #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">SCIM Provisioning</h2>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        Push user and group changes to this application. Selecting your application type applies known
+        compatibility adjustments for that vendor. Use Generic SCIM 2.0 if your provider is not listed.
+    </p>
+
+    <form id="scim-config-form" class="space-y-4">
+        <div class="flex items-center gap-3">
+            <input type="checkbox" id="scim-enabled" name="scim_enabled" {% if scim_config.scim_enabled %}checked{% endif %}
+                   class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+            <label for="scim-enabled" class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Enable outbound SCIM
+            </label>
+        </div>
+
+        <div>
+            <label for="scim-target-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Target URL
+            </label>
+            <input type="url" id="scim-target-url" name="scim_target_url" maxlength="2048"
+                   value="{{ scim_config.scim_target_url or '' }}"
+                   placeholder="https://example.com/scim/v2"
+                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Downstream SCIM 2.0 base URL. The client appends resource paths (`/Users`, `/Groups`) as needed.
+            </p>
+        </div>
+
+        <div>
+            <label for="scim-kind" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Application type
+            </label>
+            <select id="scim-kind" name="scim_kind"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <option value="generic" {% if scim_config.scim_kind == 'generic' %}selected{% endif %}>Generic SCIM 2.0</option>
+                <option value="slack" {% if scim_config.scim_kind == 'slack' %}selected{% endif %}>Slack</option>
+                <option value="github" {% if scim_config.scim_kind == 'github' %}selected{% endif %}>GitHub</option>
+                <option value="atlassian" {% if scim_config.scim_kind == 'atlassian' %}selected{% endif %}>Atlassian</option>
+                <option value="gitlab" {% if scim_config.scim_kind == 'gitlab' %}selected{% endif %}>GitLab</option>
+            </select>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Group membership mode</label>
+            <div class="flex items-center gap-4">
+                <label class="inline-flex items-center text-sm text-gray-700 dark:text-gray-300">
+                    <input type="radio" name="scim_membership_mode" value="effective"
+                           {% if scim_config.scim_membership_mode == 'effective' %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-blue-500 mr-2">
+                    Effective (flatten subgroups)
+                </label>
+                <label class="inline-flex items-center text-sm text-gray-700 dark:text-gray-300">
+                    <input type="radio" name="scim_membership_mode" value="direct"
+                           {% if scim_config.scim_membership_mode == 'direct' %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-blue-500 mr-2">
+                    Direct members only
+                </label>
+            </div>
+        </div>
+
+        <div>
+            <label for="scim-log-retention" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Sync activity retention
+            </label>
+            <select id="scim-log-retention" name="scim_log_retention"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <option value="3" {% if scim_config.scim_log_retention == '3' %}selected{% endif %}>3 months</option>
+                <option value="6" {% if scim_config.scim_log_retention == '6' %}selected{% endif %}>6 months</option>
+                <option value="12" {% if scim_config.scim_log_retention == '12' %}selected{% endif %}>12 months</option>
+                <option value="24" {% if scim_config.scim_log_retention == '24' %}selected{% endif %}>24 months</option>
+                <option value="forever" {% if scim_config.scim_log_retention == 'forever' %}selected{% endif %}>Forever</option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Older sync activity is automatically deleted. Choose "Forever" if you need to keep all SCIM sync history.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button type="submit"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm">
+                Save configuration
+            </button>
+            <span id="scim-config-status" class="text-xs text-gray-500 dark:text-gray-400"></span>
+        </div>
+    </form>
+</div>
+
+{# -------------------------------------------------------------------- #}
+{# Credentials                                                          #}
+{# -------------------------------------------------------------------- #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Bearer tokens</h2>
+        <button type="button" id="scim-create-token"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md text-sm">
+            Create token
+        </button>
+    </div>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        Bearer tokens authenticate WeftID's outbound push to {{ sp.name }}. The plaintext value is shown
+        once at creation. Rotation creates a fresh token and schedules the prior one for revocation after
+        an overlap window.
+    </p>
+
+    <div id="scim-plaintext-display" class="hidden mb-4 p-4 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
+        <p class="text-sm font-medium text-amber-800 dark:text-amber-300 mb-2">
+            Copy this token now. It will not be shown again.
+        </p>
+        <div class="flex items-center gap-3">
+            <code id="scim-plaintext-value" class="flex-1 px-3 py-2 bg-white dark:bg-gray-800 rounded border border-amber-300 dark:border-amber-700 font-mono text-xs text-gray-900 dark:text-gray-100 break-all"></code>
+            <button type="button" id="scim-plaintext-copy"
+                    class="px-3 py-2 text-sm font-medium rounded-md bg-amber-600 hover:bg-amber-700 text-white">Copy</button>
+            <button type="button" id="scim-plaintext-done"
+                    class="px-3 py-2 text-sm font-medium rounded-md border border-amber-600 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30">Done</button>
+        </div>
+        <p class="text-xs text-amber-700 dark:text-amber-400 mt-2">
+            Click <strong>Done</strong> once you have saved the token. The page will refresh.
+        </p>
+    </div>
+
+    <div id="scim-credentials-list">
+        {% if credentials.items %}
+        <ul class="divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-md">
+            {% for cred in credentials.items %}
+            <li class="p-3 flex items-center justify-between" data-credential-id="{{ cred.id }}">
+                <div>
+                    {% set rel_created = fmt_relative(cred.created_at) %}
+                    <p class="text-sm text-gray-900 dark:text-gray-100">
+                        Token <span class="font-mono text-xs">{{ cred.id[:8] }}…</span>
+                        <span class="text-gray-500 dark:text-gray-400" title="{{ rel_created[1] }}">
+                            created {{ rel_created[0] }}
+                        </span>
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {% if cred.last_used_at %}
+                        {% set rel_used = fmt_relative(cred.last_used_at) %}
+                        Last used <span title="{{ rel_used[1] }}">{{ rel_used[0] }}</span>
+                        {% else %}
+                        Never used
+                        {% endif %}
+                        {% if cred.revoked_at %}
+                        {% set rel_revoke = fmt_relative(cred.revoked_at) %}
+                        &middot; <span class="text-amber-700 dark:text-amber-300" title="{{ rel_revoke[1] }}">
+                            revokes {{ rel_revoke[0] }}
+                        </span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" data-op="rotate" data-credential-id="{{ cred.id }}"
+                            class="px-2 py-1 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        Rotate
+                    </button>
+                    <button type="button" data-op="revoke" data-credential-id="{{ cred.id }}"
+                            class="px-2 py-1 text-xs font-medium rounded-md border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20">
+                        Revoke
+                    </button>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p id="scim-credentials-empty" class="text-sm text-gray-500 dark:text-gray-400">No tokens yet. Create one to start pushing changes.</p>
+        {% endif %}
+    </div>
+</div>
+
+{# -------------------------------------------------------------------- #}
+{# Sync activity                                                        #}
+{# -------------------------------------------------------------------- #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Sync activity</h2>
+        <div class="text-xs text-gray-500 dark:text-gray-400">
+            Pending: <span id="scim-queue-pending" class="font-mono">{{ queue_status.pending }}</span>
+            &middot;
+            Dead-lettered: <span id="scim-queue-dead" class="font-mono">{{ queue_status.dead_lettered }}</span>
+            {% if queue_status.dead_lettered > 0 %}
+            <button type="button" id="scim-retry-dead-letter"
+                    class="ml-3 px-2 py-1 text-xs font-medium rounded-md border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20">
+                Retry dead-lettered
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="flex items-center gap-3 mb-3">
+        <label for="scim-sync-status-filter" class="text-xs text-gray-500 dark:text-gray-400">Status:</label>
+        <select id="scim-sync-status-filter"
+                class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="running">Running</option>
+            <option value="done">Done</option>
+            <option value="failed">Failed</option>
+            <option value="dead_letter">Dead-letter</option>
+        </select>
+    </div>
+
+    {% if sync_log.items %}
+    <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-md">
+        <table id="scim-sync-table" class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-900/50">
+                <tr>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Resource</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Attempt</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Started</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Completed</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Error</th>
+                </tr>
+            </thead>
+            <tbody id="scim-sync-tbody" class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for row in sync_log.items %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-3 py-2 text-gray-900 dark:text-gray-100 font-mono text-xs">{{ row.resource_type }}/{{ row.resource_id[:8] }}…</td>
+                    <td class="px-3 py-2">
+                        <span class="px-2 py-0.5 text-xs font-medium rounded-full
+                            {% if row.status == 'done' %}bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300
+                            {% elif row.status in ('failed', 'dead_letter') %}bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300
+                            {% elif row.status == 'running' %}bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300
+                            {% else %}bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300{% endif %}">
+                            {{ row.status }}
+                        </span>
+                    </td>
+                    <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{{ row.attempt }}</td>
+                    <td class="px-3 py-2 text-gray-500 dark:text-gray-400">
+                        {% if row.started_at %}{% set rs = fmt_relative(row.started_at) %}<span title="{{ rs[1] }}">{{ rs[0] }}</span>{% else %}-{% endif %}
+                    </td>
+                    <td class="px-3 py-2 text-gray-500 dark:text-gray-400">
+                        {% if row.completed_at %}{% set rc = fmt_relative(row.completed_at) %}<span title="{{ rc[1] }}">{{ rc[0] }}</span>{% else %}-{% endif %}
+                    </td>
+                    <td class="px-3 py-2 text-gray-500 dark:text-gray-400 font-mono text-xs">{{ (row.error or '')[:80] }}{% if row.error and row.error|length > 80 %}…{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+        Showing <span id="scim-sync-count">{{ sync_log.items|length }}</span> of {{ sync_log.total }} entries.
+    </p>
+    {% else %}
+    <p id="scim-sync-empty" class="text-sm text-gray-500 dark:text-gray-400">No sync activity yet.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block tab_scripts %}
+<script nonce="{{ csp_nonce }}">
+const pageData = JSON.parse(document.getElementById('page-data').textContent);
+const SP_ID = pageData.sp_id;
+const API_BASE = `/api/v1/service-providers/${SP_ID}/scim`;
+
+function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// -------------------- Config form --------------------
+const configForm = document.getElementById('scim-config-form');
+const configStatus = document.getElementById('scim-config-status');
+configForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    configStatus.textContent = 'Saving...';
+    const fd = new FormData(configForm);
+    const payload = {
+        scim_enabled: fd.get('scim_enabled') === 'on',
+        scim_target_url: fd.get('scim_target_url') || null,
+        scim_kind: fd.get('scim_kind'),
+        scim_membership_mode: fd.get('scim_membership_mode'),
+        scim_log_retention: fd.get('scim_log_retention'),
+    };
+    try {
+        const resp = await WeftUtils.apiFetch(`${API_BASE}/config`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            configStatus.textContent = body.detail || `Failed (${resp.status})`;
+            configStatus.classList.add('text-red-600');
+            return;
+        }
+        configStatus.textContent = 'Saved.';
+        configStatus.classList.remove('text-red-600');
+        setTimeout(() => { configStatus.textContent = ''; }, 3000);
+    } catch (err) {
+        configStatus.textContent = `Error: ${err}`;
+    }
+});
+
+// -------------------- Credentials --------------------
+const plaintextDisplay = document.getElementById('scim-plaintext-display');
+const plaintextValue = document.getElementById('scim-plaintext-value');
+const plaintextCopy = document.getElementById('scim-plaintext-copy');
+
+function showPlaintext(value) {
+    plaintextValue.textContent = value;
+    plaintextDisplay.classList.remove('hidden');
+}
+
+plaintextCopy.addEventListener('click', () => {
+    const value = plaintextValue.textContent;
+    if (!value) return;
+    navigator.clipboard.writeText(value).then(() => {
+        plaintextCopy.textContent = 'Copied!';
+        setTimeout(() => { plaintextCopy.textContent = 'Copy'; }, 2000);
+    });
+});
+
+// Refresh only after the operator confirms they have saved the plaintext.
+// A reload before this point destroys the only chance to copy the token.
+document.getElementById('scim-plaintext-done').addEventListener('click', () => {
+    window.location.reload();
+});
+
+document.getElementById('scim-create-token').addEventListener('click', async () => {
+    try {
+        const resp = await WeftUtils.apiFetch(`${API_BASE}/credentials`, { method: 'POST' });
+        if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            alert(body.detail || `Failed (${resp.status})`);
+            return;
+        }
+        const body = await resp.json();
+        showPlaintext(body.plaintext);
+    } catch (err) {
+        alert(`Error: ${err}`);
+    }
+});
+
+document.getElementById('scim-credentials-list').addEventListener('click', async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const op = target.dataset.op;
+    const credentialId = target.dataset.credentialId;
+    if (!op || !credentialId) return;
+    if (op === 'revoke') {
+        WeftUtils.confirm(
+            'Revoke this token immediately? Any in-flight push that has not yet authenticated will fail.',
+            async () => {
+                const resp = await WeftUtils.apiFetch(`${API_BASE}/credentials/${credentialId}`, { method: 'DELETE' });
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    alert(body.detail || `Failed (${resp.status})`);
+                    return;
+                }
+                window.location.reload();
+            },
+            { destructive: true },
+        );
+    } else if (op === 'rotate') {
+        WeftUtils.confirm(
+            'Rotate this token? The old token stays valid for 24 hours so in-flight pushes complete cleanly.',
+            async () => {
+                const resp = await WeftUtils.apiFetch(`${API_BASE}/credentials/${credentialId}/rotate`, { method: 'POST' });
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    alert(body.detail || `Failed (${resp.status})`);
+                    return;
+                }
+                const body = await resp.json();
+                showPlaintext(body.plaintext);
+            },
+        );
+    }
+});
+
+// -------------------- Sync activity --------------------
+const syncStatusFilter = document.getElementById('scim-sync-status-filter');
+const syncTbody = document.getElementById('scim-sync-tbody');
+const syncCount = document.getElementById('scim-sync-count');
+
+function statusBadgeHtml(status) {
+    let cls = 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
+    if (status === 'done') cls = 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300';
+    else if (status === 'failed' || status === 'dead_letter') cls = 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300';
+    else if (status === 'running') cls = 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300';
+    return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${cls}">${escapeHtml(status)}</span>`;
+}
+
+function renderSyncRow(row) {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
+    const started = row.started_at ? row.started_at : '-';
+    const completed = row.completed_at ? row.completed_at : '-';
+    const err = row.error || '';
+    const errShort = err.length > 80 ? `${err.slice(0, 80)}…` : err;
+    // statusBadgeHtml returns hardcoded HTML around an escaped status value.
+    const statusHtml = statusBadgeHtml(row.status);
+    tr.innerHTML = `
+        <td class="px-3 py-2 text-gray-900 dark:text-gray-100 font-mono text-xs">${escapeHtml(row.resource_type)}/${escapeHtml(String(row.resource_id).slice(0, 8))}…</td>
+        <td class="px-3 py-2">${statusHtml}</td>
+        <td class="px-3 py-2 text-gray-500 dark:text-gray-400">${escapeHtml(row.attempt)}</td>
+        <td class="px-3 py-2 text-gray-500 dark:text-gray-400">${escapeHtml(started)}</td>
+        <td class="px-3 py-2 text-gray-500 dark:text-gray-400">${escapeHtml(completed)}</td>
+        <td class="px-3 py-2 text-gray-500 dark:text-gray-400 font-mono text-xs">${escapeHtml(errShort)}</td>
+    `;
+    return tr;
+}
+
+async function refreshSyncLog() {
+    const status = syncStatusFilter.value;
+    const params = new URLSearchParams({ page: '1', page_size: '50' });
+    if (status) params.set('status', status);
+    const resp = await fetch(`${API_BASE}/sync-log?${params.toString()}`, { credentials: 'same-origin' });
+    if (!resp.ok) return;
+    const body = await resp.json();
+    if (!syncTbody) return;
+    syncTbody.innerHTML = '';
+    body.items.forEach((row) => { syncTbody.appendChild(renderSyncRow(row)); });
+    if (syncCount) syncCount.textContent = body.items.length;
+}
+
+if (syncStatusFilter) {
+    syncStatusFilter.addEventListener('change', refreshSyncLog);
+}
+
+const retryButton = document.getElementById('scim-retry-dead-letter');
+if (retryButton) {
+    retryButton.addEventListener('click', () => {
+        WeftUtils.confirm(
+            'Revive every dead-lettered queue row for this SP? The worker re-attempts them on its next pass.',
+            async () => {
+                const resp = await WeftUtils.apiFetch(`${API_BASE}/queue/retry-dead-lettered`, { method: 'POST' });
+                if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    alert(body.detail || `Failed (${resp.status})`);
+                    return;
+                }
+                window.location.reload();
+            },
+        );
+    });
+}
+</script>
+{% endblock %}

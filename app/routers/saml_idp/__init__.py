@@ -8,11 +8,13 @@ from fastapi import APIRouter
 
 from .admin import router as admin_router
 from .metadata import router as metadata_router
+from .scim_admin import router as scim_admin_router
 from .slo import router as slo_router
 from .sso import router as sso_router
 
 router = APIRouter()
 router.include_router(admin_router)
 router.include_router(metadata_router)
+router.include_router(scim_admin_router)
 router.include_router(slo_router)
 router.include_router(sso_router)

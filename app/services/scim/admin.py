@@ -19,7 +19,6 @@ audit event via `log_event()`. Reads call `track_activity()`.
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Any, cast
@@ -109,12 +108,11 @@ def _require_sp(tenant_id: str, sp_id: str) -> dict:
     return sp
 
 
-def _generate_token() -> tuple[str, str, bytes]:
-    """Mint a new bearer token. Returns (plaintext, sha256_hex, ciphertext)."""
+def _generate_token() -> tuple[str, bytes]:
+    """Mint a new bearer token. Returns (plaintext, ciphertext)."""
     plaintext = secrets.token_urlsafe(_TOKEN_BYTES)
-    sha = hashlib.sha256(plaintext.encode("utf-8")).hexdigest()
     cipher = encrypt_token(plaintext)
-    return plaintext, sha, cipher
+    return plaintext, cipher
 
 
 # ---------------------------------------------------------------------------
@@ -229,9 +227,9 @@ def create_credential(
     """Mint a new bearer credential for an SP.
 
     Returns the plaintext token in the response. The plaintext is never
-    persisted in cleartext after this call: the database stores both the
-    Fernet-encrypted plaintext (for the outbound push worker) and the
-    SHA-256 hash (for any inbound verification path).
+    persisted in cleartext after this call: the database only stores the
+    Fernet-encrypted plaintext (for the outbound push worker to decrypt
+    and present to the downstream SP).
 
     Authorization: Requires admin role.
     Logs: `scim_token_created`.
@@ -240,12 +238,11 @@ def create_credential(
     tenant_id = requesting_user["tenant_id"]
     _require_sp(tenant_id, sp_id)
 
-    plaintext, sha, cipher = _generate_token()
+    plaintext, cipher = _generate_token()
     row = database.scim_credentials.create_credential(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
         sp_id=sp_id,
-        token_hash=sha,
         created_by_user_id=requesting_user["id"],
         encrypted_plaintext=cipher,
     )
@@ -303,12 +300,11 @@ def rotate_credential(
             code="scim_credential_not_found",
         )
 
-    plaintext, sha, cipher = _generate_token()
+    plaintext, cipher = _generate_token()
     new_row = database.scim_credentials.create_credential(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
         sp_id=sp_id,
-        token_hash=sha,
         created_by_user_id=requesting_user["id"],
         encrypted_plaintext=cipher,
     )

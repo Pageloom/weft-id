@@ -8,17 +8,12 @@ None on any failure). These tests verify each branch.
 
 from __future__ import annotations
 
-import hashlib
 from unittest.mock import patch
 from uuid import uuid4
 
 import database
 from jobs.process_scim_push_queue import _resolve_outbound_token
 from utils.scim_crypto import encrypt_token
-
-
-def _hash(t: str) -> str:
-    return hashlib.sha256(t.encode("utf-8")).hexdigest()
 
 
 def _create_sp(tenant_id, user_id, name="Token Resolver SP"):
@@ -37,7 +32,6 @@ def test_returns_plaintext_when_active_credential_exists(test_tenant, test_user)
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
         sp_id=str(sp["id"]),
-        token_hash=_hash(plaintext),
         created_by_user_id=str(test_user["id"]),
         encrypted_plaintext=encrypt_token(plaintext),
     )
@@ -52,14 +46,13 @@ def test_returns_none_when_no_credential_exists(test_tenant, test_user):
     assert out is None
 
 
-def test_returns_none_for_legacy_row_without_plaintext(test_tenant, test_user):
-    """Iter-1 rows (no plaintext) must not return None ciphertext bytes."""
+def test_returns_none_for_row_without_plaintext(test_tenant, test_user):
+    """A row whose `encrypted_plaintext` is NULL must not surface to the worker."""
     sp = _create_sp(test_tenant["id"], test_user["id"])
     database.scim_credentials.create_credential(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
         sp_id=str(sp["id"]),
-        token_hash=_hash("legacy"),
         created_by_user_id=str(test_user["id"]),
         encrypted_plaintext=None,
     )
@@ -75,7 +68,6 @@ def test_returns_none_when_ciphertext_invalid(test_tenant, test_user):
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
         sp_id=str(sp["id"]),
-        token_hash=_hash("bad"),
         created_by_user_id=str(test_user["id"]),
         encrypted_plaintext=b"not-a-fernet-token",
     )
@@ -93,7 +85,6 @@ def test_picks_newest_credential_during_rotation_overlap(test_tenant, test_user)
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
         sp_id=str(sp["id"]),
-        token_hash=_hash(old_plain),
         created_by_user_id=str(test_user["id"]),
         encrypted_plaintext=encrypt_token(old_plain),
     )
@@ -106,7 +97,6 @@ def test_picks_newest_credential_during_rotation_overlap(test_tenant, test_user)
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
         sp_id=str(sp["id"]),
-        token_hash=_hash(new_plain),
         created_by_user_id=str(test_user["id"]),
         encrypted_plaintext=encrypt_token(new_plain),
     )

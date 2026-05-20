@@ -1,0 +1,177 @@
+{
+  "_notice": "SYNTHETIC FIXTURES. Constructed from GitHub Enterprise Cloud SCIM documentation (https://docs.github.com/en/enterprise-cloud@latest/rest/scim) rather than recorded from a live GitHub Enterprise Cloud tenant. Replace with real recordings when a tenant is available.",
+  "user_create": {
+    "request": {
+      "method": "POST",
+      "path": "/scim/v2/enterprises/example/Users",
+      "body": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "externalId": "11111111-1111-1111-1111-111111111111",
+        "userName": "jdoe@example.com",
+        "active": true,
+        "emails": [{"value": "jdoe@example.com", "primary": true, "type": "work"}],
+        "name": {"givenName": "Jane", "familyName": "Doe", "formatted": "Jane Doe"},
+        "displayName": "Jane Doe"
+      }
+    },
+    "response": {
+      "status": 201,
+      "body": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "id": "abc123def456",
+        "externalId": "11111111-1111-1111-1111-111111111111",
+        "userName": "jdoe@example.com",
+        "active": true,
+        "emails": [{"value": "jdoe@example.com", "primary": true, "type": "work"}],
+        "name": {"givenName": "Jane", "familyName": "Doe"},
+        "meta": {
+          "resourceType": "User",
+          "created": "2026-05-20T12:00:00Z"
+        }
+      }
+    }
+  },
+  "user_update": {
+    "request": {
+      "method": "PUT",
+      "path": "/scim/v2/enterprises/example/Users/abc123def456",
+      "body": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "externalId": "11111111-1111-1111-1111-111111111111",
+        "userName": "jdoe@example.com",
+        "active": false,
+        "emails": [{"value": "jdoe@example.com", "primary": true, "type": "work"}]
+      }
+    },
+    "response": {"status": 200, "body": {"id": "abc123def456", "active": false}}
+  },
+  "user_delete": {
+    "request": {
+      "method": "DELETE",
+      "path": "/scim/v2/enterprises/example/Users/abc123def456"
+    },
+    "response": {"status": 204}
+  },
+  "group_create": {
+    "request": {
+      "method": "POST",
+      "path": "/scim/v2/enterprises/example/Groups",
+      "body": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "externalId": "22222222-2222-2222-2222-222222222222",
+        "displayName": "Engineering",
+        "members": [
+          {"value": "abc123def456", "$ref": "Users/abc123def456", "display": "Jane Doe"}
+        ]
+      }
+    },
+    "response": {
+      "status": 201,
+      "body": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "id": "grp-eng-1",
+        "displayName": "Engineering",
+        "members": [
+          {"value": "abc123def456", "$ref": "Users/abc123def456", "display": "Jane Doe"}
+        ]
+      }
+    }
+  },
+  "group_member_add": {
+    "request": {
+      "method": "PATCH",
+      "path": "/scim/v2/enterprises/example/Groups/grp-eng-1",
+      "ops_before_transform": [
+        {
+          "op": "add",
+          "path": "members",
+          "value": [{"value": "new-user-id", "display": "New User"}]
+        }
+      ],
+      "ops_after_transform": [
+        {
+          "op": "add",
+          "path": "members",
+          "value": [{"value": "new-user-id", "display": "New User"}]
+        }
+      ]
+    },
+    "response": {"status": 200}
+  },
+  "group_member_remove": {
+    "request": {
+      "method": "PATCH",
+      "path": "/scim/v2/enterprises/example/Groups/grp-eng-1",
+      "ops_before_transform": [
+        {
+          "op": "remove",
+          "path": "members",
+          "value": [{"value": "abc123def456"}]
+        }
+      ],
+      "ops_after_transform": [
+        {
+          "op": "remove",
+          "path": "members[value eq \"abc123def456\"]"
+        }
+      ]
+    },
+    "response": {"status": 200}
+  },
+  "group_member_remove_multiple": {
+    "request": {
+      "method": "PATCH",
+      "path": "/scim/v2/enterprises/example/Groups/grp-eng-1",
+      "ops_before_transform": [
+        {
+          "op": "remove",
+          "path": "members",
+          "value": [
+            {"value": "user-a"},
+            {"value": "user-b"}
+          ]
+        }
+      ],
+      "ops_after_transform": [
+        {"op": "remove", "path": "members[value eq \"user-a\"]"},
+        {"op": "remove", "path": "members[value eq \"user-b\"]"}
+      ]
+    }
+  },
+  "error_uniqueness": {
+    "response": {
+      "status": 409,
+      "body": {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        "status": "409",
+        "scimType": "uniqueness",
+        "detail": "User already exists in the SCIM provisioned list"
+      }
+    },
+    "expected_classification": {
+      "retryable": false,
+      "reason_contains": "uniqueness"
+    }
+  },
+  "error_rate_limit_via_403": {
+    "response": {
+      "status": 403,
+      "headers": {"x-ratelimit-remaining": "0", "x-ratelimit-reset": "1717000000"},
+      "body": {"message": "API rate limit exceeded"}
+    },
+    "expected_classification": {
+      "retryable": true,
+      "reason_contains": "x-ratelimit-remaining"
+    }
+  },
+  "error_forbidden_no_rate_header": {
+    "response": {
+      "status": 403,
+      "body": {"message": "Not allowed"}
+    },
+    "expected_classification": {
+      "retryable": false,
+      "reason_contains": "403"
+    }
+  }
+}

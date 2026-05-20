@@ -96,24 +96,6 @@ def test_quirk_module_implements_full_contract(module: Any) -> None:
         assert callable(getattr(module, fn, None)), f"{module.__name__} missing {fn}"
 
 
-def test_stub_modules_passthrough_user_payload() -> None:
-    payload = {"externalId": "u-1", "active": True}
-    for mod in (slack, github, atlassian, gitlab):
-        assert mod.transform_user_payload(payload) == payload
-
-
-def test_stub_modules_passthrough_group_payload() -> None:
-    payload = {"displayName": "Engineers", "members": []}
-    for mod in (slack, github, atlassian, gitlab):
-        assert mod.transform_group_payload(payload) == payload
-
-
-def test_stub_modules_passthrough_patch_ops() -> None:
-    ops = [{"op": "add", "path": "members", "value": [{"value": "u-1"}]}]
-    for mod in (slack, github, atlassian, gitlab):
-        assert mod.transform_patch_ops(ops) == ops
-
-
 def test_generic_interpret_error_classifies_5xx_retryable() -> None:
     retryable, reason = generic.interpret_error(httpx.Response(503))
     assert retryable is True
@@ -130,6 +112,37 @@ def test_generic_interpret_error_classifies_429_retryable() -> None:
     retryable, reason = generic.interpret_error(httpx.Response(429))
     assert retryable is True
     assert "429" in reason
+
+
+def test_generic_transform_user_payload_is_identity() -> None:
+    """An SP with `scim_kind='generic'` produces spec-correct payloads
+    unchanged (acceptance criterion for the generic path)."""
+    payload = {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "externalId": "u-1",
+        "userName": "j@example.com",
+        "active": True,
+        "emails": [{"value": "j@example.com", "primary": True, "type": "work"}],
+    }
+    assert generic.transform_user_payload(payload) == payload
+
+
+def test_generic_transform_group_payload_is_identity() -> None:
+    payload = {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "externalId": "g-1",
+        "displayName": "Engineers",
+        "members": [{"value": "u-1", "$ref": "Users/u-1", "display": "Jane"}],
+    }
+    assert generic.transform_group_payload(payload) == payload
+
+
+def test_generic_transform_patch_ops_is_identity() -> None:
+    ops = [
+        {"op": "add", "path": "members", "value": [{"value": "u-1"}]},
+        {"op": "remove", "path": "members", "value": [{"value": "u-2"}]},
+    ]
+    assert generic.transform_patch_ops(ops) == ops
 
 
 def test_client_invokes_quirk_transform_for_user(

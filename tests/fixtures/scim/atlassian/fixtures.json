@@ -1,0 +1,159 @@
+{
+  "_notice": "SYNTHETIC FIXTURES. Constructed from Atlassian provisioning documentation (https://support.atlassian.com/provisioning-users/docs/about-scim-provisioning/) rather than recorded from a live Atlassian Guard tenant. Replace with real recordings when a tenant is available.",
+  "user_create": {
+    "request": {
+      "method": "POST",
+      "path": "/scim/directory/<directory-id>/Users",
+      "body": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "externalId": "11111111-1111-1111-1111-111111111111",
+        "userName": "jdoe@example.com",
+        "active": true,
+        "emails": [{"value": "jdoe@example.com", "primary": true, "type": "work"}],
+        "name": {"givenName": "Jane", "familyName": "Doe", "formatted": "Jane Doe"},
+        "displayName": "Jane Doe"
+      }
+    },
+    "response": {
+      "status": 201,
+      "body": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "id": "atlas-user-123",
+        "externalId": "11111111-1111-1111-1111-111111111111",
+        "userName": "jdoe@example.com",
+        "active": true,
+        "emails": [{"value": "jdoe@example.com", "primary": true, "type": "work"}],
+        "meta": {
+          "resourceType": "User",
+          "created": "2026-05-20T12:00:00Z",
+          "lastModified": "2026-05-20T12:00:00Z",
+          "location": "/scim/directory/abc/Users/atlas-user-123"
+        }
+      }
+    }
+  },
+  "user_update": {
+    "request": {
+      "method": "PUT",
+      "path": "/scim/directory/<directory-id>/Users/atlas-user-123",
+      "body": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "externalId": "11111111-1111-1111-1111-111111111111",
+        "userName": "jdoe@example.com",
+        "active": false,
+        "emails": [{"value": "jdoe@example.com", "primary": true, "type": "work"}]
+      }
+    },
+    "response": {"status": 200, "body": {"id": "atlas-user-123", "active": false}}
+  },
+  "user_delete": {
+    "request": {
+      "method": "DELETE",
+      "path": "/scim/directory/<directory-id>/Users/atlas-user-123"
+    },
+    "response": {"status": 204}
+  },
+  "group_create": {
+    "request": {
+      "method": "POST",
+      "path": "/scim/directory/<directory-id>/Groups",
+      "body_before_transform": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "externalId": "22222222-2222-2222-2222-222222222222",
+        "displayName": "  Engineering  ",
+        "members": []
+      },
+      "body_after_transform": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "externalId": "22222222-2222-2222-2222-222222222222",
+        "displayName": "Engineering",
+        "members": []
+      }
+    },
+    "response": {
+      "status": 201,
+      "body": {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "id": "atlas-grp-1",
+        "displayName": "Engineering"
+      }
+    }
+  },
+  "group_member_add": {
+    "request": {
+      "method": "PATCH",
+      "path": "/scim/directory/<directory-id>/Groups/atlas-grp-1",
+      "ops_before_transform": [
+        {
+          "op": "add",
+          "path": "members",
+          "value": [{"value": "atlas-user-123", "display": "Jane Doe"}]
+        }
+      ],
+      "ops_after_transform": [
+        {
+          "op": "add",
+          "path": "members",
+          "value": [{"value": "atlas-user-123", "display": "Jane Doe"}]
+        }
+      ]
+    },
+    "response": {"status": 204}
+  },
+  "group_member_remove": {
+    "request": {
+      "method": "PATCH",
+      "path": "/scim/directory/<directory-id>/Groups/atlas-grp-1",
+      "ops_before_transform": [
+        {
+          "op": "remove",
+          "path": "members",
+          "value": [{"value": "atlas-user-123"}]
+        }
+      ],
+      "ops_after_transform": [
+        {
+          "op": "remove",
+          "path": "members",
+          "value": [{"value": "atlas-user-123"}]
+        }
+      ]
+    },
+    "response": {"status": 204}
+  },
+  "group_patch_with_empty_value_gets_dropped": {
+    "ops_before_transform": [
+      {"op": "replace", "path": "members", "value": []},
+      {"op": "add", "path": "members", "value": [{"value": "u-keep"}]}
+    ],
+    "ops_after_transform": [
+      {"op": "add", "path": "members", "value": [{"value": "u-keep"}]}
+    ]
+  },
+  "error_already_deprovisioned": {
+    "response": {
+      "status": 404,
+      "body": {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        "status": "404",
+        "detail": "User not found"
+      }
+    },
+    "expected_classification": {
+      "retryable": false,
+      "reason_contains": "already absent"
+    }
+  },
+  "error_bad_request": {
+    "response": {
+      "status": 400,
+      "body": {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        "status": "400",
+        "scimType": "invalidValue",
+        "detail": "displayName cannot be empty"
+      }
+    },
+    "expected_classification": {"retryable": false, "reason_contains": "400"}
+  }
+}

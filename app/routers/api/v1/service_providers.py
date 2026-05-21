@@ -37,8 +37,9 @@ from schemas.service_providers import (
 )
 from services import branding as branding_service
 from services import service_providers as sp_service
-from services.exceptions import ServiceError
+from services.exceptions import RateLimitError, ServiceError
 from services.scim import admin as scim_admin_service
+from utils.ratelimit import MINUTE, ratelimit
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/service-providers", tags=["Service Providers"])
@@ -722,7 +723,24 @@ def create_scim_credential_endpoint(
     Response fields: id, sp_id, created_at, plaintext, rotated_from_id
     (null for fresh tokens), rotated_from_revoke_at (null for fresh
     tokens).
+
+    Rate limit: 10 mints per minute per super-admin user. Defence in
+    depth against a runaway script -- the role is highly privileged but
+    the table is small and a tight cap is cheap.
     """
+    # Defence-in-depth: cap credential mints to 10/min per super-admin.
+    # The role gate already prevents random callers; this just stops a
+    # buggy or malicious script from spraying tokens.
+    try:
+        ratelimit.prevent(
+            "scim_credential_create:user:{user_id}",
+            limit=10,
+            timespan=MINUTE,
+            user_id=str(admin["id"]),
+        )
+    except RateLimitError as exc:
+        raise translate_to_http_exception(exc)
+
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return scim_admin_service.create_credential(requesting_user, sp_id)

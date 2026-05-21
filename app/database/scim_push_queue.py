@@ -69,6 +69,19 @@ def list_ready_entries(
     An entry is "ready" when it is not dead-lettered and either has no
     `next_attempt_at` or its `next_attempt_at` is in the past.
 
+    Locking semantics: uses `FOR UPDATE SKIP LOCKED` so concurrent worker
+    containers do not pick up the same row. `SKIP LOCKED` means "another
+    transaction has already selected this row -- skip it rather than
+    wait". The row locks are held for the duration of the current
+    transaction; the caller is responsible for opening a tenant-scoped
+    `session(tenant_id=...)` and keeping it open until the per-entry
+    queue mutation (`mark_attempt_failed` / `mark_dead_letter` /
+    `delete_entry`) commits. Rows visible to a stale worker (one whose
+    transaction has already released the lock) are protected at the
+    next-scan step too: each successful mutation either advances
+    `next_attempt_at` or removes the row, so a re-read in another worker
+    skips them by predicate.
+
     Args:
         tenant_id: Tenant scope for RLS.
         sp_id: If provided, restrict to a single SP.
@@ -92,6 +105,7 @@ def list_ready_entries(
           {sp_filter}
         order by enqueued_at
         limit :limit
+        for update skip locked
         """,
         params,
     )

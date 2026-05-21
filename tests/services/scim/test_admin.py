@@ -532,6 +532,244 @@ def test_retry_dead_lettered_no_rows_returns_zero(test_tenant, test_admin_user):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Audit metadata URL redaction (A3)
+# ---------------------------------------------------------------------------
+
+
+def _latest_config_update_metadata(sp_id) -> dict:
+    """Return the most-recent `scim_config_updated` audit metadata for an SP."""
+    events = database.fetchall(
+        database.UNSCOPED,
+        """
+        SELECT elm.metadata FROM event_logs el
+        JOIN event_log_metadata elm ON elm.metadata_hash = el.metadata_hash
+        WHERE el.event_type = 'scim_config_updated' AND el.artifact_id = :sp_id
+        ORDER BY el.created_at DESC
+        LIMIT 1
+        """,
+        {"sp_id": str(sp_id)},
+    )
+    assert events, "expected at least one scim_config_updated event"
+    return events[0]["metadata"]
+
+
+def test_update_scim_config_audit_redacts_url(test_tenant, test_admin_user, patch_dns_public):
+    """`scim_target_url` in audit metadata is the redacted form, not raw."""
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    scim_admin.update_scim_config(
+        ru,
+        str(sp["id"]),
+        ScimConfigUpdate(scim_target_url="https://example.com/scim/v2"),
+    )
+
+    metadata = _latest_config_update_metadata(sp["id"])
+    change = metadata["changes"]["scim_target_url"]
+    # Old was None -- passes through.
+    assert change["old"] is None
+    # New is the redacted form: scheme + host + (truncated) path.
+    assert change["new"] == "https://example.com/scim/v2"
+
+
+def test_update_scim_config_audit_drops_url_query_and_fragment(
+    test_tenant, test_admin_user, patch_dns_public
+):
+    """Query string and fragment are dropped from audit metadata."""
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    raw = "https://example.com/scim/v2?token=secret&q=1#frag"
+    scim_admin.update_scim_config(ru, str(sp["id"]), ScimConfigUpdate(scim_target_url=raw))
+
+    change = _latest_config_update_metadata(sp["id"])["changes"]["scim_target_url"]
+    # Query string and fragment are stripped.
+    assert "?" not in change["new"]
+    assert "#" not in change["new"]
+    assert "secret" not in change["new"]
+    assert change["new"] == "https://example.com/scim/v2"
+
+
+def test_update_scim_config_audit_truncates_long_path(
+    test_tenant, test_admin_user, patch_dns_public
+):
+    """A path > 64 chars is truncated with `...` suffix in audit metadata."""
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    long_path = "/" + ("segment" * 20)  # well over 64 chars
+    raw = f"https://example.com{long_path}"
+    scim_admin.update_scim_config(ru, str(sp["id"]), ScimConfigUpdate(scim_target_url=raw))
+
+    change = _latest_config_update_metadata(sp["id"])["changes"]["scim_target_url"]
+    assert change["new"].endswith("...")
+    # Total length: scheme://host + truncated path (64 chars max).
+    assert len(change["new"]) <= len("https://example.com") + 64
+
+
+def test_update_scim_config_audit_redacts_both_sides(
+    test_tenant, test_admin_user, patch_dns_public
+):
+    """Both `old` and `new` URL values are redacted on a change."""
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    scim_admin.update_scim_config(
+        ru,
+        str(sp["id"]),
+        ScimConfigUpdate(scim_target_url="https://first.example.com/scim?token=a"),
+    )
+    scim_admin.update_scim_config(
+        ru,
+        str(sp["id"]),
+        ScimConfigUpdate(scim_target_url="https://second.example.com/scim?token=b"),
+    )
+
+    change = _latest_config_update_metadata(sp["id"])["changes"]["scim_target_url"]
+    # The "old" side of the second change came from the first URL; both
+    # are normalised, no query strings, no token=*.
+    assert change["old"] == "https://first.example.com/scim"
+    assert change["new"] == "https://second.example.com/scim"
+
+
+def test_update_scim_config_audit_no_url_change_no_url_field(
+    test_tenant, test_admin_user, patch_dns_public
+):
+    """An unrelated config change does not write a `scim_target_url` entry."""
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    scim_admin.update_scim_config(ru, str(sp["id"]), ScimConfigUpdate(scim_kind="slack"))
+    metadata = _latest_config_update_metadata(sp["id"])
+    assert "scim_target_url" not in metadata["changes"]
+
+
+# ---------------------------------------------------------------------------
+# Credential rotation TOCTOU (A4)
+# ---------------------------------------------------------------------------
+
+
+def test_rotate_credential_serialises_concurrent_rotates(test_tenant, test_admin_user):
+    """Two concurrent rotates against the same credential must serialise.
+
+    Drives the database-layer atomic primitive
+    (`rotate_credential_atomic`) directly with two raw connections so we
+    can prove the FOR UPDATE row lock blocks the second rotate and that
+    the second rotate observes the now-revoked row (returning None).
+    """
+    import psycopg
+    import settings as app_settings
+    from utils.scim_crypto import encrypt_token
+
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+    first = scim_admin.create_credential(ru, str(sp["id"]))
+    tenant_id = str(test_tenant["id"])
+    sp_id = str(sp["id"])
+
+    # Two raw connections so each gets its own transaction.
+    conn_a = psycopg.connect(app_settings.DATABASE_URL, autocommit=False)
+    conn_b = psycopg.connect(app_settings.DATABASE_URL, autocommit=False)
+    try:
+        # Worker A: lock the credential row (the first FOR UPDATE).
+        with conn_a.cursor() as cur_a:
+            cur_a.execute(f"SET LOCAL app.tenant_id = '{tenant_id}'")
+            cur_a.execute(
+                """
+                SELECT id, revoked_at FROM sp_scim_credentials
+                WHERE id = %s AND sp_id = %s FOR UPDATE
+                """,
+                (first.id, sp_id),
+            )
+            row_a = cur_a.fetchone()
+            assert row_a is not None
+            assert row_a[1] is None  # revoked_at still NULL
+
+        # Worker B: try the same SELECT FOR UPDATE with `NOWAIT` so the
+        # test does not hang. Behaviour with `SKIP LOCKED` would return
+        # no rows; with `NOWAIT` it raises `LockNotAvailable`. Either is
+        # acceptable proof; we use NOWAIT for a clear assertion.
+        with conn_b.cursor() as cur_b:
+            cur_b.execute(f"SET LOCAL app.tenant_id = '{tenant_id}'")
+            with pytest.raises(psycopg.errors.LockNotAvailable):
+                cur_b.execute(
+                    """
+                    SELECT id FROM sp_scim_credentials
+                    WHERE id = %s AND sp_id = %s FOR UPDATE NOWAIT
+                    """,
+                    (first.id, sp_id),
+                )
+        conn_b.rollback()
+
+        # Worker A finishes the rotate: insert new + update old row.
+        with conn_a.cursor() as cur_a:
+            cur_a.execute(
+                """
+                INSERT INTO sp_scim_credentials (
+                    tenant_id, sp_id, created_by_user_id, encrypted_plaintext
+                ) VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    tenant_id,
+                    sp_id,
+                    str(test_admin_user["id"]),
+                    encrypt_token("worker-a-new"),
+                ),
+            )
+            cur_a.execute(
+                """
+                UPDATE sp_scim_credentials
+                SET revoked_at = now() + make_interval(hours => 24)
+                WHERE id = %s AND revoked_at IS NULL
+                """,
+                (first.id,),
+            )
+        conn_a.commit()
+
+        # Worker B can now retry against the atomic primitive. The
+        # credential has been rotated -- `revoked_at` is set -- so the
+        # primitive returns None and the service raises NotFoundError.
+        result = database.scim_credentials.rotate_credential_atomic(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=tenant_id,
+            sp_id=sp_id,
+            existing_credential_id=first.id,
+            created_by_user_id=str(test_admin_user["id"]),
+            encrypted_plaintext=encrypt_token("worker-b-new"),
+            overlap_hours=24,
+        )
+        assert result is None
+    finally:
+        conn_a.rollback()
+        conn_b.rollback()
+        conn_a.close()
+        conn_b.close()
+
+
+def test_rotate_credential_atomic_rejects_wrong_sp(test_tenant, test_admin_user):
+    """The atomic primitive rejects a credential_id that belongs to a different SP."""
+    from utils.scim_crypto import encrypt_token
+
+    sp_a = _create_sp(test_tenant["id"], test_admin_user["id"], name="sp-a")
+    sp_b = _create_sp(test_tenant["id"], test_admin_user["id"], name="sp-b")
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+    cred_a = scim_admin.create_credential(ru, str(sp_a["id"]))
+
+    # Rotating credential_a under sp_b must fail (no row matches both).
+    result = database.scim_credentials.rotate_credential_atomic(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        sp_id=str(sp_b["id"]),
+        existing_credential_id=cred_a.id,
+        created_by_user_id=str(test_admin_user["id"]),
+        encrypted_plaintext=encrypt_token("token"),
+        overlap_hours=24,
+    )
+    assert result is None
+
+
 @pytest.mark.parametrize(
     "fn,args_factory",
     [

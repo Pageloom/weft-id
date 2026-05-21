@@ -39,6 +39,7 @@ from typing import Literal
 
 import httpx
 
+from ._sanitise import redact_bearer
 from .quirks import get_quirk_module
 
 _logger = logging.getLogger(__name__)
@@ -124,13 +125,21 @@ def _success(response: httpx.Response) -> PushResult:
 
 
 def _classify_response(response: httpx.Response, quirk: ModuleType) -> PushResult:
-    """Map a non-2xx response through the quirk module into a `PushResult`."""
+    """Map a non-2xx response through the quirk module into a `PushResult`.
+
+    The reason string is sanitised through `redact_bearer()` so any echoed
+    `Authorization: Bearer <token>` header in the SP's response body does
+    not leak back into our sync-log or queue error columns. The scrub
+    happens here -- at the boundary where quirk output crosses into the
+    worker's persistence layer -- so every quirk benefits without having
+    to remember to redact in its own `interpret_error`.
+    """
     retryable, reason = quirk.interpret_error(response)
     status: PushStatus = "retryable" if retryable else "permanent"
     return PushResult(
         status=status,
         http_status=response.status_code,
-        reason=reason,
+        reason=redact_bearer(reason),
         scim_id=None,
     )
 

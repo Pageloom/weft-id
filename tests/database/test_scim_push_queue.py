@@ -4,8 +4,10 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import database
+import psycopg
 import psycopg.errors
 import pytest
+import settings
 
 
 def _create_sp(tenant_id, user_id, name="SCIM Queue SP"):
@@ -342,3 +344,73 @@ def test_rls_isolates_queue_entries_by_tenant(test_tenant, test_user):
             "DELETE FROM tenants WHERE id = :id",
             {"id": other_id["id"]},
         )
+
+
+# -- FOR UPDATE SKIP LOCKED concurrency ---------------------------------------
+
+
+def _list_ready_in_txn(conn, tenant_id, sp_id):
+    """Run the same SELECT that `list_ready_entries` runs, on a raw connection.
+
+    Mirrors the production query (predicates + FOR UPDATE SKIP LOCKED)
+    so the test exercises the locking primitive without touching the
+    pooled `database.session()` machinery, which would obscure which
+    transaction holds which row.
+    """
+    with conn.cursor() as cur:
+        cur.execute(f"SET LOCAL app.tenant_id = '{tenant_id}'")
+        cur.execute(
+            """
+            SELECT id
+            FROM scim_push_queue
+            WHERE dead_letter_at IS NULL
+              AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+              AND sp_id = %s
+            ORDER BY enqueued_at
+            FOR UPDATE SKIP LOCKED
+            """,
+            (sp_id,),
+        )
+        return [str(row[0]) for row in cur.fetchall()]
+
+
+def test_list_ready_entries_skips_rows_locked_by_concurrent_worker(test_tenant, test_user):
+    """A second worker must not pick up rows the first worker holds.
+
+    Two transactions run concurrently against the same tenant + SP. The
+    first scans and holds row locks via `FOR UPDATE SKIP LOCKED`; the
+    second scan in the same window must skip those rows. After the first
+    commits, the second can see them.
+    """
+    sp = _create_sp(test_tenant["id"], test_user["id"])
+    entry = database.scim_push_queue.upsert_entry(
+        test_tenant["id"], str(test_tenant["id"]), sp["id"], "user", str(uuid4())
+    )
+    entry_id = str(entry["id"])
+    tenant_id = str(test_tenant["id"])
+    sp_id = str(sp["id"])
+
+    # Two independent connections so each gets its own transaction.
+    conn_a = psycopg.connect(settings.DATABASE_URL, autocommit=False)
+    conn_b = psycopg.connect(settings.DATABASE_URL, autocommit=False)
+    try:
+        # Worker A locks the row.
+        rows_a = _list_ready_in_txn(conn_a, tenant_id, sp_id)
+        assert entry_id in rows_a
+
+        # Worker B scans concurrently. SKIP LOCKED must omit the row
+        # held by worker A.
+        rows_b = _list_ready_in_txn(conn_b, tenant_id, sp_id)
+        assert entry_id not in rows_b
+
+        # After worker A commits, worker B (on a fresh transaction) can
+        # see the row again -- the lock release is what makes it visible.
+        conn_a.commit()
+        conn_b.rollback()
+        rows_b_after = _list_ready_in_txn(conn_b, tenant_id, sp_id)
+        assert entry_id in rows_b_after
+    finally:
+        conn_a.rollback()
+        conn_b.rollback()
+        conn_a.close()
+        conn_b.close()

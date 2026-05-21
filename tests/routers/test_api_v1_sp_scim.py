@@ -223,6 +223,30 @@ class TestCreateCredential:
         assert body["plaintext"] == "secret-bearer-value"
         assert body["id"] == new_id
 
+    def test_rate_limit_returns_429(self, api_client, api_host):
+        """Over-cap create attempts return 429 with a Retry-After header.
+
+        Mocks `ratelimit.prevent` (cache layer fails open in tests, so we
+        force the raise via the same pattern other rate-limit tests use)
+        to prove the endpoint translates `RateLimitError` into the
+        expected 429 response.
+        """
+        from services.exceptions import RateLimitError
+
+        sp_id = str(uuid4())
+        with patch(
+            "routers.api.v1.service_providers.ratelimit.prevent",
+            side_effect=RateLimitError(
+                message="rate limited", limit=10, timespan=60, retry_after=60
+            ),
+        ):
+            resp = api_client.post(
+                f"/api/v1/service-providers/{sp_id}/scim/credentials",
+                headers={"host": api_host},
+            )
+        assert resp.status_code == 429
+        assert resp.headers.get("Retry-After") == "60"
+
 
 class TestRotateCredential:
     def test_rotates_with_default_overlap(self, api_client, api_host):

@@ -10,8 +10,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 1 | File Structure (pre-existing) |
-| Low | 3 | Duplication (pre-existing), Docs (pre-existing), Test coverage (pre-existing) |
+| Medium | 4 | File Structure (pre-existing), SCIM admin E2E gap, SCIM decrypt-failure surfacing, SCIM fan-out batching, SCIM docs polish |
+| Low | 4 | Duplication (pre-existing), Docs (pre-existing), Test coverage (pre-existing), SCIM RLS scanner suggestion |
 | Deps | 2 | markdown (HIGH, blocked by upstream; blocks deps gate), pygments (LOW, blocked by upstream) |
 
 **Last security scan:** 2026-05-15 (mirror-failure audit event + user_profile_updated PII redaction landed on feature/user-attributes; remaining low items unchanged)
@@ -88,101 +88,6 @@ Useful regression anchors, none are current bugs:
 - Admin user-detail route integration test for `user_profile_updated` event emission
 
 **Files Affected:** `tests/services/test_saml_attribute_ingestion.py`, `tests/services/test_user_attributes_service.py`, `tests/routers/test_auth.py`, `tests/routers/test_user_detail_profile.py`, `tests/e2e/`
-
----
-
-## [SECURITY HIGH] Outbound SCIM worker: no row-level lock on queue ready-set scan
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage; deferred for follow-up)
-**Severity:** High
-**Source:** Security review of `outbound-scim` branch
-
-`database.scim_push_queue.list_ready_entries` and the cleared
-`next_attempt_at` reset run under tenant RLS but use no row-level lock.
-Running multiple worker containers (the documented horizontal-scale
-story) means two workers can pick up the same queue row and double-push
-to a downstream SP. The current per-tenant `with session(...)` loop in
-`app/jobs/process_scim_push_queue.py` masks this in dev but not at scale.
-
-**Suggested fix:** Add `FOR UPDATE SKIP LOCKED` to the
-`list_ready_entries` query, or take a per-tenant advisory lock around
-the drain loop. Either approach is bounded scope.
-
-**Files affected:** `app/database/scim_push_queue.py`, possibly
-`app/jobs/process_scim_push_queue.py`.
-
----
-
-## [SECURITY MEDIUM] Bearer-token scrubbing in scim_sync_log.error
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage)
-**Severity:** Medium
-
-A misbehaving downstream SP can echo the inbound `Authorization: Bearer
-...` header in the 4xx/5xx response body. That body lands in
-`scim_sync_log.error`, where it is rendered in the admin UI's Sync
-activity panel and exported via the API. Bearer plaintext should never
-leak back into our own logs.
-
-**Suggested fix:** In each quirk module's `interpret_error`, scrub
-`Authorization: Bearer ...` (and `Bearer\s+\S+`) before recording the
-reason string. The base `interpret_error` is the natural home.
-
-**Files affected:** `app/services/scim/quirks/*.py` (or a shared
-sanitiser in `app/services/scim/client.py`).
-
----
-
-## [SECURITY MEDIUM] scim_config_updated audit metadata stores raw old/new URL
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage)
-**Severity:** Medium
-
-`services.scim.admin.update_scim_config` writes the previous and new
-`scim_target_url` verbatim into the `scim_config_updated` audit event's
-metadata. The renderer for that event in the audit log UI does not yet
-escape user-controlled URLs, opening a log-injection / phishing surface
-(a malicious super-admin could set a target URL that renders as a
-clickable link to a phishing page).
-
-**Suggested fix:** Either restrict what gets stored (record only the
-hostname or a redacted form), or harden the audit-log renderer to
-HTML-escape URL values consistently.
-
-**Files affected:** `app/services/scim/admin.py`,
-`app/templates/audit_event_detail.html`.
-
----
-
-## [SECURITY LOW] Credential rotation TOCTOU
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage)
-**Severity:** Low
-
-`services.scim.admin.rotate_credential` reads the active credentials,
-mints a new row, then schedules the old one for revocation. Two
-concurrent rotates against the same credential produce two new
-credentials and double-schedule the old one for revocation. The blast
-radius is small (an extra dangling token, not a security regression),
-but the path should serialise via a SELECT ... FOR UPDATE or per-SP
-advisory lock.
-
-**Files affected:** `app/services/scim/admin.py`,
-`app/database/scim_credentials.py`.
-
----
-
-## [SECURITY LOW] No rate limit on POST /scim/credentials
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage)
-**Severity:** Low
-
-A super-admin can spam `POST /api/v1/service-providers/{sp_id}/scim/credentials`
-to mint unbounded credential rows. Operational rather than security risk
-(the table is small and the role is highly privileged), but a sensible
-defence-in-depth cap (e.g. 10/min/SP) would prevent runaway scripts.
-
-**Files affected:** `app/routers/api/v1/service_providers.py`.
 
 ---
 

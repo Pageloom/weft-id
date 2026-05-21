@@ -153,6 +153,43 @@ def _validate_scim_target_url(url: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Maximum path length retained in audit metadata before truncation. The full
+# URL is recoverable from the current `service_providers` row; the audit log
+# only needs a redacted "what changed" view, not the raw target.
+_AUDIT_URL_PATH_MAX = 64
+
+
+def _redact_url_for_audit(url: Any) -> Any:
+    """Return a redacted representation of a SCIM target URL for audit metadata.
+
+    Drops the query string and fragment, truncates a long path with `...`,
+    and keeps scheme + host (+ port) + truncated path. `None` and empty
+    string pass through unchanged so callers can use this on both sides
+    of a change-tuple without special-casing nulls.
+
+    The full URL is intentionally NOT stored in audit metadata: the
+    current value is always recoverable from `service_providers.scim_target_url`,
+    and the audit log just needs to record "what changed", not the raw
+    target (which is admin-controlled and could be crafted to phish or
+    inject HTML if a future audit-log renderer mishandles user input).
+    """
+    if url is None or url == "":
+        return url
+    if not isinstance(url, str):
+        # Defensive: callers pass strings, but a non-string value is not
+        # something we want to attempt to parse. Stringify and bail.
+        return str(url)
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        # Doesn't look like a URL we can meaningfully redact -- return a
+        # marker rather than echoing arbitrary text into metadata.
+        return "[unparseable]"
+    path = parsed.path or ""
+    if len(path) > _AUDIT_URL_PATH_MAX:
+        path = path[: _AUDIT_URL_PATH_MAX - 3] + "..."
+    return f"{parsed.scheme}://{parsed.netloc}{path}"
+
+
 def _row_to_config(sp_row: dict) -> ScimConfig:
     return ScimConfig(
         sp_id=str(sp_row["id"]),
@@ -276,7 +313,17 @@ def update_scim_config(
     for key, new_value in updates.items():
         old_value = existing.get(key)
         if old_value != new_value:
-            changed[key] = {"old": old_value, "new": new_value}
+            # `scim_target_url` is admin-controlled and could be a phishing
+            # surface if a future audit-log renderer ever links it. Store
+            # only the redacted form (scheme + host + truncated path); the
+            # full URL is always recoverable from the live SP row.
+            if key == "scim_target_url":
+                changed[key] = {
+                    "old": _redact_url_for_audit(old_value),
+                    "new": _redact_url_for_audit(new_value),
+                }
+            else:
+                changed[key] = {"old": old_value, "new": new_value}
 
     row = database.service_providers.update_service_provider(tenant_id, sp_id, **updates)
     if row is None:
@@ -389,32 +436,30 @@ def rotate_credential(
             code="scim_overlap_out_of_range",
         )
 
-    existing = database.scim_credentials.list_active_credentials(tenant_id, sp_id)
-    existing_ids = {str(row["id"]) for row in existing}
-    if credential_id not in existing_ids:
+    plaintext, cipher = _generate_token()
+    # Atomic primitive: locks the existing credential row (FOR UPDATE),
+    # inserts the new row, and schedules the old row's revocation -- all
+    # under one transaction so two concurrent rotates serialise. Returns
+    # None when the existing credential is gone or already revoked, which
+    # we surface as `NotFoundError` to match the prior contract.
+    new_row = database.scim_credentials.rotate_credential_atomic(
+        tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
+        sp_id=sp_id,
+        existing_credential_id=credential_id,
+        created_by_user_id=requesting_user["id"],
+        encrypted_plaintext=cipher,
+        overlap_hours=overlap_hours,
+    )
+    if new_row is None:
         raise NotFoundError(
             message="Credential not found or already revoked",
             code="scim_credential_not_found",
         )
 
-    plaintext, cipher = _generate_token()
-    new_row = database.scim_credentials.create_credential(
-        tenant_id=tenant_id,
-        tenant_id_value=tenant_id,
-        sp_id=sp_id,
-        created_by_user_id=requesting_user["id"],
-        encrypted_plaintext=cipher,
-    )
-
     if overlap_hours == 0:
-        database.scim_credentials.mark_revoked(tenant_id, credential_id)
         revoke_at = datetime.now(tz=new_row["created_at"].tzinfo)
     else:
-        database.scim_credentials.schedule_revocation(
-            tenant_id,
-            credential_id,
-            overlap_interval=f"{overlap_hours} hours",
-        )
         revoke_at = datetime.now(tz=new_row["created_at"].tzinfo) + timedelta(hours=overlap_hours)
 
     log_event(

@@ -432,16 +432,22 @@ def enqueue_sp_tenant_fan_out(
         )
         return
 
-    for user_id in user_ids:
-        try:
-            queue.enqueue_user(tenant_id, sp_id, user_id)
-        except Exception:  # noqa: BLE001
-            logger.exception(
-                "enqueue_sp_tenant_fan_out: enqueue failed (tenant=%s sp=%s user=%s)",
-                tenant_id,
-                sp_id,
-                user_id,
-            )
+    if not user_ids:
+        return
+
+    # Tenant-wide fan-outs can touch every user in a tenant. For 10k+ user
+    # tenants the per-user loop would mean 10k synchronous DB round trips
+    # on the request thread. Batch into a single chunked INSERT ... VALUES
+    # ... ON CONFLICT via the database helper.
+    try:
+        queue.enqueue_users_bulk(tenant_id, sp_id, [str(uid) for uid in user_ids])
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "enqueue_sp_tenant_fan_out: bulk enqueue failed (tenant=%s sp=%s users=%d)",
+            tenant_id,
+            sp_id,
+            len(user_ids),
+        )
 
 
 _TRIGGERS: dict[str, Callable[[str, str, dict[str, Any]], None]] = {

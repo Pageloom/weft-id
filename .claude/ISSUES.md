@@ -10,9 +10,9 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 3 | File Structure (pre-existing), SCIM admin E2E gap, SCIM fan-out batching |
-| Low | 4 | Duplication (pre-existing), Docs (pre-existing), Test coverage (pre-existing), SCIM RLS scanner suggestion |
-| Deps | 2 | markdown (HIGH, blocked by upstream; blocks deps gate), pygments (LOW, blocked by upstream) |
+| Medium | 1 | File Structure (pre-existing) |
+| Low | 3 | Duplication (pre-existing), Docs (pre-existing), Test coverage (pre-existing) |
+| Deps | 1 | pygments (LOW, blocked by upstream) |
 
 **Last security scan:** 2026-05-15 (mirror-failure audit event + user_profile_updated PII redaction landed on feature/user-attributes; remaining low items unchanged)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
@@ -88,85 +88,6 @@ Useful regression anchors, none are current bugs:
 - Admin user-detail route integration test for `user_profile_updated` event emission
 
 **Files Affected:** `tests/services/test_saml_attribute_ingestion.py`, `tests/services/test_user_attributes_service.py`, `tests/routers/test_auth.py`, `tests/routers/test_user_detail_profile.py`, `tests/e2e/`
-
----
-
-## [TEST MEDIUM] SCIM admin UI: rotate / revoke / retry-dead-lettered flows not in E2E
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage)
-**Severity:** Medium
-
-`tests/e2e/test_scim_admin_e2e.py` covers create-token plaintext display
-but not rotation, revoke, or the retry-dead-lettered button. Add three
-short Playwright tests modelled on the existing create-token flow.
-
-**Files affected:** `tests/e2e/test_scim_admin_e2e.py`.
-
----
-
-## [TEST MEDIUM] enqueue_sp_tenant_fan_out has no batching cap for large tenants
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage)
-**Severity:** Medium
-
-For a tenant with 10k users, the SP enable / scope-change fan-out fires
-10k queue upserts under the calling request's thread. The request still
-returns quickly because each upsert is small, but the burst can starve
-other DB work briefly. Either batch the upserts into a single INSERT
-... SELECT, or off-load to a one-shot background task.
-
-**Files affected:** `app/services/scim/dispatch.py` (or wherever
-`enqueue_sp_tenant_fan_out` lives).
-
----
-
-## [COMPLIANCE LOW] RLS widening on SCIM tables relies on developer discipline
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage)
-**Severity:** Low
-
-Migration 0037 widened RLS on `scim_push_queue`, `scim_sync_log`, and
-`sp_scim_credentials` so the worker can scan cross-tenant. The widening
-is necessary but creates a footgun: any future code path that performs
-an UNSCOPED read on those tables outside `app/jobs/` could leak across
-tenants. The compliance check should grow a rule that flags `UNSCOPED`
-reads of tenant-scoped tables when the call site is not under
-`app/jobs/` or `app/services/scim/`.
-
-**Files affected:** `dev/compliance_check.py`.
-
----
-
-## [DEPS] markdown 3.10.2 -- PYSEC-2026-89 / CVE-2025-69534 (HIGH, blocked by upstream)
-
-**Discovered:** 2026-05-20 (newly catalogued in GitHub Advisory DB; surfaced by `make check`)
-**Severity:** High
-**Source:** `python dev/deps_check.py`
-
-**PYSEC-2026-89 (CVE-2025-69534):** Malformed HTML-like sequences cause
-`html.parser.HTMLParser` to raise an unhandled `AssertionError` during
-Markdown parsing. Any caller that does not catch `AssertionError` will
-crash on attacker-controlled input.
-
-**Exploitability in this project: NONE.** `markdown` is a transitive
-dep of `zensical` and `pymdown-extensions`, used only by the docs site
-build at Docker image-build time. Markdown is never parsed at request
-time; the deployed site serves pre-built static HTML. No user-supplied
-markdown is ever fed to the library.
-
-**Remediation: BLOCKED.** `markdown` 3.10.2 is the latest release; no
-upstream fix has shipped (advisory does not list a Fixed-in version as
-of 2026-05-20). Pinning to an older version would not help; the issue
-is present from 3.8 onward.
-
-**Blocks `make check` deps gate** (deps_check exits 1 on any HIGH or
-critical finding). Until upstream patches, every `make check` /
-`make quality-all` run will fail at the dependency stage. Individual
-stages (lint, format, types, compliance, tests, e2e) all pass.
-
-Re-check periodically; bump as soon as a patched release lands.
-
-**Files Affected:** `pyproject.toml`, `poetry.lock`
 
 ---
 

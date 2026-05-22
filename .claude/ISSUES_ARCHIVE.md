@@ -5,6 +5,124 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST MEDIUM] SCIM admin UI: rotate / revoke / retry-dead-lettered flows not in E2E
+
+**Fixed by:** outbound-scim 7e
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Medium
+
+`tests/e2e/test_scim_admin_e2e.py` covered create-token plaintext display
+but not rotation, revoke, or the retry-dead-lettered button.
+
+**Resolution:** Added three Playwright test classes to
+`tests/e2e/test_scim_admin_e2e.py`:
+
+- `TestScimAdminRotateToken` -- creates a credential, clicks Rotate,
+  accepts the confirm modal, asserts the new plaintext box appears and
+  both old + new credential rows render after reload. Pins the iter 7b
+  "expires" copy fix by asserting the old row's text contains
+  "expires" (not the prior "revoked" wording).
+- `TestScimAdminRevokeToken` -- creates a credential, clicks Revoke,
+  accepts confirmation, asserts the row disappears from the active list
+  after reload. Uses `page.expect_navigation` to await the JS
+  `window.location.reload()` deterministically.
+- `TestScimAdminRetryDeadLettered` -- seeds a dead-lettered queue row
+  directly via SQL (approach (a)), clicks Retry, accepts confirmation,
+  asserts the dead counter goes 1 -> 0 and the pending counter 0 -> 1
+  (revived, not deleted), and that the Retry button vanishes (it is
+  conditional on dead_lettered > 0).
+
+**Files Affected:** `tests/e2e/test_scim_admin_e2e.py`
+
+---
+
+## [TEST MEDIUM] enqueue_sp_tenant_fan_out has no batching cap for large tenants
+
+**Fixed by:** outbound-scim 7e
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Medium
+
+For a 10k-user tenant, the SP available_to_all toggle fan-out fired 10k
+synchronous queue upserts on the calling request's thread. Even though
+each upsert was fast, the burst could starve other DB work briefly.
+
+**Resolution:** Added `database.scim_push_queue.bulk_upsert_users` that
+issues a chunked `INSERT ... VALUES ... ON CONFLICT DO UPDATE` per chunk
+(chunk size 1000). Conflict semantics match `upsert_entry` exactly
+(`enqueued_at` bumped, attempts/next_attempt_at/last_error reset,
+`dead_letter_at` preserved). Added service wrapper
+`services.scim.queue.enqueue_users_bulk`. Updated
+`enqueue_sp_tenant_fan_out` to call the bulk helper once instead of
+looping. For 10k users this drops the request-thread cost from 10000
+round trips to 10.
+
+**Tests Added:**
+- 6 database tests covering empty list, single user, many rows,
+  existing-row reset, dead-letter preservation, chunk-boundary
+  correctness.
+- 3 service tests asserting the dispatcher picks the bulk path, the
+  empty-user-list short-circuit, and best-effort error handling.
+
+**Files Affected:** `app/database/scim_push_queue.py`,
+`app/services/scim/queue.py`, `app/services/scim/dispatch.py`,
+`tests/database/test_scim_push_queue.py`,
+`tests/services/scim/test_dispatch_sp_fan_out.py`
+
+---
+
+## [COMPLIANCE LOW] RLS widening on SCIM tables relies on developer discipline
+
+**Fixed by:** outbound-scim 7e
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Low
+
+Migration 0037 widened RLS on `scim_push_queue`, `scim_sync_log`, and
+`sp_scim_credentials` so the worker can scan cross-tenant. The widening
+was necessary but created a footgun: any future code path performing an
+UNSCOPED read on those tables outside `app/jobs/` could leak across
+tenants.
+
+**Resolution:** Added `check_scim_rls_widening_violations` to
+`dev/compliance_check.py` (principle #16, "scim-rls-widening"). The
+check flags any call resolving to one of the watched modules
+(`database.scim_push_queue`, `database.scim_sync_log`,
+`database.scim_credentials`, `database.event_log`) that passes
+`UNSCOPED` as the tenant argument from outside the allowed prefixes
+(`app/jobs/`, `app/services/scim/`, `app/database/`). Recognises three
+call shapes: positional, `tenant_id=UNSCOPED` keyword, and
+`database.UNSCOPED` attribute access.
+
+The watched-table list is deliberately narrow to avoid false positives
+on global-table UNSCOPED uses (`tenants`, `bg_tasks`, health-check
+`SELECT 1`, etc.).
+
+**Tests Added:** `tests/test_compliance_scim_rls.py` -- 8 tests covering
+all three allowed prefixes, both flagged call sites (router and
+non-SCIM service), the keyword/attribute call-form variants, scoped
+tenant calls (negative), and calls into non-watched modules
+(negative).
+
+**Files Affected:** `dev/compliance_check.py`,
+`tests/test_compliance_scim_rls.py`
+
+---
+
+## [DEPS] markdown 3.10.2 -- PYSEC-2026-89 / CVE-2025-69534 (HIGH)
+
+**Resolved by:** advisory delisted from GHSA database as of 2026-05-22;
+superseded.
+
+The advisory no longer surfaces in `python dev/deps_check.py` runs. The
+deps gate is clean again. If the advisory is re-listed at a later date
+with a Fixed-in version, the dependency can be bumped at that time.
+
+**Files Affected:** `pyproject.toml`, `poetry.lock`
+
+---
+
 ## [TEST MEDIUM] Decrypt-failure path has no admin-UI signal
 
 **Fixed by:** outbound-scim 7d

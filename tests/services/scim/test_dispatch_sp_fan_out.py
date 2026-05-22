@@ -175,6 +175,84 @@ def test_fan_out_swallows_user_lookup_failure(test_tenant, test_user):
     assert rows == []
 
 
+def test_fan_out_uses_bulk_upsert_to_avoid_n_round_trips(test_tenant, test_user):
+    """The fan-out trigger MUST call the bulk helper, not enqueue_user N times.
+
+    Regression anchor for the iteration 7e batching fix: a 100-user
+    fan-out used to issue 100 synchronous DB upserts on the request
+    thread. The new path makes one (or a small number of) chunked bulk
+    calls.
+
+    Patches `services.scim.queue.enqueue_user` AND
+    `services.scim.queue.enqueue_users_bulk` to assert dispatch picks
+    the bulk path. The chunk size is configured for 1000 in the database
+    layer, so 100 ids becomes exactly one bulk call.
+    """
+    sp = _create_sp(test_tenant["id"], test_user["id"], scim_enabled=True)
+
+    # Seed 100 tenant users. We mock the scope query rather than insert
+    # 100 rows so the assertion is precise about the dispatch path.
+    fake_user_ids = [str(uuid4()) for _ in range(100)]
+
+    with (
+        patch("database.scim_scope.tenant_user_ids", return_value=fake_user_ids),
+        patch("services.scim.queue.enqueue_users_bulk", return_value=100) as bulk_mock,
+        patch("services.scim.queue.enqueue_user") as single_mock,
+    ):
+        scim_dispatch.enqueue_sp_tenant_fan_out(
+            str(test_tenant["id"]),
+            str(sp["id"]),
+            {"available_to_all": True, "previous_available_to_all": False},
+        )
+
+    # Exactly one bulk call (chunk-size 1000 > 100 users).
+    assert bulk_mock.call_count == 1
+    # The per-user fallback must not be used.
+    assert single_mock.call_count == 0
+    # Bulk receives all user ids as a single list.
+    bulk_args = bulk_mock.call_args
+    assert bulk_args.args[0] == str(test_tenant["id"])
+    assert bulk_args.args[1] == str(sp["id"])
+    assert set(bulk_args.args[2]) == set(fake_user_ids)
+
+
+def test_fan_out_empty_user_list_is_clean_noop(test_tenant, test_user):
+    """Tenant with no users -> no bulk call, no rows."""
+    sp = _create_sp(test_tenant["id"], test_user["id"], scim_enabled=True)
+
+    with (
+        patch("database.scim_scope.tenant_user_ids", return_value=[]),
+        patch("services.scim.queue.enqueue_users_bulk") as bulk_mock,
+    ):
+        scim_dispatch.enqueue_sp_tenant_fan_out(
+            str(test_tenant["id"]),
+            str(sp["id"]),
+            {"available_to_all": True, "previous_available_to_all": False},
+        )
+
+    assert bulk_mock.call_count == 0
+
+
+def test_fan_out_swallows_bulk_enqueue_failure(test_tenant, test_user):
+    """Best-effort: a bulk-helper failure must not raise out of the trigger."""
+    sp = _create_sp(test_tenant["id"], test_user["id"], scim_enabled=True)
+    fake_user_ids = [str(uuid4()) for _ in range(3)]
+
+    with (
+        patch("database.scim_scope.tenant_user_ids", return_value=fake_user_ids),
+        patch(
+            "services.scim.queue.enqueue_users_bulk",
+            side_effect=RuntimeError("kaboom"),
+        ),
+    ):
+        # Must not raise.
+        scim_dispatch.enqueue_sp_tenant_fan_out(
+            str(test_tenant["id"]),
+            str(sp["id"]),
+            {"available_to_all": True, "previous_available_to_all": False},
+        )
+
+
 def test_event_log_dispatches_through_log_event(test_tenant, test_user):
     """Wire test: writing the event via log_event() triggers the fan-out."""
     from services.event_log import log_event

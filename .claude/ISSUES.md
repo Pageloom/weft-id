@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 4 | File Structure (pre-existing), SCIM admin E2E gap, SCIM decrypt-failure surfacing, SCIM fan-out batching, SCIM docs polish |
+| Medium | 3 | File Structure (pre-existing), SCIM admin E2E gap, SCIM fan-out batching |
 | Low | 4 | Duplication (pre-existing), Docs (pre-existing), Test coverage (pre-existing), SCIM RLS scanner suggestion |
 | Deps | 2 | markdown (HIGH, blocked by upstream; blocks deps gate), pygments (LOW, blocked by upstream) |
 
@@ -104,24 +104,6 @@ short Playwright tests modelled on the existing create-token flow.
 
 ---
 
-## [TEST MEDIUM] Decrypt-failure path has no admin-UI signal
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage)
-**Severity:** Medium
-
-`jobs.process_scim_push_queue._resolve_outbound_token` returns None
-both when no credential ever existed AND when `InvalidToken` fires on
-Fernet decryption (key rotation without a re-encrypt). The worker dead-
-letters with the same `no_credential_source` reason in both cases, so
-the admin UI cannot distinguish "configure a token" from "your key is
-out of sync." Add a distinct reason string (e.g. `credential_decrypt_failed`)
-and surface it in the sync-log panel.
-
-**Files affected:** `app/jobs/process_scim_push_queue.py`,
-`app/services/scim/worker.py`.
-
----
-
 ## [TEST MEDIUM] enqueue_sp_tenant_fan_out has no batching cap for large tenants
 
 **Discovered:** 2026-05-20 (iter 7b fix-now triage)
@@ -152,20 +134,6 @@ reads of tenant-scoped tables when the call site is not under
 `app/jobs/` or `app/services/scim/`.
 
 **Files affected:** `dev/compliance_check.py`.
-
----
-
-## [DOCS] SCIM admin guide MEDIUM tech-writer findings (W4-W10)
-
-**Discovered:** 2026-05-20 (iter 7b fix-now triage; deferred per lead)
-**Severity:** Medium (docs polish)
-
-Tech-writer agent flagged seven medium-severity copy / structure issues
-in `docs/admin-guide/service-providers/scim.md` (the W4-W10 items in the
-iter-7 final-review notes). Defer to a documentation-only pass; none
-block release.
-
-**Files affected:** `docs/admin-guide/service-providers/scim.md`.
 
 ---
 

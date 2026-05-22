@@ -125,12 +125,27 @@ def process_pending_pushes(
             continue
 
         resolved = resolver(tenant_id, sp_id)
-        # Accept both shapes: legacy `str | None` and new `tuple[str, str] | None`.
-        # The production resolver returns the tuple so we can update_last_used
-        # after a successful push; tests typically inject a plain string.
+        # Three accepted shapes:
+        #   ("ok", credential_id, plaintext)        -- new production shape (success)
+        #   ("decrypt_failed", credential_id)       -- new production shape (decrypt failure)
+        #   (credential_id, plaintext)              -- legacy tuple (treated as success)
+        #   plaintext str | None                    -- legacy bare-string fixture shape
         credential_id: str | None
+        token: str | None
+        decrypt_failed_credential_id: str | None = None
         if isinstance(resolved, tuple):
-            credential_id, token = resolved
+            if len(resolved) == 3 and resolved[0] == "ok":
+                _, credential_id, token = resolved
+            elif len(resolved) == 2 and resolved[0] == "decrypt_failed":
+                credential_id = None
+                token = None
+                decrypt_failed_credential_id = resolved[1]
+            elif len(resolved) == 2:
+                # Legacy `(credential_id, plaintext)` shape.
+                credential_id, token = resolved
+            else:  # pragma: no cover - defensive
+                credential_id = None
+                token = None
         else:
             credential_id = None
             token = resolved
@@ -141,6 +156,7 @@ def process_pending_pushes(
                 entry=entry,
                 token=token,
                 credential_id=credential_id,
+                decrypt_failed_credential_id=decrypt_failed_credential_id,
                 now=now,
                 http_client=http_client,
             )
@@ -210,6 +226,7 @@ def _process_entry(
     entry: dict,
     token: str | None,
     credential_id: str | None,
+    decrypt_failed_credential_id: str | None = None,
     now: datetime,
     http_client: Any,
 ) -> str:
@@ -238,6 +255,23 @@ def _process_entry(
             entry,
             log_id,
             f"unknown_resource_type: {resource_type!r}",
+        )
+
+    if decrypt_failed_credential_id is not None:
+        # Credential row exists but its ciphertext could not be
+        # decrypted. This is a distinct failure mode from "no
+        # credential" -- typically a SECRET_KEY rotation without a
+        # re-encrypt. Dead-letter so the admin sees a specific reason
+        # in the sync-log panel instead of the generic "configure a
+        # token" message.
+        return _record_dead_letter(
+            tenant_id,
+            entry,
+            log_id,
+            (
+                f"credential_decrypt_failed: credential {decrypt_failed_credential_id} "
+                "ciphertext could not be decrypted (check SECRET_KEY rotation)"
+            ),
         )
 
     if token is None:

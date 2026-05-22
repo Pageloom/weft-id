@@ -54,7 +54,9 @@ SCIM lives on its own tab on each SP's detail page. Open the SP, click
 * **Target URL** -- the SCIM 2.0 base URL of the downstream
   application. WeftID appends `/Users`, `/Groups`, and resource IDs
   as needed. Vendor-specific base URLs are listed in the vendor
-  sections below.
+  sections below. **Target URL is required before you can enable
+  SCIM**: the service rejects the save with a validation error if
+  you check **Enable outbound SCIM** without first supplying a URL.
 * **Application type** -- the vendor preset. Selecting Slack,
   GitHub, Atlassian, or GitLab applies known compatibility
   transforms. Use **Generic SCIM 2.0** for spec-correct providers
@@ -74,12 +76,29 @@ SCIM lives on its own tab on each SP's detail page. Open the SP, click
 Save the configuration before creating a bearer token. The API
 rejects credential operations when SCIM is disabled.
 
+### Pausing without deleting
+
+You can uncheck **Enable outbound SCIM** while leaving the target
+URL, application type, and bearer tokens in place. Pausing this way:
+
+* Stops the worker from picking up new pushes for this SP
+  (pending rows that have not yet drained become "skipped" on the
+  next pass).
+* Leaves the credentials intact, so re-enabling is a one-click
+  operation. No need to mint a new token or repaste it in the
+  downstream app.
+* Leaves the queue, sync-log retention, and audit history intact.
+
+This is the right setting for a temporary maintenance window, a
+suspected misconfiguration you want to halt while investigating, or
+a paused integration that you intend to resume.
+
 ## Credential lifecycle
 
 Bearer tokens are how WeftID authenticates its outbound push.
 
 In WeftID's model the *client* (WeftID) mints the bearer secret and
-the operator pastes it into the downstream app's SCIM bearer-token
+the admin pastes it into the downstream app's SCIM bearer-token
 field. This matches how Okta-style SCIM connectors work, and is what
 Slack, GitHub Enterprise, Atlassian Guard, GitLab, and most generic
 SCIM 2.0 SPs accept.
@@ -156,6 +175,42 @@ queue depth and the most recent push attempts.
 
 > TODO: screenshot - sync activity panel showing a mix of done / failed / dead_letter rows
 
+### Common worker reason codes
+
+The **Error** column shows a compact, machine-readable reason slug
+followed by extra context. The slugs are stable so admins (and grep)
+can spot patterns at a glance. The most common ones:
+
+* `no_credential_source: outbound SCIM credential is not configured for this SP`
+   -- No active bearer token exists for this SP. Mint one on the
+   SCIM tab and paste it into the downstream app.
+* `credential_decrypt_failed: credential <id> ciphertext could not be decrypted (check SECRET_KEY rotation)`
+   -- A bearer-token row exists but Fernet rejected its ciphertext.
+   The usual cause is a `SECRET_KEY` rotation that did not re-encrypt
+   existing rows. Mint a fresh token (the new one is encrypted with
+   the current key) and revoke the broken row.
+* `scim_target_missing` / `scim_disabled_or_no_target` -- the SP was
+   deleted, SCIM was disabled on it, or the target URL was cleared
+   between enqueue and drain. The queue row is discarded; the next
+   config change re-enqueues if needed.
+* `unknown_resource_type: '<value>'` -- a queue row carries a
+   resource type the worker does not know (currently only `user`
+   and `group` are valid). Indicates a bad enqueue call upstream;
+   file a bug.
+* `worker_exception: <ExceptionType>: <message>` -- the worker
+   raised an uncaught exception while building the payload or
+   scoping the resource. Retryable, bounded by the attempts counter
+   so a code-fix redeploy gets a clean second chance.
+* `permanent http=<code> <body excerpt>` -- the downstream SP
+   returned a non-retryable status (typically a 4xx other than 429).
+   The row dead-letters immediately. Inspect the body excerpt for
+   the SP's error message (`401 Unauthorized`, `400 invalidValue`,
+   etc.).
+* `retryable http=<code> <body excerpt>` -- a retryable failure
+   (5xx, 429, or a vendor-specific retryable code). The row is
+   scheduled with exponential backoff (1m / 5m / 30m / 2h /
+   dead-letter).
+
 ## Vendor walkthroughs
 
 WeftID ships day-one quirk modules for four widely-used SaaS
@@ -177,12 +232,12 @@ Slack's SCIM API is documented at
   3. Slack accepts a long-lived bearer that the SCIM client
      supplies. Paste the plaintext token from WeftID's amber box
      into Slack's SCIM-token field.
-* **Quirks the operator should know:**
+* **Quirks the admin should know:**
   * Slack uses the spec-correct
     `urn:ietf:params:scim:schemas:core:2.0:User` URN. No vendor
     extension URN is needed.
   * Slack strips `$ref` on Group member entries; WeftID drops it
-    before push (no operator action required).
+    before push (no admin action required).
   * Slack returns `429` with a `Retry-After` header during burst
     traffic. The worker honors it.
 
@@ -204,7 +259,7 @@ GitHub's Enterprise SCIM API is documented at
      this enterprise. GitHub validates that the bearer carries the
      `scim:enterprise` scope; ensure the SCIM provisioning flow is
      enabled before WeftID pushes its first request.
-* **Quirks the operator should know:**
+* **Quirks the admin should know:**
   * GitHub's SCIM is tied to SAML: a user's SAML NameID **must**
     match the SCIM `externalId`. If your IdP NameID format
     diverges from what GitHub expects, users will be
@@ -238,7 +293,7 @@ Atlassian's provisioning documentation is at
      SCIM base URL and prompts for the SCIM bearer.
   4. Copy the plaintext token from WeftID's amber box and paste it
      into the Atlassian SCIM-bearer field.
-* **Quirks the operator should know:**
+* **Quirks the admin should know:**
   * Atlassian rejects PATCH `replace` operations with empty
     `value` arrays; the quirk module drops them client-side.
   * `displayName` is strict: Atlassian fails the request with a
@@ -264,11 +319,11 @@ GitLab's SCIM setup is documented at
   2. Navigate to **Group > Settings > SAML SSO**. You must have
      SAML SSO already configured.
   3. Scroll to **SCIM Token**. GitLab expects the SCIM client to
-     present a bearer of the operator's choice; paste the
+     present a bearer of the admin's choice; paste the
      plaintext token from WeftID's amber box.
   4. Set the **Target URL** to the SCIM base URL shown above the
      token field.
-* **Quirks the operator should know:**
+* **Quirks the admin should know:**
   * GitLab couples `externalId` to the SAML NameID: a mismatch
     silently breaks login even when SCIM provisioning succeeds.
     Ensure the IdP attribute mapping for NameID lines up with the

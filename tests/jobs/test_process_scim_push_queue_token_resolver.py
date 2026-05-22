@@ -25,7 +25,7 @@ def _create_sp(tenant_id, user_id, name="Token Resolver SP"):
     )
 
 
-def test_returns_plaintext_when_active_credential_exists(test_tenant, test_user):
+def test_returns_ok_tuple_when_active_credential_exists(test_tenant, test_user):
     sp = _create_sp(test_tenant["id"], test_user["id"])
     plaintext = "active-token-value"
     cred = database.scim_credentials.create_credential(
@@ -37,7 +37,7 @@ def test_returns_plaintext_when_active_credential_exists(test_tenant, test_user)
     )
 
     out = _resolve_outbound_token(str(test_tenant["id"]), str(sp["id"]))
-    assert out == (str(cred["id"]), plaintext)
+    assert out == ("ok", str(cred["id"]), plaintext)
 
 
 def test_returns_none_when_no_credential_exists(test_tenant, test_user):
@@ -61,10 +61,15 @@ def test_returns_none_for_row_without_plaintext(test_tenant, test_user):
     assert out is None
 
 
-def test_returns_none_when_ciphertext_invalid(test_tenant, test_user):
-    """Corrupted ciphertext logs and yields None instead of crashing the worker."""
+def test_returns_decrypt_failed_when_ciphertext_invalid(test_tenant, test_user):
+    """Corrupted ciphertext yields a distinguishable decrypt-failed outcome.
+
+    The worker maps this to a `credential_decrypt_failed:` sync-log
+    reason so the admin can tell "your SECRET_KEY is out of sync" apart
+    from "you haven't configured a token yet."
+    """
     sp = _create_sp(test_tenant["id"], test_user["id"])
-    database.scim_credentials.create_credential(
+    cred = database.scim_credentials.create_credential(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
         sp_id=str(sp["id"]),
@@ -73,7 +78,7 @@ def test_returns_none_when_ciphertext_invalid(test_tenant, test_user):
     )
 
     out = _resolve_outbound_token(str(test_tenant["id"]), str(sp["id"]))
-    assert out is None
+    assert out == ("decrypt_failed", str(cred["id"]))
 
 
 def test_picks_newest_credential_during_rotation_overlap(test_tenant, test_user):
@@ -102,7 +107,7 @@ def test_picks_newest_credential_during_rotation_overlap(test_tenant, test_user)
     )
 
     out = _resolve_outbound_token(str(test_tenant["id"]), str(sp["id"]))
-    assert out == (str(new["id"]), new_plain)
+    assert out == ("ok", str(new["id"]), new_plain)
 
 
 def test_returns_none_on_database_failure(test_tenant, test_user):

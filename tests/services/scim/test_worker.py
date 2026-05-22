@@ -196,6 +196,81 @@ def test_default_token_resolver_returns_none() -> None:
     assert worker._default_token_resolver("tenant", "sp") is None
 
 
+def test_dead_letters_with_distinct_reason_when_resolver_signals_decrypt_failure(
+    fake_now: datetime,
+) -> None:
+    """A `("decrypt_failed", credential_id)` outcome writes a credential_decrypt_failed reason.
+
+    This is the distinct-from-"no credential" failure mode added by
+    B1: a credential row exists but Fernet can't decrypt it, usually
+    because `SECRET_KEY` was rotated without re-encrypting the
+    ciphertext. The admin needs to see "credential_decrypt_failed" in
+    the sync-log panel so they don't misdiagnose as "configure a
+    token."
+    """
+    entry = _entry()
+    sp = _sp()
+    db = _build_db_mock(
+        queue_entries=[entry],
+        sp=sp,
+        user_with_email={"id": "user-1", "email": "u@example.com"},
+        user_full={"id": "user-1", "first_name": "Test"},
+        scope_sps=[{"id": "sp-1", "scim_membership_mode": "effective"}],
+    )
+    with (
+        patch("services.scim.worker.database", db),
+        patch("services.scim.sync_log.database", db),
+    ):
+        result = worker.process_pending_pushes(
+            "tenant-1",
+            now=fake_now,
+            token_resolver=lambda _t, _s: ("decrypt_failed", "cred-xyz"),
+        )
+    assert result["dead_lettered"] == 1
+    db.scim_push_queue.mark_dead_letter.assert_called_once()
+    reason = db.scim_push_queue.mark_dead_letter.call_args.kwargs["error"]
+    assert reason.startswith("credential_decrypt_failed:")
+    assert "cred-xyz" in reason
+    # And the sync-log row carries the same reason verbatim so the
+    # admin sees it in the activity panel.
+    update_call = db.scim_sync_log.update_status.call_args
+    assert update_call.kwargs["status"] == "dead_letter"
+    assert update_call.kwargs["error"].startswith("credential_decrypt_failed:")
+
+
+def test_accepts_new_ok_tuple_shape_from_resolver(fake_now: datetime) -> None:
+    """`("ok", credential_id, plaintext)` is the new success shape from production."""
+    entry = _entry()
+    sp = _sp()
+    db = _build_db_mock(
+        queue_entries=[entry],
+        sp=sp,
+        user_with_email={"id": "user-1", "email": "u@example.com"},
+        user_full={"id": "user-1", "first_name": "Test"},
+        scope_sps=[{"id": "sp-1", "scim_membership_mode": "effective"}],
+    )
+    fake_push = MagicMock(
+        return_value=scim_client.PushResult(
+            status="success", http_status=200, reason=None, scim_id=None
+        )
+    )
+    with (
+        patch("services.scim.worker.database", db),
+        patch("services.scim.sync_log.database", db),
+        patch("services.scim.client.push_user", fake_push),
+    ):
+        result = worker.process_pending_pushes(
+            "tenant-1",
+            now=fake_now,
+            token_resolver=lambda _t, _s: ("ok", "cred-abc", "the-token"),
+        )
+    assert result["succeeded"] == 1
+    # The credential id from the ok-tuple flows through to update_last_used.
+    db.scim_credentials.update_last_used.assert_called_once_with("tenant-1", "cred-abc")
+    # And the dispatched token is the plaintext from the tuple.
+    assert fake_push.call_args.kwargs["token"] == "the-token"
+
+
 # ---------------------------------------------------------------------------
 # User push: success path
 # ---------------------------------------------------------------------------

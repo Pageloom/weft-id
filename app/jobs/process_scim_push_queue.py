@@ -31,24 +31,49 @@ from utils.scim_crypto import InvalidToken, decrypt_token
 logger = logging.getLogger(__name__)
 
 
-def _resolve_outbound_token(tenant_id: str, sp_id: str) -> tuple[str, str] | None:
+TokenResolveOutcome = tuple[str, str, str] | tuple[str, str] | None
+"""Return type for `_resolve_outbound_token`.
+
+Three concrete shapes are produced:
+
+- `("ok", credential_id, plaintext)` -- a usable credential.
+- `("decrypt_failed", credential_id)` -- a credential row exists but its
+  ciphertext could not be decrypted (most often a `SECRET_KEY` rotation
+  without a re-encrypt). The worker maps this to a distinct sync-log
+  reason so the admin can tell "your key is out of sync" apart from
+  "configure a token."
+- `None` -- no usable credential row exists for this SP (never created,
+  all revoked, or the active row predates encrypted plaintext storage).
+
+The worker also accepts two legacy shapes for backwards compatibility
+with older test fixtures: a bare `str` (plaintext only, no last-used
+tracking) and a `tuple[str, str]` of `(credential_id, plaintext)` -- the
+shape this resolver returned before the decrypt-failure outcome was
+distinguished. Both still work, but new code should produce the
+three-tuple `("ok", ...)` form.
+"""
+
+
+def _resolve_outbound_token(tenant_id: str, sp_id: str) -> TokenResolveOutcome:
     """Production token resolver for the SCIM push worker.
 
     Looks up the most-recent non-revoked credential row for the SP whose
-    `encrypted_plaintext` is set, decrypts the value with the Fernet key
-    derived from `SECRET_KEY`, and returns `(credential_id, plaintext)`.
-    Returns None (the safe failure path) when:
+    `encrypted_plaintext` is set and decrypts it with the Fernet key
+    derived from `SECRET_KEY`. Returns one of three outcomes:
 
-    - No active credential exists for this SP.
-    - The active row is from before iteration 5 (no plaintext stored).
-    - The ciphertext fails Fernet validation (key rotation without a
-      re-encrypt, corrupted bytes, etc.).
+    - `("ok", credential_id, plaintext)` -- success.
+    - `("decrypt_failed", credential_id)` -- ciphertext present but
+      Fernet rejected it (key rotation without a re-encrypt, corrupted
+      bytes). The credential id lets the worker name the row in the
+      sync-log reason so the operator can locate it.
+    - `None` -- no usable credential. Either no row exists, or the
+      latest row is from before iteration 5 (no plaintext stored), or
+      the database lookup itself failed. The worker dead-letters with
+      `no_credential_source`.
 
-    The worker dead-letters the queue entry on a None return with reason
-    `no_credential_source`. The credential id is returned alongside the
-    plaintext so the worker can call `update_last_used()` after a
-    successful push without re-querying. The tenant-scoped session is
-    already active when this is called.
+    The credential id (on success) is returned so the worker can call
+    `update_last_used()` after a successful push without re-querying.
+    The tenant-scoped session is already active when this is called.
     """
     try:
         row = database.scim_credentials.get_active_credential_for_outbound(tenant_id, sp_id)
@@ -67,6 +92,7 @@ def _resolve_outbound_token(tenant_id: str, sp_id: str) -> tuple[str, str] | Non
     if ciphertext is None:
         return None
 
+    credential_id = str(row["id"])
     try:
         plaintext = decrypt_token(bytes(ciphertext))
     except InvalidToken:
@@ -74,11 +100,11 @@ def _resolve_outbound_token(tenant_id: str, sp_id: str) -> tuple[str, str] | Non
             "SCIM token_resolver: ciphertext invalid (tenant=%s sp=%s credential=%s)",
             tenant_id,
             sp_id,
-            row.get("id"),
+            credential_id,
         )
-        return None
+        return ("decrypt_failed", credential_id)
 
-    return (str(row["id"]), plaintext)
+    return ("ok", credential_id, plaintext)
 
 
 def process_scim_push_queue() -> dict[str, Any]:

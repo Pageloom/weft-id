@@ -5,6 +5,81 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST MEDIUM] Decrypt-failure path has no admin-UI signal
+
+**Fixed by:** outbound-scim 7d
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage)
+**Severity:** Medium
+
+`jobs.process_scim_push_queue._resolve_outbound_token` returned None
+both when no credential ever existed AND when `InvalidToken` fired on
+Fernet decryption (key rotation without a re-encrypt). The worker dead-
+lettered with the same `no_credential_source` reason in both cases, so
+the admin UI could not distinguish "configure a token" from "your key
+is out of sync."
+
+**Resolution:** The resolver now returns one of three concrete shapes:
+`("ok", credential_id, plaintext)` on success,
+`("decrypt_failed", credential_id)` when Fernet rejects the ciphertext,
+or `None` for "no usable credential." The worker dead-letters with a
+distinct `credential_decrypt_failed: credential <id> ciphertext could
+not be decrypted (check SECRET_KEY rotation)` reason, surfaced verbatim
+in the SCIM tab's sync-log panel. The two legacy resolver shapes (bare
+plaintext string, plain `(credential_id, plaintext)` tuple) are still
+accepted by the worker so existing test fixtures need no changes.
+
+**Files affected:** `app/jobs/process_scim_push_queue.py`,
+`app/services/scim/worker.py`,
+`tests/jobs/test_process_scim_push_queue_token_resolver.py`,
+`tests/services/scim/test_worker.py`.
+
+---
+
+## [DOCS] SCIM admin guide MEDIUM tech-writer findings (W4-W10)
+
+**Fixed by:** outbound-scim 7d
+
+**Discovered:** 2026-05-20 (iter 7b fix-now triage; deferred per lead)
+**Severity:** Medium (docs polish)
+
+Tech-writer agent flagged seven medium-severity copy / structure issues
+in `docs/admin-guide/service-providers/scim.md` and the SCIM tab
+template (W4-W10 from the iter-7 final-review notes).
+
+**Resolution:**
+
+- **W4:** documented that **Target URL** is required before SCIM can
+  be enabled.
+- **W5:** added a `### Pausing without deleting` subsection that
+  documents the enable/disable-while-configured UX (stops pushes,
+  leaves config + tokens intact).
+- **W6:** added a `### Common worker reason codes` subsection listing
+  each sync-log reason slug (`no_credential_source`,
+  `credential_decrypt_failed`, `scim_target_missing`,
+  `scim_disabled_or_no_target`, `unknown_resource_type`,
+  `worker_exception`, `permanent http=...`, `retryable http=...`)
+  with a one-line meaning. Slugs are preserved verbatim in the
+  sync-log column for grep-ability.
+- **W7:** renamed the SCIM tab heading from "SCIM Provisioning" to
+  "Outbound SCIM" to disambiguate from a future inbound-SCIM feature.
+- **W8:** reworded the retention help-text to clarify that admin
+  audit events (token create/rotate/revoke, config changes) are kept
+  indefinitely regardless of the per-push retention setting.
+- **W9:** tightened plaintext-display copy ("Copy this token now."
+  -> "Copy this token.").
+- **W10:** reworded the empty-state credential text from "No tokens
+  yet. Create one to start pushing changes." to "No tokens yet.
+  Create one once SCIM is enabled and the target URL is set."
+- **Bonus LOW item:** standardized "operator" -> "admin" in the
+  vendor walkthrough sections to match the dominant terminology in
+  the doc.
+
+**Files affected:** `docs/admin-guide/service-providers/scim.md`,
+`app/templates/saml_idp_sp_tab_scim.html`.
+
+---
+
 ## [SECURITY HIGH] Outbound SCIM worker: no row-level lock on queue ready-set scan
 
 **Fixed by:** outbound-scim 7c

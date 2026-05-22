@@ -36,6 +36,8 @@ Principles checked:
                         have max_length to prevent resource exhaustion
    15. template-xss      - Template innerHTML assignments with interpolation
                         must use escapeHtml() to prevent XSS
+   16. scim-rls-widening - UNSCOPED calls into RLS-widened SCIM tables
+                        must originate from app/jobs/ or app/services/scim/
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -2961,6 +2963,178 @@ def check_template_xss_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# Principle 16: SCIM RLS Widening (UNSCOPED on watched tables)
+# =============================================================================
+#
+# Migration 0037 widened RLS on `scim_push_queue`, `scim_sync_log`, and
+# `sp_scim_credentials` so the worker can scan cross-tenant. Calling code
+# that passes `UNSCOPED` against helpers for these tables outside the
+# allowed call sites is the exact failure mode that motivated the
+# widening's audit trail: a future read in a request handler could
+# silently leak across tenants instead of failing closed.
+#
+# This check flags any direct `UNSCOPED` argument passed to a function
+# from one of the watched database modules when the call site is NOT in
+# `app/jobs/` or `app/services/scim/`. The watched-table list pins to
+# specific module names; calls to other modules (which may legitimately
+# use UNSCOPED for global tables like `bg_tasks` or `tenants`) are
+# unaffected.
+#
+# `event_log` is included in the watched list because the redaction /
+# pruning workers run UNSCOPED against it and a future router-layer
+# cross-tenant read would be the same class of bug.
+_SCIM_RLS_WATCHED_MODULES: frozenset[str] = frozenset(
+    {
+        "scim_push_queue",
+        "scim_sync_log",
+        "scim_credentials",  # the table is `sp_scim_credentials`; module file is `scim_credentials.py`
+        "event_log",
+    }
+)
+
+# Call sites that may legitimately invoke a watched module with UNSCOPED.
+# These are background-worker call sites (cross-tenant by design) and the
+# SCIM service layer (which proxies between jobs and database helpers).
+_SCIM_RLS_ALLOWED_PREFIXES: tuple[str, ...] = (
+    "app/jobs/",
+    "app/services/scim/",
+    # The database layer itself is allowed -- helpers can wrap their own
+    # UNSCOPED queries (e.g. `list_tenants_with_ready_entries`).
+    "app/database/",
+)
+
+
+def _call_passes_unscoped(node: ast.Call) -> bool:
+    """Return True if `node` passes UNSCOPED as the tenant argument.
+
+    Recognised forms:
+      - `func(UNSCOPED, ...)` -- positional, first argument
+      - `func(tenant_id=UNSCOPED, ...)` -- keyword
+      - `func(database.UNSCOPED, ...)` -- attribute access on `database`
+    """
+    # Positional first argument.
+    if node.args:
+        first = node.args[0]
+        if isinstance(first, ast.Name) and first.id == "UNSCOPED":
+            return True
+        if (
+            isinstance(first, ast.Attribute)
+            and first.attr == "UNSCOPED"
+            and isinstance(first.value, ast.Name)
+            and first.value.id in ("database",)
+        ):
+            return True
+
+    # Keyword argument.
+    for kw in node.keywords:
+        if kw.arg in ("tenant_id",):
+            val = kw.value
+            if isinstance(val, ast.Name) and val.id == "UNSCOPED":
+                return True
+            if (
+                isinstance(val, ast.Attribute)
+                and val.attr == "UNSCOPED"
+                and isinstance(val.value, ast.Name)
+                and val.value.id in ("database",)
+            ):
+                return True
+    return False
+
+
+def _resolves_to_watched_module(node: ast.Call) -> str | None:
+    """Return the watched module name if `node.func` resolves to one of them.
+
+    Recognised forms:
+      - `database.scim_push_queue.func(...)`
+      - `scim_push_queue.func(...)` (when imported directly)
+    """
+    func = node.func
+    if not isinstance(func, ast.Attribute):
+        return None
+    parent = func.value
+    # `database.<module>.func(...)`
+    if (
+        isinstance(parent, ast.Attribute)
+        and isinstance(parent.value, ast.Name)
+        and parent.value.id == "database"
+        and parent.attr in _SCIM_RLS_WATCHED_MODULES
+    ):
+        return parent.attr
+    # `<module>.func(...)` when `<module>` was imported directly.
+    if isinstance(parent, ast.Name) and parent.id in _SCIM_RLS_WATCHED_MODULES:
+        return parent.id
+    return None
+
+
+def check_scim_rls_widening_violations(report: ComplianceReport) -> None:
+    """Flag UNSCOPED calls into RLS-widened SCIM tables outside allowed sites.
+
+    Scans every Python file under `app/`. For each function call whose
+    target resolves to one of the watched modules (`scim_push_queue`,
+    `scim_sync_log`, `scim_credentials`, `event_log`) AND whose tenant
+    argument is `UNSCOPED`, emits a violation when the call site path is
+    not under one of `_SCIM_RLS_ALLOWED_PREFIXES`.
+
+    The intent is to keep cross-tenant reads of RLS-widened tables
+    auditable: legitimate sites are the worker (`app/jobs/`) and the
+    SCIM service layer (`app/services/scim/`). A bug-class incident
+    would look like a request handler accidentally bypassing tenant
+    scoping; this check catches that before code review.
+    """
+    app_path = get_app_path()
+    project_root = get_project_root()
+
+    for py_file in app_path.rglob("*.py"):
+        if "__pycache__" in py_file.parts:
+            continue
+
+        rel_path = str(py_file.relative_to(project_root))
+        # Allowed locations short-circuit -- no need to parse.
+        if any(rel_path.startswith(prefix) for prefix in _SCIM_RLS_ALLOWED_PREFIXES):
+            continue
+
+        report.files_scanned += 1
+
+        try:
+            tree = ast.parse(py_file.read_text())
+        except (SyntaxError, OSError, UnicodeDecodeError):
+            continue
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            watched = _resolves_to_watched_module(node)
+            if watched is None:
+                continue
+            if not _call_passes_unscoped(node):
+                continue
+
+            report.add(
+                Violation(
+                    principle="SCIM RLS Widening",
+                    severity="medium",
+                    file_path=rel_path,
+                    line_number=node.lineno,
+                    function_name=None,
+                    description=(
+                        f"UNSCOPED call into `database.{watched}` from outside "
+                        f"the allowed call sites (app/jobs/, app/services/scim/, "
+                        f"app/database/). Migration 0037 widened RLS on the "
+                        f"SCIM tables for background-worker scans; an UNSCOPED "
+                        f"read from a router or non-SCIM service silently "
+                        f"crosses tenants instead of failing closed."
+                    ),
+                    evidence=(f"`database.{watched}.…(UNSCOPED, …)` (or equivalent)"),
+                    suggested_fix=(
+                        "If this read is intentionally cross-tenant, move it "
+                        "into `app/jobs/` or `app/services/scim/`. Otherwise, "
+                        "pass the tenant id so RLS enforces isolation."
+                    ),
+                )
+            )
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -2998,6 +3172,7 @@ def run_compliance_check(
         "api-auth",
         "form-input-length",
         "template-xss",
+        "scim-rls-widening",
     ]
     if principles is None:
         principles = all_principles
@@ -3047,6 +3222,9 @@ def run_compliance_check(
 
     if "template-xss" in principles:
         check_template_xss_violations(report)
+
+    if "scim-rls-widening" in principles:
+        check_scim_rls_widening_violations(report)
 
     return report
 
@@ -3116,6 +3294,7 @@ def main() -> int:
             "api-auth",
             "form-input-length",
             "template-xss",
+            "scim-rls-widening",
             "all",
         ],
         default="all",

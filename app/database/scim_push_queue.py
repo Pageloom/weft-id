@@ -59,6 +59,84 @@ def upsert_entry(
     return result
 
 
+# Chunk size for `bulk_upsert_users`. Keeps each statement under Postgres'
+# default `max_locks_per_transaction` and prevents the generated query from
+# growing unbounded for very large tenants. Picked 1000 because:
+# - At 1000 rows, the INSERT ... VALUES list is ~30 KB which is well within
+#   the libpq buffer size.
+# - 10 statements drains a 10k-user tenant; the round-trip count is small
+#   enough to keep the request-thread cost reasonable even for the upper
+#   bound the fan-out trigger expects to see.
+_BULK_UPSERT_CHUNK_SIZE = 1000
+
+
+def bulk_upsert_users(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    sp_id: str,
+    user_ids: list[str],
+) -> int:
+    """Enqueue (or refresh) a SCIM push for many users on one SP.
+
+    Equivalent to calling `upsert_entry(..., 'user', user_id)` once per
+    user but executed as one (or a small number of) batched INSERT ...
+    VALUES ... ON CONFLICT statements instead of N synchronous round
+    trips. Used by `enqueue_sp_tenant_fan_out` to keep a tenant-wide
+    `available_to_all` toggle from monopolising the request thread.
+
+    Semantics match `upsert_entry`:
+    - New rows start with `attempts=0`, `next_attempt_at=NULL`,
+      `last_error=NULL`, `dead_letter_at=NULL`.
+    - Existing rows have `enqueued_at` bumped to `now()` and `attempts`,
+      `next_attempt_at`, `last_error` reset. `dead_letter_at` is preserved
+      so the worker keeps skipping known-bad rows until an explicit revive.
+
+    Chunking: rows are inserted in groups of `_BULK_UPSERT_CHUNK_SIZE` to
+    keep each statement bounded. An empty `user_ids` list is a clean
+    no-op.
+
+    Returns:
+        Total number of rows inserted or updated across all chunks.
+    """
+    if not user_ids:
+        return 0
+
+    total = 0
+    for start in range(0, len(user_ids), _BULK_UPSERT_CHUNK_SIZE):
+        chunk = user_ids[start : start + _BULK_UPSERT_CHUNK_SIZE]
+
+        # Build a parameterised VALUES list. Each row gets its own named
+        # placeholder so psycopg validates them; the bulk parameter
+        # `tenant_id` / `sp_id` are shared across all rows.
+        values_clauses: list[str] = []
+        params: dict[str, Any] = {
+            "tenant_id": tenant_id_value,
+            "sp_id": sp_id,
+        }
+        for i, uid in enumerate(chunk):
+            placeholder = f"uid_{i}"
+            values_clauses.append(f"(:tenant_id, :sp_id, 'user', :{placeholder})")
+            params[placeholder] = uid
+
+        affected = execute(
+            tenant_id,
+            f"""
+            insert into scim_push_queue (
+                tenant_id, sp_id, resource_type, resource_id
+            ) values {", ".join(values_clauses)}
+            on conflict (sp_id, resource_type, resource_id) do update set
+                enqueued_at = now(),
+                attempts = 0,
+                next_attempt_at = null,
+                last_error = null
+            """,
+            params,
+        )
+        total += affected
+
+    return total
+
+
 def list_ready_entries(
     tenant_id: TenantArg,
     sp_id: str | None = None,

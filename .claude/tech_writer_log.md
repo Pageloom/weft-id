@@ -1,5 +1,54 @@
 # Tech Writer Log
 
+## 2026-05-22 - Copy + Docs for Outbound SCIM, 1.6.0
+
+**Starting commit:** d14df71
+**Ending commit:** 32040ad
+**Mode:** Both (copy review + documentation)
+
+### Changes Since Last Session
+
+~20 commits since d14df71. Major theme: outbound SCIM end-to-end (data model, generic SCIM 2.0 client, push worker + retention cleanup, admin UI tab + API, bearer token storage, four vendor quirk modules: Slack/GitHub/Atlassian/GitLab, hardening pass: queue lock + bearer scrubbing + TOCTOU + rate limits, batched fan-out + RLS scanner + e2e). Plus 1.6.0 release.
+
+The bulk of the SCIM copy and docs work was already done in-line (commits 2639118, bfb6e5c, 62e9938, 32040ad). This session covered residual gaps.
+
+### Direct Copy Fixes (1 file, 2 edits)
+
+1. **saml_idp_sp_tab_scim.html:210** -- Status filter dropdown "Dead-letter" -> "Dead letter" (matches badge label rendered elsewhere in the same view).
+2. **saml_idp_sp_tab_scim.html:452** -- Retry-dead-lettered confirmation dialog "Revive every dead-lettered queue row for this SP?" -> "Retry every dead-lettered row for this SP?" (matches button label).
+
+### Documentation Updates (2 pages + site rebuild)
+
+1. **self-hosting/index.md** -- Bumped version examples from 1.5.0/1.4.1 to 1.6.0/1.5.0 (upgrade procedure, rollback, tag list, WEFT_VERSION description).
+2. **admin-guide/audit/index.md** -- Added "Outbound SCIM" row to event-type table (config updates, bearer token create/rotate/revoke).
+3. **site/** -- Rebuilt with `make docs`.
+
+### Already Documented (No Changes Needed)
+
+- Outbound SCIM end-to-end (admin-guide/service-providers/scim.md): triggers, enabling, credential lifecycle, sync activity panel, status meanings, worker reason codes, vendor walkthroughs for Slack/GitHub/Atlassian/GitLab, troubleshooting
+- mkdocs.yml nav (clean: scim.md listed under Service Providers)
+
+### Pending Screenshots
+
+The SCIM doc has six TODO markers for screenshots:
+- amber plaintext token box right after creation
+- credential list showing one active token and one scheduled for revocation
+- sync activity panel with mixed status rows
+- Slack Org Owner SCIM provisioning settings
+- GitHub Enterprise Settings > Authentication security > SCIM
+- admin.atlassian.com Security > Identity providers > Set up user provisioning
+- GitLab Group SAML SSO page with SCIM token section
+
+Did not request them this session (user has been working without clarifying questions). Worth requesting in a future session.
+
+### Areas Reviewed
+
+- All templates and docs changed since d14df71 (11 files)
+- New saml_idp_sp_tab_scim.html (466 lines) reviewed line-by-line for copy consistency
+- Audit event-type table cross-checked against app/constants/event_types.py SCIM entries
+
+---
+
 ## 2026-05-15 - Copy + Docs for User Attributes, Passkeys, 1.5.0
 
 **Starting commit:** 106624e

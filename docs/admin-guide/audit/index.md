@@ -71,6 +71,7 @@ Events cover all areas of the platform:
 | Groups | Created, deleted, members added/removed, relationships changed |
 | Identity providers | Created, updated, trust established, deleted |
 | Service providers | Created, updated, deleted, SSO assertions issued |
+| Outbound SCIM | Configuration updated, bearer token created, rotated, revoked |
 | Certificates | Created, rotated |
 | Settings | Session, certificate, permission, branding, and group assertion scope changes |
 | Two-step verification | Method changed, backup codes regenerated, admin resets, passkey registered/deleted/renamed |

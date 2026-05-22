@@ -207,7 +207,7 @@
             <option value="running">Running</option>
             <option value="done">Done</option>
             <option value="failed">Failed</option>
-            <option value="dead_letter">Dead-letter</option>
+            <option value="dead_letter">Dead letter</option>
         </select>
     </div>
 
@@ -449,7 +449,7 @@ const retryButton = document.getElementById('scim-retry-dead-letter');
 if (retryButton) {
     retryButton.addEventListener('click', () => {
         WeftUtils.confirm(
-            'Revive every dead-lettered queue row for this SP? The worker re-attempts them on its next pass.',
+            'Retry every dead-lettered row for this SP? The worker re-attempts them on its next pass.',
             async () => {
                 const resp = await WeftUtils.apiFetch(`${API_BASE}/queue/retry-dead-lettered`, { method: 'POST' });
                 if (!resp.ok) {

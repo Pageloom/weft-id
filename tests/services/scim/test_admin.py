@@ -246,6 +246,42 @@ def test_scim_target_url_rejects_literal_localhost(test_tenant, test_admin_user)
     assert excinfo.value.code == "scim_target_url_invalid"
 
 
+def test_scim_target_url_allows_docker_host_in_dev(test_tenant, test_admin_user, monkeypatch):
+    """`host.docker.internal` is allowed in dev for the Authentik fixture.
+
+    Resolver is patched to a private IP that would normally be rejected;
+    the IS_DEV+hostname allowlist must short-circuit the check before
+    DNS is consulted.
+    """
+    monkeypatch.setattr("services.scim.admin.settings.IS_DEV", True)
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: (_ for _ in ()).throw(
+            AssertionError("DNS should not be called for host.docker.internal")
+        ),
+    )
+    out = _try_update_url(
+        test_tenant, test_admin_user, "http://host.docker.internal:9000/source/scim/weftid/v2/"
+    )
+    assert out.scim_target_url == "http://host.docker.internal:9000/source/scim/weftid/v2/"
+
+
+def test_scim_target_url_rejects_docker_host_outside_dev(test_tenant, test_admin_user, monkeypatch):
+    """The `host.docker.internal` allowance is dev-only."""
+    monkeypatch.setattr("services.scim.admin.settings.IS_DEV", False)
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: _fake_getaddrinfo_to("192.168.65.2"),
+    )
+    with pytest.raises(ValidationError) as excinfo:
+        _try_update_url(
+            test_tenant,
+            test_admin_user,
+            "https://host.docker.internal/source/scim/weftid/v2/",
+        )
+    assert excinfo.value.code == "scim_target_url_invalid"
+
+
 def test_scim_target_url_accepts_public_https(test_tenant, test_admin_user, patch_dns_public):
     """A normal https URL to a public IP is accepted."""
     out = _try_update_url(test_tenant, test_admin_user, "https://scim.example.com/v2")

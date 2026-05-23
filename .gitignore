@@ -30,3 +30,9 @@ tailwindcss-*
 
 # Built documentation site (built at Docker image time or via `make docs`)
 site/
+
+# Local SCIM testbeds (Authentik, Okta-emulator, etc.). The fixtures
+# themselves are intentionally not committed; see docs for setup. Anyone
+# who bootstraps a testbed under dev/ keeps it out of source.
+dev/authentik/
+dev/scim-testbed/

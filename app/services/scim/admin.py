@@ -64,6 +64,11 @@ _TOKEN_BYTES = 24
 # runs only when the admin changes the URL, so a few seconds is acceptable.
 _DNS_TIMEOUT_SECONDS = 3.0
 
+# Hostnames that bypass the private-IP SSRF guard when `IS_DEV` is true.
+# Strictly limited to the Docker Desktop host bridge used by the
+# `dev/authentik/` fixture; do not expand without a security review.
+_DEV_HOSTNAME_ALLOWLIST = frozenset({"host.docker.internal"})
+
 
 def _validate_scim_target_url(url: str) -> None:
     """Reject SCIM target URLs that point to private or internal addresses.
@@ -104,6 +109,14 @@ def _validate_scim_target_url(url: str) -> None:
             message="SCIM target URL must not point to a private or internal address",
             code="scim_target_url_invalid",
         )
+
+    # Dev-time escape hatch for the Docker Desktop host bridge. The
+    # `dev/authentik/` fixture runs Authentik on the host, and WeftID's
+    # app/worker containers reach it via `host.docker.internal`, which
+    # resolves to a private RFC1918 address inside Docker Desktop's
+    # network. Production deployments never use this hostname.
+    if settings.IS_DEV and hostname in _DEV_HOSTNAME_ALLOWLIST:
+        return
 
     # Resolve the hostname (or accept a literal IP) and reject anything in a
     # private / loopback / link-local / ULA range. A tight timeout avoids

@@ -101,3 +101,14 @@ If you do bootstrap a testbed inside the checkout (e.g. with
 `./dev/scim-testbed.sh up --dir dev/authentik`), `.gitignore` covers
 both `dev/authentik/` and `dev/scim-testbed/` so it stays out of
 source.
+
+## Credits and licensing
+
+[Authentik](https://goauthentik.io) is a separate open-source identity
+provider maintained by Authentik Security Inc. The Authentik server is
+MIT-licensed; its documentation (including the compose example this
+script is adapted from) is CC BY-SA 4.0. The script and walkthrough in
+this directory are MIT-licensed along with the rest of WeftID. WeftID
+does not bundle, vendor, or redistribute any Authentik code or images.
+The compose template the script writes is adapted from Authentik's
+official docs and credits them in the file header.

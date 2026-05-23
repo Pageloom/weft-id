@@ -15,6 +15,7 @@ downstream apps. MIT licensed. Optimized for self-hosting. Your infra, your data
 </picture>
 
 * **SAML 2.0 identity provider** -- upstream federation, downstream SSO with per-SP signing and optional assertion encryption
+* **Outbound SCIM 2.0 provisioning** -- push user and group lifecycle to downstream apps so a deprovisioned user loses access everywhere, not just on next login
 * **Built-in authentication** -- passwords, TOTP, email codes, backup codes
 * **Hierarchical groups** -- DAG-based group model with IdP group sync
 * **Multi-tenant isolation** -- row-level security at the database layer

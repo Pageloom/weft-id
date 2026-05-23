@@ -105,12 +105,11 @@ def authorize_page(
     # Generate unique auth request ID and store parameters in session
     auth_request_id = secrets.token_urlsafe(32)
 
-    # Initialize oauth2_auth_requests dict in session if not present
-    if "oauth2_auth_requests" not in request.session:
-        request.session["oauth2_auth_requests"] = {}
-
-    # Store authorization request parameters (for validation on POST)
-    request.session["oauth2_auth_requests"][auth_request_id] = {
+    # Store authorization request parameters (for validation on POST).
+    # Reassign the top-level key so SessionMiddleware marks the session
+    # modified (nested mutations do not trigger save in starlette 1.0+).
+    auth_requests = dict(request.session.get("oauth2_auth_requests") or {})
+    auth_requests[auth_request_id] = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "state": state,
@@ -118,6 +117,7 @@ def authorize_page(
         "code_challenge_method": code_challenge_method,
         "created_at": time.time(),
     }
+    request.session["oauth2_auth_requests"] = auth_requests
 
     # Show authorization page
     return templates.TemplateResponse(
@@ -154,8 +154,10 @@ def authorize_grant(
         auth_request_id: Server-generated ID referencing stored auth request
         action: "allow" or "deny"
     """
-    # Retrieve stored authorization request from session
-    auth_requests = request.session.get("oauth2_auth_requests", {})
+    # Retrieve stored authorization request from session. Copy and reassign
+    # so SessionMiddleware sees the change (nested mutations do not mark the
+    # session modified in starlette 1.0+).
+    auth_requests = dict(request.session.get("oauth2_auth_requests") or {})
     stored_request = auth_requests.get(auth_request_id)
 
     if not stored_request:
@@ -179,8 +181,10 @@ def authorize_grant(
     code_challenge_method = stored_request["code_challenge_method"]
     created_at = stored_request["created_at"]
 
-    # Delete from session immediately (one-time use)
-    del request.session["oauth2_auth_requests"][auth_request_id]
+    # Delete from session immediately (one-time use). Reassign so the
+    # session is marked modified and the cookie is rewritten.
+    del auth_requests[auth_request_id]
+    request.session["oauth2_auth_requests"] = auth_requests
 
     # Validate request hasn't expired
     if time.time() - created_at > AUTH_REQUEST_MAX_AGE_SECONDS:

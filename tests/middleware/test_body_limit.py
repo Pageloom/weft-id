@@ -4,18 +4,18 @@ from middleware.body_limit import BodyLimitMiddleware
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
+from starlette.routing import Route
 from starlette.testclient import TestClient
 
 
+async def _echo(request: Request) -> PlainTextResponse:
+    body = await request.body()
+    return PlainTextResponse(f"OK:{len(body)}")
+
+
 def _make_app(max_bytes: int = 1024) -> Starlette:
-    app = Starlette()
+    app = Starlette(routes=[Route("/echo", _echo, methods=["POST"])])
     app.add_middleware(BodyLimitMiddleware, max_bytes=max_bytes)
-
-    @app.route("/echo", methods=["POST"])
-    async def echo(request: Request) -> PlainTextResponse:
-        body = await request.body()
-        return PlainTextResponse(f"OK:{len(body)}")
-
     return app
 
 

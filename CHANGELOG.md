@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-05-23
+
+### Fixed
+
+- **Outbound SCIM group membership no longer silently drops members at spec-compliant receivers.** WeftID was using its own UUID as the SCIM `id` in `Group.members[].value` and in PUT/PATCH/DELETE paths. Receivers that mint their own server-assigned `id` per RFC 7644 §3.3 (Authentik, most spec-compliant SCIM 2.0 sources) resolve group members against that server id, so the WeftID-UUID references never matched and members landed in zero groups downstream. The worker now captures the receiver's `id` from the first POST response, stores it in a new mapping table, and uses it for every subsequent PUT/PATCH/DELETE and for group member references. Affects any tenant whose downstream SCIM receiver does not happen to conflate `id` with `externalId`
+- **404 on `DELETE /Users/<id>` or `DELETE /Groups/<id>` no longer dead-letters.** Removing a group grant for users the receiver never saw used to flood the sync log with false failures. The Generic adapter now treats 404 on DELETE as success-like ("resource is already gone"), drains the queue row, and surfaces the outcome as an amber **Skipped** badge in the Sync activity panel. 404 on POST/PUT/PATCH continues to behave as before
+- **404 on PUT against a stale id self-heals.** If a downstream resource is recreated (or our recorded id otherwise drifts), the next push gets a 404, WeftID clears the stale mapping, and the attempt after that POSTs cleanly to remint the mapping. No operator intervention required
+
+### Changed
+
+- The Atlassian quirk's "404 is permanent (already gone)" override was removed in favor of the new general policy (404 on DELETE = success, 404 on other verbs = permanent). Behavior is unchanged for the common deprovisioning case
+- GitHub Enterprise Cloud's SCIM quirk opts out of PUT-on-Groups (GitHub returns 405) via a new per-vendor `GROUP_UPDATE_VERB` capability flag. Behavior for GitHub tenants is preserved: groups still go through POST only, with the same 409-on-duplicate semantics as before
+
+### Added
+
+- New `sp_scim_remote_ids` table (tenant-scoped with RLS) records WeftID-id → receiver-id mappings. Migration `0041_scim_remote_ids.sql` is purely additive and applied automatically on self-hosted upgrades. Rows that pre-date the table self-heal on the next push via a fallback path; no resync action is required
+- New audit events `scim_remote_id_mapped` (first time a receiver mints an id for a resource) and `scim_remote_id_invalidated` (a 404 cleared a stale mapping). Both are operational tier, visible in the audit log when operational events are shown
+- The SCIM admin guide gained a "Resource ID mapping" section explaining when mappings are created, used, and cleared, plus updated status meanings (the new amber **Skipped** badge) and worker reason codes (`already_absent`, `remote_id_invalidated`)
+- New `dev/scim-testbed.sh` bootstrap script (and `make scim-testbed-{up,down,destroy,status,logs,info}` targets) spins up a local Authentik instance for end-to-end outbound-SCIM testing. The Authentik runtime lives outside the WeftID checkout by default (`~/.local/share/weft-id/scim-testbed/authentik/`) so generated secrets and volumes can't leak into source. See `dev/scim-testbed.md`. Authentik is a separate MIT-licensed project; WeftID does not bundle or redistribute it
+- Dev-only: `host.docker.internal` is allowed as a SCIM target URL when `IS_DEV=true`, so WeftID's containers can reach a SCIM receiver running on the Docker Desktop host. Production builds reject it as before
+
 ## [1.7.1] - 2026-05-23
 
 ### Added

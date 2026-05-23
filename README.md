@@ -14,8 +14,10 @@ downstream apps. MIT licensed. Optimized for self-hosting. Your infra, your data
   <img alt="WeftID federation overview: identity providers on the left (Okta, Entra ID, Google Workspace, SAML) federated through WeftID to applications on the right (Slack, Jira, GitLab, SAML apps)" src=".github/assets/federation-overview-light-v2.png" width="100%">
 </picture>
 
-* **SAML 2.0 identity provider** -- upstream federation, downstream SSO with per-SP signing and optional assertion encryption
-* **Outbound SCIM 2.0 provisioning** -- push user and group lifecycle to downstream apps so a deprovisioned user loses access everywhere, not just on next login
+* **SAML 2.0 identity provider** -- upstream federation, downstream SSO with per-SP signing and optional assertion
+  encryption
+* **Outbound SCIM 2.0 provisioning** -- push user and group lifecycle to downstream apps so a deprovisioned user loses
+  access everywhere, not just on next login
 * **Built-in authentication** -- passwords, TOTP, email codes, backup codes
 * **Hierarchical groups** -- DAG-based group model with IdP group sync
 * **Multi-tenant isolation** -- row-level security at the database layer
@@ -24,6 +26,12 @@ downstream apps. MIT licensed. Optimized for self-hosting. Your infra, your data
 * **Self-hostable** -- Docker Compose with automatic HTTPS via Caddy
 
 [Documentation](docs/) · [Self-hosting guide](docs/self-hosting/index.md) · [Product page](https://pageloom.com/products/weft-id)
+
+## Self-hosting
+
+Self-hosting WeftID is a cinch: point your domain at a server, run a one-line install script,
+and Caddy handles HTTPS automatically. See the
+[self-hosting guide](docs/self-hosting/index.md) for the walkthrough.
 
 ## Development
 

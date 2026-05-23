@@ -1116,3 +1116,42 @@ Compared ~10 commits since last documentation session (c410bfa..HEAD). Identifie
 ### Screenshots Requested
 
 None.
+
+---
+
+## 2026-05-23 - Copy + Docs Polish (SCIM Import Token)
+
+**Starting commit:** 37bc52a (plus uncommitted SCIM import-token feature)
+**Mode:** Both
+
+### Context
+
+Same-session follow-up to the Path B implementation (import-existing-token support for SCIM credentials, in service of testing WeftID against Authentik as a SCIM receiver). Reviewed the new template copy and docs alongside the surrounding SCIM admin surface and adjacent glossary/changelog.
+
+### Copy changes (template)
+
+`app/templates/saml_idp_sp_tab_scim.html`:
+
+- Tightened the bearer-tokens help paragraph: dropped meta-explanations ("generates a new value WeftID controls"), shortened to one short sentence per credential mode, kept the rotation note.
+- Unified terminology from "downstream receiver" / "downstream SCIM receiver" to "downstream app" (the dominant term in the rest of the SCIM docs).
+- Import form label: "Bearer token from downstream receiver" -> "Bearer token from downstream app".
+- Placeholder: "Paste the token your SCIM receiver gave you" -> "Paste the token from the downstream app".
+- Help text under the import input: dropped the defensive "embedded whitespace is rejected" detail; kept "Surrounding whitespace is trimmed."
+
+### Docs updates (3 files)
+
+1. `docs/admin-guide/service-providers/scim.md` -- normalized "downstream SCIM receiver" -> "downstream app" through the new credential-modes section and the import walkthrough; rewrote the "rotate doesn't apply to imported tokens" paragraph to lead with the constraint instead of restating the button.
+2. `docs/glossary.md` -- updated **Bearer token (SCIM)** to cover both generate and import modes (previously only described the WeftID-mints path).
+3. `CHANGELOG.md` -- added the import-token capability and `scim_token_imported` event under `[Unreleased]`.
+
+### Built site/
+
+`make docs` clean.
+
+### Issues filed
+
+None. All findings were within-scope copy/doc polish and applied directly.
+
+### Not reviewed
+
+The new commits 37bc52a / 43ebd5d / 1b90e7b / 7c47b1a are backlog-only and dependency bumps -- no user-facing surface to review. Release 1.7.0 (936303f) was already polished in `f7e7572`.

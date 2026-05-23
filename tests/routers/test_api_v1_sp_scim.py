@@ -248,6 +248,70 @@ class TestCreateCredential:
         assert resp.headers.get("Retry-After") == "60"
 
 
+class TestImportCredential:
+    def test_imports_supplied_token(self, api_client, api_host):
+        sp_id = str(uuid4())
+        new_id = str(uuid4())
+        with patch(
+            "services.scim.admin.import_credential",
+            return_value=ScimCredentialCreated(
+                id=new_id,
+                sp_id=sp_id,
+                created_at=datetime.now(UTC),
+                plaintext="ak-from-authentik",
+                rotated_from_id=None,
+                rotated_from_revoke_at=None,
+            ),
+        ) as fn:
+            resp = api_client.post(
+                f"/api/v1/service-providers/{sp_id}/scim/credentials/import",
+                headers={"host": api_host, "Content-Type": "application/json"},
+                json={"plaintext": "ak-from-authentik"},
+            )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["id"] == new_id
+        assert body["plaintext"] == "ak-from-authentik"
+        # Service receives the raw plaintext exactly as posted.
+        assert fn.call_args.args[2] == "ak-from-authentik"
+
+    def test_rejects_missing_plaintext(self, api_client, api_host):
+        sp_id = str(uuid4())
+        resp = api_client.post(
+            f"/api/v1/service-providers/{sp_id}/scim/credentials/import",
+            headers={"host": api_host, "Content-Type": "application/json"},
+            json={},
+        )
+        assert resp.status_code == 422
+
+    def test_rejects_empty_plaintext(self, api_client, api_host):
+        sp_id = str(uuid4())
+        resp = api_client.post(
+            f"/api/v1/service-providers/{sp_id}/scim/credentials/import",
+            headers={"host": api_host, "Content-Type": "application/json"},
+            json={"plaintext": ""},
+        )
+        assert resp.status_code == 422
+
+    def test_rate_limit_returns_429(self, api_client, api_host):
+        from services.exceptions import RateLimitError
+
+        sp_id = str(uuid4())
+        with patch(
+            "routers.api.v1.service_providers.ratelimit.prevent",
+            side_effect=RateLimitError(
+                message="rate limited", limit=10, timespan=60, retry_after=60
+            ),
+        ):
+            resp = api_client.post(
+                f"/api/v1/service-providers/{sp_id}/scim/credentials/import",
+                headers={"host": api_host, "Content-Type": "application/json"},
+                json={"plaintext": "ak-token"},
+            )
+        assert resp.status_code == 429
+        assert resp.headers.get("Retry-After") == "60"
+
+
 class TestRotateCredential:
     def test_rotates_with_default_overlap(self, api_client, api_host):
         sp_id = str(uuid4())

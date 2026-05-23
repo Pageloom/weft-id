@@ -410,6 +410,73 @@ def create_credential(
     )
 
 
+def import_credential(
+    requesting_user: RequestingUser,
+    sp_id: str,
+    plaintext: str,
+) -> ScimCredentialCreated:
+    """Store an externally-supplied bearer token for an SP.
+
+    Mirrors `create_credential` but takes the plaintext from the caller
+    instead of generating it. Used for SCIM receivers (e.g. Authentik)
+    that mint the token on their side and expect the client to send it
+    back verbatim. The plaintext is encrypted at rest exactly as for
+    generated tokens; the worker cannot tell the two apart at push time.
+
+    The response echoes the plaintext for parity with `create_credential`
+    so existing UI/API flows treat both modes identically. Callers may
+    discard it; they already have the value.
+
+    Authorization: Requires admin role.
+    Logs: `scim_token_imported`.
+    """
+    require_super_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+    _require_sp(tenant_id, sp_id)
+
+    # Reject whitespace-only and tokens with embedded whitespace. A leading
+    # or trailing newline from a careless copy/paste is the most common
+    # operator error and would silently fail authentication at the SP.
+    stripped = plaintext.strip()
+    if not stripped:
+        raise ValidationError(
+            message="Bearer token must not be empty",
+            code="scim_token_empty",
+        )
+    if any(ch.isspace() for ch in stripped):
+        raise ValidationError(
+            message="Bearer token must not contain whitespace",
+            code="scim_token_whitespace",
+        )
+
+    cipher = encrypt_token(stripped)
+    row = database.scim_credentials.create_credential(
+        tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
+        sp_id=sp_id,
+        created_by_user_id=requesting_user["id"],
+        encrypted_plaintext=cipher,
+    )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="service_provider",
+        artifact_id=sp_id,
+        event_type="scim_token_imported",
+        metadata={"credential_id": str(row["id"])},
+    )
+
+    return ScimCredentialCreated(
+        id=str(row["id"]),
+        sp_id=sp_id,
+        created_at=row["created_at"],
+        plaintext=stripped,
+        rotated_from_id=None,
+        rotated_from_revoke_at=None,
+    )
+
+
 def rotate_credential(
     requesting_user: RequestingUser,
     sp_id: str,

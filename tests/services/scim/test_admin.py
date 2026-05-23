@@ -314,6 +314,91 @@ def test_create_credential_returns_plaintext_and_stores_ciphertext(test_tenant, 
     assert events[0]["metadata"]["credential_id"] == response.id
 
 
+def test_import_credential_stores_supplied_plaintext_and_logs(test_tenant, test_admin_user):
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    supplied = "ak-token-from-authentik-1234567890abcdef"
+    response = scim_admin.import_credential(ru, str(sp["id"]), supplied)
+    assert response.plaintext == supplied
+    assert response.rotated_from_id is None
+
+    row = database.scim_credentials.get_active_credential_for_outbound(
+        test_tenant["id"], str(sp["id"])
+    )
+    assert row is not None
+    decrypted = decrypt_token(bytes(row["encrypted_plaintext"]))
+    assert decrypted == supplied
+
+    events = database.fetchall(
+        database.UNSCOPED,
+        """
+        SELECT el.event_type, elm.metadata
+        FROM event_logs el
+        JOIN event_log_metadata elm ON elm.metadata_hash = el.metadata_hash
+        WHERE el.event_type = 'scim_token_imported' AND el.artifact_id = :sp_id
+        """,
+        {"sp_id": str(sp["id"])},
+    )
+    assert len(events) == 1
+    assert events[0]["metadata"]["credential_id"] == response.id
+
+
+def test_import_credential_strips_surrounding_whitespace(test_tenant, test_admin_user):
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    response = scim_admin.import_credential(ru, str(sp["id"]), "  ak-token-abcdef\n")
+    assert response.plaintext == "ak-token-abcdef"
+
+    row = database.scim_credentials.get_active_credential_for_outbound(
+        test_tenant["id"], str(sp["id"])
+    )
+    assert decrypt_token(bytes(row["encrypted_plaintext"])) == "ak-token-abcdef"
+
+
+def test_import_credential_rejects_empty(test_tenant, test_admin_user):
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    with pytest.raises(ValidationError) as exc:
+        scim_admin.import_credential(ru, str(sp["id"]), "")
+    assert exc.value.code == "scim_token_empty"
+
+
+def test_import_credential_rejects_whitespace_only(test_tenant, test_admin_user):
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    with pytest.raises(ValidationError) as exc:
+        scim_admin.import_credential(ru, str(sp["id"]), "   \n\t  ")
+    assert exc.value.code == "scim_token_empty"
+
+
+def test_import_credential_rejects_embedded_whitespace(test_tenant, test_admin_user):
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    with pytest.raises(ValidationError) as exc:
+        scim_admin.import_credential(ru, str(sp["id"]), "ak-token has-a-space")
+    assert exc.value.code == "scim_token_whitespace"
+
+
+def test_import_credential_unknown_sp_raises(test_tenant, test_admin_user):
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+    with pytest.raises(NotFoundError):
+        scim_admin.import_credential(ru, str(uuid4()), "ak-token-abc")
+
+
+def test_import_credential_listed_after_import(test_tenant, test_admin_user):
+    sp = _create_sp(test_tenant["id"], test_admin_user["id"])
+    ru = _requesting_user(test_tenant["id"], test_admin_user["id"])
+
+    imported = scim_admin.import_credential(ru, str(sp["id"]), "ak-token-listing")
+    listing = scim_admin.list_credentials(ru, str(sp["id"]))
+    assert imported.id in {item.id for item in listing.items}
+
+
 def test_list_credentials_includes_pending_revocation(test_tenant, test_admin_user):
     sp = _create_sp(test_tenant["id"], test_admin_user["id"])
     ru = _requesting_user(test_tenant["id"], test_admin_user["id"])

@@ -81,6 +81,22 @@ class ScimCredentialCreate(BaseModel):
     pass
 
 
+class ScimCredentialImport(BaseModel):
+    """Import an externally-supplied bearer token.
+
+    For SCIM receivers (e.g. Authentik) that generate the bearer token on
+    their side and hand it to the client. The plaintext is encrypted at
+    rest the same way generated tokens are; only the source differs.
+    """
+
+    plaintext: str = Field(
+        ...,
+        min_length=1,
+        max_length=4096,
+        description="Bearer token plaintext as supplied by the downstream SCIM receiver.",
+    )
+
+
 class ScimCredentialCreated(BaseModel):
     """Response from creating or rotating a credential.
 

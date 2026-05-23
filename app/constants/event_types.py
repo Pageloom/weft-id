@@ -204,6 +204,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # Outbound SCIM (admin actions only; push outcomes live in scim_sync_log)
     "scim_config_updated": "Outbound SCIM configuration updated for service provider",
     "scim_token_created": "Outbound SCIM bearer token created",
+    "scim_token_imported": "Outbound SCIM bearer token imported from downstream provider",
     "scim_token_rotated": "Outbound SCIM bearer token rotated",
     "scim_token_revoked": "Outbound SCIM bearer token revoked",
     # IdP Group Integration
@@ -353,6 +354,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "assertion_preview_viewed": "admin",
     "scim_config_updated": "admin",
     "scim_token_created": "admin",
+    "scim_token_imported": "admin",
     "scim_token_rotated": "admin",
     "scim_token_revoked": "admin",
     # Operational tier

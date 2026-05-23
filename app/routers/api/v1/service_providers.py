@@ -9,6 +9,7 @@ from schemas.scim_admin import (
     ScimConfig,
     ScimConfigUpdate,
     ScimCredentialCreated,
+    ScimCredentialImport,
     ScimCredentialList,
     ScimQueueStatus,
     ScimRetryResult,
@@ -744,6 +745,55 @@ def create_scim_credential_endpoint(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return scim_admin_service.create_credential(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post(
+    "/{sp_id}/scim/credentials/import",
+    response_model=ScimCredentialCreated,
+    status_code=status.HTTP_201_CREATED,
+)
+def import_scim_credential_endpoint(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+    data: ScimCredentialImport,
+):
+    """Store an externally-supplied bearer token for an SP.
+
+    Requires super_admin role.
+
+    Use this when the downstream SCIM receiver mints the token on its
+    side and expects the client to send it back verbatim (Authentik,
+    some self-hosted SCIM servers). For receivers that accept any token
+    the client picks (Slack, GitHub, most SaaS), use `POST /credentials`
+    instead.
+
+    Request body: `{"plaintext": "<token from downstream provider>"}`.
+    The token is stripped of surrounding whitespace; embedded whitespace
+    is rejected. The plaintext is encrypted at rest exactly as for
+    generated tokens.
+
+    Emits a `scim_token_imported` audit event with the new credential id
+    in metadata.
+
+    Rate limit: 10 imports per minute per super-admin user, shared with
+    the generate-token endpoint.
+    """
+    try:
+        ratelimit.prevent(
+            "scim_credential_create:user:{user_id}",
+            limit=10,
+            timespan=MINUTE,
+            user_id=str(admin["id"]),
+        )
+    except RateLimitError as exc:
+        raise translate_to_http_exception(exc)
+
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return scim_admin_service.import_credential(requesting_user, sp_id, data.plaintext)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

@@ -105,16 +105,47 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Bearer tokens</h2>
-        <button type="button" id="scim-create-token"
-                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md text-sm">
-            Create token
-        </button>
+        <div class="flex items-center gap-2">
+            <button type="button" id="scim-import-token-toggle"
+                    class="bg-white hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium py-1.5 px-3 rounded-md text-sm border border-gray-300 dark:border-gray-600">
+                Import existing token
+            </button>
+            <button type="button" id="scim-create-token"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md text-sm">
+                Create token
+            </button>
+        </div>
     </div>
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        Bearer tokens authenticate WeftID's outbound push to {{ sp.name }}. The plaintext value is shown
-        once at creation. Rotation creates a fresh token and schedules the prior one for revocation after
-        an overlap window.
+        Bearer tokens authenticate WeftID's outbound push to {{ sp.name }}.
+        <strong>Create token</strong> mints a new value to paste into the downstream app (Slack, GitHub,
+        most SaaS). <strong>Import existing token</strong> stores a value the downstream app gave you
+        (Authentik, some self-hosted apps). Generated tokens are shown once at creation. Rotation creates
+        a fresh generated token and schedules the prior one for revocation after an overlap window.
     </p>
+
+    <div id="scim-import-form" class="hidden mb-4 p-4 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40">
+        <label for="scim-import-plaintext" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Bearer token from downstream app
+        </label>
+        <input type="password" id="scim-import-plaintext" autocomplete="off" spellcheck="false" maxlength="4096"
+               placeholder="Paste the token from the downstream app"
+               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Stored encrypted at rest. Surrounding whitespace is trimmed.
+        </p>
+        <div class="flex items-center gap-3 mt-3">
+            <button type="button" id="scim-import-submit"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md text-sm">
+                Save token
+            </button>
+            <button type="button" id="scim-import-cancel"
+                    class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                Cancel
+            </button>
+            <span id="scim-import-status" class="text-xs text-gray-500 dark:text-gray-400"></span>
+        </div>
+    </div>
 
     <div id="scim-plaintext-display" class="hidden mb-4 p-4 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
         <p class="text-sm font-medium text-amber-800 dark:text-amber-300 mb-2">
@@ -332,6 +363,53 @@ plaintextCopy.addEventListener('click', () => {
 // A reload before this point destroys the only chance to copy the token.
 document.getElementById('scim-plaintext-done').addEventListener('click', () => {
     window.location.reload();
+});
+
+const importForm = document.getElementById('scim-import-form');
+const importInput = document.getElementById('scim-import-plaintext');
+const importStatus = document.getElementById('scim-import-status');
+
+document.getElementById('scim-import-token-toggle').addEventListener('click', () => {
+    importForm.classList.toggle('hidden');
+    if (!importForm.classList.contains('hidden')) {
+        importInput.value = '';
+        importStatus.textContent = '';
+        importInput.focus();
+    }
+});
+
+document.getElementById('scim-import-cancel').addEventListener('click', () => {
+    importForm.classList.add('hidden');
+    importInput.value = '';
+    importStatus.textContent = '';
+});
+
+document.getElementById('scim-import-submit').addEventListener('click', async () => {
+    const plaintext = importInput.value;
+    if (!plaintext || !plaintext.trim()) {
+        importStatus.textContent = 'Paste a token first.';
+        importStatus.classList.add('text-red-600');
+        return;
+    }
+    importStatus.textContent = 'Saving...';
+    importStatus.classList.remove('text-red-600');
+    try {
+        const resp = await WeftUtils.apiFetch(`${API_BASE}/credentials/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plaintext }),
+        });
+        if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            importStatus.textContent = body.detail || `Failed (${resp.status})`;
+            importStatus.classList.add('text-red-600');
+            return;
+        }
+        window.location.reload();
+    } catch (err) {
+        importStatus.textContent = `Error: ${err}`;
+        importStatus.classList.add('text-red-600');
+    }
 });
 
 document.getElementById('scim-create-token').addEventListener('click', async () => {

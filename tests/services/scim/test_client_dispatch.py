@@ -97,21 +97,37 @@ def test_quirk_module_implements_full_contract(module: Any) -> None:
 
 
 def test_generic_interpret_error_classifies_5xx_retryable() -> None:
-    retryable, reason = generic.interpret_error(httpx.Response(503))
-    assert retryable is True
+    disposition, reason = generic.interpret_error(httpx.Response(503), "POST")
+    assert disposition == "retryable"
     assert "503" in reason
 
 
 def test_generic_interpret_error_classifies_4xx_permanent() -> None:
-    retryable, reason = generic.interpret_error(httpx.Response(400))
-    assert retryable is False
+    disposition, reason = generic.interpret_error(httpx.Response(400), "POST")
+    assert disposition == "permanent"
     assert "400" in reason
 
 
 def test_generic_interpret_error_classifies_429_retryable() -> None:
-    retryable, reason = generic.interpret_error(httpx.Response(429))
-    assert retryable is True
+    disposition, reason = generic.interpret_error(httpx.Response(429), "POST")
+    assert disposition == "retryable"
     assert "429" in reason
+
+
+def test_generic_interpret_error_404_on_delete_is_absent() -> None:
+    """404 on DELETE means the resource is already gone -- success-like."""
+    disposition, reason = generic.interpret_error(httpx.Response(404), "DELETE")
+    assert disposition == "absent"
+    assert "404" in reason
+
+
+def test_generic_interpret_error_404_on_put_is_permanent() -> None:
+    """404 on PUT/PATCH/POST remains permanent; the worker handles stale-id
+    invalidation upstream of the client call."""
+    for method in ("POST", "PUT", "PATCH"):
+        disposition, reason = generic.interpret_error(httpx.Response(404), method)
+        assert disposition == "permanent", f"{method} 404 should be permanent"
+        assert "404" in reason
 
 
 def test_generic_transform_user_payload_is_identity() -> None:
@@ -223,11 +239,11 @@ def test_unknown_kind_routes_through_generic_at_the_client(
 def test_quirk_interpret_error_can_downgrade_5xx_to_permanent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A quirk module returning (False, ...) on a 503 makes it permanent."""
+    """A quirk module returning ('permanent', ...) on a 503 makes it permanent."""
     fake = _FakeClient(httpx.Response(503))
 
-    def grumpy_interpret(response: httpx.Response) -> tuple[bool, str]:
-        return False, "vendor says: never retry 503"
+    def grumpy_interpret(response: httpx.Response, method: str) -> tuple[str, str]:
+        return "permanent", "vendor says: never retry 503"
 
     monkeypatch.setattr(atlassian, "interpret_error", grumpy_interpret)
 

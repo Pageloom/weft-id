@@ -193,6 +193,11 @@ queue depth and the most recent push attempts.
 * `pending` -- enqueued, waiting for the worker.
 * `running` -- worker is currently pushing this row.
 * `done` -- push succeeded.
+* `done` with an amber **Skipped** badge -- the resource was already
+  absent at the receiver (typically a 404 on `DELETE`). The queue row
+  drained without an actual push; the **Error** column carries the
+  `already_absent` marker. This is benign and common when
+  deprovisioning a user the receiver never saw.
 * `failed` -- push failed; the row is scheduled for retry with
   exponential backoff.
 * `dead_letter` -- retry budget exhausted. No further attempts
@@ -235,6 +240,55 @@ can spot patterns at a glance. The most common ones:
    (5xx, 429, or a vendor-specific retryable code). The row is
    scheduled with exponential backoff (1m / 5m / 30m / 2h /
    dead-letter).
+* `already_absent: ...` -- the resource was already gone at the
+  receiver when the worker tried to update or delete it. Surfaces
+  with status `done` and the amber **Skipped** badge. No retry; the
+  queue row drains.
+* `remote_id_invalidated (HTTP 404; next attempt will POST)` -- the
+  receiver returned 404 for a resource WeftID thought it had
+  previously created. The recorded id is cleared automatically and
+  the next worker pass POSTs the resource again, recapturing a fresh
+  id. The row is retryable; one cycle is normal.
+
+## Resource ID mapping
+
+SCIM 2.0 says the receiver mints the canonical `id` for a resource
+when the client `POST`s it (RFC 7644 §3.3). After the first `POST`,
+WeftID stores that id in the `sp_scim_remote_ids` mapping table so
+later `PUT`, `PATCH`, and `DELETE` calls go against the receiver's
+id rather than WeftID's internal UUID. This matters for any
+spec-compliant receiver (most of them) where group `members[].value`
+must reference the receiver's id, not the externalId.
+
+* **When a mapping is created** -- on the first successful `POST` of
+  a User or Group to an SP, the worker captures the `id` from the
+  response body and stores it. The `scim_remote_id_mapped` audit
+  event records the mapping.
+* **When a mapping is used** -- every subsequent `PUT` / `PATCH` /
+  `DELETE` against the same WeftID resource for the same SP uses
+  the stored id. Group payloads also use stored ids for member
+  `value` and `$ref` so the receiver can resolve members.
+* **When a mapping is cleared** -- if the receiver returns 404 for a
+  `PUT`, `PATCH`, or `DELETE` against the stored id, the worker
+  clears the mapping and reclassifies the outcome as retryable. The
+  next pass `POST`s the resource and re-captures a fresh id. A
+  `scim_remote_id_invalidated` audit event records the clear.
+* **Backwards compatibility** -- rows that pre-date the mapping
+  table (or any resource that has not yet been successfully
+  `POST`ed) fall back to using WeftID's UUID. Receivers that key on
+  `externalId` continue to work unchanged; spec-compliant receivers
+  re-mint and start mapping on the next push.
+* **Group members without a mapping** -- when a Group is pushed and
+  some of its members have not yet been `POST`ed (no recorded id),
+  those members are SKIPPED from the Group payload with a warning
+  in the worker log. The next push (after the members are
+  individually pushed) includes them. Emitting a WeftID UUID where
+  the receiver expects its own id would silently drop the member at
+  the receiver's resolver -- the skip is the safe alternative.
+
+The mapping table is purely additive: removing it (or starting from
+an empty one after a migration) is safe. The worker self-heals via
+the fallback path on the next push.
 
 ## Vendor walkthroughs
 

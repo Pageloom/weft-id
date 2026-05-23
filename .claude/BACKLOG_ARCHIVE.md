@@ -4,6 +4,43 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Track downstream-assigned SCIM resource IDs
+
+**Status:** Complete (2026-05-23)
+
+**Summary:** WeftID was using its own UUID as the SCIM `id` everywhere, which silently dropped group members against any spec-compliant SCIM 2.0 receiver (Authentik, Entra, Atlassian etc.) that mints its own server-assigned id and resolves group members against it. The fix introduces a per-SP `(weftid_id -> remote_id)` mapping table, captures the receiver's `id` from the first POST response, and uses it for every subsequent PUT/PATCH/DELETE and for group `members[].value` references.
+
+**Implementation:**
+
+- New table `sp_scim_remote_ids` (migration `0041_scim_remote_ids.sql`, tenant-scoped RLS, unique on `(sp_id, resource_type, weftid_id)`, FK cascade on SP delete).
+- New `app/database/scim_remote_ids.py` with `get_one`, `get_for_users` (batch), `upsert`, `delete`.
+- New `app/services/scim/remote_ids.py` with `record_mapping` / `invalidate_mapping` (wrap upsert/delete + emit audit events under `system_context()`).
+- Two new audit events: `scim_remote_id_mapped` (first map), `scim_remote_id_invalidated` (404 clears a stale mapping). Operational tier; not in `EVENT_TYPE_SCIM_TRIGGERS` (would self-loop).
+- Client: `put_user` / `put_group` added; `PushStatus` gains `"absent"`; quirk interface widened to `interpret_error(response, method)`.
+- Worker: POST when no mapping, capture `scim_id` on success, persist mapping. PUT when mapping exists. DELETE uses `remote_id` when known, falls back to WeftID UUID otherwise. 404 on PUT with mapping invalidates and reclassifies as retryable; 404 on DELETE with mapping is `absent` and opportunistically clears the mapping.
+- Group payload builder: `build_group_resource(..., remote_id_lookup=...)` skips members with no recorded mapping (warning logged) instead of emitting unresolvable WeftID UUIDs.
+- Per-quirk capability flag `GROUP_UPDATE_VERB` lets vendors opt out of PUT for Groups (GitHub returns 405; opts out to keep the existing POST-only behavior until a PATCH-rewriting layer lands).
+- Sync activity panel renders an amber "Skipped" badge for `done` rows whose `error` starts with the `already_absent` marker.
+- Docs: new "Resource ID mapping" section in `docs/admin-guide/service-providers/scim.md` plus updated status meanings and reason codes.
+
+**Tests:** Database integration tests for the new module (10), service tests for `remote_ids` (9), payload builder tests for the new lookup semantics (6), worker dispatch tests for POST/PUT/DELETE/404/absent paths (10), updated quirk tests for the new signature, plus a regression sentinel that GitHub stays POST-only on Groups via the new capability flag.
+
+**Version impact:** Minor (new table, new audit event types, behavior change but backwards compatible; pre-mapping rows self-heal on next push).
+
+---
+
+## Generic SCIM: treat 404 on DELETE as success
+
+**Status:** Complete (2026-05-23)
+
+**Summary:** The Generic SCIM adapter classified 404 on DELETE as `permanent` and dead-lettered the row, which produced a wall of false failures whenever an admin removed group grants for users the downstream app never saw. Now the generic quirk returns the new `"absent"` disposition on 404 + DELETE; the worker treats it as success-like (drops the queue row, marks the sync_log row `done` with the `already_absent` marker). 404 on POST/PUT/PATCH remains `permanent`.
+
+**Implementation:** Shipped alongside the remote-id iteration: the quirk-interface widening to `interpret_error(response, method)`, the new `PushStatus = "absent"`, and the worker's `_record_absent` path. Atlassian's existing "404 = permanent" override was removed (now correctly inherits the generic `404 on DELETE = absent` policy, with 404 on other verbs still permanent). The Sync activity panel renders the new amber "Skipped" badge for rows carrying the marker. Tests added for both the generic and Atlassian paths, plus a regression test that 404 on PUT continues to dead-letter.
+
+**Version impact:** Patch for worker behavior, minor overall because it shipped bundled with the remote-id iteration (which adds the `sp_scim_remote_ids` table).
+
+---
+
 ## Standard User Attribute Expansion
 
 **Status:** Complete

@@ -3,8 +3,10 @@
 Public API:
     push_user(sp, user_resource, *, token, http_client=None) -> PushResult
     push_group(sp, group_resource, *, token, http_client=None) -> PushResult
-    delete_user(sp, external_id, *, token, http_client=None) -> PushResult
-    delete_group(sp, external_id, *, token, http_client=None) -> PushResult
+    put_user(sp, remote_id, user_resource, *, token, http_client=None) -> PushResult
+    put_group(sp, remote_id, group_resource, *, token, http_client=None) -> PushResult
+    delete_user(sp, remote_id, *, token, http_client=None) -> PushResult
+    delete_group(sp, remote_id, *, token, http_client=None) -> PushResult
 
 This module is pure transport: it sends spec-correct requests, applies the
 matching quirk module's transforms, retries on transient errors, and reports
@@ -15,13 +17,21 @@ log -- the worker (iteration 4) owns all of that.
 only reads `scim_target_url` and `scim_kind`. The plaintext bearer token is
 passed by keyword; the worker is responsible for sourcing it.
 
+POST vs PUT:
+    The worker decides which to call based on whether it has a recorded
+    `remote_id` mapping (see `services.scim.worker`). POST creates the
+    resource and the receiver mints the canonical id; PUT updates an
+    existing resource at the receiver's `id`. This client just forwards
+    the verb -- it has no state of its own.
+
 Retry policy (transport-level, distinct from worker-level queue retry):
     - Up to 3 attempts per call (initial + 2 retries).
     - Sleep 1s before retry 2, 4s before retry 3.
     - Retry on network errors (httpx connect / read timeouts / transport
       errors) and any response the quirk module flags retryable. The
-      generic quirk treats 5xx and 429 as retryable, other 4xx as permanent.
-    - 4xx (other than 429) returns immediately with `status="permanent"`.
+      generic quirk treats 5xx and 429 as retryable, 404-on-DELETE as
+      `absent` (success-like), other 4xx as permanent.
+    - `absent` and `permanent` return immediately without further retries.
 
 The function constructs and closes an `httpx.Client` when none is supplied;
 otherwise it uses the caller's client without closing it (tests, shared
@@ -42,6 +52,20 @@ import httpx
 from ._sanitise import redact_bearer
 from .quirks import get_quirk_module
 
+# Re-export so the worker can introspect quirk capability flags without
+# adding a direct dependency on the quirks package layout.
+__all__ = [
+    "PushResult",
+    "PushStatus",
+    "delete_group",
+    "delete_user",
+    "get_quirk_module",
+    "push_group",
+    "push_user",
+    "put_group",
+    "put_user",
+]
+
 _logger = logging.getLogger(__name__)
 
 # HTTP attempts per call (initial + retries).
@@ -53,7 +77,7 @@ _BACKOFF_SECONDS = [0.0, 1.0, 4.0]
 # are fine, we'd rather wait than spuriously declare failure.
 _HTTP_TIMEOUT_SECONDS = 30.0
 
-PushStatus = Literal["success", "retryable", "permanent"]
+PushStatus = Literal["success", "retryable", "permanent", "absent"]
 
 
 @dataclass(frozen=True)
@@ -61,14 +85,17 @@ class PushResult:
     """Outcome of a single client call.
 
     Fields:
-        status: One of "success", "retryable", "permanent". The worker maps
-            "retryable" to a queue retry and "permanent" to a dead-letter.
+        status: One of "success", "retryable", "permanent", "absent". The
+            worker maps "retryable" to a queue retry, "permanent" to a
+            dead-letter, "absent" to a queue-drop with a sync-log marker
+            (the resource was already gone at the receiver), and
+            "success" to a queue-drop with a normal `done` sync-log row.
         http_status: The HTTP status code from the final attempt, if any.
             None when the call never produced a response (e.g., all attempts
             raised network errors).
         reason: Short human-readable summary; non-None for non-success.
         scim_id: The SP-assigned resource id parsed from a successful POST
-            response, if present. None for PUTs/PATCHes/DELETEs and for any
+            or PUT response, if present. None for DELETEs and for any
             response that does not return an `id`.
     """
 
@@ -124,7 +151,11 @@ def _success(response: httpx.Response) -> PushResult:
     )
 
 
-def _classify_response(response: httpx.Response, quirk: ModuleType) -> PushResult:
+def _classify_response(
+    response: httpx.Response,
+    quirk: ModuleType,
+    method: str,
+) -> PushResult:
     """Map a non-2xx response through the quirk module into a `PushResult`.
 
     The reason string is sanitised through `redact_bearer()` so any echoed
@@ -133,9 +164,23 @@ def _classify_response(response: httpx.Response, quirk: ModuleType) -> PushResul
     happens here -- at the boundary where quirk output crosses into the
     worker's persistence layer -- so every quirk benefits without having
     to remember to redact in its own `interpret_error`.
+
+    The `method` is forwarded so the quirk can treat status codes
+    differently per verb -- notably, 404 on DELETE is `absent` rather
+    than permanent.
     """
-    retryable, reason = quirk.interpret_error(response)
-    status: PushStatus = "retryable" if retryable else "permanent"
+    disposition, reason = quirk.interpret_error(response, method)
+    if disposition not in ("retryable", "permanent", "absent"):
+        # Defensive: a misbehaving quirk module returned something we don't
+        # understand. Treat as permanent so the entry dead-letters with a
+        # clear breadcrumb instead of looping forever.
+        _logger.error(
+            "quirk %s returned unknown disposition %r; treating as permanent",
+            quirk.__name__,
+            disposition,
+        )
+        disposition = "permanent"
+    status: PushStatus = disposition  # type: ignore[assignment]
     return PushResult(
         status=status,
         http_status=response.status_code,
@@ -203,9 +248,9 @@ def _send_with_retry(
             if 200 <= response.status_code < 300:
                 return _success(response)
 
-            result = _classify_response(response, quirk)
+            result = _classify_response(response, quirk, method)
             last_result = result
-            if result.status == "permanent":
+            if result.status in ("permanent", "absent"):
                 return result
             # retryable -- loop and try again unless out of attempts.
 
@@ -222,12 +267,13 @@ def push_user(
     token: str,
     http_client: httpx.Client | None = None,
 ) -> PushResult:
-    """Create or update a user on the downstream SP via SCIM POST.
+    """Create a user on the downstream SP via SCIM POST `/Users`.
 
-    Iteration 2 uses POST `/Users` for both create and update; the worker
-    will switch to PUT/PATCH against a known SCIM id in a later iteration
-    once we track the SP-assigned id locally. Quirk modules may rewrite the
-    payload via `transform_user_payload` before send.
+    Used when the worker has no recorded `remote_id` mapping for this
+    user against this SP. The receiver mints the canonical `id` and
+    returns it in the response body; the worker captures it via
+    `PushResult.scim_id` and persists the mapping. Quirk modules may
+    rewrite the payload via `transform_user_payload` before send.
     """
     quirk = get_quirk_module(sp.get("scim_kind"))
     payload = quirk.transform_user_payload(user_resource)
@@ -249,7 +295,7 @@ def push_group(
     token: str,
     http_client: httpx.Client | None = None,
 ) -> PushResult:
-    """Create or update a group on the downstream SP via SCIM POST.
+    """Create a group on the downstream SP via SCIM POST `/Groups`.
 
     See `push_user` for the create-vs-update note. Quirk modules may rewrite
     the payload via `transform_group_payload` before send.
@@ -267,21 +313,78 @@ def push_group(
     )
 
 
-def delete_user(
+def put_user(
     sp: dict,
-    external_id: str,
+    remote_id: str,
+    user_resource: dict,
     *,
     token: str,
     http_client: httpx.Client | None = None,
 ) -> PushResult:
-    """Delete a user on the downstream SP via SCIM DELETE `/Users/<id>`.
+    """Replace a user on the downstream SP via SCIM PUT `/Users/<remote_id>`.
 
-    `external_id` is the SP-side id (what the SP returned to us at create
-    time). The worker is responsible for resolving WeftID id -> SP id; this
-    client only forwards the value.
+    Used when the worker has a recorded `remote_id` mapping. `remote_id` is
+    the SP's canonical id (the value the receiver returned on the original
+    POST). A 404 here means the receiver no longer recognises the id; the
+    worker's caller treats that as an invalidation signal (clear the
+    mapping and re-POST on the next attempt).
     """
     quirk = get_quirk_module(sp.get("scim_kind"))
-    url = _target_for(sp, "Users", external_id)
+    payload = quirk.transform_user_payload(user_resource)
+    url = _target_for(sp, "Users", remote_id)
+    return _send_with_retry(
+        "PUT",
+        url,
+        token=token,
+        json_body=payload,
+        quirk=quirk,
+        http_client=http_client,
+    )
+
+
+def put_group(
+    sp: dict,
+    remote_id: str,
+    group_resource: dict,
+    *,
+    token: str,
+    http_client: httpx.Client | None = None,
+) -> PushResult:
+    """Replace a group on the downstream SP via SCIM PUT `/Groups/<remote_id>`.
+
+    See `put_user` for the 404-as-invalidation note.
+    """
+    quirk = get_quirk_module(sp.get("scim_kind"))
+    payload = quirk.transform_group_payload(group_resource)
+    url = _target_for(sp, "Groups", remote_id)
+    return _send_with_retry(
+        "PUT",
+        url,
+        token=token,
+        json_body=payload,
+        quirk=quirk,
+        http_client=http_client,
+    )
+
+
+def delete_user(
+    sp: dict,
+    remote_id: str,
+    *,
+    token: str,
+    http_client: httpx.Client | None = None,
+) -> PushResult:
+    """Delete a user on the downstream SP via SCIM DELETE `/Users/<remote_id>`.
+
+    `remote_id` is the SP-side id when a mapping has been recorded;
+    otherwise the worker falls back to WeftID's UUID (the externalId)
+    for backwards compatibility with pre-mapping rows. 404 is classified
+    as `absent` by the generic quirk so deprovisioning a resource that
+    the downstream never saw drains the queue cleanly instead of
+    dead-lettering.
+    """
+    quirk = get_quirk_module(sp.get("scim_kind"))
+    url = _target_for(sp, "Users", remote_id)
     return _send_with_retry(
         "DELETE",
         url,
@@ -294,14 +397,14 @@ def delete_user(
 
 def delete_group(
     sp: dict,
-    external_id: str,
+    remote_id: str,
     *,
     token: str,
     http_client: httpx.Client | None = None,
 ) -> PushResult:
-    """Delete a group on the downstream SP via SCIM DELETE `/Groups/<id>`."""
+    """Delete a group on the downstream SP via SCIM DELETE `/Groups/<remote_id>`."""
     quirk = get_quirk_module(sp.get("scim_kind"))
-    url = _target_for(sp, "Groups", external_id)
+    url = _target_for(sp, "Groups", remote_id)
     return _send_with_retry(
         "DELETE",
         url,

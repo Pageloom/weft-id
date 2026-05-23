@@ -84,52 +84,55 @@ def test_patch_remove_pass_through(fixtures: dict) -> None:
 def test_interpret_error_502_is_retryable_with_proxy_label(fixtures: dict) -> None:
     fx = fixtures["error_proxy_502"]
     response = httpx.Response(fx["response"]["status"], text=fx["response"]["body"])
-    retryable, reason = gitlab.interpret_error(response)
-    assert retryable is fx["expected_classification"]["retryable"]
+    disposition, reason = gitlab.interpret_error(response, "POST")
+    expected = "retryable" if fx["expected_classification"]["retryable"] else "permanent"
+    assert disposition == expected
     assert fx["expected_classification"]["reason_contains"] in reason
 
 
 def test_interpret_error_license_403_is_permanent(fixtures: dict) -> None:
     fx = fixtures["error_license"]
     response = httpx.Response(fx["response"]["status"], json=fx["response"]["body"])
-    retryable, reason = gitlab.interpret_error(response)
-    assert retryable is fx["expected_classification"]["retryable"]
+    disposition, reason = gitlab.interpret_error(response, "POST")
+    expected = "retryable" if fx["expected_classification"]["retryable"] else "permanent"
+    assert disposition == expected
     assert fx["expected_classification"]["reason_contains"] in reason
 
 
 def test_interpret_error_generic_403_delegates_to_generic(fixtures: dict) -> None:
     fx = fixtures["error_generic_403"]
     response = httpx.Response(fx["response"]["status"], json=fx["response"]["body"])
-    retryable, reason = gitlab.interpret_error(response)
-    assert retryable is fx["expected_classification"]["retryable"]
+    disposition, reason = gitlab.interpret_error(response, "POST")
+    expected = "retryable" if fx["expected_classification"]["retryable"] else "permanent"
+    assert disposition == expected
     assert fx["expected_classification"]["reason_contains"] in reason
 
 
 def test_interpret_error_500_delegates_to_generic(fixtures: dict) -> None:
     fx = fixtures["error_server_500"]
     response = httpx.Response(fx["response"]["status"], json=fx["response"]["body"])
-    retryable, reason = gitlab.interpret_error(response)
-    assert retryable is True
+    disposition, reason = gitlab.interpret_error(response, "POST")
+    assert disposition == "retryable"
     assert "500" in reason
 
 
 def test_interpret_error_429_delegates_to_generic_retryable() -> None:
     response = httpx.Response(429)
-    retryable, reason = gitlab.interpret_error(response)
-    assert retryable is True
+    disposition, reason = gitlab.interpret_error(response, "POST")
+    assert disposition == "retryable"
     assert "429" in reason
 
 
 def test_interpret_error_400_delegates_to_generic_permanent() -> None:
     response = httpx.Response(400)
-    retryable, reason = gitlab.interpret_error(response)
-    assert retryable is False
+    disposition, reason = gitlab.interpret_error(response, "POST")
+    assert disposition == "permanent"
     assert "400" in reason
 
 
 def test_interpret_error_403_with_non_string_detail_falls_through() -> None:
     """A 403 body whose detail isn't a string shouldn't crash the lookup."""
     response = httpx.Response(403, json={"detail": {"nested": "thing"}})
-    retryable, reason = gitlab.interpret_error(response)
-    assert retryable is False
+    disposition, reason = gitlab.interpret_error(response, "POST")
+    assert disposition == "permanent"
     assert "403" in reason

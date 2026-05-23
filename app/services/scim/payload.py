@@ -14,8 +14,13 @@ Per RFC 7643:
   `externalId`; the SP returns its own id after create. Until then we omit
   `id` from outbound payloads (POST cannot dictate the SP's id).
 - `members` on Group is a list of `{value, $ref, display}`. `value` is the
-  SP-side user id. We populate `$ref` with the SCIM-style relative reference
-  `Users/<value>` and `display` with the user's email or full name.
+  SP-side user id (the receiver's canonical id, captured at POST time and
+  stored in `sp_scim_remote_ids`). When no mapping has been recorded yet
+  for a member, the builder skips that member and emits a warning log --
+  emitting a WeftID UUID where the receiver expects its own id would
+  silently drop the member at the receiver's resolver.
+- `$ref` is the SCIM-style relative reference `Users/<value>` and
+  `display` is the user's email or full name.
 
 The user dict is expected to expose at least:
     id, email
@@ -34,6 +39,10 @@ exposing: id, optionally email and first_name/last_name for display.
 """
 
 from __future__ import annotations
+
+import logging
+
+_logger = logging.getLogger(__name__)
 
 USER_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:User"
 ENTERPRISE_USER_SCHEMA = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
@@ -129,13 +138,28 @@ def _member_display(member: dict) -> str | None:
     return None
 
 
-def build_group_resource(group: dict, members: list[dict]) -> dict:
+def build_group_resource(
+    group: dict,
+    members: list[dict],
+    *,
+    remote_id_lookup: dict[str, str] | None = None,
+) -> dict:
     """Build a spec-correct SCIM 2.0 Group resource.
 
     Args:
         group: WeftID group dict. Required: `id`, `name`.
         members: List of member dicts. Each must expose `id`; optional
             `email`, `first_name`, `last_name` for the `display` attribute.
+        remote_id_lookup: Optional `{weftid_id: remote_id}` mapping. When
+            provided, the builder uses the receiver's canonical id for
+            `members[].value` and `$ref`. Members whose WeftID id is not in
+            the mapping are SKIPPED -- emitting a WeftID UUID where the
+            receiver expects its own id silently drops the member at the
+            receiver's resolver, which is exactly the bug that motivated
+            the mapping table. A warning is logged for each skipped member.
+            When the lookup is None, the builder falls back to using
+            WeftID UUIDs (the pre-mapping behavior; backwards compatible
+            with tests that don't pass a lookup).
 
     Returns:
         A dict suitable for JSON-serializing as a SCIM 2.0 Group. Empty
@@ -146,7 +170,20 @@ def build_group_resource(group: dict, members: list[dict]) -> dict:
 
     member_entries: list[dict] = []
     for m in members:
-        value = str(m["id"])
+        weftid_id = str(m["id"])
+        if remote_id_lookup is not None:
+            value = remote_id_lookup.get(weftid_id)
+            if value is None:
+                _logger.warning(
+                    "scim payload: skipping group %s member %s -- no remote_id mapping "
+                    "(member has not yet been pushed to this SP)",
+                    group_id,
+                    weftid_id,
+                )
+                continue
+        else:
+            value = weftid_id
+
         entry: dict = {
             "value": value,
             "$ref": f"Users/{value}",

@@ -130,31 +130,40 @@ def test_interpret_error_429_surfaces_retry_after(fixtures: dict) -> None:
         headers=fx["response"]["headers"],
         json=fx["response"]["body"],
     )
-    retryable, reason = slack.interpret_error(response)
-    assert retryable is fx["expected_classification"]["retryable"]
+    disposition, reason = slack.interpret_error(response, "POST")
+    expected = "retryable" if fx["expected_classification"]["retryable"] else "permanent"
+    assert disposition == expected
     assert fx["expected_classification"]["reason_contains"] in reason
 
 
 def test_interpret_error_429_without_retry_after_still_retryable() -> None:
     response = httpx.Response(429)
-    retryable, reason = slack.interpret_error(response)
-    assert retryable is True
+    disposition, reason = slack.interpret_error(response, "POST")
+    assert disposition == "retryable"
     assert "429" in reason
 
 
 def test_interpret_error_5xx_delegates_to_generic(fixtures: dict) -> None:
     fx = fixtures["error_server_error"]
     response = httpx.Response(fx["response"]["status"], json=fx["response"]["body"])
-    retryable, reason = slack.interpret_error(response)
-    assert retryable is True
+    disposition, reason = slack.interpret_error(response, "POST")
+    assert disposition == "retryable"
     assert "503" in reason
 
 
 def test_interpret_error_4xx_delegates_to_generic_permanent() -> None:
     response = httpx.Response(400)
-    retryable, reason = slack.interpret_error(response)
-    assert retryable is False
+    disposition, reason = slack.interpret_error(response, "POST")
+    assert disposition == "permanent"
     assert "400" in reason
+
+
+def test_interpret_error_404_on_delete_is_absent() -> None:
+    """Slack inherits the generic 404-on-DELETE = absent policy."""
+    response = httpx.Response(404)
+    disposition, reason = slack.interpret_error(response, "DELETE")
+    assert disposition == "absent"
+    assert "404" in reason
 
 
 def test_user_payload_uses_only_core_user_urn_no_slack_extension() -> None:

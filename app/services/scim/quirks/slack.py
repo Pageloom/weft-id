@@ -91,19 +91,20 @@ def transform_patch_ops(ops: list[dict]) -> list[dict]:
     return cleaned
 
 
-def interpret_error(response: httpx.Response) -> tuple[bool, str]:
+def interpret_error(response: httpx.Response, method: str) -> tuple[str, str]:
     """Slack-specific error classification.
 
     Overrides the generic handler only for 429: surface the `Retry-After`
-    header so operators understand why we backed off. 5xx and other 4xx fall
-    through to the generic classification.
+    header so operators understand why we backed off. 5xx and other 4xx
+    (including 404-on-DELETE -> `absent`) fall through to the generic
+    classification.
     """
     if response.status_code == 429:
         retry_after = response.headers.get("Retry-After") or response.headers.get("retry-after")
         if retry_after:
-            return True, f"rate_limited (HTTP 429, Retry-After: {retry_after})"
-        return True, "rate_limited (HTTP 429)"
-    return _generic_interpret_error(response)
+            return "retryable", f"rate_limited (HTTP 429, Retry-After: {retry_after})"
+        return "retryable", "rate_limited (HTTP 429)"
+    return _generic_interpret_error(response, method)
 
 
 __all__ = [

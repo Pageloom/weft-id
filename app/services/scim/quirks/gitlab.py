@@ -77,23 +77,24 @@ def _extract_detail(response: httpx.Response) -> str | None:
     return None
 
 
-def interpret_error(response: httpx.Response) -> tuple[bool, str]:
+def interpret_error(response: httpx.Response, method: str) -> tuple[str, str]:
     """GitLab-specific error classification.
 
     - 502 from GitLab's proxy: retryable (generic also retries; we enrich
       the reason).
     - 403 with `detail: "License does not allow ..."`: permanent
       (configuration issue, retrying will not help).
+    - 404 on DELETE -> `absent` via the generic classifier.
     - Otherwise fall through to the generic classifier.
     """
     status = response.status_code
     if status == 502:
-        return True, "proxy_error (HTTP 502, GitLab upstream)"
+        return "retryable", "proxy_error (HTTP 502, GitLab upstream)"
     if status == 403:
         detail = _extract_detail(response)
         if detail and "license" in detail.lower():
-            return False, f"license_error (HTTP 403, {detail})"
-    return _generic_interpret_error(response)
+            return "permanent", f"license_error (HTTP 403, {detail})"
+    return _generic_interpret_error(response, method)
 
 
 __all__ = [

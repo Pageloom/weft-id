@@ -257,15 +257,17 @@
             </thead>
             <tbody id="scim-sync-tbody" class="divide-y divide-gray-200 dark:divide-gray-700">
                 {% for row in sync_log.items %}
+                {% set absent = row.status == 'done' and row.error and row.error.startswith('already_absent') %}
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td class="px-3 py-2 text-gray-900 dark:text-gray-100 font-mono text-xs">{{ row.resource_type }}/{{ row.resource_id[:8] }}…</td>
                     <td class="px-3 py-2">
                         <span class="px-2 py-0.5 text-xs font-medium rounded-full
-                            {% if row.status == 'done' %}bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300
+                            {% if absent %}bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300
+                            {% elif row.status == 'done' %}bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300
                             {% elif row.status in ('failed', 'dead_letter') %}bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300
                             {% elif row.status == 'running' %}bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300
                             {% else %}bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300{% endif %}">
-                            {% if row.status == 'dead_letter' %}Dead letter{% else %}{{ row.status | capitalize }}{% endif %}
+                            {% if absent %}Skipped{% elif row.status == 'dead_letter' %}Dead letter{% else %}{{ row.status | capitalize }}{% endif %}
                         </span>
                     </td>
                     <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{{ row.attempt }}</td>
@@ -477,12 +479,25 @@ const STATUS_LABELS = {
     dead_letter: 'Dead letter',
 };
 
-function statusBadgeHtml(status) {
+function statusBadgeHtml(status, errorText) {
+    // `done` with an `already_absent` marker renders as a distinct
+    // "Skipped" badge so admins can tell "we pushed and the receiver
+    // accepted it" apart from "the receiver said 404 and there was
+    // nothing to do". The marker is set by the worker -- see
+    // services.scim.worker.ABSENT_MARKER_PREFIX.
+    const absent = status === 'done' && typeof errorText === 'string' && errorText.startsWith('already_absent');
     let cls = 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
-    if (status === 'done') cls = 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300';
-    else if (status === 'failed' || status === 'dead_letter') cls = 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300';
-    else if (status === 'running') cls = 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300';
-    const label = STATUS_LABELS[status] || status;
+    let label = STATUS_LABELS[status] || status;
+    if (absent) {
+        cls = 'bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300';
+        label = 'Skipped';
+    } else if (status === 'done') {
+        cls = 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300';
+    } else if (status === 'failed' || status === 'dead_letter') {
+        cls = 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300';
+    } else if (status === 'running') {
+        cls = 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300';
+    }
     return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${cls}">${escapeHtml(label)}</span>`;
 }
 
@@ -494,7 +509,7 @@ function renderSyncRow(row) {
     const err = row.error || '';
     const errShort = err.length > 80 ? `${err.slice(0, 80)}…` : err;
     // statusBadgeHtml returns hardcoded HTML around an escaped status value.
-    const statusHtml = statusBadgeHtml(row.status);
+    const statusHtml = statusBadgeHtml(row.status, err);
     tr.innerHTML = `
         <td class="px-3 py-2 text-gray-900 dark:text-gray-100 font-mono text-xs">${escapeHtml(row.resource_type)}/${escapeHtml(String(row.resource_id).slice(0, 8))}…</td>
         <td class="px-3 py-2">${statusHtml}</td>

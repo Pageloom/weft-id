@@ -110,9 +110,22 @@ def test_4xx_returns_immediately_without_retry() -> None:
     assert len(fake.calls) == 1
 
 
-def test_404_on_delete_is_permanent_no_retry() -> None:
+def test_404_on_delete_is_absent_no_retry() -> None:
+    """404 on DELETE: the resource is already gone -- treated as success-like
+    `absent` so deprovisioning rows the receiver never saw drain cleanly."""
     fake = _FakeClient([_resp(404)])
     result = scim_client.delete_user(SP, "ext-x", token="t", http_client=fake)
+    assert result.status == "absent"
+    assert result.http_status == 404
+    assert result.reason and "already_absent" in result.reason
+    assert len(fake.calls) == 1
+
+
+def test_404_on_put_is_permanent_no_retry() -> None:
+    """404 on PUT remains permanent at the client layer; worker handles
+    stale-id invalidation before the call returns to the caller."""
+    fake = _FakeClient([_resp(404)])
+    result = scim_client.put_user(SP, "ext-x", {"externalId": "u-1"}, token="t", http_client=fake)
     assert result.status == "permanent"
     assert result.http_status == 404
     assert len(fake.calls) == 1

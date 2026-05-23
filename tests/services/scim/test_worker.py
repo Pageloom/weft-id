@@ -75,6 +75,8 @@ def _build_db_mock(
     group_row: dict | None = None,
     group_members: list[list[dict]] | None = None,
     new_log_id: str = "log-1",
+    remote_id_mapping: dict | None = None,
+    member_remote_id_lookup: dict[str, str] | None = None,
 ) -> MagicMock:
     db = MagicMock()
     db.scim_push_queue.list_ready_entries.return_value = queue_entries
@@ -85,6 +87,19 @@ def _build_db_mock(
     db.groups.get_group_by_id.return_value = group_row
     db.groups.get_effective_members.side_effect = group_members or [[], []]
     db.scim_sync_log.create_entry.return_value = {"id": new_log_id}
+    # Default: no remote-id mapping recorded for the resource. The worker
+    # treats this as "first push" and routes via POST. Group payloads with
+    # no member mappings emit empty `members` (skipped + warning logged) --
+    # tests that exercise the populated-payload path pass
+    # `member_remote_id_lookup={weftid_id: remote_id, ...}`.
+    db.scim_remote_ids.get_one.return_value = remote_id_mapping
+    db.scim_remote_ids.get_for_users.return_value = member_remote_id_lookup or {}
+    # `record_mapping`/`invalidate_mapping` upserts/deletes used by the
+    # worker through `services.scim.remote_ids`. Return shape:
+    # upsert -> (row, was_inserted). MagicMock returns a MagicMock by
+    # default; pin a concrete tuple so tests can assert against it.
+    db.scim_remote_ids.upsert.return_value = ({"remote_id": "captured"}, True)
+    db.scim_remote_ids.delete.return_value = 1
     return db
 
 
@@ -98,6 +113,8 @@ def test_returns_empty_summary_when_no_ready_entries(fake_now: datetime) -> None
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
     ):
         result = worker.process_pending_pushes("tenant-1", now=fake_now)
     assert result == {
@@ -106,6 +123,7 @@ def test_returns_empty_summary_when_no_ready_entries(fake_now: datetime) -> None
         "retried": 0,
         "dead_lettered": 0,
         "skipped": 0,
+        "absent": 0,
     }
     db.service_providers.get_scim_target.assert_not_called()
 
@@ -116,6 +134,8 @@ def test_drops_entries_when_sp_no_longer_exists(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
     ):
         result = worker.process_pending_pushes(
             "tenant-1", now=fake_now, token_resolver=lambda _t, _s: "tok"
@@ -136,6 +156,8 @@ def test_drops_entries_when_sp_has_scim_disabled(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
     ):
         result = worker.process_pending_pushes(
             "tenant-1", now=fake_now, token_resolver=lambda _t, _s: "tok"
@@ -152,6 +174,8 @@ def test_drops_entries_when_sp_has_no_target_url(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
     ):
         result = worker.process_pending_pushes(
             "tenant-1", now=fake_now, token_resolver=lambda _t, _s: "tok"
@@ -177,6 +201,8 @@ def test_dead_letters_when_token_resolver_returns_none(fake_now: datetime) -> No
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
     ):
         result = worker.process_pending_pushes(
             "tenant-1",
@@ -220,6 +246,8 @@ def test_dead_letters_with_distinct_reason_when_resolver_signals_decrypt_failure
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
     ):
         result = worker.process_pending_pushes(
             "tenant-1",
@@ -257,6 +285,8 @@ def test_accepts_new_ok_tuple_shape_from_resolver(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch("services.scim.client.push_user", fake_push),
     ):
         result = worker.process_pending_pushes(
@@ -300,6 +330,8 @@ def test_successful_user_push_deletes_queue_and_marks_log_done(
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch("services.scim.worker.scim_client.push_user", return_value=success) as push_user_mock,
     ):
         result = worker.process_pending_pushes(
@@ -331,6 +363,8 @@ def test_user_no_longer_in_scope_pushes_delete(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch(
             "services.scim.worker.scim_client.delete_user", return_value=success
         ) as delete_user_mock,
@@ -357,6 +391,8 @@ def test_user_completely_gone_pushes_delete(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch(
             "services.scim.worker.scim_client.delete_user", return_value=success
         ) as delete_user_mock,
@@ -403,6 +439,8 @@ def test_retryable_failure_schedules_correct_backoff(
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch("services.scim.worker.scim_client.push_user", return_value=retryable),
     ):
         result = worker.process_pending_pushes(
@@ -437,6 +475,8 @@ def test_retryable_failure_after_first_attempt_uses_one_minute(
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch("services.scim.worker.scim_client.push_user", return_value=retryable),
     ):
         worker.process_pending_pushes("tenant-1", now=fake_now, token_resolver=lambda _t, _s: "tok")
@@ -462,6 +502,8 @@ def test_fifth_failed_attempt_dead_letters(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch("services.scim.worker.scim_client.push_user", return_value=retryable),
     ):
         result = worker.process_pending_pushes(
@@ -491,6 +533,8 @@ def test_permanent_failure_dead_letters_immediately(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch("services.scim.worker.scim_client.push_user", return_value=permanent),
     ):
         result = worker.process_pending_pushes(
@@ -528,11 +572,16 @@ def test_successful_group_push_with_effective_members(fake_now: datetime) -> Non
             "last_name": "Beta",
         },
     ]
+    # Provide a member remote-id mapping so the payload emits both members.
+    # Without a mapping the builder skips them (the bug fix this iteration
+    # was introduced to address); the dedicated mapping tests cover the
+    # skip-on-missing path explicitly.
     db = _build_db_mock(
         queue_entries=[entry],
         sp=sp,
         group_row={"id": "group-1", "name": "Engineers"},
         group_members=[members_page, []],
+        member_remote_id_lookup={"user-a": "ra", "user-b": "rb"},
     )
     success = scim_client.PushResult(
         status="success", http_status=201, reason=None, scim_id="g-ext-1"
@@ -540,6 +589,8 @@ def test_successful_group_push_with_effective_members(fake_now: datetime) -> Non
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch(
             "services.scim.worker.scim_client.push_group", return_value=success
         ) as push_group_mock,
@@ -570,16 +621,22 @@ def test_group_direct_mode_filters_indirect_members(fake_now: datetime) -> None:
             "email": "b@example.com",
         },
     ]
+    # Direct-mode test: the indirect member (`user-b`) is filtered by the
+    # worker before the payload build, so only `user-a` reaches the builder
+    # and needs a remote-id mapping.
     db = _build_db_mock(
         queue_entries=[entry],
         sp=sp,
         group_row={"id": "group-1", "name": "Engineers"},
         group_members=[members_page, []],
+        member_remote_id_lookup={"user-a": "user-a"},
     )
     success = scim_client.PushResult(status="success", http_status=201, reason=None, scim_id=None)
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch(
             "services.scim.worker.scim_client.push_group", return_value=success
         ) as push_group_mock,
@@ -601,6 +658,8 @@ def test_deleted_group_pushes_delete(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch(
             "services.scim.worker.scim_client.delete_group", return_value=success
         ) as delete_group_mock,
@@ -645,6 +704,8 @@ def test_multiple_sps_each_processed_with_own_token(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch("services.scim.worker.scim_client.push_user", return_value=success) as push_user_mock,
     ):
         result = worker.process_pending_pushes("tenant-1", now=fake_now, token_resolver=resolver)
@@ -668,6 +729,8 @@ def test_worker_exception_records_retryable_failure(fake_now: datetime) -> None:
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
         patch(
             "services.scim.worker.scim_client.push_user",
             side_effect=RuntimeError("boom"),
@@ -691,6 +754,8 @@ def test_unknown_resource_type_dead_letters_immediately(fake_now: datetime) -> N
     with (
         patch("services.scim.worker.database", db),
         patch("services.scim.sync_log.database", db),
+        patch("services.scim.remote_ids.database", db),
+        patch("services.scim.remote_ids.log_event", MagicMock()),
     ):
         result = worker.process_pending_pushes(
             "tenant-1", now=fake_now, token_resolver=lambda _t, _s: "tok"

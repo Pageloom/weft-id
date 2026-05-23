@@ -94,33 +94,49 @@ def test_patch_ops_non_list_input_returned_unchanged() -> None:
     assert atlassian.transform_patch_ops("nope") == "nope"  # type: ignore[arg-type]
 
 
-def test_interpret_error_404_is_permanent_already_absent(fixtures: dict) -> None:
+def test_interpret_error_404_on_delete_is_absent_already_deprovisioned(fixtures: dict) -> None:
+    """Atlassian 404 on DELETE for an already-deprovisioned user is `absent`
+    (success-like) under the new generic policy. The fixture predates the
+    policy change so we read the response shape from it but assert against
+    the current contract directly."""
     fx = fixtures["error_already_deprovisioned"]
     response = httpx.Response(fx["response"]["status"], json=fx["response"]["body"])
-    retryable, reason = atlassian.interpret_error(response)
-    assert retryable is fx["expected_classification"]["retryable"]
-    assert fx["expected_classification"]["reason_contains"] in reason
+    disposition, reason = atlassian.interpret_error(response, "DELETE")
+    assert disposition == "absent"
+    assert "404" in reason
+
+
+def test_interpret_error_404_on_put_is_permanent(fixtures: dict) -> None:
+    """A 404 on PUT remains permanent; the worker handles stale-id
+    invalidation upstream of the client call."""
+    fx = fixtures["error_already_deprovisioned"]
+    response = httpx.Response(fx["response"]["status"], json=fx["response"]["body"])
+    disposition, _reason = atlassian.interpret_error(response, "PUT")
+    assert disposition == "permanent"
 
 
 def test_interpret_error_400_delegates_to_generic(fixtures: dict) -> None:
     fx = fixtures["error_bad_request"]
     response = httpx.Response(fx["response"]["status"], json=fx["response"]["body"])
-    retryable, reason = atlassian.interpret_error(response)
-    assert retryable is fx["expected_classification"]["retryable"]
+    disposition, reason = atlassian.interpret_error(response, "POST")
+    expected_disposition = (
+        "permanent" if not fx["expected_classification"]["retryable"] else "retryable"
+    )
+    assert disposition == expected_disposition
     assert fx["expected_classification"]["reason_contains"] in reason
 
 
 def test_interpret_error_429_delegates_to_generic_retryable() -> None:
     response = httpx.Response(429)
-    retryable, reason = atlassian.interpret_error(response)
-    assert retryable is True
+    disposition, reason = atlassian.interpret_error(response, "POST")
+    assert disposition == "retryable"
     assert "429" in reason
 
 
 def test_interpret_error_5xx_delegates_to_generic_retryable() -> None:
     response = httpx.Response(502)
-    retryable, reason = atlassian.interpret_error(response)
-    assert retryable is True
+    disposition, reason = atlassian.interpret_error(response, "POST")
+    assert disposition == "retryable"
     assert "502" in reason
 
 

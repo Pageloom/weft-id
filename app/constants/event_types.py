@@ -207,6 +207,12 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "scim_token_imported": "Outbound SCIM bearer token imported from downstream provider",
     "scim_token_rotated": "Outbound SCIM bearer token rotated",
     "scim_token_revoked": "Outbound SCIM bearer token revoked",
+    "scim_remote_id_mapped": (
+        "Outbound SCIM receiver assigned an id; mapping stored for future updates"
+    ),
+    "scim_remote_id_invalidated": (
+        "Outbound SCIM receiver returned 404 for known id; mapping cleared"
+    ),
     # IdP Group Integration
     "idp_group_created": "Group auto-created for identity provider",
     "idp_group_discovered": "New group discovered from identity provider",
@@ -357,6 +363,8 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "scim_token_imported": "admin",
     "scim_token_rotated": "admin",
     "scim_token_revoked": "admin",
+    "scim_remote_id_mapped": "operational",
+    "scim_remote_id_invalidated": "operational",
     # Operational tier
     "sso_assertion_issued": "operational",
     "slo_sp_initiated": "operational",

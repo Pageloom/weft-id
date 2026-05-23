@@ -102,8 +102,9 @@ def test_patch_remove_empty_value_array_passes_through_unchanged() -> None:
 def test_interpret_error_uniqueness_409_is_permanent(fixtures: dict) -> None:
     fx = fixtures["error_uniqueness"]
     response = httpx.Response(fx["response"]["status"], json=fx["response"]["body"])
-    retryable, reason = github.interpret_error(response)
-    assert retryable is fx["expected_classification"]["retryable"]
+    disposition, reason = github.interpret_error(response, "POST")
+    expected = "retryable" if fx["expected_classification"]["retryable"] else "permanent"
+    assert disposition == expected
     assert fx["expected_classification"]["reason_contains"] in reason
 
 
@@ -114,16 +115,18 @@ def test_interpret_error_403_rate_limit_is_retryable(fixtures: dict) -> None:
         headers=fx["response"]["headers"],
         json=fx["response"]["body"],
     )
-    retryable, reason = github.interpret_error(response)
-    assert retryable is fx["expected_classification"]["retryable"]
+    disposition, reason = github.interpret_error(response, "POST")
+    expected = "retryable" if fx["expected_classification"]["retryable"] else "permanent"
+    assert disposition == expected
     assert fx["expected_classification"]["reason_contains"] in reason
 
 
 def test_interpret_error_403_without_rate_header_is_permanent(fixtures: dict) -> None:
     fx = fixtures["error_forbidden_no_rate_header"]
     response = httpx.Response(fx["response"]["status"], json=fx["response"]["body"])
-    retryable, reason = github.interpret_error(response)
-    assert retryable is fx["expected_classification"]["retryable"]
+    disposition, reason = github.interpret_error(response, "POST")
+    expected = "retryable" if fx["expected_classification"]["retryable"] else "permanent"
+    assert disposition == expected
     assert fx["expected_classification"]["reason_contains"] in reason
 
 
@@ -133,50 +136,54 @@ def test_interpret_error_enriches_reason_with_scim_type() -> None:
         400,
         json={"scimType": "invalidValue", "detail": "bad data"},
     )
-    retryable, reason = github.interpret_error(response)
-    assert retryable is False
+    disposition, reason = github.interpret_error(response, "POST")
+    assert disposition == "permanent"
     assert "invalidValue" in reason
 
 
 def test_interpret_error_5xx_retryable() -> None:
     response = httpx.Response(503)
-    retryable, reason = github.interpret_error(response)
-    assert retryable is True
+    disposition, reason = github.interpret_error(response, "POST")
+    assert disposition == "retryable"
     assert "503" in reason
 
 
 def test_interpret_error_429_retryable() -> None:
     response = httpx.Response(429)
-    retryable, reason = github.interpret_error(response)
-    assert retryable is True
+    disposition, _reason = github.interpret_error(response, "POST")
+    assert disposition == "retryable"
 
 
 def test_interpret_error_409_without_uniqueness_falls_through() -> None:
     """A 409 with a different scimType should still be permanent but not labeled
     as `uniqueness`."""
     response = httpx.Response(409, json={"scimType": "mutability", "detail": "cannot mutate"})
-    retryable, reason = github.interpret_error(response)
-    assert retryable is False
+    disposition, reason = github.interpret_error(response, "POST")
+    assert disposition == "permanent"
     assert "uniqueness" not in reason
     assert "mutability" in reason
 
 
-def test_worker_never_calls_put_on_groups() -> None:
-    """Pin the contract: GitHub rejects PUT /Groups/<id> with 405. The worker
-    today only POSTs and DELETEs Groups -- it never PUTs. If a future change
-    introduces a Group PUT path, this test fails loudly so the GitHub quirk
-    gets a real PUT-handling transform before regressing GitHub tenants."""
-    from services.scim import client as scim_client
+def test_interpret_error_404_on_delete_is_absent() -> None:
+    """GitHub inherits the generic 404-on-DELETE = absent policy."""
+    response = httpx.Response(404)
+    disposition, reason = github.interpret_error(response, "DELETE")
+    assert disposition == "absent"
+    assert "404" in reason
 
-    worker_source = Path("app/services/scim/worker.py").read_text()
-    # The worker calls scim_client.push_group / delete_group; both go through
-    # POST and DELETE respectively. No PUT on Groups is allowed.
-    assert "put_group" not in worker_source, (
-        "Worker introduced a PUT-on-Groups call path; GitHub quirk must add "
-        "a transform to rewrite that into PATCH before this lands."
-    )
-    # The client module itself must not expose a put_group function until a
-    # vendor-aware PUT-on-Groups path exists.
-    assert not hasattr(scim_client, "put_group"), (
-        "scim_client.put_group introduced; GitHub quirk needs a transform first."
-    )
+
+def test_github_opts_out_of_put_for_group_updates() -> None:
+    """GitHub returns 405 on PUT /Groups/<id> and requires PATCH instead.
+    Until a PATCH-rewriting transform lands, the GitHub quirk opts out of
+    PUT-based group updates via `GROUP_UPDATE_VERB = "POST"`. The worker
+    honors that flag and always POSTs Groups for GitHub-kind SPs."""
+    assert getattr(github, "GROUP_UPDATE_VERB", "PUT") == "POST"
+
+
+def test_generic_uses_put_for_group_updates() -> None:
+    """Spec-correct receivers accept PUT on Group resources; the generic
+    quirk opts in (and every other quirk inherits the default unless it
+    opts out)."""
+    from services.scim.quirks import generic
+
+    assert getattr(generic, "GROUP_UPDATE_VERB", "PUT") == "PUT"

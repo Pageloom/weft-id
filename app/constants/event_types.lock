@@ -99,6 +99,8 @@ saml_idp_verbose_logging_enabled
 saml_sp_certificate_created
 saml_sp_certificate_rotated
 scim_config_updated
+scim_remote_id_invalidated
+scim_remote_id_mapped
 scim_token_created
 scim_token_imported
 scim_token_revoked

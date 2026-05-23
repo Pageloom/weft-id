@@ -46,6 +46,13 @@ from .generic import (
     transform_user_payload,
 )
 
+# GitHub rejects PUT /Groups/<id> with 405 and requires PATCH for
+# membership changes. Until a PATCH-rewriting layer lands, the worker
+# stays on POST for GitHub group updates -- which 409s on duplicates,
+# but that's the same dead-letter behavior the worker had before the
+# remote-id mapping iteration introduced PUT.
+GROUP_UPDATE_VERB = "POST"
+
 if TYPE_CHECKING:
     import httpx
 
@@ -102,12 +109,13 @@ def _extract_scim_type(response: httpx.Response) -> str | None:
     return None
 
 
-def interpret_error(response: httpx.Response) -> tuple[bool, str]:
+def interpret_error(response: httpx.Response, method: str) -> tuple[str, str]:
     """GitHub-specific error classification.
 
     - 403 with `x-ratelimit-remaining: 0` is rate-limit -> retryable.
     - 409 with `scimType: uniqueness` is permanent (user/group already
       exists); we surface the scimType in the reason.
+    - 404 on DELETE -> `absent` via the generic classifier.
     - Otherwise fall through to the generic classifier, but enrich the
       reason with the SCIM `scimType` when present.
     """
@@ -117,17 +125,17 @@ def interpret_error(response: httpx.Response) -> tuple[bool, str]:
             "X-RateLimit-Remaining"
         )
         if remaining == "0":
-            return True, "rate_limited (HTTP 403, x-ratelimit-remaining: 0)"
+            return "retryable", "rate_limited (HTTP 403, x-ratelimit-remaining: 0)"
     if status == 409:
         scim_type = _extract_scim_type(response)
         if scim_type == "uniqueness":
-            return False, "uniqueness (HTTP 409, resource already exists)"
+            return "permanent", "uniqueness (HTTP 409, resource already exists)"
     # Generic classification, optionally enriched with scimType.
-    retryable, reason = _generic_interpret_error(response)
+    disposition, reason = _generic_interpret_error(response, method)
     scim_type = _extract_scim_type(response)
     if scim_type and scim_type not in reason:
         reason = f"{reason} scimType={scim_type}"
-    return retryable, reason
+    return disposition, reason
 
 
 __all__ = [

@@ -113,8 +113,8 @@ class _EchoingQuirk:
     """
 
     @staticmethod
-    def interpret_error(response: httpx.Response) -> tuple[bool, str]:
-        return False, response.text
+    def interpret_error(response: httpx.Response, method: str) -> tuple[str, str]:
+        return "permanent", response.text
 
 
 def test_client_classify_response_redacts_quirk_reason():

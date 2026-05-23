@@ -18,10 +18,16 @@ a handful of well-known divergences:
   `created`/`lastModified`/`location`; some tenants omit `resourceType`.
   The transform does not need to do anything for this -- noted for
   completeness.
-- **404 on `/Users/<id>` for an already-deprovisioned user is normal.**
+- **404 on `DELETE /Users/<id>` for an already-deprovisioned user is normal.**
   Atlassian returns 404 when DELETE targets a user that's already gone.
-  We classify that as a *non-failure* permanent so the worker does not
-  treat "already done" as an error worth alerting on.
+  This now matches the generic policy (404 on DELETE = `absent`), so no
+  per-vendor override is needed for the success path. A 404 on PUT/PATCH
+  remains permanent (the worker handles stale-id invalidation upstream of
+  the client call).
+- **`id` vs `externalId`.** Atlassian uses its own server-minted `id` for
+  every subsequent reference, with `externalId` as a non-canonical
+  back-pointer to WeftID's UUID. The shared remote-id mapping table
+  (`sp_scim_remote_ids`) covers Atlassian without a per-vendor override.
 
 Synthetic-fixture notice: fixtures in `tests/fixtures/scim/atlassian/` are
 based on the public Atlassian provisioning docs; replace with real
@@ -30,17 +36,10 @@ recordings when an Atlassian Guard tenant is available.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from .generic import (
-    interpret_error as _generic_interpret_error,
-)
-from .generic import (
+    interpret_error,
     transform_user_payload,
 )
-
-if TYPE_CHECKING:
-    import httpx
 
 
 def transform_group_payload(payload: dict) -> dict:
@@ -66,19 +65,6 @@ def transform_patch_ops(ops: list[dict]) -> list[dict]:
             isinstance(op, dict) and isinstance(op.get("value"), list) and len(op["value"]) == 0
         )
     ]
-
-
-def interpret_error(response: httpx.Response) -> tuple[bool, str]:
-    """Atlassian-specific error classification.
-
-    - 404 is a *non-retryable, non-alerting* result -- the resource is
-      already gone. The worker records this as permanent (no retry) but
-      operators should not treat it as an incident.
-    - Otherwise fall through to the generic classifier.
-    """
-    if response.status_code == 404:
-        return False, "not_found (HTTP 404, resource already absent)"
-    return _generic_interpret_error(response)
 
 
 __all__ = [

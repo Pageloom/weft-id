@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-05-23
+
 ### Added
 
 - Outbound SCIM 2.0 provisioning: WeftID can now push user and group changes to downstream applications, closing the gap that pure SAML cannot (a user removed from WeftID no longer retains access to downstream SaaS)
@@ -21,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - API endpoints under `/api/v1/service-providers/{sp_id}/scim`: config GET/PUT, credentials CRUD, sync-log paginated read, queue status, and retry-dead-lettered POST
 - Documentation: full admin guide at `docs/admin-guide/service-providers/scim.md` with per-vendor walkthroughs (Slack / GitHub / Atlassian / GitLab), credential lifecycle, sync panel reference, and a troubleshooting section
 - Inline help link from the SP detail SCIM tab to the docs page
+
+### Fixed
+
+- OAuth2 authorization endpoint: `auth_request_id` single-use replay protection now works correctly under Starlette 1.0+. The previous nested-mutation pattern silently failed to mark the session modified, so a reused `auth_request_id` could redirect with a fresh code instead of showing the error page
+
+### Security
+
+- Bumped `starlette` to 1.0.1 (PYSEC-2026-161 / GHSA-86qp-5c8j-p5mr: Host header URL reconstruction)
+- Bumped `fastapi` to 0.136.1, `python-multipart` to 0.0.29, `psycopg-pool` to 3.3.1, `ua-parser` to 1.0.2, and refreshed `idna` to 3.15 in production requirements
 
 ## [1.6.0] - 2026-05-15
 

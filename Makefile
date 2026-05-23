@@ -9,7 +9,7 @@ endif
 TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TAILWIND_VERSION)/$(TAILWIND_BIN)
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev test e2e check fix quality-all coverage docs
+.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev scim-testbed-up scim-testbed-down scim-testbed-destroy scim-testbed-info scim-testbed-status scim-testbed-logs test e2e check fix quality-all coverage docs
 
 help:
 	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -76,6 +76,25 @@ seed-sso: ## Set up cross-tenant SSO test bed (dev <-> sp-test)
 
 seed-dev: ## Seed dev environment with Meridian Health sample data
 	$(COMPOSE) exec app python ./dev/seed_dev.py
+
+## SCIM testbed (Authentik, runs OUTSIDE this repo by default)
+scim-testbed-up: ## Start the SCIM testbed (Authentik) in ~/.local/share/weft-id/...
+	./dev/scim-testbed.sh up
+
+scim-testbed-down: ## Stop the SCIM testbed (keep its DB volume)
+	./dev/scim-testbed.sh down
+
+scim-testbed-destroy: ## Stop and wipe the SCIM testbed (volume + dir)
+	./dev/scim-testbed.sh destroy
+
+scim-testbed-info: ## Print URLs and the WeftID wire-up walkthrough
+	./dev/scim-testbed.sh info
+
+scim-testbed-status: ## Show status of SCIM testbed containers
+	./dev/scim-testbed.sh status
+
+scim-testbed-logs: ## Follow combined SCIM testbed logs
+	./dev/scim-testbed.sh logs
 
 ## Docs
 docs: ## Build documentation site (output in site/)

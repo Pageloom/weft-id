@@ -85,6 +85,8 @@ Request → Router → Service → Database → PostgreSQL
 | `.github/workflows/publish.yml` | GHCR publish workflow (triggers on `v*.*.*` tags) |
 | `app/cli/provision_tenant.py` | CLI to provision a tenant and super admin (`python -m app.cli.provision_tenant`) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
+| `dev/scim-testbed.sh` | Bootstraps a local Authentik SCIM receiver outside the repo for outbound-SCIM testing |
+| `dev/scim-testbed.md` | SCIM testbed walkthrough (wire-up, lifecycle, what it exercises) |
 | `mkdocs.yml` | Zensical documentation site configuration |
 | `docs/` | Documentation site source (Markdown) |
 | `site/` | Built documentation site (gitignored, built at Docker image time, served at `/docs`) |
@@ -342,6 +344,26 @@ Background jobs run in a separate worker container.
 - Code location: `app/jobs/`
 - Job registry: `app/jobs/registry.py`
 - **Changes require worker restart**: `docker compose restart worker`
+
+## Outbound SCIM Testbed
+
+For end-to-end testing of outbound SCIM (POST/PUT/DELETE against a real
+receiver), `dev/scim-testbed.sh` bootstraps a local Authentik instance.
+Lifecycle is via `make scim-testbed-{up,down,destroy,status,logs,info}`.
+
+The testbed runtime lives **outside this repo** by default (under
+`~/.local/share/weft-id/scim-testbed/authentik/`), so its generated
+secrets and postgres volume can't leak into source. Override the
+location with `SCIM_TESTBED_DIR` if needed.
+
+`make scim-testbed-up` prints the wire-up steps: create the Authentik
+admin, add a SCIM Source named `weftid`, copy the bearer token, then
+in WeftID's SCIM tab use `Generic SCIM 2.0` + target URL
+`http://host.docker.internal:9000/source/scim/weftid/v2/` + **Import
+existing token**. The `host.docker.internal` host is allowed in
+`IS_DEV` mode via the SSRF guard's dev allowlist.
+
+See `dev/scim-testbed.md` for the full walkthrough.
 
 ## Development Commands
 

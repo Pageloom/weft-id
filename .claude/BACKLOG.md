@@ -526,3 +526,162 @@ Two related extensions also belong here: connector types that don't fit the "gen
 **Dependencies:** Requires **Outbound SCIM (WeftID → Downstream Service Providers)** to be shipped first. This backlog item is the follow-on wave.
 
 ---
+
+## Forward-Auth Proxy for HTTP Apps
+
+**User Story:**
+As a self-hoster running HTTP apps that have no built-in SSO (Sonarr, Radarr, Jellyfin admin, Grafana, internal dashboards, private wikis),
+I want WeftID to act as a forward-auth provider so my reverse proxy can gate those apps behind WeftID sign-in,
+So that I get SSO in front of legacy apps without modifying them.
+
+**Context:**
+
+Forward-auth (also called "auth_request" in nginx and "forward_auth" in Caddy) is the standard mechanism for putting SSO in front of HTTP apps that have no built-in authentication. The reverse proxy makes a subrequest to a dedicated check endpoint for every protected request; the auth server replies allow / deny / redirect-to-login.
+
+This is the dominant pattern for protecting homelab and small-team apps (Sonarr / Radarr / Jellyfin admin pages, Grafana, internal dashboards, private wikis) that ship without SSO support. WeftID's stack (FastAPI + Postgres + worker) is light enough that an in-process forward-auth endpoint serves the job without a separate component to deploy, version, or scale.
+
+**Design Notes:**
+
+- New endpoint family: `GET /forward-auth/check` (and a paired `/forward-auth/start` for the OAuth-style redirect handshake). The reverse proxy calls `/check` as a subrequest on every protected request.
+- Reverse-proxy contract: 200 on allow (with `X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Groups`, and `X-Forwarded-Display-Name` headers for the upstream app to consume); 302 on missing/expired session (to `/forward-auth/start?return_url=<original>`); 403 on signed-in-but-denied.
+- Cookie scope: WeftID's session cookie is already tenant-subdomain scoped. Forward-auth check inspects the same cookie. Apps live on the same parent domain (e.g. `grafana.id.example.com`) and share the cookie scope.
+- New resource: **Proxy App**. Analogous to a SAML SP. Has: name, external URL pattern (`https://grafana.example.com`), group grants (which groups can access), optional forwarded-header config (which headers to set), optional public-paths list (URLs that bypass auth, e.g. `/healthz`). Lives in the admin UI alongside SAML SPs.
+- Group-based access: reuses the existing SP-group-grant model. Effective vs direct membership configurable per app.
+- Audit: each `/check` decision logs an audit event (configurable verbosity since per-request logging at scale would flood the log). Default: log on first allow per session, on every deny, and on session expiry.
+- Reverse-proxy examples for the documentation: Traefik `forwardAuth` middleware, nginx `auth_request`, Caddy `forward_auth` directive. The docs page should show full working configs for each.
+- One Postgres table: `proxy_apps` (tenant-scoped, name, URL pattern, header config, public paths). Group grants reuse the existing `sp_groups` table or a parallel `proxy_app_groups` table (decide during design; reusing is cleaner if a "ProtectedApp" parent abstraction emerges).
+- Deployment: single container, no new component. The `/forward-auth/*` endpoints live in the existing FastAPI app, scaled by the same compose service.
+
+**Acceptance Criteria:**
+
+- [ ] Migration adds `proxy_apps` table (tenant-scoped, name, external URL pattern, public paths, forwarded-header config, available_to_all flag)
+- [ ] Migration adds `proxy_app_groups` table for group-based access grants (or extends the existing SP-group plumbing if the data model converges)
+- [ ] `GET /forward-auth/check` endpoint: 200 on allow with forwarded-user headers; 302 on missing/expired session; 403 on signed-in-but-denied
+- [ ] `GET /forward-auth/start?return_url=...` endpoint: validates return_url against registered proxy apps for the tenant (prevents open-redirect); kicks off the standard sign-in flow; returns to the original URL on success
+- [ ] Admin UI: **Proxy Apps** section under Service Providers (or its own top-level admin section, TBD during design) with create / edit / delete, group grants, public-paths list, forwarded-header config, copy-paste reverse-proxy config snippet
+- [ ] Header forwarding: `X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Groups`, `X-Forwarded-Display-Name` set on allow responses (configurable per app)
+- [ ] Public-paths bypass: requests matching configured patterns return 200 without auth (for healthchecks, public assets)
+- [ ] Audit events: `proxy_app_created`, `proxy_app_updated`, `proxy_app_deleted`, `proxy_app_grant_added`, `proxy_app_grant_removed`, `proxy_access_granted` (rate-limited: first allow per session), `proxy_access_denied`, `proxy_session_expired`
+- [ ] My Apps dashboard surfaces proxy apps alongside SAML apps so users have a single launch point
+- [ ] Documentation page in `docs/admin-guide/service-providers/forward-auth.md` with full working reverse-proxy configs for Traefik, nginx, and Caddy; explanation of cookie scope and subdomain requirements; troubleshooting (cookie not sent, headers not forwarded, infinite redirect loop)
+- [ ] Test coverage: unit tests for the `/check` endpoint covering allow / deny / unauthenticated / public-path bypass / open-redirect rejection; integration test with a real Traefik container forwarding to a dummy upstream
+- [ ] Rate limiting on `/check` (because the reverse proxy hits it on every request to every protected resource — needs to be fast and resilient to floods)
+
+**Effort:** L
+**Value:** Very High (the dominant pattern for protecting legacy HTTP apps in homelab and small-team deployments; one of the few SSO capabilities a tenant cannot get via SAML or OIDC alone)
+**Version impact:** Minor (additive: new tables, new endpoints, new admin section, new event types; no breaking changes to SAML / OAuth2 / SCIM)
+
+**Dependencies:**
+- None hard. Builds on existing session middleware, group-based access plumbing, and the My Apps dashboard.
+- Synergy with **Standard user attributes** (already shipped): the `X-Forwarded-*` headers can include any tenant-configured attribute, not just the four defaults.
+
+---
+
+## OIDC Upstream IdP Support (with Entra, Google, GitHub, Okta Presets)
+
+**User Story:**
+As a tenant admin whose upstream identity provider speaks OIDC (Entra ID, Google Workspace, GitHub, Okta, Keycloak, Auth0, or a custom IdP),
+I want to add it as an upstream IdP in WeftID using OIDC instead of SAML,
+So that I can federate to providers that prefer OIDC, use simpler client-secret configuration instead of certificate exchange, and reduce setup friction for tenants migrating off platforms that ship OIDC-only.
+
+**Context:**
+
+WeftID currently accepts only SAML 2.0 as an upstream federation protocol. OIDC is the more modern and increasingly common federation standard, especially for newer SaaS platforms and developer-oriented IdPs.
+
+The design choice is **one generic OIDC connector + thin vendor presets** rather than building each provider from scratch:
+- A spec-correct OIDC connector handles most real-world providers (Keycloak, Auth0, custom IdPs) with no per-vendor code.
+- Thin preset layers for Entra, Google, GitHub, and Okta cover the vendor-specific quirks (tenant-scoped authority URLs, hosted-domain restrictions, org/team claim handling) without forking the core connector.
+- Adding a new vendor preset later is a small per-vendor effort, not a re-architecture.
+
+This is a peer protocol to the existing SAML IdP support, not a replacement. Both protocols share the same downstream user/group plumbing (JIT provisioning, attribute mirroring, group sync, privileged domain routing).
+
+**Design Notes:**
+
+- Auth flow: OIDC **authorization code with PKCE** as the only supported flow. No implicit, no hybrid. PKCE is required (not optional) since WeftID is a confidential client running server-side and PKCE adds defense-in-depth at near-zero cost.
+- IdP discovery: prefer the OIDC discovery endpoint (`/.well-known/openid-configuration`). Manual configuration of the four endpoints (authorization, token, userinfo, JWKS) is supported as a fallback for IdPs that don't publish discovery.
+- Client registration: per IdP connection, admin pastes client ID + client secret (encrypted at rest with the existing HKDF infrastructure). Some preset providers (GitHub, public IdPs) accept a client created in their console; others (Entra, Okta) require an app registration with specific redirect URIs and scopes.
+- Standard scopes requested: `openid profile email`. Additional scopes per preset (e.g. `read:org` for GitHub group/team claims, `Directory.Read.All` for Entra group claims where the admin wants that).
+- Claim → user attribute mapping: per-IdP configuration mapping OIDC claims (`given_name`, `family_name`, `email`, `picture`, `phone_number`, custom claims) to WeftID's standard user attribute registry. Reuses the attribute mirroring infrastructure shipped in 1.6.0.
+- Group claim handling: standardized per preset. Entra emits `groups` claim with GUIDs; Google has no built-in group claim (admin must opt in to a custom claim mapping or sync groups separately); GitHub uses `read:org` + `/user/orgs` and `/user/teams` API calls; Okta emits a configurable `groups` claim.
+- JIT provisioning: identical UX to SAML JIT. First-time login from an OIDC IdP creates the user; subsequent logins refresh mirrored attributes.
+- NameID equivalent: OIDC's `sub` claim is the stable subject identifier, persisted per (idp_id, sub) pair so users are correctly correlated across sessions even if their email changes.
+- Privileged domain routing: integrates with the existing privileged-domains feature. A domain bound to an OIDC IdP routes the user to that IdP at sign-in (parallel to the SAML behavior).
+- Per-IdP redirect URI: WeftID exposes `https://<tenant>.id.example.com/auth/oidc/<idp_slug>/callback`. The admin pastes this into the IdP's app registration.
+
+**Acceptance Criteria:**
+
+**Core OIDC connector:**
+
+- [ ] Migration adds `oidc_idp_connections` table (tenant-scoped, name, issuer URL, discovery URL or manual endpoint set, client ID, encrypted client secret, scopes, claim mapping JSON, group claim source, enabled flag)
+- [ ] Admin UI: parallel to SAML IdP setup — create connection, choose vendor preset (Generic / Entra / Google / GitHub / Okta), paste credentials, configure attribute mapping, test, enable
+- [ ] OIDC discovery endpoint parsing (`/.well-known/openid-configuration`) populates authorization / token / userinfo / JWKS endpoints; manual override path for IdPs without discovery
+- [ ] Authorization code with PKCE flow: code_verifier generated per request, stored in session, validated on callback; state parameter validated for CSRF
+- [ ] ID token validation: signature against the IdP's JWKS, issuer match, audience match, `nonce` claim match, expiry within tolerance
+- [ ] Standard `openid profile email` scopes always requested; per-preset additional scopes configurable
+- [ ] Claim → standard user attribute mapping reuses the attribute mirroring infrastructure from 1.6.0
+- [ ] Stable user correlation on `(idp_id, sub)` pair; email changes upstream do not create duplicate accounts
+- [ ] JIT provisioning on first login (parallel to SAML JIT)
+- [ ] Privileged domain routing supports OIDC IdPs as a binding target
+
+**Vendor preset: Generic OIDC**
+
+- [ ] Spec-correct OIDC 2.0 client; works against any IdP exposing `/.well-known/openid-configuration`
+- [ ] Group claim source configurable: which claim name (`groups`, `roles`, custom), value shape (list of strings, list of objects)
+- [ ] Documentation page covers Keycloak, Auth0, and "custom IdP" setup walkthroughs
+
+**Vendor preset: Entra ID OIDC**
+
+- [ ] Authority URL: `https://login.microsoftonline.com/<tenant_id>/v2.0` (admin enters tenant ID; WeftID composes the URL)
+- [ ] Default scopes: `openid profile email User.Read`
+- [ ] Group claim: requires `Directory.Read.All` scope and "groups claim" enabled in the Entra app registration; emits GUIDs that WeftID can map to local group names via Microsoft Graph (optional)
+- [ ] Documentation walkthrough: Entra app registration, redirect URI configuration, secret generation, admin consent
+- [ ] Quirk handling: Entra's `oid` claim used as `sub` for correlation (per Microsoft's guidance) when `sub` is per-app-anonymous
+
+**Vendor preset: Google Workspace OIDC**
+
+- [ ] Authority URL: `https://accounts.google.com`
+- [ ] Default scopes: `openid profile email`
+- [ ] Hosted-domain restriction: per-connection `hd` parameter on the authorization request enforces a Workspace customer domain (rejects personal Google accounts)
+- [ ] Group claim: not native to Google OIDC; admin can opt in to a custom-claim mapping or use the (separate) Google Workspace Directory Sync to populate groups
+- [ ] Documentation walkthrough: Google Cloud OAuth client setup, consent screen configuration, redirect URI registration, hosted-domain restriction
+
+**Vendor preset: GitHub**
+
+- [ ] Authority URL: `https://github.com` (uses OAuth 2.0 with OIDC-shaped userinfo via `/user`, `/user/emails`, `/user/orgs`, `/user/teams`)
+- [ ] Default scopes: `read:user user:email read:org` (last one only when group/team mapping enabled)
+- [ ] Group claim source: GitHub orgs and teams pulled via additional API calls after token exchange; mapped into WeftID groups via configurable rules (org → group, `org/team` → group)
+- [ ] Allowed orgs filter: per-connection allow-list of GitHub org slugs; users not in any allowed org are denied
+- [ ] Documentation walkthrough: GitHub OAuth app creation, scope grants, org-allow-list configuration
+
+**Vendor preset: Okta OIDC**
+
+- [ ] Authority URL: `https://<okta_subdomain>.okta.com` or custom domain (admin enters)
+- [ ] Default scopes: `openid profile email groups`
+- [ ] Group claim: Okta-native `groups` claim; emit configuration depends on Okta authorization server (admin must enable the groups claim in Okta)
+- [ ] Documentation walkthrough: Okta app integration creation, redirect URI configuration, group claim setup
+
+**Cross-cutting:**
+
+- [ ] Audit events: `oidc_idp_connection_created`, `oidc_idp_connection_updated`, `oidc_idp_connection_deleted`, `oidc_login_started`, `oidc_login_completed`, `oidc_login_failed`, `oidc_user_jit_provisioned`
+- [ ] Test coverage with mocked IdP responses (no live API calls); recorded fixtures per preset covering discovery, code exchange, ID token validation, userinfo, group claim shapes
+- [ ] Documentation page `docs/admin-guide/identity-providers/oidc-setup.md` covering the generic connector; per-preset walkthroughs in subpages (`oidc-entra.md`, `oidc-google.md`, `oidc-github.md`, `oidc-okta.md`)
+- [ ] Glossary entries: OIDC, OpenID Connect, PKCE (cross-link from existing OAuth2 entry), authorization code flow with PKCE, OIDC discovery, JWKS, ID token, userinfo endpoint
+- [ ] Privileged-domain UI accepts OIDC IdPs as a binding target alongside SAML IdPs
+
+**Effort:** XL (single largest backlog item; new protocol surface, five preset implementations, parallel admin UX to SAML)
+**Value:** High (modernizes WeftID's federation surface; opens the door to tenants whose upstream IdP ships OIDC-only or whose admins prefer OIDC's simpler credential model over SAML's certificate exchange)
+**Version impact:** Minor (additive: new tables, new endpoints, new admin section, new event types; no changes to SAML or existing flows)
+
+**Dependencies:**
+- Builds on **Standard user attributes** ✅ (shipped in 1.6.0): claim → attribute mapping reuses the attribute registry and mirroring infrastructure.
+- Builds on **Privileged domains** ✅: OIDC IdPs slot into the same binding surface as SAML IdPs.
+- Independent of **Inbound SCIM (Okta and Entra → WeftID)** and **Google Workspace Directory Sync** (inbound directions). These items cover different ways the same upstream provider can populate WeftID; admins pick whichever fits their stack.
+
+**Suggested implementation order** (when this item is broken into iterations by `/lead`):
+1. Generic OIDC connector (the foundation; all presets sit on this)
+2. Entra ID preset (largest enterprise target)
+3. Google Workspace preset (parallel to Entra)
+4. GitHub preset (developer-tenant differentiator, requires the extra-API-call group source)
+5. Okta preset (last because Okta tenants typically already work via SAML)
+
+---

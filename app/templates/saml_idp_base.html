@@ -69,6 +69,9 @@
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'metadata' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 Metadata</a>
             {% endif %}
+            <a href="/admin/settings/identity-providers/{{ idp.id }}/scim"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'scim' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                SCIM Provisioning</a>
             <a href="/admin/settings/identity-providers/{{ idp.id }}/danger"
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'danger' %}border-red-500 text-red-500 dark:border-red-400 dark:text-red-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 Delete</a>

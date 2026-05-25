@@ -213,6 +213,10 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "scim_remote_id_invalidated": (
         "Outbound SCIM receiver returned 404 for known id; mapping cleared"
     ),
+    # Inbound SCIM (admin actions only; resource writes get their own events
+    # later in the iteration plan)
+    "scim_inbound_token_created": "Inbound SCIM bearer token created for identity provider",
+    "scim_inbound_token_revoked": "Inbound SCIM bearer token revoked",
     # IdP Group Integration
     "idp_group_created": "Group auto-created for identity provider",
     "idp_group_discovered": "New group discovered from identity provider",
@@ -365,6 +369,8 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "scim_token_revoked": "admin",
     "scim_remote_id_mapped": "operational",
     "scim_remote_id_invalidated": "operational",
+    "scim_inbound_token_created": "admin",
+    "scim_inbound_token_revoked": "admin",
     # Operational tier
     "sso_assertion_issued": "operational",
     "slo_sp_initiated": "operational",

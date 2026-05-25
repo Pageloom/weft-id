@@ -1,0 +1,267 @@
+{% extends "saml_idp_base.html" %}
+
+{% block tab_content %}
+<script type="application/json" id="page-data">{{ {"idp_id": idp.id, "scim_base_url": scim_base_url} | tojson }}</script>
+
+{# -------------------------------------------------------------------- #}
+{# Connection info: SCIM base URL operators paste into Okta / Entra     #}
+{# -------------------------------------------------------------------- #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Inbound SCIM</h2>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        Let this identity provider push user and group changes into WeftID via SCIM 2.0. The IdP
+        keeps the directory of record; WeftID mirrors changes the moment they happen, so deprovisioned
+        users lose access without waiting for their next sign-in.
+    </p>
+
+    <div class="space-y-3">
+        <div>
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">
+                SCIM 2.0 base URL
+            </label>
+            <div class="flex items-center gap-2">
+                <code id="scim-base-url"
+                      class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ scim_base_url }}</code>
+                <button type="button" id="copy-scim-base-url"
+                        class="shrink-0 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                    Copy
+                </button>
+            </div>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Paste this URL into the SCIM connector configuration in your upstream IdP
+                (Okta application provisioning, Entra enterprise app provisioning, or equivalent).
+                Pair it with a bearer token created below.
+            </p>
+        </div>
+    </div>
+</div>
+
+{# -------------------------------------------------------------------- #}
+{# Bearer tokens                                                        #}
+{# -------------------------------------------------------------------- #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Bearer tokens</h2>
+        <button type="button" id="scim-inbound-create-token"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md text-sm">
+            Create token
+        </button>
+    </div>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        The upstream IdP authenticates to WeftID's SCIM endpoint with a bearer token. The token
+        plaintext is shown exactly once at creation time and stored as a hash, so there is no rotation
+        or recovery path. To rotate, create a new token, paste it into the receiver, confirm sync,
+        then revoke the old one.
+    </p>
+
+    <div id="scim-inbound-plaintext-display" class="hidden mb-4 p-4 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
+        <p class="text-sm font-medium text-amber-800 dark:text-amber-300 mb-2">
+            Copy this token. It will not be shown again.
+        </p>
+        <div class="flex items-center gap-3">
+            <code id="scim-inbound-plaintext-value"
+                  class="flex-1 px-3 py-2 bg-white dark:bg-gray-800 rounded border border-amber-300 dark:border-amber-700 font-mono text-xs text-gray-900 dark:text-gray-100 break-all"></code>
+            <button type="button" id="scim-inbound-plaintext-copy"
+                    class="px-3 py-2 text-sm font-medium rounded-md bg-amber-600 hover:bg-amber-700 text-white">Copy</button>
+            <button type="button" id="scim-inbound-plaintext-done"
+                    class="px-3 py-2 text-sm font-medium rounded-md border border-amber-600 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30">Done</button>
+        </div>
+        <p class="text-xs text-amber-700 dark:text-amber-400 mt-2">
+            Click <strong>Done</strong> once you have saved the token. The page will refresh.
+        </p>
+    </div>
+
+    <div id="scim-inbound-create-form" class="hidden mb-4 p-4 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40">
+        <label for="scim-inbound-token-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Token name (optional)
+        </label>
+        <input type="text" id="scim-inbound-token-name" maxlength="255" autocomplete="off" spellcheck="false"
+               placeholder="e.g. Okta production"
+               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Helps identify which receiver this token is paired with. Up to 255 characters.
+        </p>
+        <div class="flex items-center gap-3 mt-3">
+            <button type="button" id="scim-inbound-create-submit"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md text-sm">
+                Generate token
+            </button>
+            <button type="button" id="scim-inbound-create-cancel"
+                    class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                Cancel
+            </button>
+            <span id="scim-inbound-create-status" class="text-xs text-gray-500 dark:text-gray-400"></span>
+        </div>
+    </div>
+
+    <div id="scim-inbound-tokens-list">
+        {% if tokens.items %}
+        <ul class="divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-md">
+            {% for token in tokens.items %}
+            <li class="p-3 flex items-center justify-between" data-token-id="{{ token.id }}">
+                <div>
+                    {% set rel_created = fmt_relative(token.created_at) %}
+                    <p class="text-sm text-gray-900 dark:text-gray-100">
+                        {% if token.name %}
+                        <span class="font-medium">{{ token.name }}</span>
+                        <span class="text-gray-500 dark:text-gray-400 font-mono text-xs">{{ token.id[:8] }}…</span>
+                        {% else %}
+                        Token <span class="font-mono text-xs">{{ token.id[:8] }}…</span>
+                        {% endif %}
+                        <span class="text-gray-500 dark:text-gray-400" title="{{ rel_created[1] }}">
+                            created {{ rel_created[0] }}
+                        </span>
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {% if token.last_used_at %}
+                        {% set rel_used = fmt_relative(token.last_used_at) %}
+                        Last used <span title="{{ rel_used[1] }}">{{ rel_used[0] }}</span>
+                        {% else %}
+                        Never used
+                        {% endif %}
+                        {% if token.revoked_at %}
+                        {% set rel_revoked = fmt_relative(token.revoked_at) %}
+                        &middot;
+                        <span class="text-red-700 dark:text-red-300" title="{{ rel_revoked[1] }}">
+                            revoked {{ rel_revoked[0] }}
+                        </span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if not token.revoked_at %}
+                    <button type="button" data-op="revoke" data-token-id="{{ token.id }}"
+                            class="px-2 py-1 text-xs font-medium rounded-md border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20">
+                        Revoke
+                    </button>
+                    {% else %}
+                    <span class="px-2 py-1 text-xs font-medium rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                        Revoked
+                    </span>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+            No tokens yet. Create one to authenticate the upstream IdP's SCIM connector.
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block tab_scripts %}
+<script nonce="{{ csp_nonce }}">
+const pageData = JSON.parse(document.getElementById('page-data').textContent);
+const IDP_ID = pageData.idp_id;
+const API_BASE = `/api/v1/saml-identity-providers/${IDP_ID}/inbound-scim`;
+
+// -------------------- SCIM base URL copy --------------------
+const copyBaseUrlBtn = document.getElementById('copy-scim-base-url');
+if (copyBaseUrlBtn) {
+    copyBaseUrlBtn.addEventListener('click', () => {
+        const url = document.getElementById('scim-base-url').textContent.trim();
+        navigator.clipboard.writeText(url).then(() => {
+            copyBaseUrlBtn.textContent = 'Copied!';
+            setTimeout(() => { copyBaseUrlBtn.textContent = 'Copy'; }, 2000);
+        });
+    });
+}
+
+// -------------------- Plaintext modal --------------------
+const plaintextDisplay = document.getElementById('scim-inbound-plaintext-display');
+const plaintextValue = document.getElementById('scim-inbound-plaintext-value');
+const plaintextCopy = document.getElementById('scim-inbound-plaintext-copy');
+
+function showPlaintext(value) {
+    plaintextValue.textContent = value;
+    plaintextDisplay.classList.remove('hidden');
+}
+
+plaintextCopy.addEventListener('click', () => {
+    const value = plaintextValue.textContent;
+    if (!value) return;
+    navigator.clipboard.writeText(value).then(() => {
+        plaintextCopy.textContent = 'Copied!';
+        setTimeout(() => { plaintextCopy.textContent = 'Copy'; }, 2000);
+    });
+});
+
+// Refresh only after the operator confirms they have saved the plaintext.
+// A reload before this point destroys the only chance to copy the token,
+// since the database stores only the SHA-256 hash.
+document.getElementById('scim-inbound-plaintext-done').addEventListener('click', () => {
+    window.location.reload();
+});
+
+// -------------------- Create form --------------------
+const createForm = document.getElementById('scim-inbound-create-form');
+const createNameInput = document.getElementById('scim-inbound-token-name');
+const createStatus = document.getElementById('scim-inbound-create-status');
+
+document.getElementById('scim-inbound-create-token').addEventListener('click', () => {
+    createForm.classList.remove('hidden');
+    createNameInput.value = '';
+    createStatus.textContent = '';
+    createNameInput.focus();
+});
+
+document.getElementById('scim-inbound-create-cancel').addEventListener('click', () => {
+    createForm.classList.add('hidden');
+    createNameInput.value = '';
+    createStatus.textContent = '';
+});
+
+document.getElementById('scim-inbound-create-submit').addEventListener('click', async () => {
+    const name = createNameInput.value.trim();
+    createStatus.textContent = 'Generating...';
+    createStatus.classList.remove('text-red-600');
+    try {
+        const resp = await WeftUtils.apiFetch(`${API_BASE}/credentials`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name || null }),
+        });
+        if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            createStatus.textContent = body.detail || `Failed (${resp.status})`;
+            createStatus.classList.add('text-red-600');
+            return;
+        }
+        const body = await resp.json();
+        createForm.classList.add('hidden');
+        createStatus.textContent = '';
+        showPlaintext(body.plaintext);
+    } catch (err) {
+        createStatus.textContent = `Error: ${err}`;
+        createStatus.classList.add('text-red-600');
+    }
+});
+
+// -------------------- Revoke --------------------
+document.getElementById('scim-inbound-tokens-list').addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const op = target.dataset.op;
+    const tokenId = target.dataset.tokenId;
+    if (op !== 'revoke' || !tokenId) return;
+    WeftUtils.confirm(
+        'Revoke this token immediately? The upstream IdP will stop being able to push changes until you give it a new token.',
+        async () => {
+            const resp = await WeftUtils.apiFetch(`${API_BASE}/credentials/${tokenId}`, {
+                method: 'DELETE',
+            });
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => ({}));
+                alert(body.detail || `Failed (${resp.status})`);
+                return;
+            }
+            window.location.reload();
+        },
+        { destructive: true },
+    );
+});
+</script>
+{% endblock %}

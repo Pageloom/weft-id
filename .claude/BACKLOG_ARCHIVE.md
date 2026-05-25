@@ -4,6 +4,30 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Outbound SCIM (WeftID → Downstream Service Providers)
+
+**Status:** Complete (2026-05-23, shipped in 1.7.0 with follow-on fixes in 1.7.1 and 1.8.0)
+
+**Summary:** WeftID can now push user and group changes to downstream SaaS via SCIM 2.0, closing the deprovisioning gap that pure SAML cannot. Day-one quirk modules cover Slack (Enterprise Grid), GitHub Enterprise Cloud, Atlassian (Guard / Access), and GitLab.com, with a spec-correct Generic SCIM 2.0 path for everything else.
+
+**Implementation highlights:**
+
+- New `app/routers/scim/` admin surface plus `app/services/scim/` (config, credentials, push client, quirk modules, sync log) and a dedicated per-tenant worker in `app/jobs/`.
+- Bearer-credential lifecycle: WeftID-minted tokens shown once and Fernet-encrypted at rest, or imported tokens (1.7.1) for receivers that mint on their side. Rotation supports a 24-hour overlap; revoke is instant.
+- Event-log-driven dispatch via `scim_trigger` annotations in the event-type registry. Coalescing outbox keyed `UNIQUE(sp_id, resource_type, resource_id)` collapses bursts; worker re-fetches resource state at push time so "last state wins" is automatic.
+- DAG groups projected as either effective (flattened, via `group_lineage`) or direct membership, configurable per SP.
+- Two-log model: admin actions (token CRUD, config edits) go to the main audit log; per-push outcomes go to a dedicated `scim_sync_log` with per-SP retention (3 / 6 / 12 / 24 months / forever).
+- Per-SP `(weftid_id → remote_id)` mapping table (1.8.0) so group membership references survive against spec-compliant receivers like Authentik. 404-on-DELETE now drains as "Skipped" instead of dead-lettering; 404-on-PUT self-heals stale mappings.
+- API endpoints under `/api/v1/service-providers/{sp_id}/scim` mirror the admin UI (API-first rule).
+- Documentation: full admin guide at `docs/admin-guide/service-providers/scim.md` with per-vendor walkthroughs.
+- Dev tooling: `dev/scim-testbed.sh` (and `make scim-testbed-*` targets) spins up a local Authentik receiver outside the repo for end-to-end testing.
+
+**Version impact:** Shipped as 1.7.0 (minor, additive). Follow-on releases 1.7.1 (token import) and 1.8.0 (resource ID mapping, 404 handling, testbed) were also additive/fix-only.
+
+**Follow-on backlog:** "Outbound SCIM: Additional Vendor Quirks and Connector Types" remains open for incremental vendor demand (Zoom, Notion, 1Password bridge, Box OAuth2, etc.).
+
+---
+
 ## Track downstream-assigned SCIM resource IDs
 
 **Status:** Complete (2026-05-23)

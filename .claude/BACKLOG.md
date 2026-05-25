@@ -318,54 +318,6 @@ So that unit tests never leak queries to PostgreSQL, producing noisy error logs 
 
 ---
 
-## Outbound SCIM (WeftID → Downstream Service Providers)
-
-**User Story:**
-As a tenant admin,
-I want WeftID to expose a SCIM 2.0 endpoint per registered Service Provider,
-So that downstream SaaS apps (Slack, Zoom, GitHub, Atlassian, etc.) can receive user and group changes in real time and deprovision access when a user is removed from WeftID.
-
-**Context:**
-
-Pure SAML cannot solve the "deprovisioned user retains downstream SaaS access" gap, because SAML only acts at login. SCIM closes the loop by letting WeftID push lifecycle and group-membership changes to each SP between logins.
-
-This is the first piece of the "federation-native directory" positioning: it makes WeftID a directory *for* downstream apps, not just an SSO broker.
-
-**Design Notes:**
-
-- Endpoint shape: `/scim/v2/<sp-slug>/...`, served by a new `app/routers/scim/` package and `app/services/scim/` service layer.
-- Auth: bearer token per SP, stored in a new SCIM-token table, with rotation (token versioning + overlap window).
-- Scope of exposed users: **only users with SP access via existing group grants**, not the entire tenant directory. Adding/removing a user from a granting group must enqueue a SCIM push job to the SP (use the existing `app/jobs/` worker).
-- DAG groups: default to projecting **effective (flattened) membership** via `group_lineage`; configurable per-SP to expose direct membership only when needed.
-- SCIM 2.0 core: Users + Groups resources, Enterprise User extension. Skip bulk operations and exotic PATCH filter paths.
-- Compatibility target: real-world SP implementations (Slack, Zoom, GitHub, Atlassian, Google Workspace's SCIM-out side) over RFC purity. Their quirks define "works."
-
-**Acceptance Criteria:**
-
-- [ ] Migration adds `scim_tokens` table (tenant-scoped, SP-scoped, supports rotation with overlap)
-- [ ] `app/routers/scim/` package with endpoints under `/scim/v2/<sp-slug>/`:
-  - [ ] `GET /Users`, `GET /Users/{id}`, `POST /Users`, `PUT /Users/{id}`, `PATCH /Users/{id}`, `DELETE /Users/{id}`
-  - [ ] `GET /Groups`, `GET /Groups/{id}`, `POST /Groups`, `PUT /Groups/{id}`, `PATCH /Groups/{id}`, `DELETE /Groups/{id}`
-  - [ ] `GET /ServiceProviderConfig`, `GET /ResourceTypes`, `GET /Schemas`
-- [ ] `app/services/scim/` enforces SP scoping: only users granted access to the SP are visible
-- [ ] Bearer-token auth middleware validates SCIM tokens, scopes the request to one SP
-- [ ] DAG groups projected as flattened effective membership by default; per-SP setting for direct-only
-- [ ] Change events on grants, group memberships, and user lifecycle enqueue SCIM push jobs
-- [ ] Push jobs are idempotent and retry with backoff on transient failures
-- [ ] Admin UI: SCIM token management per SP (create, rotate, revoke; secret shown once)
-- [ ] API endpoints mirror admin UI per the API-first rule
-- [ ] Audit events: `scim_token_created`, `scim_token_rotated`, `scim_token_revoked`, `scim_user_pushed`, `scim_group_pushed`, `scim_push_failed`
-- [ ] Test coverage includes real-world request shapes from Slack, Okta SCIM client, and Entra SCIM client (recorded fixtures)
-- [ ] Documentation page in `docs/admin-guide/` covering SCIM setup per SP
-
-**Effort:** M (2–3 weeks focused work)
-**Value:** High (single largest unlock for moving WeftID from "SSO broker" to "directory"; closes the deprovisioning gap that pure SAML cannot)
-**Version impact:** Minor (new endpoints, new table, new auth surface, additive only)
-
-**Dependencies:** None. Builds entirely on existing SP, user, group, and group-grant models.
-
----
-
 ## Inbound SCIM (Okta and Entra → WeftID)
 
 **User Story:**

@@ -342,6 +342,13 @@ PAGES = [
                                         creates_nav_level=False,
                                     ),
                                     Page(
+                                        path="/admin/settings/identity-providers/idp/scim",
+                                        title="SCIM Provisioning",
+                                        permission=PagePermission.SUPER_ADMIN,
+                                        show_in_nav=False,
+                                        creates_nav_level=False,
+                                    ),
+                                    Page(
                                         path="/admin/settings/identity-providers/idp/danger",
                                         title="Disable/Delete",
                                         permission=PagePermission.SUPER_ADMIN,

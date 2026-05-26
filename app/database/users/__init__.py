@@ -75,6 +75,11 @@ from database.users.saml_assignment import (
     update_user_saml_idp,
     wipe_user_password,
 )
+from database.users.scim_reads import (
+    count_users_for_idp,
+    get_user_for_idp,
+    list_users_for_idp,
+)
 
 __all__ = [
     # core
@@ -145,4 +150,8 @@ __all__ = [
     "bulk_unverify_emails",
     # utils
     "check_collation_exists",
+    # scim_reads
+    "count_users_for_idp",
+    "list_users_for_idp",
+    "get_user_for_idp",
 ]

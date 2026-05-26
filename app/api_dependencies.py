@@ -1,14 +1,20 @@
 """FastAPI dependencies for API endpoints with dual authentication support."""
 
+import hashlib
+import logging
 import secrets
-from typing import Annotated
+from typing import Annotated, TypedDict
 
 import database
 from dependencies import get_tenant_id_from_request
 from fastapi import Depends, Header, HTTPException, Request
 from fastapi.security import APIKeyCookie, OAuth2PasswordBearer
+from services.exceptions import RateLimitError
 from utils import auth
+from utils.ratelimit import MINUTE, ratelimit
 from utils.request_context import set_api_client_context
+
+logger = logging.getLogger(__name__)
 
 # Security schemes for OpenAPI documentation
 # These are used to show the "Authorize" button in Swagger UI
@@ -146,6 +152,143 @@ def require_admin_api(
         )
 
     return user
+
+
+# ============================================================================
+# Inbound SCIM bearer-token authentication
+# ============================================================================
+#
+# The inbound SCIM endpoint family at `/scim/v2/inbound/{idp_id}/` uses
+# its own bearer-token scheme (not OAuth2). Tokens are stored hash-only
+# in `scim_inbound_tokens`, bound to a single `saml_identity_providers`
+# row, and revoked instantly (no grace window). Auth failures all return
+# the same SCIM-shaped 401 envelope -- no tenancy / IdP leakage in
+# error messages.
+#
+# This dep is intentionally NOT compatible with `get_current_user_api`:
+# inbound SCIM has no concept of a WeftID user session; the token IS
+# the credential, and its `idp_id` IS the request scope.
+
+
+class InboundScimContext(TypedDict):
+    """Authentication context for an authenticated inbound SCIM request.
+
+    Set by `require_inbound_scim_auth` on success. The router uses
+    `tenant_id` + `idp_id` to scope all downstream database queries;
+    `token_id` is recorded so event-log entries (iteration 3+) can
+    point at the exact credential that authorised the call.
+    """
+
+    tenant_id: str
+    idp_id: str
+    token_id: str
+
+
+def _raise_scim_auth_error(reason: str) -> None:
+    """Always raise the same SCIM-shaped 401, regardless of `reason`.
+
+    `reason` is logged server-side so operators can debug auth failures
+    (token format, unknown hash, revoked, wrong tenant for idp_id) but
+    NEVER returned to the caller. The client always sees the same
+    "Authentication required" detail so they cannot probe for which
+    IdP ids exist or which tenants own them.
+    """
+    # Import locally to avoid a circular import (router -> deps -> router).
+    from routers.scim.inbound.errors import ScimErrorException
+
+    logger.info("inbound SCIM auth rejected: %s", reason)
+    raise ScimErrorException(
+        status_code=401,
+        detail="Authentication required",
+        headers={"WWW-Authenticate": 'Bearer realm="WeftID inbound SCIM"'},
+    )
+
+
+def require_inbound_scim_auth(
+    request: Request,
+    idp_id: str,
+    authorization: Annotated[str | None, Header()] = None,
+) -> InboundScimContext:
+    """Validate the inbound SCIM bearer token and resolve request scope.
+
+    Validation rules:
+    - `Authorization` header must be present and shaped `Bearer <token>`.
+    - The token's SHA-256 hash must match an existing row in
+      `scim_inbound_tokens`.
+    - The row must not be revoked.
+    - The row's `idp_id` must equal the `{idp_id}` URL segment (no
+      cross-IdP / cross-tenant token reuse).
+
+    Side effects on success:
+    - Updates `last_used_at` (best-effort; failures are logged but
+      do not block the request).
+
+    Rate limit: 60 / minute keyed by client IP to deter blind
+    brute-force token guessing.
+    Authenticated traffic from an IdP will never hit this -- only
+    unauthenticated probing.
+    """
+    client_host = request.client.host if request.client else "unknown"
+    try:
+        ratelimit.prevent(
+            "scim_inbound_auth:ip:{ip}",
+            limit=60,
+            timespan=MINUTE,
+            ip=client_host,
+        )
+    except RateLimitError as exc:
+        # Import locally to keep the module-level dependency surface
+        # focused on what the happy path uses.
+        from routers.scim.inbound.errors import ScimErrorException
+
+        raise ScimErrorException(
+            status_code=429,
+            detail="Too many requests",
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from None
+
+    if not authorization or not authorization.startswith("Bearer "):
+        _raise_scim_auth_error("missing or malformed Authorization header")
+
+    # mypy: _raise_scim_auth_error always raises; subscript is safe
+    assert authorization is not None
+    token_plaintext = authorization.split(" ", 1)[1].strip()
+    if not token_plaintext:
+        _raise_scim_auth_error("empty bearer token")
+
+    digest = hashlib.sha256(token_plaintext.encode("utf-8")).hexdigest()
+
+    # UNSCOPED lookup -- the request tenant isn't known until the token
+    # resolves. The unique hash index (added in iteration 1's migration)
+    # blocks the cross-tenant collision that would otherwise be the risk
+    # of UNSCOPED lookups: two tenants cannot accidentally share a hash.
+    row = database.scim_inbound_tokens.get_by_hash(database.UNSCOPED, digest)
+    if row is None:
+        _raise_scim_auth_error("unknown token hash")
+    assert row is not None  # for mypy
+    if row.get("revoked_at") is not None:
+        _raise_scim_auth_error(f"revoked token {row['id']}")
+    if str(row["idp_id"]) != str(idp_id):
+        _raise_scim_auth_error(
+            f"token {row['id']} bound to idp {row['idp_id']} but URL specifies idp {idp_id}"
+        )
+
+    tenant_id = str(row["tenant_id"])
+    token_id = str(row["id"])
+
+    # Best-effort touch. A failure here (DB blip, RLS misconfiguration)
+    # should not stop the inbound SCIM request from completing; the
+    # touch is observability, not authorisation.
+    try:
+        database.scim_inbound_tokens.touch_last_used(tenant_id, token_id)
+    except Exception:  # noqa: BLE001 -- observability path, never fatal
+        logger.warning("inbound SCIM last_used touch failed for token %s", token_id)
+
+    return InboundScimContext(
+        tenant_id=tenant_id,
+        idp_id=str(idp_id),
+        token_id=token_id,
+    )
 
 
 def require_super_admin_api(

@@ -45,6 +45,8 @@ from routers.api.v1 import service_providers as service_providers_api  # noqa: E
 from routers.api.v1 import settings as settings_api  # noqa: E402
 from routers.api.v1 import users as users_api  # noqa: E402
 from routers.api.v1 import users_passkeys as users_passkeys_api  # noqa: E402
+from routers.scim import router as inbound_scim_router  # noqa: E402
+from routers.scim.inbound import register_scim_exception_handlers  # noqa: E402
 from utils.crypto import derive_session_key  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -150,6 +152,11 @@ app.include_router(settings_api.tenant_router)
 app.include_router(users_api.router)
 app.include_router(users_api.me_router)
 app.include_router(users_passkeys_api.router)
+
+# Inbound SCIM 2.0 router (IdP → WeftID). Has its own bearer-token
+# auth and SCIM-shaped error envelopes (registered below).
+app.include_router(inbound_scim_router)
+register_scim_exception_handlers(app)
 
 # Dev-only router (instant login for E2E tests)
 if settings.IS_DEV:

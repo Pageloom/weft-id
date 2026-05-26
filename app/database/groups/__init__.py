@@ -58,6 +58,12 @@ from database.groups.relationships import (
     remove_group_relationship,
     would_create_cycle,
 )
+from database.groups.scim_reads import (
+    count_groups_for_idp,
+    get_group_for_idp,
+    list_group_members_for_scim,
+    list_groups_for_idp,
+)
 from database.groups.selection import (
     get_groups_for_child_select,
     get_groups_for_parent_select,
@@ -126,4 +132,9 @@ __all__ = [
     "get_user_idp_group_ids",
     "bulk_add_user_to_groups",
     "bulk_remove_user_from_groups",
+    # scim_reads
+    "count_groups_for_idp",
+    "list_groups_for_idp",
+    "get_group_for_idp",
+    "list_group_members_for_scim",
 ]

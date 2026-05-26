@@ -26,8 +26,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
----
-
 ## [REFACTOR] File Structure: groups/idp.py split candidate at 710 lines
 
 **Found in:** `app/services/groups/idp.py`

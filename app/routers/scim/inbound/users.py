@@ -1,23 +1,41 @@
-"""Inbound SCIM Users endpoints (read-only in iteration 2).
+"""Inbound SCIM Users endpoints.
 
-`GET /Users` and `GET /Users/{id}` return SCIM 2.0 User resources
-scoped to the authenticating IdP connection. Writes (POST / PUT /
-PATCH / DELETE) ship in iteration 3.
+- `GET  /Users[/<id>]` -- read endpoints (iteration 2).
+- `POST /Users` -- create or merge (iteration 3).
+- `PUT  /Users/{id}` -- full replace (iteration 3).
+- `PATCH /Users/{id}` -- partial update, supports Entra batched ops (iteration 3).
+- `DELETE /Users/{id}` -- soft-delete via inactivate (iteration 3).
 """
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from api_dependencies import InboundScimContext, require_inbound_scim_auth
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, Query, Request, Response
 from schemas.scim import LIST_RESPONSE_SCHEMA
 from services.scim import inbound_read
+from services.scim.inbound_write import (
+    ScimWriteError,
+    create_or_merge_user,
+    patch_user,
+    replace_user,
+    soft_delete_user,
+)
 from utils.scim_responses import scim_json_response
 from utils.urls import tenant_base_url
 
 from ._query import FilterParseError, parse_eq_filter, parse_pagination
 from .errors import ScimErrorException
+
+
+def _raise_from_write_error(exc: ScimWriteError) -> None:
+    raise ScimErrorException(
+        status_code=exc.status_code,
+        detail=exc.detail,
+        scim_type=exc.scim_type,
+    ) from None
+
 
 router = APIRouter()
 
@@ -106,3 +124,101 @@ def get_user(
     if payload is None:
         raise ScimErrorException(status_code=404, detail="User not found")
     return scim_json_response(payload)
+
+
+# ---------------------------------------------------------------------------
+# Writes
+# ---------------------------------------------------------------------------
+
+
+@router.post("/Users")
+def create_user(
+    request: Request,
+    idp_id: str,
+    ctx: Annotated[InboundScimContext, Depends(require_inbound_scim_auth)],
+    payload: Annotated[dict[str, Any], Body()],
+):
+    """SCIM 2.0 `POST /Users`: create or merge.
+
+    Returns 201 on a brand-new user; 200 on merge into an existing
+    user matched by upstream `externalId` (preferred) or canonical
+    primary email. Body is the resulting SCIM User resource.
+    """
+    users_base = _users_base(request, idp_id)
+    try:
+        resource, created = create_or_merge_user(
+            ctx["tenant_id"],
+            ctx["idp_id"],
+            payload,
+            location_builder=lambda uid: f"{users_base}/{uid}",
+        )
+    except ScimWriteError as exc:
+        _raise_from_write_error(exc)
+        return  # pragma: no cover -- _raise_from_write_error always raises
+
+    status = 201 if created else 200
+    location = resource.get("meta", {}).get("location")
+    return scim_json_response(resource, status_code=status, location=location)
+
+
+@router.put("/Users/{user_id}")
+def replace_user_endpoint(
+    request: Request,
+    idp_id: str,
+    user_id: str,
+    ctx: Annotated[InboundScimContext, Depends(require_inbound_scim_auth)],
+    payload: Annotated[dict[str, Any], Body()],
+):
+    """SCIM 2.0 `PUT /Users/{id}`: full-replace semantics."""
+    users_base = _users_base(request, idp_id)
+    try:
+        resource = replace_user(
+            ctx["tenant_id"],
+            ctx["idp_id"],
+            user_id,
+            payload,
+            location_builder=lambda uid: f"{users_base}/{uid}",
+        )
+    except ScimWriteError as exc:
+        _raise_from_write_error(exc)
+        return  # pragma: no cover
+    return scim_json_response(resource)
+
+
+@router.patch("/Users/{user_id}")
+def patch_user_endpoint(
+    request: Request,
+    idp_id: str,
+    user_id: str,
+    ctx: Annotated[InboundScimContext, Depends(require_inbound_scim_auth)],
+    payload: Annotated[dict[str, Any], Body()],
+):
+    """SCIM 2.0 `PATCH /Users/{id}`: simple-path + batched-op support."""
+    users_base = _users_base(request, idp_id)
+    try:
+        resource = patch_user(
+            ctx["tenant_id"],
+            ctx["idp_id"],
+            user_id,
+            payload,
+            location_builder=lambda uid: f"{users_base}/{uid}",
+        )
+    except ScimWriteError as exc:
+        _raise_from_write_error(exc)
+        return  # pragma: no cover
+    return scim_json_response(resource)
+
+
+@router.delete("/Users/{user_id}")
+def delete_user_endpoint(
+    idp_id: str,
+    user_id: str,
+    ctx: Annotated[InboundScimContext, Depends(require_inbound_scim_auth)],
+):
+    """SCIM 2.0 `DELETE /Users/{id}`: soft-delete via inactivate."""
+    try:
+        soft_delete_user(ctx["tenant_id"], ctx["idp_id"], user_id)
+    except ScimWriteError as exc:
+        _raise_from_write_error(exc)
+        return  # pragma: no cover
+    return Response(status_code=204)

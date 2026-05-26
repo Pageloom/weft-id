@@ -27,8 +27,22 @@ _SCIM_USER_COLS = """
     u.is_inactivated,
     u.is_anonymized,
     u.created_at,
+    u.updated_at,
     u.saml_idp_id,
-    ue.email
+    ue.email,
+    uia.value as external_id
+"""
+
+# JOIN snippet that pulls the upstream-assigned externalId (stored under the
+# reserved `__external_id` attribute_key in user_idp_attributes) into the
+# SCIM user projection. LEFT JOIN because not every user has one yet (SAML-
+# JIT-only users have no SCIM externalId stored).
+_SCIM_USER_JOINS = """
+    left join user_emails ue on ue.user_id = u.id and ue.is_primary = true
+    left join user_idp_attributes uia
+        on uia.user_id = u.id
+        and uia.idp_id = u.saml_idp_id
+        and uia.attribute_key = '__external_id'
 """
 
 
@@ -46,11 +60,11 @@ def count_users_for_idp(
     single `eq` predicate so this rarely matters in practice, but the
     AND is safer than an implicit OR.
 
-    `external_id`: iteration 2 has no upstream-external-id column on
-    `users` yet (that's iteration 3's user_idp_attributes / NameID
-    mapping path). For now, an externalId filter is honoured as a
-    literal match against `users.id` -- this gives SCIM clients a way
-    to look up the resource by the id WeftID minted.
+    `external_id`: prefers the upstream-assigned externalId stored in
+    `user_idp_attributes` under the reserved `__external_id` key. Falls
+    back to a literal match against `users.id` so SCIM clients that
+    never sent their own externalId can still look up the resource by
+    WeftID's minted id.
     """
     where = ["u.saml_idp_id = :idp_id"]
     params: dict = {"idp_id": idp_id}
@@ -59,12 +73,9 @@ def count_users_for_idp(
         where.append("ue.email = :user_name")
         params["user_name"] = user_name
     if external_id is not None:
-        # psycopg interprets `::text` as a named parameter, so cast
-        # via cast() instead. We compare the textual representation
-        # because the externalId filter value is a free-form string
-        # (iteration 3 stores upstream-assigned ids that may not
-        # parse as UUIDs).
-        where.append("cast(u.id as text) = :external_id")
+        # Prefer upstream externalId (uia.value), fall back to the
+        # WeftID-minted id. cast() avoids psycopg's `:text` ambiguity.
+        where.append("(uia.value = :external_id or cast(u.id as text) = :external_id)")
         params["external_id"] = external_id
 
     row = fetchone(
@@ -72,7 +83,7 @@ def count_users_for_idp(
         f"""
         select count(distinct u.id) as count
         from users u
-        left join user_emails ue on ue.user_id = u.id and ue.is_primary = true
+        {_SCIM_USER_JOINS}
         where {" and ".join(where)}
         """,
         params,
@@ -106,12 +117,9 @@ def list_users_for_idp(
         where.append("ue.email = :user_name")
         params["user_name"] = user_name
     if external_id is not None:
-        # psycopg interprets `::text` as a named parameter, so cast
-        # via cast() instead. We compare the textual representation
-        # because the externalId filter value is a free-form string
-        # (iteration 3 stores upstream-assigned ids that may not
-        # parse as UUIDs).
-        where.append("cast(u.id as text) = :external_id")
+        # Prefer upstream externalId (uia.value), fall back to the
+        # WeftID-minted id (see count_users_for_idp).
+        where.append("(uia.value = :external_id or cast(u.id as text) = :external_id)")
         params["external_id"] = external_id
 
     offset = max(start_index - 1, 0)
@@ -123,7 +131,7 @@ def list_users_for_idp(
         f"""
         select {_SCIM_USER_COLS}
         from users u
-        left join user_emails ue on ue.user_id = u.id and ue.is_primary = true
+        {_SCIM_USER_JOINS}
         where {" and ".join(where)}
         order by u.created_at asc, u.id asc
         limit :limit offset :offset
@@ -149,7 +157,7 @@ def get_user_for_idp(
         f"""
         select {_SCIM_USER_COLS}
         from users u
-        left join user_emails ue on ue.user_id = u.id and ue.is_primary = true
+        {_SCIM_USER_JOINS}
         where u.id = :user_id and u.saml_idp_id = :idp_id
         """,
         {"user_id": user_id, "idp_id": idp_id},

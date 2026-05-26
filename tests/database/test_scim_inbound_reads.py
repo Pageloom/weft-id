@@ -108,7 +108,12 @@ def test_list_users_for_idp_user_name_filter(test_tenant, test_user):
 
 
 def test_list_users_for_idp_external_id_filter_against_user_id(test_tenant, test_user):
-    """Iteration 2: externalId maps to the WeftID user id (no upstream id store yet)."""
+    """externalId filter falls back to WeftID's minted id when no upstream id is stored.
+
+    Iteration 3 added upstream-id storage via `user_idp_attributes` --
+    when present, that's preferred. This test pins the fallback for
+    users that never had a SCIM externalId pushed (SAML-JIT-only).
+    """
     idp = _create_idp(test_tenant["id"], test_user["id"])
     target = _create_user(test_tenant["id"], email="ext@x.test", idp_id=str(idp["id"]))
     _create_user(test_tenant["id"], email="other@x.test", idp_id=str(idp["id"]))

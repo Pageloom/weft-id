@@ -5,6 +5,42 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [BUG] Inbound SCIM `create_or_merge_user` lookup transaction closes before writes
+
+**Fixed by:** inbound-scim iteration 3 (migration 0044 + retry-on-UniqueViolation)
+
+**Discovered:** 2026-05-25 (iteration 3 fix-now triage)
+**Severity:** Medium
+
+The merge function's `with database.session()` block covered only the
+externalId + email lookups; every write happened on a fresh transaction.
+Concurrent identical SCIM POSTs could either duplicate users on
+externalId (no DB constraint enforced uniqueness for the synthetic
+`__external_id` attribute key) or 500 on a `user_emails` UniqueViolation
+with an orphan `users` row.
+
+**Resolution:**
+
+1. Added migration `db-init/migrations/0044_inbound_scim_external_id_unique.sql`
+   with a partial unique index on `user_idp_attributes (idp_id, value) WHERE
+   attribute_key = '__external_id'`. Tagged `-- migration-safety: ignore`
+   because the table is tiny (one row per user/idp/attribute) and the
+   index-build write lock is sub-millisecond. Inbound SCIM is the only
+   producer.
+2. Split `create_or_merge_user` into a wrapper + `_create_or_merge_user_attempt`
+   inner function. The wrapper catches `psycopg.errors.UniqueViolation`
+   and retries the merge once. The second attempt's lookup hits the row
+   the winner just wrote and goes through the merge branch instead of
+   create.
+3. Updated the misleading "wrap lookups + writes in one transaction"
+   docstring to describe the actual contract.
+4. Added two tests in `tests/services/scim/test_inbound_write_integration.py`:
+   `test_partial_unique_index_blocks_duplicate_external_id_per_idp` pins
+   the DB-level defence directly; `test_create_or_merge_retries_on_unique_violation`
+   uses monkeypatch to simulate the race and asserts the retry converges.
+
+---
+
 ## [TEST MEDIUM] SCIM admin UI: rotate / revoke / retry-dead-lettered flows not in E2E
 
 **Fixed by:** outbound-scim 7e

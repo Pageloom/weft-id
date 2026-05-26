@@ -1,0 +1,22 @@
+{
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+  ],
+  "Operations": [
+    {
+      "op": "Replace",
+      "path": "displayName",
+      "value": "Robert Builder"
+    },
+    {
+      "op": "Replace",
+      "path": "name.givenName",
+      "value": "Robert"
+    },
+    {
+      "op": "Add",
+      "path": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:department",
+      "value": "Construction"
+    }
+  ]
+}

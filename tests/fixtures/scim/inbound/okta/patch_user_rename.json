@@ -1,0 +1,17 @@
+{
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+  ],
+  "Operations": [
+    {
+      "op": "replace",
+      "path": "name.givenName",
+      "value": "Alicia"
+    },
+    {
+      "op": "replace",
+      "path": "displayName",
+      "value": "Alicia Example"
+    }
+  ]
+}

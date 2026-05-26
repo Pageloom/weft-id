@@ -68,23 +68,23 @@ def _user_payload(user: dict) -> dict:
             {"value": email, "type": "work", "primary": True},
         ]
 
-    # `externalId` is the upstream-assigned id. Iteration 2 has no place
-    # to store one yet (iteration 3 wires up `user_idp_attributes` /
-    # NameID-mapping persistence), so we omit the field. We deliberately
-    # do NOT round-trip WeftID's `id` into `externalId` -- that would
-    # mislead clients into thinking we stored their externalId when we
-    # haven't yet. Iteration 3 fills this in for real.
+    # `externalId` is the upstream-assigned id stored in
+    # `user_idp_attributes` under `__external_id` (joined into the
+    # scim_reads projection as `external_id`). Emit it when present so
+    # SCIM clients can correlate against their own directory id.
+    upstream_external_id = user.get("external_id")
+    if upstream_external_id:
+        payload["externalId"] = upstream_external_id
+
     return payload
 
 
 def _user_with_metadata(user: dict, *, location: str, enterprise: dict | None = None) -> dict:
     """Attach SCIM `meta` and (optionally) enterprise extension to a user dict.
 
-    Note: `users` doesn't currently carry an `updated_at` column. We use
-    `created_at` for both `created` and `lastModified` until iteration 3
-    introduces a mutation-time column (PATCH / PUT need it to be
-    accurate, but iteration 2 is read-only so the conservative choice
-    is to report `created_at` as the last-known mutation time).
+    Prefers `updated_at` (added in iteration 3 migration
+    `0043_users_updated_at.sql`) for `lastModified`, falling back to
+    `created_at` for rows where the trigger hasn't fired yet (or null).
     """
     payload = _user_payload(user)
     created_iso = user["created_at"].isoformat() if user.get("created_at") else None

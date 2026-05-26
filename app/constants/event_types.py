@@ -217,6 +217,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # later in the iteration plan)
     "scim_inbound_token_created": "Inbound SCIM bearer token created for identity provider",
     "scim_inbound_token_revoked": "Inbound SCIM bearer token revoked",
+    "scim_user_received": "User received via inbound SCIM (create or merge)",
+    "scim_user_updated": "User updated via inbound SCIM (PUT / PATCH)",
+    "scim_user_deactivated": "User deactivated via inbound SCIM (DELETE / active=false)",
     # IdP Group Integration
     "idp_group_created": "Group auto-created for identity provider",
     "idp_group_discovered": "New group discovered from identity provider",
@@ -371,6 +374,9 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "scim_remote_id_invalidated": "operational",
     "scim_inbound_token_created": "admin",
     "scim_inbound_token_revoked": "admin",
+    "scim_user_received": "security",
+    "scim_user_updated": "admin",
+    "scim_user_deactivated": "security",
     # Operational tier
     "sso_assertion_issued": "operational",
     "slo_sp_initiated": "operational",
@@ -433,6 +439,9 @@ EVENT_TYPE_SCIM_TRIGGERS: dict[str, str] = {
     # User lifecycle and attribute mutations.
     "user_created": "enqueue_user_self",
     "user_created_jit": "enqueue_user_self",
+    "scim_user_received": "enqueue_user_self",
+    "scim_user_updated": "enqueue_user_self",
+    "scim_user_deactivated": "enqueue_user_self",
     "user_updated": "enqueue_user_self",
     "user_profile_updated": "enqueue_user_self",
     "user_attributes_synced": "enqueue_user_self",

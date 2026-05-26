@@ -1,0 +1,28 @@
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+  ],
+  "userName": "bob.builder@contoso.test",
+  "name": {
+    "givenName": "Bob",
+    "familyName": "Builder"
+  },
+  "emails": [
+    {
+      "primary": true,
+      "value": "bob.builder@contoso.test",
+      "type": "work"
+    }
+  ],
+  "active": true,
+  "externalId": "0c8a4f8e-1b2c-4d5e-9f8a-1a2b3c4d5e6f",
+  "displayName": "Bob Builder",
+  "jobTitle": "Senior Engineer",
+  "preferredLanguage": "en-US",
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "department": "Builds",
+    "organization": "Contoso",
+    "employeeNumber": "C9001"
+  }
+}

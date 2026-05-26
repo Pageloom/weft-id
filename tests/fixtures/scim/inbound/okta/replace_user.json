@@ -1,0 +1,27 @@
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User"
+  ],
+  "userName": "alice.example@acme.test",
+  "name": {
+    "givenName": "Alice",
+    "familyName": "Examples",
+    "formatted": "Alice Examples"
+  },
+  "emails": [
+    {
+      "primary": true,
+      "value": "alice.example@acme.test",
+      "type": "work"
+    }
+  ],
+  "displayName": "Alice Examples",
+  "active": true,
+  "externalId": "00u1okta12345xExAmpL",
+  "title": "Director of Engineering",
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "department": "Engineering",
+    "organization": "Acme Corp",
+    "employeeNumber": "E12345"
+  }
+}

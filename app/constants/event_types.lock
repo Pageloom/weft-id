@@ -107,6 +107,9 @@ scim_token_created
 scim_token_imported
 scim_token_revoked
 scim_token_rotated
+scim_user_deactivated
+scim_user_received
+scim_user_updated
 service_provider_created
 service_provider_deleted
 service_provider_disabled

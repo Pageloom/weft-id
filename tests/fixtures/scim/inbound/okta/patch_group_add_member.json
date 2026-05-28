@@ -1,0 +1,17 @@
+{
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+  ],
+  "Operations": [
+    {
+      "op": "add",
+      "path": "members",
+      "value": [
+        {
+          "value": "00u1okta12345xExAmpL",
+          "display": "Alice Example"
+        }
+      ]
+    }
+  ]
+}

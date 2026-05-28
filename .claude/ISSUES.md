@@ -14,6 +14,9 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Low | 3 | Duplication (pre-existing), Docs (pre-existing), Test coverage (pre-existing) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
+Note: the SCIM-group-rename trigger gap surfaced by iteration 4's test agent was fixed in the
+same iteration; see ISSUES_ARCHIVE.md for the entry.
+
 **Last security scan:** 2026-05-15 (mirror-failure audit event + user_profile_updated PII redaction landed on feature/user-attributes; remaining low items unchanged)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
 **Last API coverage audit:** 2026-04-23 (3 gaps resolved: group clear relationships, IdP reimport XML, SAML debug entries)

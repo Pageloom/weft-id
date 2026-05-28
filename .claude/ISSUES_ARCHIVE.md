@@ -5,6 +5,30 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [BUG] SCIM group rename does not propagate to direct-mode SCIM SPs
+
+**Fixed by:** inbound-scim iteration 4 (fix-now during test-agent triage)
+
+**Discovered:** 2026-05-28 (iteration 4 test-agent audit)
+**Severity:** Medium
+
+The iteration's audit-event design omitted `scim_group_*` from
+`EVENT_TYPE_SCIM_TRIGGERS` with the rationale "a rename doesn't change
+downstream membership". That missed the direct-mode case: SPs in
+`scim_membership_mode='direct'` maintain group resources downstream, and
+a displayName rename via inbound SCIM never reached them.
+
+Admin-driven renames worked correctly because `group_updated` is tagged
+with `enqueue_group_self`.
+
+**Fix:** Added `scim_group_received` / `_updated` / `_deleted` to
+`EVENT_TYPE_SCIM_TRIGGERS` with value `"enqueue_group_self"`, matching
+the symmetry of admin-side `group_*` and SCIM-side `scim_user_*`.
+Pinned by `test_scim_rename_group_enqueues_group_resource_push` in
+`tests/services/scim/test_inbound_group_outbound_replay.py`.
+
+---
+
 ## [BUG] Inbound SCIM `create_or_merge_user` lookup transaction closes before writes
 
 **Fixed by:** inbound-scim iteration 3 (migration 0044 + retry-on-UniqueViolation)

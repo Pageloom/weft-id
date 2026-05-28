@@ -1,0 +1,8 @@
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:Group"
+  ],
+  "displayName": "Builders",
+  "externalId": "1b2c3d4e-5f6a-7b8c-9d0e-1f2a3b4c5d6e",
+  "members": []
+}

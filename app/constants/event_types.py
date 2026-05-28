@@ -220,6 +220,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "scim_user_received": "User received via inbound SCIM (create or merge)",
     "scim_user_updated": "User updated via inbound SCIM (PUT / PATCH)",
     "scim_user_deactivated": "User deactivated via inbound SCIM (DELETE / active=false)",
+    "scim_group_received": "Group received via inbound SCIM (create)",
+    "scim_group_updated": "Group updated via inbound SCIM (PUT / PATCH)",
+    "scim_group_deleted": "Group deleted via inbound SCIM (DELETE)",
     # IdP Group Integration
     "idp_group_created": "Group auto-created for identity provider",
     "idp_group_discovered": "New group discovered from identity provider",
@@ -377,6 +380,9 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "scim_user_received": "security",
     "scim_user_updated": "admin",
     "scim_user_deactivated": "security",
+    "scim_group_received": "admin",
+    "scim_group_updated": "admin",
+    "scim_group_deleted": "admin",
     # Operational tier
     "sso_assertion_issued": "operational",
     "slo_sp_initiated": "operational",
@@ -464,6 +470,12 @@ EVENT_TYPE_SCIM_TRIGGERS: dict[str, str] = {
     "group_created": "enqueue_group_self",
     "group_updated": "enqueue_group_self",
     "group_deleted": "enqueue_group_self",
+    # SCIM-driven group lifecycle: same fan-out as admin-driven changes,
+    # so direct-mode SCIM SPs receive renames and deletions of IdP groups
+    # they grant access through.
+    "scim_group_received": "enqueue_group_self",
+    "scim_group_updated": "enqueue_group_self",
+    "scim_group_deleted": "enqueue_group_self",
     # Group-membership mutations.
     "group_member_added": "enqueue_membership_change",
     "group_member_removed": "enqueue_membership_change",

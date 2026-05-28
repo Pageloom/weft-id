@@ -1,0 +1,8 @@
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:Group"
+  ],
+  "displayName": "Engineering",
+  "externalId": "00g1okta12345xExAmpL",
+  "members": []
+}

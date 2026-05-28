@@ -740,23 +740,75 @@ def _normalise_patch_path(path: str | None) -> str | None:
       (`urn:ietf:...:User:department`) reduce to their suffix
       (`enterprise.<attr>` so the assigner can route them to extras).
     """
+    normalised, _filter = _normalise_patch_path_with_filter(path)
+    return normalised
+
+
+def _normalise_patch_path_with_filter(
+    path: str | None,
+) -> tuple[str | None, tuple[str, str] | None]:
+    """Like `_normalise_patch_path` but also returns any extracted filter.
+
+    SCIM clients send element filters like `members[value eq "<uuid>"]`
+    to target a specific item inside a multi-valued attribute. The user
+    PATCH path discards the filter (only whole-array semantics are
+    supported); the group PATCH path needs the filter value to identify
+    which member to remove.
+
+    Returns `(normalised_path, (filter_attr, filter_value) | None)`. The
+    filter is only extracted for `<eq>` expressions of the shape
+    `<attr> eq "<value>"`; anything more exotic returns the filter as
+    None and the caller decides whether to reject.
+    """
     if path is None:
-        return None
+        return None, None
     stripped = path.strip()
     # Enterprise extension URN prefix -> enterprise.<attr>.
     enterprise_prefix = ENTERPRISE_USER_SCHEMA + ":"
     lowered = stripped.lower()
     if lowered.startswith(enterprise_prefix.lower()):
         suffix = stripped[len(enterprise_prefix) :]
-        return f"enterprise.{suffix.lower()}"
+        return f"enterprise.{suffix.lower()}", None
     # Generic URN prefix (urn:ietf:...:Attribute -> Attribute).
     if ":" in stripped and stripped.count(":") >= 3:
         stripped = stripped.rsplit(":", 1)[-1]
-    # Drop the filter clause and any trailing sub-attribute.
+    # Extract filter clause if present.
+    filter_kv: tuple[str, str] | None = None
     if "[" in stripped:
-        prefix = stripped.split("[", 1)[0]
-        return prefix.lower()
-    return stripped.lower()
+        prefix, _sep, rest = stripped.partition("[")
+        # Drop any trailing sub-attribute after the closing bracket.
+        bracket_close = rest.find("]")
+        if bracket_close == -1:
+            # Malformed; treat as whole-collection.
+            return prefix.lower(), None
+        filter_body = rest[:bracket_close].strip()
+        # Parse `<attr> eq "<value>"`. Tolerate single quotes.
+        filter_kv = _parse_eq_filter(filter_body)
+        return prefix.lower(), filter_kv
+    return stripped.lower(), filter_kv
+
+
+def _parse_eq_filter(body: str) -> tuple[str, str] | None:
+    """Parse a `<attr> eq "<value>"` element filter. Returns None on miss.
+
+    Quotes may be single or double; whitespace is collapsed. Anything
+    that's not exactly an `eq` comparison returns None so callers can
+    reject with `invalidFilter` if they require a filter to be present.
+    """
+    # Split on whitespace, but the value may contain quoted spaces;
+    # use a simple state-aware parse rather than a regex so the rules
+    # match what the metadata advertises.
+    parts = body.split(None, 2)
+    if len(parts) != 3:
+        return None
+    attr, op, raw_value = parts[0], parts[1].lower(), parts[2].strip()
+    if op != "eq":
+        return None
+    if len(raw_value) >= 2 and raw_value[0] == raw_value[-1] and raw_value[0] in ("'", '"'):
+        value = raw_value[1:-1]
+    else:
+        value = raw_value
+    return attr, value
 
 
 def _patch_assign(payload_acc: dict, path: str, value: Any) -> None:

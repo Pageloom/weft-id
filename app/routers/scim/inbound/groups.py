@@ -1,22 +1,31 @@
-"""Inbound SCIM Groups endpoints (read-only in iteration 2).
+"""Inbound SCIM Groups endpoints.
 
-`GET /Groups` and `GET /Groups/{id}` return SCIM 2.0 Group resources
-of `group_type='idp'` scoped to the authenticating IdP connection.
-Writes (POST / PUT / PATCH / DELETE) ship in iteration 4.
+- `GET  /Groups[/<id>]` -- read endpoints (iteration 2).
+- `POST /Groups` -- create an IdP group (iteration 4).
+- `PUT  /Groups/{id}` -- full replace of displayName + members (iteration 4).
+- `PATCH /Groups/{id}` -- partial update with Okta + Entra patterns (iteration 4).
+- `DELETE /Groups/{id}` -- remove the IdP group (iteration 4).
 
-`weftid` (manually managed) groups are NEVER visible via this
-endpoint -- they are an internal organisational construct, not
-directory state the IdP is allowed to enumerate.
+`weftid` (manually managed) groups are NEVER visible via this endpoint --
+they are an internal organisational construct, not directory state the
+IdP is allowed to enumerate or mutate.
 """
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from api_dependencies import InboundScimContext, require_inbound_scim_auth
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, Query, Request, Response
 from schemas.scim import LIST_RESPONSE_SCHEMA
 from services.scim import inbound_read
+from services.scim.inbound_group_write import (
+    create_group,
+    delete_group,
+    patch_group,
+    replace_group,
+)
+from services.scim.inbound_write import ScimWriteError
 from utils.scim_responses import scim_json_response
 from utils.urls import tenant_base_url
 
@@ -26,6 +35,14 @@ from .errors import ScimErrorException
 router = APIRouter()
 
 _GROUP_FILTER_ATTRS = ["displayName"]
+
+
+def _raise_from_write_error(exc: ScimWriteError) -> None:
+    raise ScimErrorException(
+        status_code=exc.status_code,
+        detail=exc.detail,
+        scim_type=exc.scim_type,
+    ) from None
 
 
 def _groups_base(request: Request, idp_id: str) -> str:
@@ -105,3 +122,101 @@ def get_group(
     if payload is None:
         raise ScimErrorException(status_code=404, detail="Group not found")
     return scim_json_response(payload)
+
+
+# ---------------------------------------------------------------------------
+# Writes
+# ---------------------------------------------------------------------------
+
+
+@router.post("/Groups")
+def create_group_endpoint(
+    request: Request,
+    idp_id: str,
+    ctx: Annotated[InboundScimContext, Depends(require_inbound_scim_auth)],
+    payload: Annotated[dict[str, Any], Body()],
+):
+    """SCIM 2.0 `POST /Groups`: create an IdP group with optional members."""
+    groups_base = _groups_base(request, idp_id)
+    users_base = _users_base(request, idp_id)
+    try:
+        resource = create_group(
+            ctx["tenant_id"],
+            ctx["idp_id"],
+            payload,
+            group_location_builder=lambda gid: f"{groups_base}/{gid}",
+            members_base_url=users_base,
+        )
+    except ScimWriteError as exc:
+        _raise_from_write_error(exc)
+        return  # pragma: no cover
+
+    location = resource.get("meta", {}).get("location")
+    return scim_json_response(resource, status_code=201, location=location)
+
+
+@router.put("/Groups/{group_id}")
+def replace_group_endpoint(
+    request: Request,
+    idp_id: str,
+    group_id: str,
+    ctx: Annotated[InboundScimContext, Depends(require_inbound_scim_auth)],
+    payload: Annotated[dict[str, Any], Body()],
+):
+    """SCIM 2.0 `PUT /Groups/{id}`: full-replace of displayName + members."""
+    groups_base = _groups_base(request, idp_id)
+    users_base = _users_base(request, idp_id)
+    try:
+        resource = replace_group(
+            ctx["tenant_id"],
+            ctx["idp_id"],
+            group_id,
+            payload,
+            group_location_builder=lambda gid: f"{groups_base}/{gid}",
+            members_base_url=users_base,
+        )
+    except ScimWriteError as exc:
+        _raise_from_write_error(exc)
+        return  # pragma: no cover
+    return scim_json_response(resource)
+
+
+@router.patch("/Groups/{group_id}")
+def patch_group_endpoint(
+    request: Request,
+    idp_id: str,
+    group_id: str,
+    ctx: Annotated[InboundScimContext, Depends(require_inbound_scim_auth)],
+    payload: Annotated[dict[str, Any], Body()],
+):
+    """SCIM 2.0 `PATCH /Groups/{id}`: simple-path + batched-op support."""
+    groups_base = _groups_base(request, idp_id)
+    users_base = _users_base(request, idp_id)
+    try:
+        resource = patch_group(
+            ctx["tenant_id"],
+            ctx["idp_id"],
+            group_id,
+            payload,
+            group_location_builder=lambda gid: f"{groups_base}/{gid}",
+            members_base_url=users_base,
+        )
+    except ScimWriteError as exc:
+        _raise_from_write_error(exc)
+        return  # pragma: no cover
+    return scim_json_response(resource)
+
+
+@router.delete("/Groups/{group_id}")
+def delete_group_endpoint(
+    idp_id: str,
+    group_id: str,
+    ctx: Annotated[InboundScimContext, Depends(require_inbound_scim_auth)],
+):
+    """SCIM 2.0 `DELETE /Groups/{id}`: remove the IdP group."""
+    try:
+        delete_group(ctx["tenant_id"], ctx["idp_id"], group_id)
+    except ScimWriteError as exc:
+        _raise_from_write_error(exc)
+        return  # pragma: no cover
+    return Response(status_code=204)

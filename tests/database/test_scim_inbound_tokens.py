@@ -53,7 +53,7 @@ def test_create_token_allows_null_name(test_tenant, test_user):
     assert row["name"] is None
 
 
-# -- list_tokens / list_active_tokens -----------------------------------------
+# -- list_tokens --------------------------------------------------------------
 
 
 def test_list_tokens_includes_active_and_revoked(test_tenant, test_user):
@@ -66,16 +66,6 @@ def test_list_tokens_includes_active_and_revoked(test_tenant, test_user):
     rows = database.scim_inbound_tokens.list_tokens(test_tenant["id"], str(idp["id"]))
     ids = {str(r["id"]) for r in rows}
     assert ids == {str(active["id"]), str(revoked["id"])}
-
-
-def test_list_active_tokens_excludes_revoked(test_tenant, test_user):
-    idp = _create_idp(test_tenant["id"], test_user["id"])
-    active = _create_token(test_tenant["id"], test_user["id"], idp)
-    revoked = _create_token(test_tenant["id"], test_user["id"], idp)
-    database.scim_inbound_tokens.revoke(test_tenant["id"], str(revoked["id"]))
-
-    rows = database.scim_inbound_tokens.list_active_tokens(test_tenant["id"], str(idp["id"]))
-    assert [str(r["id"]) for r in rows] == [str(active["id"])]
 
 
 def test_list_tokens_orders_newest_first(test_tenant, test_user):

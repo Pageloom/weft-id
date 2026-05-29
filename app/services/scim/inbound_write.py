@@ -46,9 +46,10 @@ import database
 import psycopg.errors
 from constants.user_attributes import is_standard_attribute
 from schemas.scim import ENTERPRISE_USER_SCHEMA
-from services.event_log import log_event
+from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.scim import inbound_read
 from services.users.attributes import apply_idp_attributes
+from utils.validate import is_email_like
 
 logger = logging.getLogger(__name__)
 
@@ -143,11 +144,12 @@ def _canonical_email(email: str | None) -> str | None:
     return s.lower()
 
 
-def _extract_primary_email(payload: dict | Any) -> str | None:
-    """Pull the canonical primary email from a SCIM User payload.
+def _extract_primary_email_candidate(payload: dict | Any) -> str | None:
+    """Pull the best email candidate from a SCIM payload (no format check).
 
-    Falls back to `userName` if `emails` is absent (most vendors use
-    email as `userName`). Returns the canonical form.
+    Prefers the primary `emails[]` entry, then the first `emails[]`
+    entry, then `userName`. Used by `_extract_primary_email`, which
+    applies the format guard on top.
     """
     emails = payload.get("emails") if isinstance(payload, dict) else None
     if emails:
@@ -158,6 +160,26 @@ def _extract_primary_email(payload: dict | Any) -> str | None:
             return _canonical_email(chosen["value"])
     user_name = payload.get("userName") if isinstance(payload, dict) else None
     return _canonical_email(user_name)
+
+
+def _extract_primary_email(payload: dict | Any) -> str | None:
+    """Pull the canonical primary email from a SCIM User payload.
+
+    Falls back to `userName` if `emails` is absent (most vendors use
+    email as `userName`). Returns the canonical form, or None when the
+    candidate is not email-shaped.
+
+    The format guard matters because some IdPs (Okta in particular) can
+    send a bare identifier as `userName` (e.g. "alice.smith"). Without
+    the guard that string would land in the `user_emails.email` citext
+    column and the user would carry a non-email "email." When the only
+    candidate is a non-email `userName`, we return None so the create
+    path rejects with `400 invalidValue` instead of storing garbage.
+    """
+    candidate = _extract_primary_email_candidate(payload)
+    if candidate is None:
+        return None
+    return candidate if is_email_like(candidate) else None
 
 
 def _extract_names(payload: dict) -> tuple[str | None, str | None]:
@@ -351,7 +373,10 @@ def _create_user_from_scim(
     if not canonical_email:
         raise ScimWriteError(
             status_code=400,
-            detail="Payload missing a usable email (set `userName` or `emails[].value`).",
+            detail=(
+                "Payload missing a valid email address. Set `emails[].value` or a "
+                "`userName` that is an email address."
+            ),
             scim_type="invalidValue",
         )
 
@@ -430,7 +455,7 @@ def _apply_payload_writes(
                 user_id=user_id,
                 idp_id=idp_id,
                 attributes=extra_attrs,
-                actor_user_id=user_id,
+                actor_user_id=SYSTEM_ACTOR_ID,
             )
         except Exception:  # noqa: BLE001
             logger.warning(
@@ -446,7 +471,6 @@ def _handle_active_transition(
     idp_id: str,
     user_id: str,
     new_active: bool | None,
-    actor_user_id: str,
 ) -> None:
     """Inactivate or reactivate the user as required by `active`.
 
@@ -467,7 +491,7 @@ def _handle_active_transition(
         database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
         log_event(
             tenant_id=tenant_id,
-            actor_user_id=actor_user_id,
+            actor_user_id=SYSTEM_ACTOR_ID,
             artifact_type="user",
             artifact_id=user_id,
             event_type="scim_user_deactivated",
@@ -615,8 +639,25 @@ def _create_or_merge_user_attempt(
         # user, but admins may have configured additional aliases that
         # should not be wiped.
         existing = database.users.get_user_by_id(tenant_id, user_id)
-        if existing and str(existing.get("saml_idp_id") or "") != str(idp_id):
+        previous_idp_id = str((existing or {}).get("saml_idp_id") or "")
+        if existing and previous_idp_id != str(idp_id):
             database.saml.set_user_idp(tenant_id, user_id, idp_id)
+            # Cross-IdP rebind: a canonical email already bound to another
+            # IdP was claimed by this IdP. Emit a dedicated audit event so
+            # operators can filter for "this user moved IdPs" forensically;
+            # `scim_user_received` alone hides the previous binding.
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=SYSTEM_ACTOR_ID,
+                artifact_type="user",
+                artifact_id=user_id,
+                event_type="scim_user_rebound",
+                metadata={
+                    "idp_id": idp_id,
+                    "previous_idp_id": previous_idp_id or None,
+                    "canonical_email": canonical_email,
+                },
+            )
 
     _apply_payload_writes(tenant_id, idp_id, user_id, payload, update_names=not created)
 
@@ -627,7 +668,6 @@ def _create_or_merge_user_attempt(
         idp_id,
         user_id,
         active if active is not None else None,
-        actor_user_id=user_id,
     )
 
     # Bump updated_at so meta.lastModified reflects this write even when
@@ -636,7 +676,7 @@ def _create_or_merge_user_attempt(
 
     log_event(
         tenant_id=tenant_id,
-        actor_user_id=user_id,
+        actor_user_id=SYSTEM_ACTOR_ID,
         artifact_type="user",
         artifact_id=user_id,
         event_type="scim_user_received",
@@ -707,7 +747,7 @@ def replace_user(
             user_id=user_id,
             idp_id=idp_id,
             attributes=extras,
-            actor_user_id=user_id,
+            actor_user_id=SYSTEM_ACTOR_ID,
         )
     except Exception:  # noqa: BLE001
         logger.warning(
@@ -717,12 +757,12 @@ def replace_user(
             exc_info=True,
         )
 
-    _handle_active_transition(tenant_id, idp_id, user_id, active, actor_user_id=user_id)
+    _handle_active_transition(tenant_id, idp_id, user_id, active)
     _bump_updated_at(tenant_id, user_id)
 
     log_event(
         tenant_id=tenant_id,
-        actor_user_id=user_id,
+        actor_user_id=SYSTEM_ACTOR_ID,
         artifact_type="user",
         artifact_id=user_id,
         event_type="scim_user_updated",
@@ -1042,13 +1082,13 @@ def patch_user(
                 detail="`active` must be a boolean.",
                 scim_type="invalidValue",
             )
-        _handle_active_transition(tenant_id, idp_id, user_id, active, actor_user_id=user_id)
+        _handle_active_transition(tenant_id, idp_id, user_id, active)
 
     _bump_updated_at(tenant_id, user_id)
 
     log_event(
         tenant_id=tenant_id,
-        actor_user_id=user_id,
+        actor_user_id=SYSTEM_ACTOR_ID,
         artifact_type="user",
         artifact_id=user_id,
         event_type="scim_user_updated",
@@ -1082,7 +1122,7 @@ def soft_delete_user(
 
     log_event(
         tenant_id=tenant_id,
-        actor_user_id=user_id,
+        actor_user_id=SYSTEM_ACTOR_ID,
         artifact_type="user",
         artifact_id=user_id,
         event_type="scim_user_deactivated",

@@ -48,6 +48,7 @@ from routers.api.v1 import users_passkeys as users_passkeys_api  # noqa: E402
 from routers.scim import router as inbound_scim_router  # noqa: E402
 from routers.scim.inbound import register_scim_exception_handlers  # noqa: E402
 from utils.crypto import derive_session_key  # noqa: E402
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,21 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Add request context middleware (populates context for event logging)
 # Extracts IP, user agent, device, session hash into contextvar
 app.add_middleware(RequestContextMiddleware)
+
+# Trust the reverse proxy's forwarded client IP and scheme. Added LAST so
+# it is the OUTERMOST middleware (Starlette runs the last-added first),
+# letting every downstream layer -- rate limiting, request-context IP
+# extraction, routers -- see the real client instead of the proxy. The
+# app is only reachable through the proxy (its port is never published
+# directly), so the immediate peer is always nginx/Caddy and
+# FORWARDED_ALLOW_IPS defaults to "*". Without this, request.client.host
+# is the proxy's IP and every per-IP rate-limit bucket (inbound SCIM
+# auth, login, etc.) collapses into one global bucket a single hostile IP
+# could exhaust, denying real IdP ingress.
+app.add_middleware(
+    ProxyHeadersMiddleware,
+    trusted_hosts=os.environ.get("FORWARDED_ALLOW_IPS", "*"),
+)
 
 
 @app.exception_handler(RedirectError)

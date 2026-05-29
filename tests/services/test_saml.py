@@ -703,6 +703,41 @@ def test_authenticate_via_saml_jit_creates_user(test_tenant, test_super_admin_us
     _verify_event_logged(test_tenant["id"], "user_created_jit", str(user["id"]))
 
 
+def test_authenticate_via_saml_jit_rejects_non_email(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """JIT must not store a non-email assertion value as the user's email.
+
+    Aligns SAML JIT with inbound SCIM, which rejects a non-email
+    userName rather than writing it into the user_emails column.
+    """
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    data = IdPCreate(**test_idp_data, is_enabled=True, jit_provisioning=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # NameID is a bare identifier, not an email address.
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email="alice.smith",
+            first_name="Alice",
+            last_name="Smith",
+            name_id="alice.smith",
+        ),
+        idp_id=created.id,
+        requires_mfa=False,
+    )
+
+    with pytest.raises(ValidationError):
+        saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
+
 def test_authenticate_via_saml_jit_disabled_raises_not_found(
     test_tenant, test_super_admin_user, test_idp_data
 ):

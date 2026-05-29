@@ -111,6 +111,7 @@ scim_token_imported
 scim_token_revoked
 scim_token_rotated
 scim_user_deactivated
+scim_user_rebound
 scim_user_received
 scim_user_updated
 service_provider_created

@@ -754,9 +754,9 @@ def test_replace_user_with_explicit_empty_family_name_clears_it(test_tenant, idp
 # Iteration 3 decisions log: a POST to IdP-B with a userName whose
 # canonical email already exists under IdP-A *rebinds* the existing user
 # to IdP-B and merges the payload. This is the documented behaviour; we
-# pin it here so a future refactor can't silently break it. The known
-# audit-trail-gap improvement (richer `previous_idp_id` metadata) is
-# tracked separately in .claude/ISSUES.md.
+# pin it here so a future refactor can't silently break it. The rebind
+# now also emits a dedicated `scim_user_rebound` audit event carrying
+# the previous binding (closes the audit-trail gap from the final review).
 # ---------------------------------------------------------------------------
 
 
@@ -822,3 +822,21 @@ def test_cross_idp_email_match_rebinds_user_to_new_idp(test_tenant, test_user):
     md = events[0]["metadata"]
     assert md["merged"] is True
     assert md["idp_id"] == str(idp_b["id"])
+
+    # A dedicated rebind event records the move from IdP-A to IdP-B so
+    # operators can filter for cross-IdP rebinds in the audit log.
+    rebound = database.fetchall(
+        str(test_tenant["id"]),
+        """
+        select m.metadata
+        from event_logs e
+        join event_log_metadata m on m.metadata_hash = e.metadata_hash
+        where e.artifact_id = :id and e.event_type = 'scim_user_rebound'
+        order by e.created_at desc
+        limit 1
+        """,
+        {"id": user_id},
+    )
+    assert len(rebound) == 1
+    assert rebound[0]["metadata"]["previous_idp_id"] == str(idp_a["id"])
+    assert rebound[0]["metadata"]["idp_id"] == str(idp_b["id"])

@@ -25,6 +25,7 @@ from services.exceptions import NotFoundError, ServiceError
 from services.scim import inbound_credentials as inbound_creds_service
 from utils.template_context import get_template_context
 from utils.templates import templates
+from utils.urls import tenant_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +41,11 @@ IDP_LIST_URL = "/admin/settings/identity-providers"
 def _base_url(request: Request) -> str:
     """Construct the canonical https base URL from the request.
 
-    The SCIM base URL surfaced to admins must be the tenant-facing URL
-    (e.g. `https://acme.weftid.com`). Behind nginx we rely on
-    `x-forwarded-host` for the real outward-facing host; falling back to
-    `request.url.netloc` is correct for direct dev access.
+    Delegates to the single trusted host-derivation helper so the SCIM
+    base URL surfaced to admins matches the `meta.location` URLs the
+    inbound SCIM endpoints emit.
     """
-    host = request.headers.get("x-forwarded-host", request.url.netloc)
-    return f"https://{host}"
+    return tenant_base_url(request)
 
 
 @router.get(

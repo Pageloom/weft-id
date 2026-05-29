@@ -56,8 +56,8 @@ from services.groups.hierarchy import (
 
 # Re-export from idp module
 from services.groups.idp import (
-    _apply_membership_additions,
-    _apply_membership_removals,
+    apply_membership_additions,
+    apply_membership_removals,
     create_idp_base_group,
     ensure_user_in_base_group,
     ensure_users_in_base_group,
@@ -142,6 +142,8 @@ __all__ = [
     # Utilities
     "get_user_group_ids",
     # IdP
+    "apply_membership_additions",
+    "apply_membership_removals",
     "create_idp_base_group",
     "ensure_user_in_base_group",
     "ensure_users_in_base_group",
@@ -154,8 +156,6 @@ __all__ = [
     "remove_user_from_base_group",
     "sync_user_idp_groups",
     # Private (for backwards compatibility)
-    "_apply_membership_additions",
-    "_apply_membership_removals",
     "_is_idp_group",
     "_is_idp_managed_relationship",
     "_is_idp_umbrella_group",

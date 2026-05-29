@@ -246,7 +246,7 @@ def get_or_create_idp_group(
     return {"id": group_id, "name": group_name, "created": True}
 
 
-def _apply_membership_additions(
+def apply_membership_additions(
     tenant_id: str,
     user_id: str,
     user_email: str,
@@ -256,7 +256,9 @@ def _apply_membership_additions(
 ) -> list[str]:
     """Add user to the given groups and log each addition.
 
-    Returns list of added group names.
+    Returns list of added group names. Public so other system-level
+    callers (inbound SCIM group writes) can reuse the IdP membership
+    bookkeeping without crossing the module-private boundary.
     """
     if not group_ids:
         return []
@@ -290,7 +292,7 @@ def _apply_membership_additions(
     return added
 
 
-def _apply_membership_removals(
+def apply_membership_removals(
     tenant_id: str,
     user_id: str,
     user_email: str,
@@ -300,7 +302,9 @@ def _apply_membership_removals(
 ) -> list[str]:
     """Remove user from the given groups and log each removal.
 
-    Returns list of removed group names.
+    Returns list of removed group names. Public so other system-level
+    callers (inbound SCIM group writes) can reuse the IdP membership
+    bookkeeping without crossing the module-private boundary.
     """
     if not group_ids:
         return []
@@ -395,10 +399,10 @@ def sync_user_idp_groups(
     to_add = target_group_ids - current_group_ids
     to_remove = current_group_ids - target_group_ids
 
-    result["added"] = _apply_membership_additions(
+    result["added"] = apply_membership_additions(
         tenant_id, user_id, user_email, idp_id, idp_name, to_add
     )
-    result["removed"] = _apply_membership_removals(
+    result["removed"] = apply_membership_removals(
         tenant_id, user_id, user_email, idp_id, idp_name, to_remove
     )
 

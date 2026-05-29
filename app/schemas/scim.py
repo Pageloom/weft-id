@@ -211,27 +211,37 @@ def supported_filter_attributes() -> list[str]:
 
 
 class ScimUserWrite(BaseModel):
-    """Inbound User payload (POST / PUT). Iteration 3 consumer."""
+    """Inbound User payload (POST / PUT). Iteration 3 consumer.
+
+    String fields carry `max_length` so the model is safe to wire in as
+    a typed body without re-auditing. The routers currently accept raw
+    `dict` bodies (size-capped by the proxy), so these bounds are
+    dormant until a future iteration adopts strict typed validation.
+    """
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     schemas: list[str] | None = None
-    externalId: str | None = None  # noqa: N815 -- SCIM spec
-    userName: str | None = None  # noqa: N815 -- SCIM spec
+    externalId: str | None = Field(default=None, max_length=255)  # noqa: N815 -- SCIM spec
+    userName: str | None = Field(default=None, max_length=320)  # noqa: N815 -- SCIM spec
     name: ScimName | None = None
-    displayName: str | None = None  # noqa: N815 -- SCIM spec
+    displayName: str | None = Field(default=None, max_length=255)  # noqa: N815 -- SCIM spec
     emails: list[ScimEmail] = Field(default_factory=list)
     active: bool | None = None
 
 
 class ScimGroupWrite(BaseModel):
-    """Inbound Group payload (POST / PUT). Iteration 4 consumer."""
+    """Inbound Group payload (POST / PUT). Iteration 4 consumer.
+
+    See `ScimUserWrite` for why the `max_length` bounds are present but
+    dormant.
+    """
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     schemas: list[str] | None = None
-    externalId: str | None = None  # noqa: N815 -- SCIM spec
-    displayName: str | None = None  # noqa: N815 -- SCIM spec
+    externalId: str | None = Field(default=None, max_length=255)  # noqa: N815 -- SCIM spec
+    displayName: str | None = Field(default=None, max_length=255)  # noqa: N815 -- SCIM spec
     members: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -240,8 +250,8 @@ class ScimPatchOperation(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    op: str
-    path: str | None = None
+    op: str = Field(max_length=20)
+    path: str | None = Field(default=None, max_length=512)
     value: Any | None = None
 
 

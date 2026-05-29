@@ -79,21 +79,6 @@ def list_tokens(tenant_id: TenantArg, idp_id: str) -> list[dict]:
     )
 
 
-def list_active_tokens(tenant_id: TenantArg, idp_id: str) -> list[dict]:
-    """List active (not-revoked) inbound SCIM tokens for one IdP, newest first."""
-    return fetchall(
-        tenant_id,
-        """
-        select id, tenant_id, idp_id, name, created_by_user_id,
-               created_at, revoked_at, last_used_at
-        from scim_inbound_tokens
-        where idp_id = :idp_id and revoked_at is null
-        order by created_at desc
-        """,
-        {"idp_id": idp_id},
-    )
-
-
 def get_by_hash(tenant_id: TenantArg, token_hash: str) -> dict | None:
     """Look up an inbound SCIM token by its SHA-256 hex digest.
 

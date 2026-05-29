@@ -4,7 +4,7 @@ The acceptance criterion for iteration 4: when a SCIM client adds a user
 to a group that grants access to a SCIM-enabled SP, the outbound SCIM
 push queue grows for that SP / user pair.
 
-The mechanism: `services.groups.idp._apply_membership_additions` fires
+The mechanism: `services.groups.idp.apply_membership_additions` fires
 `idp_group_member_added` per member. That event is tagged in
 `EVENT_TYPE_SCIM_TRIGGERS` with `enqueue_membership_change`, which
 walks every SCIM-enabled SP granting access via that group (or its

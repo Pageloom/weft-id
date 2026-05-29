@@ -12,6 +12,7 @@ from schemas.saml import SAMLAuthResult
 from services.event_log import log_event
 from services.exceptions import ForbiddenError, NotFoundError, ValidationError
 from services.users.attributes import apply_idp_attributes
+from utils.validate import is_email_like
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,15 @@ def jit_provision_user(
     first_name = attrs.first_name or "SAML"
     last_name = attrs.last_name or "User"
     email = attrs.email
+
+    # Reject assertions whose "email" is not email-shaped before it lands
+    # in the user_emails citext column. Aligns JIT with inbound SCIM,
+    # which applies the same guard to a non-email userName.
+    if not is_email_like(email):
+        raise ValidationError(
+            message="SAML assertion did not provide a valid email address",
+            code="jit_invalid_email",
+        )
 
     # Race condition protection: Check if email was created between
     # our check and now (another concurrent request)

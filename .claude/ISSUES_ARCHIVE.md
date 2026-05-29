@@ -5,6 +5,154 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] Proxy headers + x-forwarded-host trust boundary (project-wide)
+
+**Fixed by:** inbound-scim follow-up (2026-05-29)
+
+**Discovered:** 2026-05-28 (inbound-SCIM final review)
+**Severity:** Medium
+
+Two related issues with the same root cause: (1) `request.client.host`
+was the proxy IP, so per-IP rate-limit buckets collapsed to one global
+bucket a single hostile IP could exhaust; (2) `x-forwarded-host` was
+trusted without a boundary, so a spoofed header could shift the absolute
+URLs surfaced to IdPs (SCIM `meta.location`).
+
+**Fix:** Installed uvicorn's `ProxyHeadersMiddleware` as the outermost
+middleware (`trusted_hosts` from `FORWARDED_ALLOW_IPS`, default `*`,
+safe because the app port is never published) so `request.client.host`
+reflects the real client from `X-Forwarded-For`. Made the dev nginx
+proxy set `X-Forwarded-For` and an authoritative `X-Forwarded-Host`
+(Caddy already does); the prod app is only reachable through the proxy,
+making the forwarded host proxy-controlled. Consolidated host derivation
+on `utils.urls.tenant_base_url` (the admin SCIM tab's `_base_url` now
+delegates to it). Pinned by `tests/test_proxy_headers.py`.
+
+**Files:** `app/main.py`, `dev/nginx/conf.d/app.conf`, `app/utils/urls.py`,
+`app/routers/saml/admin/inbound_scim.py`
+
+---
+
+## [SECURITY] Inbound SCIM cross-IdP rebind has no dedicated audit event
+
+**Fixed by:** inbound-scim follow-up (2026-05-29)
+
+**Discovered:** 2026-05-28 (inbound-SCIM final review)
+**Severity:** Low
+
+A POST to IdP-B for a canonical email already bound to IdP-A rebinds the
+user silently, emitting only `scim_user_received` with `merged=true`.
+The audit trail didn't surface the previous binding.
+
+**Fix:** Added a dedicated `scim_user_rebound` event (security tier),
+emitted from `_create_or_merge_user_attempt` when `set_user_idp`
+actually changes the binding, carrying `previous_idp_id`. Pinned by unit
+and integration tests in `tests/services/scim/`.
+
+**Files:** `app/services/scim/inbound_write.py`, `app/constants/event_types.py`
+
+---
+
+## [REFACTOR] Inbound SCIM group write imports private helpers from services.groups.idp
+
+**Fixed by:** inbound-scim follow-up (2026-05-29)
+
+**Discovered:** 2026-05-28 (inbound-SCIM final review)
+**Severity:** Low
+
+`inbound_group_write.py` imported `_apply_membership_additions` /
+`_apply_membership_removals` (underscore-prefixed) from
+`services.groups.idp`, crossing the module-private boundary.
+
+**Fix:** Promoted both helpers to public names
+(`apply_membership_additions` / `apply_membership_removals`) in
+`services.groups.idp`, updated the package `__init__` re-exports and the
+SCIM importer.
+
+**Files:** `app/services/scim/inbound_group_write.py`,
+`app/services/groups/idp.py`, `app/services/groups/__init__.py`
+
+---
+
+## [REFACTOR] Inbound SCIM write events use inconsistent actor_user_id
+
+**Fixed by:** inbound-scim follow-up (2026-05-29)
+
+**Discovered:** 2026-05-28 (inbound-SCIM final review)
+**Severity:** Low
+
+SCIM user-write events logged `actor_user_id=user_id` (the affected
+user) while group-write events used `SYSTEM_ACTOR_ID`. The actor for
+inbound SCIM is the upstream IdP, so the log read as "user X deactivated
+themselves."
+
+**Fix:** Standardised all inbound SCIM user-write events (and their
+`apply_idp_attributes` calls) on `SYSTEM_ACTOR_ID`; metadata already
+carries `idp_id`. Pinned by assertions in `tests/services/scim/`.
+
+**Files:** `app/services/scim/inbound_write.py`
+
+---
+
+## [REFACTOR] Inbound SCIM `list_active_tokens` is dead code
+
+**Fixed by:** inbound-scim follow-up (2026-05-29)
+
+**Discovered:** 2026-05-28 (inbound-SCIM final review)
+**Severity:** Low
+
+`database.scim_inbound_tokens.list_active_tokens` had no production
+caller; the admin tab uses `list_tokens` (which deliberately includes
+revoked rows for the revocation-history view).
+
+**Fix:** Deleted the function and its database test.
+
+**Files:** `app/database/scim_inbound_tokens.py`,
+`tests/database/test_scim_inbound_tokens.py`
+
+---
+
+## [TEST] Inbound SCIM canonical-email validation when userName is not an email
+
+**Fixed by:** inbound-scim follow-up (2026-05-29)
+
+**Discovered:** 2026-05-28 (inbound-SCIM final review)
+**Severity:** Low
+
+`_canonical_email` fell back to `userName` even when it wasn't an email,
+so a bare identifier (Okta `userName="alice.smith"`) could land in the
+`user_emails` citext column. The same gap existed in SAML JIT.
+
+**Fix:** Added a shared `utils.validate.is_email_like` guard. Inbound
+SCIM now only uses `userName` as the email when it's email-shaped (else
+the create path rejects with `400 invalidValue`), and
+`jit_provision_user` raises `ValidationError` rather than storing a
+non-email. Covered by new unit/integration tests.
+
+**Files:** `app/services/scim/inbound_write.py`,
+`app/services/saml/provisioning.py`, `app/utils/validate.py`
+
+---
+
+## [TEST] Inbound SCIM Pydantic write models lack max_length
+
+**Fixed by:** inbound-scim follow-up (2026-05-29)
+
+**Discovered:** 2026-05-28 (inbound-SCIM final review)
+**Severity:** Low
+
+`ScimUserWrite`, `ScimGroupWrite`, `ScimPatchOperation` lacked
+`max_length` on string fields (dormant because the routers accept raw
+`dict` bodies).
+
+**Fix:** Added `max_length` bounds (userName 320, externalId/displayName
+255, PATCH op 20, path 512) so the models are safe to wire in as typed
+bodies later. Pinned by `tests/schemas/test_scim_write_models.py`.
+
+**Files:** `app/schemas/scim.py`
+
+---
+
 ## [BUG] SCIM group rename does not propagate to direct-mode SCIM SPs
 
 **Fixed by:** inbound-scim iteration 4 (fix-now during test-agent triage)

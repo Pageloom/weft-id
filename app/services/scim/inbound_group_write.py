@@ -50,8 +50,8 @@ import database
 import psycopg.errors
 from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.groups.idp import (
-    _apply_membership_additions,
-    _apply_membership_removals,
+    apply_membership_additions,
+    apply_membership_removals,
 )
 from services.scim import inbound_read
 from services.scim.inbound_write import ScimWriteError
@@ -293,7 +293,7 @@ def _apply_membership_diff(
             primary = database.user_emails.get_primary_email(tenant_id, user_id)
             if primary:
                 user_email = primary["email"]
-        _apply_membership_additions(
+        apply_membership_additions(
             tenant_id,
             user_id,
             user_email,
@@ -309,7 +309,7 @@ def _apply_membership_diff(
             primary = database.user_emails.get_primary_email(tenant_id, user_id)
             if primary:
                 user_email = primary["email"]
-        _apply_membership_removals(
+        apply_membership_removals(
             tenant_id,
             user_id,
             user_email,

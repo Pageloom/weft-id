@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from services.event_log import SYSTEM_ACTOR_ID
 from services.scim.inbound_write import (
     ScimWriteError,
     create_or_merge_user,
@@ -92,6 +93,8 @@ def test_create_path_creates_new_user_and_returns_201(fake_session):
     assert event["event_type"] == "scim_user_received"
     assert event["metadata"]["merged"] is False
     assert event["metadata"]["external_id"] == "okta-1"
+    # The upstream IdP is the actor, not the affected user.
+    assert event["actor_user_id"] == SYSTEM_ACTOR_ID
 
 
 def test_merge_by_external_id_returns_existing_user(fake_session):
@@ -519,6 +522,7 @@ def test_soft_delete_inactivates_and_logs_event():
     inactivate.assert_called_once()
     revoke.assert_called_once()
     assert log.call_args.kwargs["event_type"] == "scim_user_deactivated"
+    assert log.call_args.kwargs["actor_user_id"] == SYSTEM_ACTOR_ID
 
 
 def test_soft_delete_idempotent_when_already_inactivated():
@@ -785,3 +789,142 @@ def test_entra_batched_patch_fixture(fake_session):
     assert captured["displayName"] == "Robert Builder"
     assert captured["name"]["givenName"] == "Robert"
     assert captured[ENTERPRISE_USER_SCHEMA]["department"] == "Construction"
+
+
+# ---------------------------------------------------------------------------
+# Email-format guard (non-email userName must not become a stored email)
+# ---------------------------------------------------------------------------
+
+
+def test_create_rejects_non_email_username_without_emails(fake_session):
+    """A bare `userName` (e.g. "alice.smith") with no emails[] is rejected.
+
+    Without the guard the string would land in the user_emails citext
+    column as a non-email "email."
+    """
+    session_cm, _cur = fake_session
+    with (
+        patch("services.scim.inbound_write.database.session", return_value=session_cm),
+        patch("services.scim.inbound_write.log_event"),
+    ):
+        with pytest.raises(ScimWriteError) as exc:
+            create_or_merge_user(
+                "t",
+                "i",
+                {"userName": "alice.smith"},
+                location_builder=_location_builder,
+            )
+    assert exc.value.status_code == 400
+    assert exc.value.scim_type == "invalidValue"
+
+
+def test_create_uses_emails_value_when_username_is_not_email(fake_session):
+    """A non-email userName is fine when a real email arrives in emails[]."""
+    session_cm, cur = fake_session
+    cur.fetchone.return_value = None
+    new_user_id = str(uuid4())
+    captured = {}
+
+    def capture_create(_t, _i, _payload, *, canonical_email, **_k):
+        captured["canonical_email"] = canonical_email
+        return new_user_id
+
+    with (
+        patch("services.scim.inbound_write.database.session", return_value=session_cm),
+        patch("services.scim.inbound_write._create_user_from_scim", side_effect=capture_create),
+        patch("services.scim.inbound_write._apply_payload_writes"),
+        patch("services.scim.inbound_write._handle_active_transition"),
+        patch("services.scim.inbound_write._bump_updated_at"),
+        patch("services.scim.inbound_write.log_event"),
+        patch(
+            "services.scim.inbound_write.inbound_read.get_user",
+            return_value=_resolved_user(new_user_id),
+        ),
+    ):
+        _payload, created = create_or_merge_user(
+            "t",
+            "i",
+            {"userName": "alice.smith", "emails": [{"value": "alice@x.test", "primary": True}]},
+            location_builder=_location_builder,
+        )
+    assert created is True
+    assert captured["canonical_email"] == "alice@x.test"
+
+
+# ---------------------------------------------------------------------------
+# Cross-IdP rebind audit event
+# ---------------------------------------------------------------------------
+
+
+def test_merge_across_idp_emits_scim_user_rebound(fake_session):
+    """An email-match merge that moves the user to a new IdP emits a
+    dedicated `scim_user_rebound` event carrying the previous binding."""
+    session_cm, cur = fake_session
+    existing_id = str(uuid4())
+    # No externalId in payload -> only the email lookup runs and hits an
+    # existing user bound to IdP-A.
+    cur.fetchone.return_value = {"user_id": existing_id}
+
+    with (
+        patch("services.scim.inbound_write.database.session", return_value=session_cm),
+        patch(
+            "services.scim.inbound_write.database.users.get_user_by_id",
+            return_value={"id": existing_id, "saml_idp_id": "idp-a"},
+        ),
+        patch("services.scim.inbound_write.database.saml.set_user_idp") as set_idp,
+        patch("services.scim.inbound_write._apply_payload_writes"),
+        patch("services.scim.inbound_write._handle_active_transition"),
+        patch("services.scim.inbound_write._bump_updated_at"),
+        patch("services.scim.inbound_write.log_event") as log,
+        patch(
+            "services.scim.inbound_write.inbound_read.get_user",
+            return_value=_resolved_user(existing_id),
+        ),
+    ):
+        _payload, created = create_or_merge_user(
+            "t",
+            "idp-b",
+            {"userName": "alice@x.test"},
+            location_builder=_location_builder,
+        )
+    assert created is False
+    set_idp.assert_called_once()
+    rebound = [
+        c.kwargs for c in log.call_args_list if c.kwargs["event_type"] == "scim_user_rebound"
+    ]
+    assert len(rebound) == 1
+    assert rebound[0]["actor_user_id"] == SYSTEM_ACTOR_ID
+    assert rebound[0]["metadata"]["previous_idp_id"] == "idp-a"
+    assert rebound[0]["metadata"]["idp_id"] == "idp-b"
+
+
+def test_merge_same_idp_does_not_emit_rebound(fake_session):
+    """Re-POST against the same IdP merges but does not emit a rebind."""
+    session_cm, cur = fake_session
+    existing_id = str(uuid4())
+    cur.fetchone.return_value = {"user_id": existing_id}
+
+    with (
+        patch("services.scim.inbound_write.database.session", return_value=session_cm),
+        patch(
+            "services.scim.inbound_write.database.users.get_user_by_id",
+            return_value={"id": existing_id, "saml_idp_id": "idp-a"},
+        ),
+        patch("services.scim.inbound_write.database.saml.set_user_idp") as set_idp,
+        patch("services.scim.inbound_write._apply_payload_writes"),
+        patch("services.scim.inbound_write._handle_active_transition"),
+        patch("services.scim.inbound_write._bump_updated_at"),
+        patch("services.scim.inbound_write.log_event") as log,
+        patch(
+            "services.scim.inbound_write.inbound_read.get_user",
+            return_value=_resolved_user(existing_id),
+        ),
+    ):
+        create_or_merge_user(
+            "t",
+            "idp-a",
+            {"userName": "alice@x.test"},
+            location_builder=_location_builder,
+        )
+    set_idp.assert_not_called()
+    assert not [c for c in log.call_args_list if c.kwargs["event_type"] == "scim_user_rebound"]

@@ -4,6 +4,41 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Inbound SCIM (Okta and Entra → WeftID)
+
+**Status:** Complete (2026-05-28, branch `inbound-scim`)
+
+**Summary:** WeftID can now receive user and group changes pushed from upstream IdPs (Okta and Entra) via SCIM 2.0, turning the JIT-only directory into a true reflection directory. Combined with outbound SCIM (1.7.0/1.8.0), this closes the end-to-end "federation-native directory" loop: upstream IdP → WeftID → downstream SaaS, with no waiting for sign-in to discover lifecycle events.
+
+**Implementation highlights:**
+
+- New `app/routers/scim/inbound/` package mounted at `/scim/v2/inbound/{idp_id}/...` with Users + Groups CRUD + Schemas/ResourceTypes/ServiceProviderConfig discovery (RFC 7644 §4 metadata endpoints are intentionally unauthenticated).
+- Per-IdP bearer-token lifecycle in `scim_inbound_tokens` (SHA-256 hashed; global unique-hash index for safe UNSCOPED auth lookup; CASCADE on IdP delete). Tokens shown once at creation, byte-identical 401 envelope on every failure mode, 60/min per-IP rate limit.
+- Idempotent user merge on `externalId` (preferred) or canonical email; cross-IdP rebind on email match is the documented behaviour. Race-protected by a partial unique index on `(idp_id, value) WHERE attribute_key = '__external_id'` plus a retry-on-UniqueViolation wrapper.
+- SCIM DELETE maps to existing soft-delete inactivate flow: MFA enrolment, audit history, and granted access preserved for reactivation.
+- IdP groups created via SCIM use `group_type='idp'`; member resolution accepts either WeftID UUID or upstream externalId, per-IdP scoped. Lineage attributes silently ignored (admin-driven, not SCIM-driven).
+- PATCH parser handles both Okta (`members[value eq "..."]` element filters) and Entra (URN-prefixed batched `Operations[]` with stringified booleans). New `_normalise_patch_path_with_filter` helper preserves filter values needed for group member removal.
+- All SCIM writes route through the existing IdP attribute mirroring pipeline (same path as SAML assertions); tenant config decides whether to mirror IdP-attribute rows into canonical user fields.
+- Eight new event types wired into `EVENT_TYPE_SCIM_TRIGGERS`: `scim_user_*` → `enqueue_user_self`, `scim_group_*` → `enqueue_group_self`. Outbound replay is automatic via the existing dispatcher; no separate replay layer. Per-member `idp_group_member_added/removed` events drive membership cascades.
+- Admin UI: new "SCIM Provisioning" tab on each SAML IdP detail page; token CRUD + SCIM base URL surfaced for paste-into-Okta/Entra workflow. Full API parity under `/api/v1/saml-identity-providers/{idp_id}/inbound-scim/credentials`.
+- Documentation: overview + Okta walkthrough + Entra walkthrough at `docs/admin-guide/identity-providers/inbound-scim*.md`, mirroring the outbound SCIM docs structure.
+- Recorded vendor fixtures under `tests/fixtures/scim/inbound/{okta,entra}/` covering create, replace, PATCH (rename, disable, batched), member add/remove.
+
+**Final review:** 0 critical/high security findings; compliance checker clean; 6125 unit + 51 E2E pass with 288 inbound-SCIM-specific tests. One HIGH bug found and fixed in the final pass (PUT partial-name overwrite of family/given name with placeholder strings). Seven low/medium follow-ups logged to `.claude/ISSUES.md`.
+
+**Version impact:** Minor (new endpoints, new table, three migrations, no breaking changes).
+
+**Follow-on items in ISSUES.md:**
+- Proxy headers + x-forwarded-host trust boundary (project-wide, Medium)
+- Cross-IdP rebind audit gap (emit `scim_user_rebound` or add `previous_idp_id` metadata)
+- Pydantic write models lack max_length (preventive hardening)
+- `list_active_tokens` is dead code (delete or wire into admin tab)
+- `_canonical_email` falls back to userName when not an email (also affects JIT)
+- Cross-module private import: `_apply_membership_additions/_removals` from `services.groups.idp`
+- Inconsistent `actor_user_id` between SCIM user-write and group-write events
+
+---
+
 ## Outbound SCIM (WeftID → Downstream Service Providers)
 
 **Status:** Complete (2026-05-23, shipped in 1.7.0 with follow-on fixes in 1.7.1 and 1.8.0)

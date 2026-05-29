@@ -318,58 +318,6 @@ So that unit tests never leak queries to PostgreSQL, producing noisy error logs 
 
 ---
 
-## Inbound SCIM (Okta and Entra → WeftID)
-
-**User Story:**
-As a tenant admin whose company uses Okta or Entra as the source of truth,
-I want my IdP to push user and group changes into WeftID via SCIM,
-So that WeftID reflects directory state without waiting for users to log in, and downstream apps (via outbound SCIM) get changes promptly.
-
-**Context:**
-
-Today, WeftID only learns about a user when they log in (JIT). This means a deprovisioned upstream user is not removed from WeftID until their next (failed) login, and an admin cannot grant SP access to a user who has not yet logged in.
-
-Inbound SCIM makes WeftID a true **reflection directory** rather than a JIT cache. Combined with outbound SCIM, this is the end-to-end "federation-native directory" story.
-
-Explicitly scoped to **Okta and Entra** for the initial release. Those are the two SCIM 2.0 client implementations enterprises actually run, and their quirks define what "works" means more than the RFC does.
-
-**Design Notes:**
-
-- Endpoint shape: `/scim/v2/inbound/<idp-connection-id>/...`, bearer token per IdP connection.
-- Reuses existing `group_type='idp'` (read-only externally-synced groups).
-- Reuses existing user lifecycle states. SCIM DELETE maps to **soft-delete / deactivate** (never hard-delete; preserves MFA enrollment, audit history, granted access on reactivation).
-- Conflict resolution: **SCIM-wins-always** for the initial release. Do not build a per-attribute mastering rules engine. Layer that on later only if a customer asks. Correct for the federation use case and ships faster.
-- Idempotent merge on `externalId` or email: a user created by JIT login *before* SCIM provisioning catches up must be merged into the SCIM-managed user, not duplicated.
-- Compatibility realities: Okta SCIM and Entra SCIM both claim 2.0 compliance and both have known quirks (Entra's batched PATCH semantics, Okta's group `members[]` add/remove patterns, both differ on `meta.resourceType` casing). Tests must use recorded request fixtures from real tenants.
-
-**Acceptance Criteria:**
-
-- [ ] Migration adds `scim_inbound_tokens` table tied to IdP connections
-- [ ] `app/routers/scim/inbound/` package with endpoints under `/scim/v2/inbound/<idp-connection-id>/`:
-  - [ ] Full Users CRUD (GET, POST, PUT, PATCH, DELETE)
-  - [ ] Full Groups CRUD (GET, POST, PUT, PATCH, DELETE)
-  - [ ] `GET /ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`
-- [ ] Bearer-token auth middleware validates inbound SCIM tokens and scopes to one IdP connection
-- [ ] Users created via inbound SCIM are merged with any pre-existing JIT user on `externalId` or canonical email match (no duplicates)
-- [ ] DELETE soft-deletes (deactivates) the user, preserving MFA enrollment and audit history
-- [ ] Groups created via inbound SCIM use `group_type='idp'` (read-only in WeftID)
-- [ ] Group membership changes from SCIM update memberships and trigger any downstream outbound SCIM pushes
-- [ ] **SCIM-wins-always:** any user/group attribute write from SCIM overrides local edits without conflict prompts
-- [ ] Test fixtures cover real-world Okta and Entra request shapes (recorded from sandbox tenants)
-- [ ] Admin UI: inbound SCIM token management per IdP connection
-- [ ] Documentation page in `docs/admin-guide/` covering inbound SCIM setup for Okta and Entra (step-by-step screenshots)
-- [ ] Audit events: `scim_inbound_token_created`, `scim_inbound_token_rotated`, `scim_inbound_token_revoked`, `scim_user_received`, `scim_group_received`, `scim_user_deactivated`, `scim_membership_synced`
-
-**Effort:** M
-**Value:** High (closes the JIT-only gap; required to be credible as a directory product; combined with outbound SCIM, completes the directory story)
-**Version impact:** Minor (new endpoints, new table, no breaking changes to existing flows)
-
-**Dependencies:**
-- Independent of Outbound SCIM (can ship in either order), but the SCIM router/auth scaffolding from Outbound is reusable, so doing Inbound second is cheaper.
-- Shares conflict-resolution plumbing and `group_type='idp'` integration with Google Workspace sync; whichever ships second of the two reuses the merge/soft-delete code.
-
----
-
 ## Google Workspace Directory Sync
 
 **User Story:**

@@ -215,6 +215,40 @@ def test_schema_individual_get_enterprise_user(client, api_host):
     assert "department" in attr_names
 
 
+def test_metadata_open_but_user_and_group_endpoints_require_bearer(client, api_host):
+    """Pin RFC 7644 §4 invariant: discovery is public, data endpoints require auth.
+
+    Specifically:
+    * `ServiceProviderConfig`, `ResourceTypes`, `Schemas` MUST return 200
+      with no `Authorization` header (otherwise a SCIM client couldn't
+      even discover our capabilities).
+    * `Users` and `Groups` MUST return the byte-identical SCIM 2.0 401
+      envelope with no `Authorization` header.
+
+    A future refactor that wires the bearer dep onto the discovery routes
+    -- or that accidentally drops it from `/Users` or `/Groups` -- would
+    break this test. The /Users + /Groups 401 envelope check also pins
+    the "same body shape across auth-failure modes" invariant from
+    iteration 2 (no tenant / IdP leak).
+    """
+    idp = _idp_id()
+
+    # Discovery endpoints: 200 with no Authorization header.
+    for path in ("ServiceProviderConfig", "ResourceTypes", "Schemas"):
+        resp = client.get(f"/scim/v2/inbound/{idp}/{path}", headers={"host": api_host})
+        assert resp.status_code == 200, f"{path} should be public-discovery"
+
+    # Data endpoints: 401 with the SCIM error envelope and no Authorization.
+    for path in ("Users", "Groups"):
+        resp = client.get(f"/scim/v2/inbound/{idp}/{path}", headers={"host": api_host})
+        assert resp.status_code == 401, f"{path} should require bearer auth"
+        body = resp.json()
+        assert body["schemas"] == ["urn:ietf:params:scim:api:messages:2.0:Error"]
+        assert body["status"] == "401"
+        assert body["detail"] == "Authentication required"
+        assert resp.headers.get("WWW-Authenticate", "").startswith("Bearer")
+
+
 def test_schema_individual_get_group(client, api_host):
     """The Group schema URN routes correctly via :path."""
     idp = _idp_id()

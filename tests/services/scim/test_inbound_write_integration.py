@@ -587,3 +587,238 @@ def test_create_or_merge_retries_on_unique_violation(test_tenant, idp, monkeypat
     assert calls["n"] == 2
     assert created is False
     assert payload["id"] == winner_id
+
+
+# ---------------------------------------------------------------------------
+# PUT name-field semantics (RFC 7644 §3.5.1 full-replace).
+#
+# Distinguishes three states:
+# 1. Field absent       -> preserve existing.
+# 2. Field present+set  -> use the supplied value.
+# 3. Field present+""   -> honour as explicit SCIM clear.
+#
+# Regression guard against the bug where an absent givenName/familyName
+# silently wrote the literal placeholder "SCIM" / "User" into the user
+# record, clobbering real data on every partial-name PUT.
+# ---------------------------------------------------------------------------
+
+
+def test_replace_user_preserves_last_name_when_only_given_name_in_payload(test_tenant, idp):
+    payload, _ = create_or_merge_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        {
+            "userName": "partial-given@example.test",
+            "name": {"givenName": "Alice", "familyName": "Smith"},
+        },
+        location_builder=_location_builder,
+    )
+    user_id = payload["id"]
+
+    replace_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        user_id,
+        {
+            "userName": "partial-given@example.test",
+            "name": {"givenName": "Alicia"},
+        },
+        location_builder=_location_builder,
+    )
+
+    row = database.users.get_user_by_id(str(test_tenant["id"]), user_id)
+    assert row["first_name"] == "Alicia"
+    # familyName was absent from the payload -- the existing value must be
+    # preserved. NEVER the literal placeholder "User".
+    assert row["last_name"] == "Smith"
+
+
+def test_replace_user_preserves_first_name_when_only_family_name_in_payload(test_tenant, idp):
+    payload, _ = create_or_merge_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        {
+            "userName": "partial-family@example.test",
+            "name": {"givenName": "Bob", "familyName": "Jones"},
+        },
+        location_builder=_location_builder,
+    )
+    user_id = payload["id"]
+
+    replace_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        user_id,
+        {
+            "userName": "partial-family@example.test",
+            "name": {"familyName": "Jonesy"},
+        },
+        location_builder=_location_builder,
+    )
+
+    row = database.users.get_user_by_id(str(test_tenant["id"]), user_id)
+    assert row["last_name"] == "Jonesy"
+    # givenName was absent from the payload -- preserve. NEVER "SCIM".
+    assert row["first_name"] == "Bob"
+
+
+def test_replace_user_with_no_name_block_preserves_both_fields(test_tenant, idp):
+    """An absent `name` block (and no displayName) is "not specified", not "clear"."""
+    payload, _ = create_or_merge_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        {
+            "userName": "no-name-block@example.test",
+            "name": {"givenName": "Carol", "familyName": "Wong"},
+        },
+        location_builder=_location_builder,
+    )
+    user_id = payload["id"]
+
+    # PUT with no `name` block at all.
+    replace_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        user_id,
+        {"userName": "no-name-block@example.test", "active": True},
+        location_builder=_location_builder,
+    )
+
+    row = database.users.get_user_by_id(str(test_tenant["id"]), user_id)
+    assert row["first_name"] == "Carol"
+    assert row["last_name"] == "Wong"
+
+
+def test_replace_user_with_empty_name_dict_preserves_both_fields(test_tenant, idp):
+    """An empty `name={}` provides neither field -> preserve both (same as omitted)."""
+    payload, _ = create_or_merge_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        {
+            "userName": "empty-name@example.test",
+            "name": {"givenName": "Dana", "familyName": "Yu"},
+        },
+        location_builder=_location_builder,
+    )
+    user_id = payload["id"]
+
+    replace_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        user_id,
+        {"userName": "empty-name@example.test", "name": {}},
+        location_builder=_location_builder,
+    )
+
+    row = database.users.get_user_by_id(str(test_tenant["id"]), user_id)
+    assert row["first_name"] == "Dana"
+    assert row["last_name"] == "Yu"
+
+
+def test_replace_user_with_explicit_empty_family_name_clears_it(test_tenant, idp):
+    """`familyName: ""` is an explicit SCIM clear per RFC 7644 §3.5.1.
+
+    Distinguishes "present-but-empty" (clear) from "absent" (preserve).
+    """
+    payload, _ = create_or_merge_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        {
+            "userName": "clear-family@example.test",
+            "name": {"givenName": "Eve", "familyName": "Adams"},
+        },
+        location_builder=_location_builder,
+    )
+    user_id = payload["id"]
+
+    replace_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        user_id,
+        {
+            "userName": "clear-family@example.test",
+            "name": {"givenName": "Eve", "familyName": ""},
+        },
+        location_builder=_location_builder,
+    )
+
+    row = database.users.get_user_by_id(str(test_tenant["id"]), user_id)
+    assert row["first_name"] == "Eve"
+    # Explicit empty -> cleared. NOT the placeholder "User".
+    assert row["last_name"] == ""
+
+
+# ---------------------------------------------------------------------------
+# Cross-IdP email-match merge (rebind).
+#
+# Iteration 3 decisions log: a POST to IdP-B with a userName whose
+# canonical email already exists under IdP-A *rebinds* the existing user
+# to IdP-B and merges the payload. This is the documented behaviour; we
+# pin it here so a future refactor can't silently break it. The known
+# audit-trail-gap improvement (richer `previous_idp_id` metadata) is
+# tracked separately in .claude/ISSUES.md.
+# ---------------------------------------------------------------------------
+
+
+def test_cross_idp_email_match_rebinds_user_to_new_idp(test_tenant, test_user):
+    idp_a = database.saml.create_identity_provider(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="IdP A",
+        provider_type="generic",
+        sp_entity_id=f"urn:test:{uuid4().hex}",
+        created_by=str(test_user["id"]),
+    )
+    idp_b = database.saml.create_identity_provider(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="IdP B",
+        provider_type="generic",
+        sp_entity_id=f"urn:test:{uuid4().hex}",
+        created_by=str(test_user["id"]),
+    )
+
+    # First POST: created under IdP A.
+    payload_a, created_a = create_or_merge_user(
+        str(test_tenant["id"]),
+        str(idp_a["id"]),
+        {"userName": "alice@x.test"},
+        location_builder=_location_builder,
+    )
+    assert created_a is True
+    user_id = payload_a["id"]
+    row_a = database.users.get_user_by_id(str(test_tenant["id"]), user_id)
+    assert str(row_a["saml_idp_id"]) == str(idp_a["id"])
+
+    # Second POST against IdP B, same canonical email, no externalId.
+    # The email-match path drives the merge and rebinds to IdP B.
+    payload_b, created_b = create_or_merge_user(
+        str(test_tenant["id"]),
+        str(idp_b["id"]),
+        {"userName": "alice@x.test"},
+        location_builder=_location_builder,
+    )
+    assert created_b is False
+    assert payload_b["id"] == user_id
+
+    row_b = database.users.get_user_by_id(str(test_tenant["id"]), user_id)
+    # Rebound to IdP B per the iteration-3 cross-IdP rebind behaviour.
+    assert str(row_b["saml_idp_id"]) == str(idp_b["id"])
+
+    # The second POST's audit event records the merge against IdP B.
+    events = database.fetchall(
+        str(test_tenant["id"]),
+        """
+        select m.metadata
+        from event_logs e
+        join event_log_metadata m on m.metadata_hash = e.metadata_hash
+        where e.artifact_id = :id and e.event_type = 'scim_user_received'
+        order by e.created_at desc
+        limit 1
+        """,
+        {"id": user_id},
+    )
+    assert len(events) == 1
+    md = events[0]["metadata"]
+    assert md["merged"] is True
+    assert md["idp_id"] == str(idp_b["id"])

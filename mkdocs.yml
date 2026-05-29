@@ -60,6 +60,9 @@ nav:
     - Identity Providers:
       - admin-guide/identity-providers/index.md
       - SAML Setup: admin-guide/identity-providers/saml-setup.md
+      - Inbound SCIM Overview: admin-guide/identity-providers/inbound-scim.md
+      - Inbound SCIM (Okta): admin-guide/identity-providers/inbound-scim-okta.md
+      - Inbound SCIM (Entra): admin-guide/identity-providers/inbound-scim-entra.md
       - Privileged Domains: admin-guide/identity-providers/privileged-domains.md
     - Service Providers:
       - admin-guide/service-providers/index.md

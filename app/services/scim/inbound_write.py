@@ -181,6 +181,51 @@ def _extract_names(payload: dict) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _resolve_replace_names(payload: dict, existing: dict | None) -> tuple[str, str]:
+    """Compute (first_name, last_name) for a SCIM PUT (replace) operation.
+
+    Distinguishes three states per RFC 7644 §3.5.1 full-replace semantics:
+
+    1. The field is **absent** from the payload -> preserve the existing
+       value. Treating "not specified" as "clear" would clobber real data
+       any time a client sent a partial `name` block (e.g. givenName only).
+    2. The field is **present and non-empty** -> use the supplied value.
+    3. The field is **present but empty** (e.g. `familyName: ""`) -> honour
+       it as an explicit SCIM clear and write empty string.
+
+    The literal placeholder strings "SCIM" / "User" are NEVER written.
+    """
+    existing_first = (existing or {}).get("first_name") or ""
+    existing_last = (existing or {}).get("last_name") or ""
+
+    name_block = payload.get("name") if isinstance(payload, dict) else None
+    if isinstance(name_block, dict):
+        first_present = "givenName" in name_block
+        last_present = "familyName" in name_block
+        if first_present:
+            raw_first = name_block.get("givenName")
+            new_first = (raw_first or "").strip() if isinstance(raw_first, str) else ""
+        else:
+            new_first = existing_first
+        if last_present:
+            raw_last = name_block.get("familyName")
+            new_last = (raw_last or "").strip() if isinstance(raw_last, str) else ""
+        else:
+            new_last = existing_last
+        return new_first, new_last
+
+    # `name` block absent. Fall back to displayName split if it's present.
+    display = payload.get("displayName") if isinstance(payload, dict) else None
+    if isinstance(display, str) and display.strip():
+        parts = display.strip().split(None, 1)
+        if len(parts) == 2:
+            return parts[0], parts[1]
+        return parts[0], existing_last
+
+    # Neither `name` nor `displayName` provided -> preserve existing.
+    return existing_first, existing_last
+
+
 def _extract_standard_attributes(payload: dict) -> dict[str, str]:
     """Pull EnterpriseUser + custom-extension attributes from a SCIM payload.
 
@@ -639,18 +684,13 @@ def replace_user(
             scim_type="invalidValue",
         )
 
-    # Name: replace per the spec.
-    first, last = _extract_names(payload)
-    # Even if names are missing, fall back to empty (SCIM clears them).
-    # PUT is full replace, so an absent `name` block means "clear".
-    new_first = first if first is not None else ""
-    new_last = last if last is not None else ""
-    if not new_first and not new_last and existing:
-        # Defensive: never blank both -- some clients omit names entirely
-        # but the DB has NOT NULL. Fall back to existing values.
-        new_first = existing.get("first_name") or "SCIM"
-        new_last = existing.get("last_name") or "User"
-    database.users.update_user_profile(tenant_id, user_id, new_first or "SCIM", new_last or "User")
+    # Name: replace per the spec, but distinguish "absent" from "explicit
+    # empty". Absence preserves the existing value; explicit empty clears
+    # it (RFC 7644 §3.5.1). We must never fabricate placeholder strings
+    # ("SCIM" / "User") into a user record -- those would clobber real
+    # data if a client sent a partial `name` block.
+    new_first, new_last = _resolve_replace_names(payload, existing)
+    database.users.update_user_profile(tenant_id, user_id, new_first, new_last)
 
     # ExternalId: replace.
     external_id = payload.get("externalId")

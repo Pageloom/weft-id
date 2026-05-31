@@ -408,3 +408,35 @@ fetchone(tenant_id, "INSERT ... split_part(:email::text, '@', 2)", {"email": ema
 # Right:
 fetchone(tenant_id, "INSERT ... :domain", {"email": email, "domain": email.split("@")[1]})
 ```
+
+---
+
+## Don't Fire Huge Parallel Tool Batches (Shell Buffer Corruption)
+
+**Wrong:** Sending 20+ tool calls in one turn (many speculative reads with guessed
+offsets, plus a subagent, plus edits) to "explore fast."
+**Right:** Work in small, sequential steps. Read the real file, then edit it, then verify.
+
+Firing a large batch of `Bash` calls at once overwhelmed the shell: commands queued and
+their output bled across later tool results, so `git diff`, `grep`, and even `Read` returned
+garbled/interleaved text. That made file state impossible to read reliably and led to an
+edit that damaged `BACKLOG.md` (recovered with `git checkout -- <file>`).
+
+When tool output looks duplicated, interleaved, or shows stale values, STOP. Run one simple
+command, confirm clean output, then continue. `git diff --numstat -- <file> | cat` and
+`git show HEAD:<file>` are reliable ground-truth checks when the working tree looks suspect.
+
+---
+
+## Verify Against Real Files, Not a Subagent's Digest
+
+**Wrong:** Asking an Explore/general agent to summarize code, then writing edits against the
+line numbers and snippets in its digest.
+**Right:** Treat agent digests as leads only. Read the actual file before editing; match
+`old_string` against real bytes.
+
+A subagent returned a confident, detailed digest of `app/jobs/inactivate_idle_users.py` and
+`app/utils/email.py` that was largely hallucinated (wrong function shapes, wrong return
+types, a `_send_email`/`_html_escape` API that doesn't exist). Every edit built on it failed
+with "string not found." The `cat -n` of the real file in the same batch already contradicted
+the digest. Direct file reads win.

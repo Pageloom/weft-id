@@ -4,6 +4,37 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Admin Notification on Auto-Inactivation
+
+**Status:** Complete (2026-05-30)
+
+**Summary:** The daily idle-user inactivation job now emails a summary to every
+active admin and super_admin in a tenant after a run that inactivated at least
+one user. Each email lists the affected users (name, email, last activity date)
+and the tenant's configured inactivity threshold, using the shared branded
+email layout. Sending is best-effort and never aborts the job.
+
+**Acceptance criteria met:**
+
+- [x] After the daily inactivation job completes, if any users were inactivated, send an email to all admins and super admins in the tenant
+- [x] Email subject: "WeftID: N user(s) inactivated due to inactivity" (pluralizes user/users)
+- [x] Email body includes count, list of affected users (name, email, last activity date), and the tenant's configured threshold
+- [x] No email sent if zero users were inactivated
+- [x] Uses the shared branded email layout (`_wrap_html`/`_wrap_text` with tenant branding)
+- [x] Email function added to `app/utils/email.py` following existing patterns
+
+**Implementation:**
+
+- `app/utils/email.py`: new `send_idle_users_inactivation_admin_notification()`, modelled on the existing admin-digest emails (inline styles, `html.escape`, branded wrap, returns the `send_email` bool).
+- `app/jobs/inactivate_idle_users.py`: `_process_tenant` now collects the inactivated user dicts and calls a new best-effort `_notify_admins_of_inactivation()` helper (fetches `get_admin_emails`, one email per admin; per-send and overall failures are logged and swallowed so the job never aborts).
+- `app/database/users/lifecycle.py`: `get_idle_users_for_tenant` now also returns each user's primary email (LEFT join to `user_emails`) so the summary can list it.
+- `app/dev/preview_emails.py`: registered the new email for MailDev visual preview.
+- Tests: `tests/utils/test_email_inactivation_summary.py` (subject pluralization, body contents, missing name/last-activity, send-failure return) and `tests/jobs/test_inactivate_idle_users_notification.py` (per-admin send, skip when none/no admins, error swallowing, `_process_tenant` wiring).
+
+**Version impact:** Patch (enhancement to existing feature).
+
+---
+
 ## Inbound SCIM (Okta and Entra → WeftID)
 
 **Status:** Complete (2026-05-28, branch `inbound-scim`)

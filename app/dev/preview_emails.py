@@ -15,6 +15,7 @@ Optionally pass a tenant subdomain to use that tenant's real branding:
 
 import argparse
 import sys
+from datetime import UTC, datetime
 
 import database
 import database.tenants
@@ -31,6 +32,20 @@ def _send_all(kw: dict) -> list[tuple[str, bool]]:
     cred_reset = f"{BASE}/reset-password/token123"  # noqa: S105
     login = f"{BASE}/login"
     reqs = f"{BASE}/admin/reactivation-requests"
+    idle_users = [
+        {
+            "first_name": "Alice",
+            "last_name": "Smith",
+            "email": "alice@example.com",
+            "last_activity_at": datetime(2024, 1, 15, tzinfo=UTC),
+        },
+        {
+            "first_name": "Bob",
+            "last_name": "Jones",
+            "email": "bob@example.com",
+            "last_activity_at": datetime(2024, 2, 20, tzinfo=UTC),
+        },
+    ]
 
     return [
         ("Sign-in code", em.send_email_possession_code(TO, "847291", **kw)),
@@ -73,6 +88,10 @@ def _send_all(kw: dict) -> list[tuple[str, bool]]:
         ),
         ("Forgot-credential reset", em.send_password_reset_email(TO, cred_reset, **kw)),
         ("HIBP breach (admin)", em.send_hibp_breach_admin_notification(TO, 3, **kw)),
+        (
+            "Idle users inactivated (admin)",
+            em.send_idle_users_inactivation_admin_notification(TO, idle_users, 90, **kw),
+        ),
     ]
 
 

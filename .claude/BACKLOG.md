@@ -72,35 +72,6 @@ So that the interface is more readable for me without affecting other users.
 
 ---
 
-## Admin Notification on Auto-Inactivation
-
-**User Story:**
-As an admin,
-I want to receive an email summary when the system auto-inactivates users due to inactivity,
-So that I'm aware of account changes happening automatically and can intervene if needed.
-
-**Context:**
-
-The daily inactivation job (`inactivate_idle_users`) currently runs silently. When it
-inactivates users, the only record is in the audit log. Admins may not check the audit
-log daily. A summary email after each run that actually inactivated someone keeps admins
-informed without requiring them to monitor logs.
-
-**Acceptance Criteria:**
-
-- [ ] After the daily inactivation job completes, if any users were inactivated, send an email to all admins and super admins in the tenant
-- [ ] Email subject: "WeftID: N user(s) inactivated due to inactivity"
-- [ ] Email body includes: count, list of affected users (name, email, last activity date), the tenant's configured threshold
-- [ ] No email sent if zero users were inactivated (avoid noise)
-- [ ] Uses the shared email layout with tenant branding
-- [ ] Email function added to `app/utils/email.py` following existing patterns
-
-**Effort:** S
-**Value:** Medium
-**Version impact:** Patch (enhancement to existing feature)
-
----
-
 ## Passkey Authentication & Tenant Auth Policy
 
 **User Story:**

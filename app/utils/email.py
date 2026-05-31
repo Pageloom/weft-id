@@ -698,3 +698,60 @@ No action is required from you. Affected users will see a password reset prompt 
 
     html_body = _wrap_html(body, branding)
     return send_email(to_email, subject, html_body, text_body)
+
+
+def send_idle_users_inactivation_admin_notification(
+    to_email: str,
+    inactivated_users: list[dict],
+    threshold_days: int,
+    *,
+    tenant_id: str | None = None,
+) -> bool:
+    """Notify an admin that idle users were auto-inactivated.
+
+    Sent to each active admin and super_admin after the daily inactivation
+    job inactivates at least one user. Lists each affected user (name,
+    email, last activity date) and the tenant's configured inactivity
+    threshold so admins can intervene if a deactivation was unexpected.
+    """
+    branding = _get_branding(tenant_id)
+    count = len(inactivated_users)
+    user_word = "user" if count == 1 else "users"
+    subject = f"WeftID: {count} {user_word} inactivated due to inactivity"
+
+    text_rows = []
+    html_rows = ""
+    for user in inactivated_users:
+        name = f"{user.get('first_name') or ''} {user.get('last_name') or ''}".strip()
+        email_addr = user.get("email") or ""
+        last_activity = user.get("last_activity_at")
+        last_str = last_activity.strftime("%Y-%m-%d") if last_activity else "never active"
+        display = name or email_addr or "Unknown user"
+        text_rows.append(f"  - {display} ({email_addr}), last active {last_str}")
+        html_rows += (
+            f'<li style="margin-bottom: 4px;"><strong>{html.escape(display)}</strong>'
+            f" ({html.escape(email_addr)}), last active {last_str}</li>"
+        )
+    text_list = "\n".join(text_rows)
+
+    text_body = _wrap_text(
+        f"""
+{count} {user_word} in your organization were automatically deactivated after being inactive for at least {threshold_days} days.
+
+Affected {user_word}:
+{text_list}
+
+If an account was deactivated in error, you can reactivate it from the WeftID admin console.
+""",
+        branding,
+    )
+
+    body = f"""<h1 style="{_S_H1}">Users Inactivated Due to Inactivity</h1>
+<p style="{_S_P}"><strong>{count} {user_word}</strong> in your organization were automatically deactivated after being inactive for at least {threshold_days} days.</p>
+<p style="{_S_P}">Affected {user_word}:</p>
+<ul style="margin: 0 0 12px 0; padding-left: 20px; color: #333333;">
+{html_rows}</ul>
+<p style="{_S_P}">If an account was deactivated in error, you can reactivate it from the WeftID admin console.</p>"""
+
+    html_body = _wrap_html(body, branding)
+    return send_email(to_email, subject, html_body, text_body)

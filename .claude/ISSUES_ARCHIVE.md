@@ -5,6 +5,29 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [DOCS] API endpoint docstring claims "super_admin only" but service is relaxed
+
+**Fixed by:** docstring follow-up (2026-05-29)
+
+**Discovered:** 2026-05-14 (security agent final-pass review L3)
+**Severity:** Low (cosmetic)
+**Source:** Security review L3
+
+`list_tenant_attribute_config` was deliberately relaxed to any authenticated
+user (iter 7) so self-service profile rendering for member users works; the
+read is consumed by `services.users.attribute_views._build_groups()`. The
+service docstring's "super_admin only" wording was first corrected in commit
+`7645b75` (2026-05-15). This follow-up tightened the remaining ambiguity: the
+docstring had implied only *write* API endpoints were super_admin-gated, when
+the read REST endpoint (`GET /api/v1/tenant/attribute-config`) is gated too.
+The docstring now states both read and write REST endpoints remain
+super_admin-gated by deliberate choice, independent of the service-level
+authorization. The router endpoint docstrings were already accurate.
+
+**Files:** `app/services/settings/attributes.py`
+
+---
+
 ## [SECURITY] Proxy headers + x-forwarded-host trust boundary (project-wide)
 
 **Fixed by:** inbound-scim follow-up (2026-05-29)

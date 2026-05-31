@@ -26,9 +26,11 @@ def list_tenant_attribute_config(
     Authorization: any authenticated user in the tenant. The data is
     informational tenant configuration (which attributes are enabled,
     required, locked) and is needed by self-service profile rendering
-    for member users, not just admin UIs. The API surface remains
-    super_admin-gated at the router layer for write operations; this
-    read is safe to expose at the service level.
+    for member users, not just admin UIs. The read is therefore safe to
+    expose at the service level. The public REST endpoints under
+    ``/api/v1/tenant/attribute-config`` (both read and write) remain
+    super_admin-gated at the router layer by deliberate choice; that
+    gating does not reflect a service-level authorization requirement.
     """
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
     return database.tenant_attribute_config.list_config(requesting_user["tenant_id"])

@@ -10,6 +10,7 @@ from typing import Any
 import database
 from database._core import session
 from services.event_log import SYSTEM_ACTOR_ID, log_event
+from utils.email import send_idle_users_inactivation_admin_notification
 from utils.request_context import system_context
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,44 @@ def inactivate_idle_users() -> dict[str, Any]:
     }
 
 
+def _notify_admins_of_inactivation(
+    tenant_id: str,
+    inactivated_users: list[dict],
+    threshold_days: int,
+) -> None:
+    """Email tenant admins a summary of auto-inactivated users.
+
+    Best-effort: a notification failure must never abort the inactivation
+    job. No email is sent when no users were inactivated.
+    """
+    if not inactivated_users:
+        return
+
+    try:
+        admin_emails = database.users.get_admin_emails(tenant_id)
+        for admin_email in admin_emails:
+            try:
+                send_idle_users_inactivation_admin_notification(
+                    to_email=admin_email,
+                    inactivated_users=inactivated_users,
+                    threshold_days=threshold_days,
+                    tenant_id=tenant_id,
+                )
+            except Exception:
+                # One bad address must not stop the rest.
+                logger.exception(
+                    "Tenant %s: failed to send inactivation summary to %s",
+                    tenant_id,
+                    admin_email,
+                )
+    except Exception:
+        # Notification is best-effort and must never abort the job.
+        logger.exception(
+            "Tenant %s: failed to notify admins of inactivation",
+            tenant_id,
+        )
+
+
 def _process_tenant(tenant_id: str, threshold_days: int) -> dict[str, Any]:
     """
     Process a single tenant for idle user inactivation.
@@ -114,6 +153,7 @@ def _process_tenant(tenant_id: str, threshold_days: int) -> dict[str, Any]:
     )
 
     inactivated_user_ids = []
+    inactivated_users: list[dict] = []
 
     with system_context():
         for user in idle_users:
@@ -145,6 +185,7 @@ def _process_tenant(tenant_id: str, threshold_days: int) -> dict[str, Any]:
                 )
 
                 inactivated_user_ids.append(user_id)
+                inactivated_users.append(user)
                 logger.info(
                     "Tenant %s: inactivated user %s (%s %s) due to inactivity",
                     tenant_id,
@@ -160,5 +201,9 @@ def _process_tenant(tenant_id: str, threshold_days: int) -> dict[str, Any]:
                     user_id,
                     e,
                 )
+
+    # Notify admins after inactivations complete (outside system_context;
+    # best-effort, never aborts the job).
+    _notify_admins_of_inactivation(tenant_id, inactivated_users, threshold_days)
 
     return {"count": len(inactivated_user_ids), "user_ids": inactivated_user_ids}

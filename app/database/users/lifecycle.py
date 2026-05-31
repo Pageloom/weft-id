@@ -161,7 +161,8 @@ def get_idle_users_for_tenant(
         threshold_days: Number of days of inactivity before inclusion
 
     Returns:
-        List of dicts with user_id, first_name, last_name, last_activity_at
+        List of dicts with user_id, first_name, last_name, email,
+        last_activity_at
     """
     return fetchall(
         tenant_id,
@@ -169,9 +170,11 @@ def get_idle_users_for_tenant(
         select u.id as user_id,
                u.first_name,
                u.last_name,
+               ue.email,
                ua.last_activity_at
         from users u
         left join user_activity ua on u.id = ua.user_id
+        left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
         where u.is_inactivated = false
           and u.is_anonymized = false
           and (

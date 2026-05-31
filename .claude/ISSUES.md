@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 3 | Duplication (pre-existing), Docs (pre-existing), Test coverage (pre-existing) |
+| Low | 2 | Duplication (pre-existing), Test coverage (pre-existing) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
@@ -62,18 +62,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 
 ---
 
-
-## [DOCS] API endpoint docstring claims "super_admin only" but service is relaxed
-
-**Discovered:** 2026-05-14 (security agent final-pass review L3)
-**Severity:** Low (cosmetic)
-**Source:** Security review L3
-
-`list_tenant_attribute_config` was deliberately relaxed to any authenticated user during iter 7 so the force-completion gate is escapable for non-admin users. The API endpoint `GET /api/v1/tenant/attribute-config` is still super-admin-gated at the router layer, but the service docstring previously documented "super_admin only." Verify and update docstring wording.
-
-**Files Affected:** `app/services/settings/attributes.py`, `app/routers/api/v1/settings.py`
-
----
 
 ## [TEST] Regression anchors for user_attributes feature
 

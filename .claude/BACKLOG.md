@@ -6,6 +6,88 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Closed-Loop SCIM E2E Tests (WeftID Outbound → WeftID Inbound)
+
+**User Story:**
+As a WeftID maintainer,
+I want E2E tests that drive WeftID's outbound SCIM against WeftID's own inbound SCIM endpoints,
+So that I can verify the platform honors its own SCIM 2.0 contract (what we emit, we can consume) without depending on any external SCIM receiver.
+
+**Context:**
+
+WeftID now implements both sides of SCIM 2.0: outbound provisioning (`app/jobs/process_scim_push_queue.py` pushes POST/PUT/DELETE to a receiver, capturing remote ids in `sp_scim_remote_ids`) and inbound provisioning (`app/routers/scim/inbound/` receives Users/Groups writes with bearer auth). Existing E2E coverage (`tests/e2e/test_scim_admin_e2e.py`) only exercises the admin UI for token lifecycle, not the actual provisioning data flow.
+
+Pointing WeftID's outbound SCIM at WeftID's own inbound SCIM base URL closes the loop: a membership change in a source tenant's SP provisions users/groups into a receiving tenant via SCIM, end to end, entirely inside the existing Docker E2E stack. This is a self-consistency check (the generic profile we emit must be accepted by our own parser) and a regression guard against either side drifting from the contract. No external service is required, so it can run in default CI alongside the other E2E tests.
+
+**Design Notes:**
+
+- Source tenant SP configured with outbound SCIM (Generic SCIM 2.0) whose target URL is WeftID's own inbound SCIM base URL for a separate receiving tenant, authenticated with an inbound SCIM bearer token minted for the receiving tenant.
+- The SSRF guard's dev allowlist must permit the loopback target (app/worker container reaching the app's own inbound SCIM URL, e.g. via `host.docker.internal` or the nginx service name) the same way it permits the Authentik testbed host.
+- Provisioning is driven through normal flows (grant a group access on the SP, change membership) so the push queue, quirk transform, and inbound merge/lifecycle code all run.
+- Assertions check the receiving tenant's resulting state (via DB query or API) and that pushes complete with `success` status (not dead-lettered), proving the emitted payloads parse cleanly inbound.
+
+**Acceptance Criteria:**
+
+- [ ] New E2E module (e.g. `tests/e2e/test_scim_loopback_e2e.py`) registers a source SP with outbound SCIM targeting WeftID's own inbound SCIM endpoint for a receiving tenant, authenticated with an inbound bearer token
+- [ ] SSRF dev allowlist permits the loopback target so app/worker can reach the inbound endpoint
+- [ ] **Provision:** assigning users to a granted group in the source produces matching active users in the receiving tenant via inbound SCIM (POST /Users, POST /Groups; remote ids captured)
+- [ ] **Update:** an attribute change on a provisioned user propagates to the receiving tenant (PUT /Users/<id>)
+- [ ] **Deprovision:** removing the grant (or membership) soft-deletes/deactivates the user in the receiving tenant (DELETE /Users/<id>)
+- [ ] Group membership round-trips: a group and its members provisioned outbound appear as expected inbound
+- [ ] Test asserts all pushes reach `success` status (none dead-lettered), confirming WeftID's emitted payloads satisfy its own inbound parser
+- [ ] Runs within the existing `make e2e` Docker stack with no external dependency; gated by the same availability check as other E2E tests
+- [ ] Documented briefly (what the loopback exercises and why) in `dev/scim-testbed.md` or a sibling note
+
+**Effort:** M
+**Value:** High (regression guard that the two SCIM halves stay contract-compatible; no external dependency means it runs in CI on every change)
+**Version impact:** None (test infrastructure only)
+
+**Dependencies:** Inbound SCIM ✅ and Outbound SCIM ✅ both shipped. Independent of the Authentik interop item below; this one needs no external receiver.
+
+---
+
+## Optional Authentik Interop SCIM E2E Tests (Inbound + Outbound)
+
+**User Story:**
+As a WeftID maintainer,
+I want opt-in E2E tests that run WeftID's inbound and outbound SCIM against a real Authentik instance,
+So that I have a real-world interoperability baseline proving WeftID provisions to, and accepts provisioning from, an independent SCIM 2.0 implementation, not just its own.
+
+**Context:**
+
+The closed-loop tests prove WeftID is self-consistent; they cannot catch divergence from how real receivers and senders interpret the spec. We already have testbed scripting (`dev/scim-testbed.sh`, `dev/scim-testbed.md`, `make scim-testbed-{up,down,destroy,status,logs,info}`) that bootstraps a local Authentik instance outside the repo, currently exercised **manually** for the outbound direction (WeftID → Authentik SCIM Source). This item automates both directions and makes them runnable as E2E tests.
+
+- **Outbound:** WeftID pushes to an Authentik SCIM Source; assert the users/groups land in Authentik (via Authentik's API).
+- **Inbound:** Authentik (configured with a SCIM Provider/application targeting WeftID's inbound SCIM endpoint) provisions into WeftID; assert the users/groups land in WeftID.
+
+Because these require Authentik running, they must be **opt-in**: skipped by default and only collected when the testbed is reachable and an explicit env flag is set (mirroring how the suite already skips when MailDev is unavailable). They are not expected to run in default CI.
+
+**Design Notes:**
+
+- Gating: skip unless Authentik is reachable AND an explicit flag (e.g. `SCIM_INTEROP=1`) is set, so a stray local testbed never makes the default suite depend on it. Reuse the existing `pytest_collection_modifyitems` skip pattern in `tests/e2e/conftest.py`.
+- Authentik setup should be as automated as practical via Authentik's API (create the SCIM Source for the outbound target and the SCIM Provider + application for the inbound direction, retrieve the bearer tokens) so the test can self-configure after `make scim-testbed-up`. Where full automation isn't feasible, document the manual bootstrap and read tokens/URLs from env.
+- The `host.docker.internal` host is already allowed by the SSRF guard in `IS_DEV` mode (the testbed depends on it); the inbound direction needs Authentik to reach WeftID's inbound endpoint on the host.
+- Outbound assertions query Authentik's API (`GET /Users`, `GET /Groups`); inbound assertions query WeftID (DB or API) for the provisioned resources and confirm `group_type='idp'` / soft-delete semantics.
+
+**Acceptance Criteria:**
+
+- [ ] New E2E module(s) (e.g. `tests/e2e/test_scim_authentik_interop_e2e.py`) covering both directions against the Authentik testbed
+- [ ] Tests are **skipped by default**; collected only when Authentik is reachable and an explicit opt-in flag (e.g. `SCIM_INTEROP=1`) is set
+- [ ] **Outbound:** a WeftID group grant/membership change provisions users and groups into Authentik; asserted via Authentik's API (POST then PUT then DELETE lifecycle)
+- [ ] **Inbound:** Authentik provisions users and groups into WeftID via the inbound SCIM endpoint; asserted in WeftID (users active, groups `group_type='idp'`, removal soft-deletes)
+- [ ] Authentik source/provider/token setup automated via its API where feasible; manual fallback documented and read from env
+- [ ] A `make` target or helper to provision the Authentik objects and surface the tokens/URLs the tests consume (extends the existing `scim-testbed` tooling)
+- [ ] `dev/scim-testbed.md` updated to document running the interop tests (env flag, setup, both directions, that CI does not run them)
+- [ ] Clear skip message when the opt-in flag/testbed is absent (no silent pass, no hard failure)
+
+**Effort:** L
+**Value:** Medium-High (real interoperability baseline against an independent SCIM implementation; catches spec-interpretation drift the closed-loop tests cannot)
+**Version impact:** None (test infrastructure only)
+
+**Dependencies:** Inbound SCIM ✅ and Outbound SCIM ✅ shipped; builds on the existing `dev/scim-testbed.sh` Authentik tooling. Complements (does not replace) the closed-loop item above.
+
+---
+
 ## Docs: capture SCIM admin guide screenshots
 
 **Status:** Backlog

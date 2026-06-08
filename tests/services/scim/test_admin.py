@@ -282,6 +282,46 @@ def test_scim_target_url_rejects_docker_host_outside_dev(test_tenant, test_admin
     assert excinfo.value.code == "scim_target_url_invalid"
 
 
+def test_scim_target_url_allows_loopback_app_host_in_dev(test_tenant, test_admin_user, monkeypatch):
+    """`app` (the WeftID app container) is allowed in dev for the SCIM loopback test.
+
+    The SCIM loopback E2E test points outbound SCIM at WeftID's own inbound
+    endpoint via `http://app:8000/scim/v2/inbound/{idp_id}`. The `app`
+    service name resolves to a private docker-bridge IP that the SSRF guard
+    would normally reject; the IS_DEV+hostname allowlist must short-circuit
+    the check before DNS is consulted.
+    """
+    monkeypatch.setattr("services.scim.admin.settings.IS_DEV", True)
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: (_ for _ in ()).throw(
+            AssertionError("DNS should not be called for the app allowlist host")
+        ),
+    )
+    out = _try_update_url(test_tenant, test_admin_user, "http://app:8000/scim/v2/inbound/abc-123")
+    assert out.scim_target_url == "http://app:8000/scim/v2/inbound/abc-123"
+
+
+def test_scim_target_url_rejects_loopback_app_host_outside_dev(
+    test_tenant, test_admin_user, monkeypatch
+):
+    """The `app` loopback allowance is dev-only.
+
+    Outside dev the hostname resolves to a private bridge address and the
+    SSRF guard rejects it (the allowlist short-circuit never runs because
+    it is gated on `IS_DEV`).
+    """
+    monkeypatch.setattr("services.scim.admin.settings.IS_DEV", False)
+    monkeypatch.setattr(
+        "services.scim.admin.socket.getaddrinfo",
+        lambda *_a, **_kw: _fake_getaddrinfo_to("172.18.0.5"),
+    )
+    with pytest.raises(ValidationError) as excinfo:
+        # https:// so the scheme check passes and we exercise the host check.
+        _try_update_url(test_tenant, test_admin_user, "https://app/scim/v2/inbound/abc-123")
+    assert excinfo.value.code == "scim_target_url_invalid"
+
+
 def test_scim_target_url_accepts_public_https(test_tenant, test_admin_user, patch_dns_public):
     """A normal https URL to a public IP is accepted."""
     out = _try_update_url(test_tenant, test_admin_user, "https://scim.example.com/v2")

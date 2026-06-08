@@ -120,6 +120,56 @@ def test_get_by_hash_returns_revoked_row(test_tenant, test_user):
     assert fetched["revoked_at"] is not None
 
 
+def test_get_by_hash_unscoped_finds_token(test_tenant, test_user):
+    """UNSCOPED lookup must see the token -- this is the bearer-auth path.
+
+    Regression guard for migration 0045. The original 0042 RLS policy had
+    strict tenant isolation with no escape hatch for an unset `app.tenant_id`,
+    so `get_by_hash(UNSCOPED, ...)` (which the bearer-auth dependency uses
+    BEFORE the request tenant is known) returned None and every authenticated
+    inbound SCIM request failed with 401. 0045 makes rows visible when the
+    setting is unset. Without the fix this assertion fails.
+    """
+    idp = _create_idp(test_tenant["id"], test_user["id"])
+    token_hash = uuid4().hex + uuid4().hex
+    row = _create_token(test_tenant["id"], test_user["id"], idp, token_hash=token_hash)
+
+    fetched = database.scim_inbound_tokens.get_by_hash(database.UNSCOPED, token_hash)
+    assert fetched is not None, "UNSCOPED bearer-auth lookup must resolve the token"
+    assert str(fetched["id"]) == str(row["id"])
+    assert str(fetched["tenant_id"]) == str(test_tenant["id"])
+
+
+def test_get_by_hash_scoped_to_other_tenant_is_invisible(test_tenant, test_user):
+    """Isolation still holds when `app.tenant_id` IS set to a different tenant.
+
+    The 0045 escape hatch only opens when `app.tenant_id` is unset/empty.
+    Once a concrete (non-owning) tenant scope is set, the token must remain
+    invisible -- proving the fix did not weaken cross-tenant isolation.
+    """
+    idp = _create_idp(test_tenant["id"], test_user["id"])
+    token_hash = uuid4().hex + uuid4().hex
+    _create_token(test_tenant["id"], test_user["id"], idp, token_hash=token_hash)
+
+    other = database.fetchone(
+        database.UNSCOPED,
+        "INSERT INTO tenants (subdomain, name) VALUES (:s, :n) RETURNING id",
+        {"s": f"other-{uuid4().hex[:8]}", "n": "Other"},
+    )
+    try:
+        # Owning tenant sees it; a different scoped tenant does not.
+        assert database.scim_inbound_tokens.get_by_hash(test_tenant["id"], token_hash) is not None
+        assert database.scim_inbound_tokens.get_by_hash(str(other["id"]), token_hash) is None, (
+            "A non-owning tenant scope must not resolve another tenant's token"
+        )
+    finally:
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE id = :id",
+            {"id": other["id"]},
+        )
+
+
 def test_get_token_by_id(test_tenant, test_user):
     idp = _create_idp(test_tenant["id"], test_user["id"])
     row = _create_token(test_tenant["id"], test_user["id"], idp)

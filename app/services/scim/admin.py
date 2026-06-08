@@ -65,9 +65,19 @@ _TOKEN_BYTES = 24
 _DNS_TIMEOUT_SECONDS = 3.0
 
 # Hostnames that bypass the private-IP SSRF guard when `IS_DEV` is true.
-# Strictly limited to the Docker Desktop host bridge used by the
-# `dev/authentik/` fixture; do not expand without a security review.
-_DEV_HOSTNAME_ALLOWLIST = frozenset({"host.docker.internal"})
+# Strictly limited to two dev-only Docker targets; do not expand without
+# a security review:
+#   - `host.docker.internal`: the Docker Desktop host bridge used by the
+#     external `dev/scim-testbed/` Authentik fixture.
+#   - `app`: the WeftID app container's own service name on the dev
+#     `devnet` bridge, used by the SCIM loopback E2E test
+#     (`tests/e2e/test_scim_loopback_e2e.py`). The worker reaches WeftID's
+#     own inbound SCIM endpoint at `http://app:8000/...` to close the
+#     outbound→inbound loop entirely inside the Docker stack. The app
+#     container exposes no host port, so `host.docker.internal` cannot
+#     reach it. Both names resolve to private RFC1918 docker-bridge
+#     addresses and are gated behind `IS_DEV`; production never uses them.
+_DEV_HOSTNAME_ALLOWLIST = frozenset({"host.docker.internal", "app"})
 
 
 def _validate_scim_target_url(url: str) -> None:
@@ -110,11 +120,11 @@ def _validate_scim_target_url(url: str) -> None:
             code="scim_target_url_invalid",
         )
 
-    # Dev-time escape hatch for the Docker Desktop host bridge. The
-    # `dev/authentik/` fixture runs Authentik on the host, and WeftID's
-    # app/worker containers reach it via `host.docker.internal`, which
-    # resolves to a private RFC1918 address inside Docker Desktop's
-    # network. Production deployments never use this hostname.
+    # Dev-time escape hatch for known Docker service names that resolve to
+    # private RFC1918 bridge addresses (`host.docker.internal` for the
+    # external Authentik testbed; `app` for the in-stack SCIM loopback
+    # E2E test). See `_DEV_HOSTNAME_ALLOWLIST` for the full rationale.
+    # Production deployments never use these hostnames.
     if settings.IS_DEV and hostname in _DEV_HOSTNAME_ALLOWLIST:
         return
 

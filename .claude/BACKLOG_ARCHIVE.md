@@ -70,6 +70,39 @@ email layout. Sending is best-effort and never aborts the job.
 
 ---
 
+## Closed-Loop SCIM E2E Tests (WeftID Outbound → WeftID Inbound)
+
+**Status:** Complete (2026-06-09, branch `inbound-scim`, commits `d482b93` + `4d2288c`)
+
+**Summary:** An E2E test that points WeftID's outbound SCIM at WeftID's own inbound SCIM endpoint for a separate receiving tenant, closing the loop entirely inside the Docker E2E stack with no external receiver. It is a self-consistency check (the Generic SCIM 2.0 payloads we emit must parse cleanly in our own inbound parser) and a regression guard against either side drifting from the contract. The worker reaches the app container at `http://app:8000/...` over the `devnet` bridge; tenant is resolved from the inbound bearer token, not the subdomain.
+
+**Acceptance criteria met:**
+
+- [x] New E2E module `tests/e2e/test_scim_loopback_e2e.py` registers a source SP with outbound SCIM targeting WeftID's own inbound SCIM endpoint, authenticated with an inbound bearer token (provisioned via the headless `app/dev/scim_loopback_testbed.py`)
+- [x] SSRF dev allowlist permits the loopback target (`app` added to `_DEV_HOSTNAME_ALLOWLIST`, `IS_DEV`-gated)
+- [x] **Provision:** granting a group produces matching active users + an `idp` group in the receiving tenant (POST /Users, POST /Groups; remote ids captured)
+- [x] **Update:** a first-name change propagates via PUT /Users/<remote_id>, reusing the captured remote id (no duplicate POST)
+- [x] **Deprovision:** removing the grant soft-deletes the receiving user (`is_inactivated=true`), preserving MFA enrolment and audit history
+- [x] Group membership round-trips, compared by remote id (receiver user ids differ from source UUIDs)
+- [x] All pushes reach `success`; zero dead-letters across the full provision→update→deprovision lifecycle
+- [x] Runs within `make e2e` with no external dependency; gated by the existing MailDev/Docker availability skip
+- [x] Documented in `dev/scim-testbed.md` ("Closed-loop SCIM self-test" section)
+
+**Implementation:**
+
+- `tests/e2e/test_scim_loopback_e2e.py` (new): six tests across provision, update (PUT reuse), membership round-trip, deprovision (soft-delete with MFA/history preserved), and a zero-dead-letter lifecycle check. SQL assertions against the receiving tenant; worker drained on demand via `docker compose exec`.
+- `app/dev/scim_loopback_testbed.py` (new): headless two-tenant loopback provisioner with `--mutate-user` / `--remove-grant` lifecycle flags that drive the update and deprovision paths through the service layer (so the event log fires the correct SCIM trigger).
+- `app/services/scim/admin.py`: `app` added to the SSRF dev allowlist.
+- `db-init/migrations/0045_scim_inbound_tokens_unscoped_rls.sql` (new): **production fix surfaced by the loopback's first run** — all authenticated inbound SCIM requests returned 401 because the `scim_inbound_tokens` RLS policy had no UNSCOPED escape hatch for the pre-tenant token lookup. UNSCOPED-aware policy mirrors the `0037_scim_unscoped_rls` pattern.
+- `dev/scim-testbed.md`: "Closed-loop SCIM self-test" section (what it exercises, why, how to run).
+- Regression tests: `tests/database/test_scim_inbound_tokens.py` (UNSCOPED lookup resolves the row; cross-tenant isolation preserved) and `tests/services/scim/test_admin.py` (allowlist gated on `IS_DEV`).
+
+**Final review:** No separate Step 8 pass (test + docs deliverable; the one production change, migration 0045, shipped under Iteration 1 with its own regression coverage). Clean gate on 2026-06-09: `make check` clean, `make test` 6169 passed / 1 skipped, loopback E2E 6 passed.
+
+**Version impact:** None (test infrastructure; the 0045 RLS fix is a bug fix folded into the inbound-scim branch).
+
+---
+
 ## Outbound SCIM (WeftID → Downstream Service Providers)
 
 **Status:** Complete (2026-05-23, shipped in 1.7.0 with follow-on fixes in 1.7.1 and 1.8.0)

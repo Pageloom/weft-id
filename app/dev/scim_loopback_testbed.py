@@ -29,8 +29,15 @@ The worker reaches the app container at `http://app:8000/...` over the
 Usage:
     python ./dev/scim_loopback_testbed.py --json-output
     python ./dev/scim_loopback_testbed.py --teardown
+    python ./dev/scim_loopback_testbed.py --mutate-user --json-output
+    python ./dev/scim_loopback_testbed.py --remove-grant --json-output
 
 Idempotent: safe to re-run. Skips resources that already exist.
+
+The lifecycle flags (`--mutate-user`, `--remove-grant`) operate on an
+already-provisioned test bed and drive the update (PUT) and deprovision
+(DELETE) outbound paths through the service layer, so the event log fires
+the correct SCIM trigger. They never poke `scim_push_queue` directly.
 """
 
 from __future__ import annotations
@@ -48,6 +55,7 @@ import database.service_providers
 import database.sp_group_assignments
 from dev.tenants import provision_tenant
 from dev.users import add_user
+from schemas.api import UserUpdate
 from schemas.scim_admin import ScimConfigUpdate
 from services.types import RequestingUser
 from utils.request_context import system_context
@@ -60,14 +68,31 @@ DEV_PASSWORD = os.environ.get("DEV_PASSWORD", "devpass123")
 
 # Two member users in the source tenant, granted to the SP via the group.
 # Distinct enough not to collide with `meridian-health` seed data.
+# Use a non-reserved domain (`example.com`, not `.test`): the update path's
+# `update_user` returns a `UserDetail` whose `EmailInfo` strictly validates the
+# address, and `email-validator` rejects the reserved `.test` TLD. The lenient
+# inbound SCIM parser would accept `.test`, but the source-side service return
+# would not. `example.com` is reserved-for-docs yet validates cleanly.
 SOURCE_MEMBERS = [
-    {"email": "loop-alice@scim-loopback.test", "first_name": "Alice", "last_name": "Loopback"},
-    {"email": "loop-bob@scim-loopback.test", "first_name": "Bob", "last_name": "Loopback"},
+    {
+        "email": "loop-alice@scim-loopback.example.com",
+        "first_name": "Alice",
+        "last_name": "Loopback",
+    },
+    {"email": "loop-bob@scim-loopback.example.com", "first_name": "Bob", "last_name": "Loopback"},
 ]
 
 GROUP_NAME = "Loopback Users"
 SP_NAME = "Loopback SCIM SP"
 IDP_NAME = "Loopback Receiver IdP"
+
+# The member whose attribute the update path mutates, and the new first name
+# it sets. `givenName`/`familyName` are the safest round-trip attributes: the
+# Generic outbound payload emits them and the inbound parser persists them as
+# the receiver user's first/last name. (department/title are NOT emitted by the
+# Generic payload, so an assertion on them would be meaningless.)
+MUTATE_TARGET_EMAIL = SOURCE_MEMBERS[0]["email"]
+MUTATE_FIRST_NAME = "AliceUpdated"
 
 # The inbound endpoint is keyed by {idp_id}; the outbound client appends
 # /Users, /Groups, /Users/<id>. So the target is the inbound base WITHOUT a
@@ -87,6 +112,15 @@ def _configure_logging(json_mode: bool) -> logging.Logger:
     log = logging.getLogger("scim_loopback_testbed")
     log.setLevel(logging.INFO)
     return log
+
+
+def _emit(log, payload: dict, json_mode: bool) -> None:
+    """Emit a result payload: pure JSON to stdout in --json-output mode,
+    otherwise pretty-logged (which goes to stdout when not in JSON mode)."""
+    if json_mode:
+        print(json.dumps(payload, indent=2))
+    else:
+        log.info(json.dumps(payload, indent=2))
 
 
 def _get_tenant_id(subdomain: str) -> str:
@@ -149,7 +183,7 @@ def step_2_create_users(log, src_subdomain: str, dst_subdomain: str):
     # super admin (only the CLI does), so the testbed mints them directly.
     add_user(
         src_subdomain,
-        f"super-{src_subdomain}@scim-loopback.test",
+        f"super-{src_subdomain}@scim-loopback.example.com",
         DEV_PASSWORD,
         role="super_admin",
         first_name="Super",
@@ -157,7 +191,7 @@ def step_2_create_users(log, src_subdomain: str, dst_subdomain: str):
     )
     add_user(
         dst_subdomain,
-        f"super-{dst_subdomain}@scim-loopback.test",
+        f"super-{dst_subdomain}@scim-loopback.example.com",
         DEV_PASSWORD,
         role="super_admin",
         first_name="Super",
@@ -374,6 +408,107 @@ def step_7_create_group_and_grant(
 
 
 # ---------------------------------------------------------------------------
+# Lifecycle mutations (update / deprovision)
+# ---------------------------------------------------------------------------
+
+
+def mutate_source_user(log, src_subdomain: str) -> dict:
+    """Change a provisioned source member's first name via the service layer.
+
+    Drives the **update (PUT)** path: `update_user` logs `user_updated`, which
+    maps to `enqueue_user_self` and re-enqueues the user -> the worker emits a
+    PUT /Users/<remote_id> (reusing the captured remote id, not a fresh POST).
+
+    Idempotent: if the member already carries the updated name, this is a no-op
+    that still re-enqueues (so a re-run has pending work to drain). Returns the
+    target email plus the new first name so the test can assert on it.
+    """
+    log.info("--- Mutate source user (drives PUT) ---")
+    from services.users.crud import update_user
+
+    src_tenant_id = _get_tenant_id(src_subdomain)
+    src_admin = _get_super_admin(src_tenant_id)
+    ru = _requesting_user(src_tenant_id, src_admin["id"])
+    user_id = _get_user_id_by_email(src_tenant_id, MUTATE_TARGET_EMAIL)
+
+    current = database.fetchone(
+        src_tenant_id,
+        "select first_name from users where id = cast(:id as uuid)",
+        {"id": user_id},
+    )
+    already = current and current["first_name"] == MUTATE_FIRST_NAME
+    if already:
+        # The name is already updated; force a re-enqueue so a re-run still
+        # produces a PUT to drain (toggle through a different value, then back).
+        with system_context():
+            update_user(ru, user_id, UserUpdate(first_name="AliceToggle"))
+            update_user(ru, user_id, UserUpdate(first_name=MUTATE_FIRST_NAME))
+        log.info("Re-applied mutation to %s (re-enqueued)", MUTATE_TARGET_EMAIL)
+    else:
+        with system_context():
+            update_user(ru, user_id, UserUpdate(first_name=MUTATE_FIRST_NAME))
+        log.info("Mutated %s first_name -> %s", MUTATE_TARGET_EMAIL, MUTATE_FIRST_NAME)
+
+    return {
+        "email": MUTATE_TARGET_EMAIL,
+        "user_id": user_id,
+        "first_name": MUTATE_FIRST_NAME,
+    }
+
+
+def remove_source_grant(log, src_subdomain: str) -> dict:
+    """Remove the SP->group grant via the service layer (drives DELETE).
+
+    `remove_sp_group_assignment` logs `sp_group_unassigned`, which maps to
+    `enqueue_grant_fan_out`. The worker re-evaluates scope at push time and
+    emits a deprovision (DELETE /Users/<remote_id>) for users who lost access;
+    the receiver soft-deletes them (`is_inactivated=true`, MFA/history kept).
+
+    Idempotent: if the grant is already gone, re-fires the fan-out directly so
+    a re-run still has pending deprovision work to drain.
+    """
+    log.info("--- Remove SP grant (drives DELETE) ---")
+    from services.service_providers.group_assignments import remove_sp_group_assignment
+
+    src_tenant_id = _get_tenant_id(src_subdomain)
+    src_admin = _get_super_admin(src_tenant_id)
+    ru = _requesting_user(src_tenant_id, src_admin["id"])
+
+    sp = database.fetchone(
+        src_tenant_id,
+        "select id from service_providers where name = :name limit 1",
+        {"name": SP_NAME},
+    )
+    if not sp:
+        raise RuntimeError(f"SP '{SP_NAME}' not found; provision first")
+    sp_id = str(sp["id"])
+
+    group = database.groups.get_weftid_group_by_name(src_tenant_id, GROUP_NAME)
+    if not group:
+        raise RuntimeError(f"Group '{GROUP_NAME}' not found; provision first")
+    group_id = str(group["id"])
+
+    assignments = database.sp_group_assignments.list_assignments_for_sp(src_tenant_id, sp_id)
+    still_granted = any(str(a["group_id"]) == group_id for a in assignments)
+    if still_granted:
+        with system_context():
+            remove_sp_group_assignment(ru, sp_id, group_id)
+        log.info("Removed grant SP=%s group=%s (deprovision fan-out enqueued)", sp_id, group_id)
+    else:
+        log.info("Grant already removed; re-firing deprovision fan-out")
+        from services.scim.dispatch import enqueue_grant_fan_out
+
+        with system_context():
+            enqueue_grant_fan_out(
+                tenant_id=src_tenant_id,
+                artifact_id=sp_id,
+                metadata={"group_id": group_id},
+            )
+
+    return {"sp_id": sp_id, "group_id": group_id}
+
+
+# ---------------------------------------------------------------------------
 # Teardown
 # ---------------------------------------------------------------------------
 
@@ -398,6 +533,8 @@ def _teardown(log, src_subdomain: str, dst_subdomain: str):
 def main(
     json_output: bool = False,
     teardown: bool = False,
+    mutate_user: bool = False,
+    remove_grant: bool = False,
     src_subdomain: str = "scim-src",
     dst_subdomain: str = "scim-dst",
 ):
@@ -406,6 +543,12 @@ def main(
     Args:
         json_output: Emit config as JSON to stdout (logs go to stderr).
         teardown: Delete the loopback tenants instead of creating them.
+        mutate_user: Change a provisioned source member's attribute (drives
+            the update/PUT path) and emit the new value as JSON. Requires an
+            already-provisioned test bed.
+        remove_grant: Remove the SP->group grant (drives the deprovision/DELETE
+            path) and emit the affected ids as JSON. Requires an already-
+            provisioned test bed.
         src_subdomain: Subdomain for the source (outbound) tenant.
         dst_subdomain: Subdomain for the receiving (inbound) tenant.
     """
@@ -413,6 +556,16 @@ def main(
 
     if teardown:
         _teardown(log, src_subdomain, dst_subdomain)
+        return
+
+    if mutate_user:
+        result = mutate_source_user(log, src_subdomain)
+        _emit(log, result, json_output)
+        return
+
+    if remove_grant:
+        result = remove_source_grant(log, src_subdomain)
+        _emit(log, result, json_output)
         return
 
     step_1_ensure_tenants(log, src_subdomain, dst_subdomain)
@@ -453,14 +606,12 @@ def main(
         "group_name": GROUP_NAME,
     }
 
-    if json_output:
-        print(json.dumps(config, indent=2))
-    else:
+    if not json_output:
         log.info("")
         log.info("=" * 60)
         log.info("SCIM Loopback Test Bed Ready")
         log.info("=" * 60)
-        log.info(json.dumps(config, indent=2))
+    _emit(log, config, json_output)
 
 
 if __name__ == "__main__":

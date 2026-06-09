@@ -12,6 +12,13 @@ mounted directories all live under
 `SCIM_TESTBED_DIR` env var or `--dir <path>`. Nothing the script
 writes lands in this checkout.
 
+> **Need an interop check, not a real receiver?** See
+> [Closed-loop SCIM self-test](#closed-loop-scim-self-test) below. It
+> points WeftID's outbound SCIM at WeftID's *own* inbound endpoint, so it
+> runs entirely inside the Docker E2E stack with no external dependency.
+> Use the Authentik testbed for true third-party interop; use the loopback
+> for fast self-consistency and regression guarding in CI.
+
 ## Quick start
 
 ```bash
@@ -88,6 +95,48 @@ For finer control, call the script directly:
 
 Or set env vars: `SCIM_TESTBED_DIR`, `SCIM_TESTBED_PORT_HTTP`,
 `SCIM_TESTBED_PORT_HTTPS`, `SCIM_TESTBED_TAG`.
+
+## Closed-loop SCIM self-test
+
+For a self-contained check that needs **no external receiver**, WeftID
+points its *outbound* SCIM at its *own* inbound SCIM endpoint for a
+separate receiving tenant. The whole loop closes inside the Docker E2E
+stack: the worker reaches the app container at `http://app:8000/...` over
+the `devnet` bridge and POSTs/PUTs/DELETEs Generic SCIM 2.0 payloads that
+must parse cleanly in our own inbound parser.
+
+**What it exercises** (full lifecycle, against one provisioned test bed):
+
+* provision: source members POST `/Users`, the granted group POST `/Groups`
+* update: an attribute change PUTs `/Users/<remote_id>`, reusing the
+  captured remote id (no duplicate POST)
+* membership round-trip: the receiver `idp` group's members match the
+  source group's, compared by remote id
+* deprovision: removing the grant DELETEs `/Users/<remote_id>`; the
+  receiver soft-deletes the user (`is_inactivated=true`) and keeps MFA
+  and history
+* across the whole lifecycle, **zero** dead-letters
+
+**Why.** It is a self-consistency check (the payloads we emit must satisfy
+our own inbound parser) and a regression guard against either half drifting
+from the contract. It earned its keep on the first run: it surfaced
+migration `0045`'s bug, where every authenticated inbound SCIM request
+returned 401 in dev and production because the `scim_inbound_tokens` RLS
+policy had no UNSCOPED escape hatch for the pre-tenant token lookup.
+
+**How to run.** Bring the dev stack up (`make up`) and run the loopback
+E2E test:
+
+```bash
+make e2e ARGS="-k scim_loopback"
+```
+
+The test provisions both tenants via the headless
+`app/dev/scim_loopback_testbed.py` script (run inside the app container)
+and triggers worker drains on demand. The same script's `--mutate-user`
+and `--remove-grant` flags drive the update and deprovision steps through
+the service layer (so the event log fires the right SCIM trigger); pass
+`--json-output` to get a machine-readable result on stdout.
 
 ## Why this isn't committed as a fixture
 

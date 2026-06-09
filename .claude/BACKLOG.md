@@ -6,46 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Closed-Loop SCIM E2E Tests (WeftID Outbound → WeftID Inbound)
-
-**User Story:**
-As a WeftID maintainer,
-I want E2E tests that drive WeftID's outbound SCIM against WeftID's own inbound SCIM endpoints,
-So that I can verify the platform honors its own SCIM 2.0 contract (what we emit, we can consume) without depending on any external SCIM receiver.
-
-**Context:**
-
-WeftID now implements both sides of SCIM 2.0: outbound provisioning (`app/jobs/process_scim_push_queue.py` pushes POST/PUT/DELETE to a receiver, capturing remote ids in `sp_scim_remote_ids`) and inbound provisioning (`app/routers/scim/inbound/` receives Users/Groups writes with bearer auth). Existing E2E coverage (`tests/e2e/test_scim_admin_e2e.py`) only exercises the admin UI for token lifecycle, not the actual provisioning data flow.
-
-Pointing WeftID's outbound SCIM at WeftID's own inbound SCIM base URL closes the loop: a membership change in a source tenant's SP provisions users/groups into a receiving tenant via SCIM, end to end, entirely inside the existing Docker E2E stack. This is a self-consistency check (the generic profile we emit must be accepted by our own parser) and a regression guard against either side drifting from the contract. No external service is required, so it can run in default CI alongside the other E2E tests.
-
-**Design Notes:**
-
-- Source tenant SP configured with outbound SCIM (Generic SCIM 2.0) whose target URL is WeftID's own inbound SCIM base URL for a separate receiving tenant, authenticated with an inbound SCIM bearer token minted for the receiving tenant.
-- The SSRF guard's dev allowlist must permit the loopback target (app/worker container reaching the app's own inbound SCIM URL, e.g. via `host.docker.internal` or the nginx service name) the same way it permits the Authentik testbed host.
-- Provisioning is driven through normal flows (grant a group access on the SP, change membership) so the push queue, quirk transform, and inbound merge/lifecycle code all run.
-- Assertions check the receiving tenant's resulting state (via DB query or API) and that pushes complete with `success` status (not dead-lettered), proving the emitted payloads parse cleanly inbound.
-
-**Acceptance Criteria:**
-
-- [ ] New E2E module (e.g. `tests/e2e/test_scim_loopback_e2e.py`) registers a source SP with outbound SCIM targeting WeftID's own inbound SCIM endpoint for a receiving tenant, authenticated with an inbound bearer token
-- [ ] SSRF dev allowlist permits the loopback target so app/worker can reach the inbound endpoint
-- [ ] **Provision:** assigning users to a granted group in the source produces matching active users in the receiving tenant via inbound SCIM (POST /Users, POST /Groups; remote ids captured)
-- [ ] **Update:** an attribute change on a provisioned user propagates to the receiving tenant (PUT /Users/<id>)
-- [ ] **Deprovision:** removing the grant (or membership) soft-deletes/deactivates the user in the receiving tenant (DELETE /Users/<id>)
-- [ ] Group membership round-trips: a group and its members provisioned outbound appear as expected inbound
-- [ ] Test asserts all pushes reach `success` status (none dead-lettered), confirming WeftID's emitted payloads satisfy its own inbound parser
-- [ ] Runs within the existing `make e2e` Docker stack with no external dependency; gated by the same availability check as other E2E tests
-- [ ] Documented briefly (what the loopback exercises and why) in `dev/scim-testbed.md` or a sibling note
-
-**Effort:** M
-**Value:** High (regression guard that the two SCIM halves stay contract-compatible; no external dependency means it runs in CI on every change)
-**Version impact:** None (test infrastructure only)
-
-**Dependencies:** Inbound SCIM ✅ and Outbound SCIM ✅ both shipped. Independent of the Authentik interop item below; this one needs no external receiver.
-
----
-
 ## Optional Authentik Interop SCIM E2E Tests (Inbound + Outbound)
 
 **User Story:**

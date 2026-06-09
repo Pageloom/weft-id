@@ -85,7 +85,7 @@ jobs:
             | sudo tee -a /etc/hosts
 
       - name: Start Docker Compose services
-        run: docker compose --project-directory . -f dev/docker-compose.yml up --build -d app db reverse-proxy maildev migrate memcached
+        run: docker compose --project-directory . -f dev/docker-compose.yml up --build -d app worker db reverse-proxy maildev migrate memcached
 
       - name: Wait for services to be ready
         run: |

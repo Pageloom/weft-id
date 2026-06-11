@@ -25,7 +25,7 @@
             {% elif success == 'user_created' %}
             User created. Invitation sent.
             {% elif success == 'user_inactivated' %}
-            User inactivated. Can no longer sign in.
+            User deactivated. Can no longer sign in.
             {% elif success == 'user_reactivated' %}
             User reactivated. Can now sign in.
             {% elif success == 'user_anonymized' %}
@@ -83,17 +83,17 @@
             {% elif error == 'email_not_verified' %}
             Only verified emails can be promoted to primary.
             {% elif error == 'self_inactivation' %}
-            You cannot inactivate your own account.
+            You cannot deactivate your own account.
             {% elif error == 'service_user_inactivation' %}
-            Cannot inactivate service user. Delete the associated OAuth2 client first.
+            Cannot deactivate service user. Delete the associated OAuth2 client first.
             {% elif error == 'already_inactivated' %}
-            User is already inactivated.
+            User is already deactivated.
             {% elif error == 'last_super_admin' %}
-            Cannot inactivate or anonymize the last super admin.
+            Cannot deactivate or anonymize the last super admin.
             {% elif error == 'anonymized_user' %}
             Cannot reactivate anonymized user - anonymization is irreversible.
             {% elif error == 'not_inactivated' %}
-            User is not currently inactivated.
+            User is not currently deactivated.
             {% elif error == 'self_anonymization' %}
             You cannot anonymize your own account.
             {% elif error == 'service_user_anonymization' %}
@@ -209,9 +209,9 @@
     {% elif target_user.is_inactivated %}
     <div class="mb-6 p-4 border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
         <div class="flex items-center gap-2">
-            <span class="px-2 py-1 text-xs font-semibold bg-yellow-600 text-white rounded-full">INACTIVATED</span>
+            <span class="px-2 py-1 text-xs font-semibold bg-yellow-600 text-white rounded-full">DEACTIVATED</span>
             <span class="text-sm text-yellow-800 dark:text-yellow-300">
-                This user cannot sign in. Inactivated {{ fmt_datetime(target_user.inactivated_at) }}.
+                This user cannot sign in. Deactivated {{ fmt_datetime(target_user.inactivated_at) }}.
             </span>
         </div>
     </div>
@@ -228,7 +228,7 @@
         {% if target_user.is_anonymized %}
         <span class="px-2 py-0.5 text-xs font-medium bg-gray-600 text-white rounded-full">Anonymized</span>
         {% elif target_user.is_inactivated %}
-        <span class="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300 rounded-full">Inactivated</span>
+        <span class="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300 rounded-full">Deactivated</span>
         {% endif %}
     </div>
 

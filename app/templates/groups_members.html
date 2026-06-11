@@ -161,7 +161,7 @@
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-inactivated" value="inactivated" {% if 'inactivated' in statuses %}checked{% endif %}
                                     class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Inactivated</span>
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Deactivated</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-anonymized" value="anonymized" {% if 'anonymized' in statuses %}checked{% endif %}
@@ -283,7 +283,7 @@
                                 {% if m.is_anonymized %}
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Anonymized</span>
                                 {% elif m.is_inactivated %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">Inactivated</span>
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">Deactivated</span>
                                 {% else %}
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">Active</span>
                                 {% endif %}

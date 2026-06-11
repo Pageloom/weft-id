@@ -149,7 +149,7 @@
                     {% call filter_select("filter-status", "Status", statuses, status_negate) %}
                         <option value="">All statuses</option>
                         <option value="active" {% if 'active' in statuses %}selected{% endif %}>Active</option>
-                        <option value="inactivated" {% if 'inactivated' in statuses %}selected{% endif %}>Inactivated</option>
+                        <option value="inactivated" {% if 'inactivated' in statuses %}selected{% endif %}>Deactivated</option>
                         <option value="anonymized" {% if 'anonymized' in statuses %}selected{% endif %}>Anonymized</option>
                     {% endcall %}
 
@@ -307,7 +307,7 @@
                                 </span>
                                 {% elif u.is_inactivated %}
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
-                                    Inactivated
+                                    Deactivated
                                 </span>
                                 {% else %}
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
@@ -397,7 +397,7 @@
                     {{ icon("user-group-plus", class="w-6 h-6") }}
                 </button>
                 {% endif %}
-                <button type="button" id="bulk-inactivate-btn" title="Inactivate"
+                <button type="button" id="bulk-inactivate-btn" title="Deactivate"
                     class="p-2 bg-red-600 text-white rounded-md hover:bg-red-700">
                     {{ icon("pause-circle", class="w-6 h-6") }}
                 </button>

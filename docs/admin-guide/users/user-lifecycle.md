@@ -8,22 +8,22 @@ The default state. Active users can sign in and access their applications.
 
 An active user may also be in a **password reset required** state. This happens when an admin forces a password reset or when a [breach detection](../security/passwords.md#breach-detection) check finds a compromised password. The user can still sign in, but must choose a new password before reaching the dashboard.
 
-## Inactivated
+## Deactivated
 
-Inactivated users cannot sign in. All their data is preserved, and they can be reactivated later. When a user is inactivated:
+Deactivated users cannot sign in. All their data is preserved, and they can be reactivated later. When a user is deactivated:
 
 - Their session is terminated immediately
 - All OAuth2 tokens are revoked (API access is cut off)
 - They cannot request reactivation if a previous request was denied
 
-An admin can inactivate any user except themselves, service users (linked to OAuth2 clients), or the last super admin.
+An admin can deactivate any user except themselves, service users (linked to OAuth2 clients), or the last super admin.
 
-### Bulk inactivation and reactivation
+### Bulk deactivation and reactivation
 
-Admins can inactivate or reactivate multiple users at once from the user list:
+Admins can deactivate or reactivate multiple users at once from the user list:
 
 1. Select users using the checkboxes.
-2. Click **Inactivate** or **Reactivate** in the action bar.
+2. Click **Deactivate** or **Reactivate** in the action bar.
 3. A preview shows which users are eligible and which will be skipped (with reasons).
 4. Confirm to start a background job that processes each user individually.
 
@@ -35,7 +35,7 @@ There are three ways to reactivate a user:
 
 **Admin-initiated.** An admin reactivates the user directly from the user's detail page. No request or approval needed.
 
-**User-requested.** An inactivated user who tries to sign in sees a message explaining their account is inactivated. They can click **Request Reactivation** to submit a request. When they do:
+**User-requested.** A deactivated user who tries to sign in sees a message explaining their account is deactivated. They can click **Request Reactivation** to submit a request. When they do:
 
 1. All admins receive an email notification with the user's name and email.
 2. The request appears under **Admin > Todo > Reactivation**.
@@ -48,11 +48,13 @@ Past decisions are visible in the reactivation history view (**Admin > Todo > Re
 
 ### Account recovery via forgot-password
 
-Inactivated users who use the forgot-password flow will see their inactivation status after proving email ownership. From there they can request reactivation directly.
+Deactivated users who use the forgot-password flow will see their deactivation status after proving email ownership. From there they can request reactivation directly.
 
-### Automatic inactivation
+### Automatic deactivation
 
-If configured in [Security > Sessions](../security/sessions.md), users who haven't been active for a set period are automatically inactivated. An admin must reactivate them before they can sign in again.
+If configured in [Security > Sessions](../security/sessions.md), users who haven't been active for a set period are automatically deactivated. An admin must reactivate them before they can sign in again.
+
+When the daily job deactivates at least one user, every active admin and super admin receives an email listing the affected users (name, email, last activity date) and the configured inactivity threshold, so they can reactivate any account that was deactivated in error.
 
 Any authenticated action counts as activity: signing in, triggering an SSO flow, viewing pages, or making API calls.
 

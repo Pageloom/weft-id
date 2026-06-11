@@ -86,7 +86,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   Creating or updating a user account in a downstream application based on changes in WeftID. When a user gains access to a SCIM-enabled service provider (through a group grant, JIT sign-in, or "available to all"), WeftID provisions them in that application within seconds.
 
 **Deprovisioning**
-:   Removing or disabling a user account in a downstream application when they lose access in WeftID. Triggered by removing a group membership, inactivating the user, revoking an SP grant, or deleting the user. Closes the gap that SAML alone cannot: a user removed from WeftID no longer retains access to downstream SaaS.
+:   Removing or disabling a user account in a downstream application when they lose access in WeftID. Triggered by removing a group membership, deactivating the user, revoking an SP grant, or deleting the user. Closes the gap that SAML alone cannot: a user removed from WeftID no longer retains access to downstream SaaS.
 
 **Bearer token (SCIM)**
 :   The credential WeftID presents to a downstream application to authenticate its SCIM push requests. Two modes are supported: **generate** (WeftID mints the value, displays it once, and the admin pastes it into the downstream app; used for Slack, GitHub, most SaaS) and **import** (the downstream app mints the value and the admin pastes it into WeftID; used for Authentik and some self-hosted apps). Either way, the plaintext is Fernet-encrypted at rest. Generated tokens support rotation with a 24-hour overlap window; imported tokens are replaced by importing a new credential and revoking the prior one.
@@ -128,8 +128,8 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 **Just-in-time provisioning (JIT)**
 :   Automatically creating a user account the first time someone signs in through an external identity provider. The user's name, email, and group memberships are populated from the SAML assertion. Eliminates the need to pre-create accounts. See [Creating Users](admin-guide/users/creating-users.md).
 
-**Inactivation**
-:   Disabling a user account while preserving all data. Inactivated users cannot sign in but can be reactivated by an admin (or request reactivation themselves). Distinct from anonymization, which is irreversible. See [User Lifecycle](admin-guide/users/user-lifecycle.md).
+**Deactivation**
+:   Disabling a user account while preserving all data. Deactivated users cannot sign in but can be reactivated by an admin (or request reactivation themselves). Distinct from anonymization, which is irreversible. See [User Lifecycle](admin-guide/users/user-lifecycle.md).
 
 **Anonymization**
 :   Permanently removing a user's personally identifiable information (name, email) while preserving their audit trail. Satisfies GDPR right-to-erasure requirements. Irreversible. See [User Lifecycle](admin-guide/users/user-lifecycle.md).
@@ -166,7 +166,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   A tamper-evident record of every write operation in a tenant: user creation, role changes, SP configuration, sign-in events, and more. Each entry records the actor, timestamp, event type, affected resource, and contextual metadata. Events are classified into visibility tiers (security, admin, operational, system) for filtering. See [Audit](admin-guide/audit/index.md).
 
 **Activity tracking**
-:   Recording when users last performed read operations (viewing pages, listing resources). Used by the automatic inactivation policy to identify inactive accounts. Distinct from event logging, which records writes.
+:   Recording when users last performed read operations (viewing pages, listing resources). Used by the automatic deactivation policy to identify inactive accounts. Distinct from event logging, which records writes.
 
 **Two-step verification**
 :   A secondary verification step after password entry. WeftID supports two methods: TOTP via an authenticator app (stronger) and email verification codes (default). Admins can require platform two-step verification for users signing in through an external IdP. See [Two-Step Verification](admin-guide/security/two-step-verification.md).

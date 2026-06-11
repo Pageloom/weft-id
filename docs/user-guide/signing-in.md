@@ -10,14 +10,14 @@ WeftID supports two sign-in flows. Your organization chooses which one is active
     - **IdP users** are redirected to their organization's sign-in page (Okta, Entra ID, Google Workspace, etc.).
 3. After authenticating, complete two-step verification if required (see step 3 below).
 
-Unknown emails and inactivated accounts are shown the password form with no indication of account status. This prevents information disclosure while keeping the flow fast.
+Unknown emails and deactivated accounts are shown the password form with no indication of account status. This prevents information disclosure while keeping the flow fast.
 
 ### Forgot password
 
 If you forget your password, click **Forgot password?** on the password form. WeftID sends a neutral email with a link. After clicking the link (proving email ownership), the landing page shows your situation:
 
 - **Password user** — password reset form.
-- **Inactivated user** — inactivation disclosure with a reactivation option.
+- **Deactivated user** — deactivation disclosure with a reactivation option.
 - **No account** — a message to contact your administrator.
 
 See [Password](password.md) for details on password requirements.

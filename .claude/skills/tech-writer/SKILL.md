@@ -116,11 +116,19 @@ Maintain consistency with these terms (check `app/templates/` for the canonical 
 | Preferred | Avoid |
 |-----------|-------|
 | Sign in / Sign out | Log in / Log out |
-| Inactivate / Reactivate | Deactivate / Activate |
+| Deactivate / Reactivate (the action/state) | Inactivate / Activate |
+| Inactive / inactivity (the idle condition) | (don't use for the action) |
 | Identity provider (IdP) | Identity source (unless specific UI says otherwise) |
 | Service provider (SP) | Application (in SAML context) |
 | Super admin | Super administrator |
 | Group | Team (unless branding-specific) |
+
+**Deactivated vs inactive:** Use "deactivate / deactivated / deactivation" for the lifecycle
+action and resulting state (an admin disabling an account, or the daily idle job disabling
+one). Reserve "inactive / inactivity" for the idle *condition* (a user who hasn't been active
+for a while). A user is *inactive* for a while, which can lead to the account being
+*deactivated*. Change only visible copy: the status enum value stays `inactivated`, as do
+attributes (`is_inactivated`), URLs (`/inactivate`), and error/success codes.
 
 If you find inconsistencies in the glossary vs. actual usage, flag them.
 

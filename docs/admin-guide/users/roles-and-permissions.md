@@ -16,7 +16,7 @@ Full access to all settings and management features. Super admins can:
 - Reset user two-step verification and revoke individual passkeys
 - Anonymize users (GDPR)
 
-There must always be at least one super admin. The last super admin cannot be inactivated or deleted.
+There must always be at least one super admin. The last super admin cannot be deactivated or deleted.
 
 ## Admin
 

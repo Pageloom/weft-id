@@ -20,12 +20,12 @@ open their browser.
 
 Default is enabled.
 
-## Automatic inactivation
+## Automatic deactivation
 
-Automatically inactivate users who haven't been active for a set period. Once inactivated, an admin must reactivate them
+Automatically deactivate users who haven't been active for a set period. Once deactivated, an admin must reactivate them
 before they can sign in again. The default is 90 days.
 
-* Disabled (users are never inactivated)
+* Disabled (users are never deactivated)
 * 14 days
 * 30 days
 * 60 days
@@ -35,7 +35,7 @@ before they can sign in again. The default is 90 days.
 
 Controls whether users must verify email possession before being routed to their sign-in method.
 
-**Disabled (default).** Users enter their email and are routed immediately to their password form or identity provider. Unknown emails and inactivated accounts see the password form with no status disclosure. This is the faster experience and matches how most identity platforms work. IP-based rate limiting prevents bulk enumeration.
+**Disabled (default).** Users enter their email and are routed immediately to their password form or identity provider. Unknown emails and deactivated accounts see the password form with no status disclosure. This is the faster experience and matches how most identity platforms work. IP-based rate limiting prevents bulk enumeration.
 
 **Enabled.** Users must enter a one-time email code before WeftID reveals their sign-in method. This prevents any information disclosure about whether an account exists or what authentication method it uses. Enable this for deployments where enumeration resistance is a priority.
 

@@ -148,7 +148,7 @@ attributes share a single downstream path; no special-case mirroring.
 ### Deprovisioning (soft-delete)
 
 When Okta or Entra sends DELETE (or sets `active: false`), WeftID
-soft-deletes the user via the existing inactivate flow. The user is
+soft-deletes the user via the existing deactivate flow. The user is
 no longer able to sign in, but the following are preserved:
 
 * **MFA enrolment** (TOTP secret, backup codes). If the same user is

@@ -26,7 +26,7 @@ Click the funnel icon next to the page title to open the filter panel. Combine m
 | Filter | Options |
 |--------|---------|
 | **Role** | Member, Admin, Super Admin |
-| **Status** | Active, Inactivated, Anonymized |
+| **Status** | Active, Deactivated, Anonymized |
 | **Auth Method** | Lists all authentication methods in use (Password, Passkey, specific IdPs) |
 | **Domain** | Email domains in use. Matches any email at that domain (primary or secondary). Privileged domains are marked with a star. |
 | **Group** | Select a group. Check **Include children** to also match members of descendant groups. |

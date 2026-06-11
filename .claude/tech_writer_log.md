@@ -1,5 +1,91 @@
 # Tech Writer Log
 
+## 2026-06-11 - Copy + Docs for Inbound SCIM, Idle-Inactivation Email, 1.8.0
+
+**Starting commit:** 32040ad
+**Ending commit:** f5f4f2e
+**Mode:** Both (copy review + documentation)
+
+### Changes Since Last Session
+
+43 commits. Major theme: **inbound SCIM** (WeftID as a SCIM 2.0 receiver) -- token
+lifecycle + admin UI (saml_idp_tab_scim_inbound.html), bearer auth, metadata, read
+endpoints, Users/Groups write endpoints with outbound replay, admin guides, closed-loop
+E2E. Also: outbound SCIM "Import existing token" mode + "Skipped" (already_absent) sync
+badge, idle-user auto-inactivation admin email, releases 1.7.0/1.7.1/1.8.0. Most SCIM copy
+and docs landed inline (77d1697, f7e7572, 43ebd5d).
+
+### MAJOR: "Inactivate" -> "Deactivate" terminology policy change (full sweep)
+
+Mid-session the user decided the lifecycle action/state should be **"deactivate /
+deactivated / deactivation"**, reserving **"inactive / inactivity"** for the idle
+*condition* only. ("A user is inactive for a while, which can lead to the account being
+deactivated.") This REVERSES the prior glossary preference ("Inactivate/Reactivate"). Full
+sweep done across UI copy + docs. Saved to memory ([[feedback_deactivate_terminology]]) and
+the skill glossary updated. Rule: change visible copy only; keep `inactivated` status enum
+value, `is_inactivated` / `inactivated_at` attributes, `/inactivate` URLs, error/success
+codes, and Python identifiers.
+
+**Templates (13 files, visible copy only):** account_inactivated, account_recovery_inactivated,
+admin_reactivation_requests, groups_members, groups_members_add, groups_detail_tab_membership,
+login, settings_privileged_domains, settings_security_tab_sessions ("Automatic deactivation"),
+user_detail_base (9 spots), user_detail_tab_danger ("Deactivate User" + confirms),
+user_detail_tab_profile, users_list (filter option, badge, bulk button title="Deactivate").
+Status badges, filter-checkbox labels, confirm dialogs, error/success messages all flipped.
+
+**email.py:** `send_idle_users_inactivation_admin_notification` -- subject, H1, and body now
+all use "deactivated" for the action ("X users deactivated due to inactivity" / "...
+automatically deactivated after being inactive for at least N days"). Function name, docstring,
+and var names left as code identifiers.
+
+**Docs (8 files):** glossary (term "Inactivation"->"Deactivation"), user-guide/signing-in,
+security/index, security/sessions ("Automatic deactivation"), audit/index, users/index
+(status filter label), users/user-lifecycle (heading "## Deactivated", all prose),
+roles-and-permissions, identity-providers/inbound-scim (one prose spot). SCIM docs already
+used "deactivate" (matches `scim_user_deactivated`); only backticked `user_inactivated`
+event token kept literal.
+
+**Known follow-up (needs CODE, not copy):** two spots render the raw status enum and still
+display "inactivated": the group membership filter chip (`{{ status }}` in groups_members.html,
+groups_detail_tab_membership.html) and account_job_output.html (`{{ item.status | capitalize }}`).
+They need a display-label map to show "Deactivated" without renaming the DB enum. Flagged in
+[[feedback_deactivate_terminology]]; not logged to ISSUES.md.
+
+### Inbound SCIM + 1.8.0 Documentation (3 pages + build)
+
+1. **admin-guide/audit/index.md** -- Added "Inbound SCIM" event-type row (token
+   create/revoke, user received/updated/deactivated/rebound, group received/updated/deleted).
+2. **admin-guide/users/user-lifecycle.md** -- Added a paragraph to "Automatic deactivation"
+   documenting the new admin/super-admin email (lists affected users + threshold).
+3. **self-hosting/index.md** -- Bumped version examples 1.6.0/1.5.0 -> 1.8.0/1.7.1 (upgrade,
+   rollback, tag list, WEFT_VERSION).
+4. **site/** -- Rebuilt with `make docs` for local verification only. `site/` is now
+   gitignored (.gitignore:32); do NOT commit it. (The SKILL.md "checked into git" note is stale.)
+
+### Already Documented (No Changes Needed)
+
+- Inbound SCIM end-to-end: 3 new pages (inbound-scim.md 295L, inbound-scim-okta.md,
+  inbound-scim-entra.md), nav wired in mkdocs.yml, identity-providers/index.md updated,
+  "SCIM Provisioning" IdP tab + base URL + token lifecycle.
+- Outbound SCIM "Import existing token" + "Skipped" badge: template copy is clear and terse.
+
+### Observation (Minor, Not Logged)
+
+IdP inbound tab is labelled "SCIM Provisioning"; SP outbound tab is labelled "SCIM". The two
+live in different sections (IdP detail vs SP detail) and are conceptually distinct, so a user
+never sees them side by side. Acceptable.
+
+### Areas Reviewed
+
+- 3 changed templates from the SCIM work + 13 templates touched by the terminology sweep.
+- All changed docs + mkdocs.yml nav + skill glossary + email.py.
+
+### Screenshots Requested
+
+None. (The 6 SCIM screenshot TODOs from the 2026-05-22 session remain outstanding.)
+
+---
+
 ## 2026-05-22 - Copy + Docs for Outbound SCIM, 1.6.0
 
 **Starting commit:** d14df71

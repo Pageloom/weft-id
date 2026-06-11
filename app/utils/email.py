@@ -717,7 +717,7 @@ def send_idle_users_inactivation_admin_notification(
     branding = _get_branding(tenant_id)
     count = len(inactivated_users)
     user_word = "user" if count == 1 else "users"
-    subject = f"WeftID: {count} {user_word} inactivated due to inactivity"
+    subject = f"WeftID: {count} {user_word} deactivated due to inactivity"
 
     text_rows = []
     html_rows = ""
@@ -746,7 +746,7 @@ If an account was deactivated in error, you can reactivate it from the WeftID ad
         branding,
     )
 
-    body = f"""<h1 style="{_S_H1}">Users Inactivated Due to Inactivity</h1>
+    body = f"""<h1 style="{_S_H1}">Users Deactivated Due to Inactivity</h1>
 <p style="{_S_P}"><strong>{count} {user_word}</strong> in your organization were automatically deactivated after being inactive for at least {threshold_days} days.</p>
 <p style="{_S_P}">Affected {user_word}:</p>
 <ul style="margin: 0 0 12px 0; padding-left: 20px; color: #333333;">

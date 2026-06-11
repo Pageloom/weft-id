@@ -4,7 +4,7 @@ Configure authentication policy, password policy, session behavior, certificate 
 
 - [Authentication Policy](authentication-policy.md) — Require strong second factors (TOTP or passkey) tenant-wide
 - [Passwords](passwords.md) — Password strength, breach detection, forced resets
-- [Sessions](sessions.md) — Session timeout, persistent sessions, inactivation thresholds
+- [Sessions](sessions.md) — Session timeout, persistent sessions, deactivation thresholds
 - [Certificates](certificates.md) — Certificate validity and rotation windows
 - [Permissions](permissions.md) — User self-service permissions
 - [User attributes](user-attributes.md) — Configure the standard profile attribute catalog and required fields

@@ -66,12 +66,13 @@ Events cover all areas of the platform:
 | Category | Examples |
 |----------|---------|
 | Authentication | Sign-in, sign-out, password changes, password resets, breach detection, passkey sign-in |
-| Users | Created, updated, inactivated, reactivated, anonymized, profile updated |
+| Users | Created, updated, deactivated, reactivated, anonymized, profile updated |
 | User attributes | Tenant attribute settings changed, IdP attribute values mirrored at sign-in, mirrored values scrubbed on IdP delete |
 | Groups | Created, deleted, members added/removed, relationships changed |
 | Identity providers | Created, updated, trust established, deleted |
 | Service providers | Created, updated, deleted, SSO assertions issued |
 | Outbound SCIM | Configuration updated, bearer token created, rotated, revoked |
+| Inbound SCIM | Bearer token created/revoked, user received/updated/deactivated/rebound, group received/updated/deleted |
 | Certificates | Created, rotated |
 | Settings | Session, certificate, permission, branding, and group assertion scope changes |
 | Two-step verification | Method changed, backup codes regenerated, admin resets, passkey registered/deleted/renamed |
@@ -79,4 +80,4 @@ Events cover all areas of the platform:
 
 ## Activity tracking
 
-Read operations (viewing user lists, group details, etc.) are tracked separately from the event log. Activity tracking records the last time each user accessed the system. This data feeds into the [automatic inactivation](../security/sessions.md) feature.
+Read operations (viewing user lists, group details, etc.) are tracked separately from the event log. Activity tracking records the last time each user accessed the system. This data feeds into the [automatic deactivation](../security/sessions.md) feature.

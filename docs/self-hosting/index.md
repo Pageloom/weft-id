@@ -193,7 +193,7 @@ patch, minor, and major releases.
 
 ### Upgrade procedure
 
-1. Edit `.env` and set `WEFT_VERSION` to the target version (e.g., `1.6.0`).
+1. Edit `.env` and set `WEFT_VERSION` to the target version (e.g., `1.8.0`).
 
 2. Pull the new image and restart:
 
@@ -234,7 +234,7 @@ created before upgrading.
     docker volume rm "$(docker volume ls -q --filter name=_dbdata | head -1)"
     ```
 
-3. Edit `.env` and set `WEFT_VERSION` back to the previous version (e.g., `1.5.0`).
+3. Edit `.env` and set `WEFT_VERSION` back to the previous version (e.g., `1.7.1`).
 
 4. Start the database and wait for it to be ready:
 
@@ -392,8 +392,8 @@ ghcr.io/pageloom/weft-id
 
 Available tags:
 
-* `1.6.0` -- exact version (recommended for production)
-* `1.6` -- latest patch for a minor version
+* `1.8.0` -- exact version (recommended for production)
+* `1.8` -- latest patch for a minor version
 * `1` -- latest minor for a major version
 * `latest` -- newest stable release
 
@@ -406,7 +406,7 @@ can copy `deploy/.env.example` and edit it manually.
 
 | Variable | Description |
 |----------|-------------|
-| `WEFT_VERSION` | Image tag to run (e.g., `1.6.0`). Pin to a specific version for stability. |
+| `WEFT_VERSION` | Image tag to run (e.g., `1.8.0`). Pin to a specific version for stability. |
 | `BASE_DOMAIN` | Root domain for tenant subdomains (e.g., `id.example.com`) |
 | `SECRET_KEY` | Master encryption key. Session signing, two-step verification secrets, SAML key encryption, and email verification tokens are all derived from this value via HKDF. Generate with `openssl rand -base64 32`. |
 | `POSTGRES_PASSWORD` | Password for the PostgreSQL superuser. Generate with `openssl rand -base64 32`. |

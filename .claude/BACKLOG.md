@@ -6,6 +6,68 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Drop SendGrid Email Backend; Add Amazon SES and Postmark
+
+**User Story:**
+As a WeftID operator (hosted or self-hosting),
+I want SendGrid removed and Amazon SES and Postmark offered alongside SMTP and Resend,
+So that I can pick a well-maintained, strong-deliverability transactional email provider and we no longer ship an unmaintained dependency.
+
+**Context:**
+
+Email transport lives in `app/utils/email_backends/` as a clean `EmailBackend` Protocol (`base.py`) with thin (~40-line) adapters selected at runtime by the `EMAIL_BACKEND` env var via `get_backend()` in `__init__.py`. Today the choices are `smtp` (default, universal fallback), `resend`, and `sendgrid`.
+
+SendGrid's Python library (`sendgrid`, owned by Twilio) is effectively in maintenance-drift, and SendGrid's transactional deliverability reputation has eroded relative to peers. Because each adapter is a disposable shim touching only `from`/`to`/`subject`/`html`/`text`, swapping providers is cheap. This item removes SendGrid entirely and adds two stronger transactional standards:
+
+- **Amazon SES** — durable, cheap, AWS-backed longevity; good fit for self-hosters already on AWS.
+- **Postmark** — best-in-class *transactional* deliverability (transactional and bulk streams are hard-separated); strong thematic fit for an identity product where "the verification code email must arrive" is the whole job.
+
+SMTP and Resend are retained.
+
+**Design Notes:**
+
+- **SES has two integration paths; decide deliberately:**
+  - *SMTP interface* — SES exposes `email-smtp.<region>.amazonaws.com:587` (STARTTLS) using SES-specific SMTP credentials (distinct from AWS IAM keys). This works through the **existing SMTP backend with zero new code or dependencies**; an operator just points `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS` at SES. At minimum, **document this path** in the self-hosting guide.
+  - *Native API* — a `ses` backend via `boto3` (SESv2 `send_email`) with IAM auth, no SMTP credentials to manage, and structured error/bounce handling. Adds a `boto3` dependency (not currently present).
+  - Recommendation: add the native `ses` API backend for parity with the other API backends *and* document the SMTP-interface path for operators who don't want the boto3 dependency or prefer SMTP credentials. (Final call can be made during grooming.)
+- **Postmark** has no official maintained Python SDK worth coupling to; implement as a raw `requests.post` to `https://api.postmarkapp.com/email` with `X-Postmark-Server-Token`, mirroring the lean style of the existing adapters. No new heavyweight dependency.
+- Extend `get_backend()` with `ses` and `postmark` branches (lazy import, matching the existing pattern); remove the `sendgrid` branch.
+- New settings: `POSTMARK_SERVER_TOKEN`, and for native SES the AWS region/credentials (`AWS_REGION` plus standard boto3 credential resolution). Remove `SENDGRID_API_KEY`. Keep `FROM_EMAIL` shared.
+- **`verify_email.py` CLI:** update the `_DKIM_SELECTORS` map — remove the `sendgrid` selectors (`s1`, `s2`, `smtpapi`); add `ses` (`amazonses`) and `postmark` (`pm`, plus Postmark's rotating DKIM). Keep the per-backend test-send and DKIM-probe flow working for the new backends.
+- **`dev/compliance_check.py`:** remove the `SendGridAPIClient` no-timeout rule; add equivalent outbound-timeout enforcement for the new clients (boto3 SES config timeout; the Postmark `requests.post` must pass a `timeout=`).
+- Enforce an outbound request timeout on both new backends (the codebase flags clients with no built-in timeout).
+- Update tests in `tests/utils/test_email_backends.py` and `tests/cli/test_verify_email.py`: drop SendGrid cases, add SES and Postmark cases (success, failure, timeout, text+html).
+
+**Removal checklist (SendGrid references to purge):**
+- [ ] `app/utils/email_backends/sendgrid_backend.py` (delete)
+- [ ] `app/utils/email_backends/__init__.py` (remove `sendgrid` branch)
+- [ ] `app/utils/email.py` (docstring backend list)
+- [ ] `app/settings.py` (`SENDGRID_API_KEY`, `EMAIL_BACKEND` comment)
+- [ ] `app/cli/verify_email.py` (DKIM selectors)
+- [ ] `dev/compliance_check.py` (SendGrid timeout rule)
+- [ ] `pyproject.toml` + `poetry.lock` (remove `sendgrid` dep; mypy override module list)
+- [ ] `deploy/prod_requirements.lock.txt`, `deploy/docker-compose.yml`, `deploy/.env.example`
+- [ ] `dev/.env.example`
+- [ ] `docs/self-hosting/index.md`
+- [ ] `tests/utils/test_email_backends.py`, `tests/cli/test_verify_email.py`
+
+**Acceptance Criteria:**
+- [ ] SendGrid is fully removed: no `sendgrid` dependency, adapter, setting, DKIM selector, compliance rule, env example, or docs reference remains (grep for `sendgrid` is clean outside `BACKLOG_ARCHIVE.md`/`ISSUES_ARCHIVE.md`/`tech_writer_log.md` history)
+- [ ] `EMAIL_BACKEND=postmark` sends via Postmark (raw HTTPS, server-token auth, enforced timeout); success and failure return correct booleans and log appropriately
+- [ ] `EMAIL_BACKEND=ses` sends via Amazon SES native API (boto3 SESv2, IAM auth, enforced timeout); success and failure handled like the other adapters
+- [ ] The self-hosting guide documents using **SES via the existing SMTP backend** (SES SMTP endpoint + SES SMTP credentials) as a no-new-dependency option, alongside the native `ses` and `postmark` backends and the retained `resend`
+- [ ] `get_backend()` resolves `smtp`, `resend`, `ses`, `postmark`; unknown values fall back to SMTP (existing behavior preserved)
+- [ ] `verify_email.py` test-send and DKIM probe work for `ses` and `postmark`; SendGrid selectors removed
+- [ ] `dev/compliance_check.py` no longer references SendGrid; both new backends pass the outbound-timeout rule
+- [ ] Tests cover Postmark and SES backends (success, provider error, timeout, html-only and html+text); SendGrid tests removed; full suite green
+- [ ] `deploy/.env.example` and `dev/.env.example` document `ses` and `postmark` options and their required settings
+
+**Effort:** M
+**Value:** Medium (removes an unmaintained dependency and upgrades the transactional-email standards offered; no new end-user capability)
+**Version impact:** Minor (additive backends, new env vars). **Breaking caveat:** any deployment currently running `EMAIL_BACKEND=sendgrid` must migrate to another backend before upgrading; call this out in CHANGELOG/release notes and the self-hosting upgrade guidance.
+
+---
+
 ## Optional Authentik Interop SCIM E2E Tests (Inbound + Outbound)
 
 **User Story:**

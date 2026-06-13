@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-06-13
+
+### Added
+
+- **Inbound SCIM provisioning.** WeftID can now act as a SCIM 2.0 receiver, letting an
+  upstream identity provider (Okta, Entra ID, and others) create, update, and deactivate
+  users and groups in WeftID in real time, so deprovisioned users lose access immediately
+  instead of at their next sign-in. Each identity provider gets a **SCIM Provisioning** tab
+  with a SCIM base URL and bearer-token management (tokens are shown once and stored hashed,
+  with no rotation/recovery path). Provisioned changes are replayed to downstream
+  SCIM-enabled service providers, and cross-IdP rebinds are handled. Setup guides for Okta
+  and Entra are included.
+- Admin email notification when the daily idle-user job deactivates accounts, listing the
+  affected users (name, email, last activity) and the configured inactivity threshold.
+
+### Changed
+
+- Renamed the user lifecycle action and state from "Inactivated" to "Deactivated" across the
+  UI and documentation, reserving "inactive"/"inactivity" for the idle condition that can
+  lead to deactivation. Stored status values are unchanged.
+- WeftID now trusts the reverse proxy's forwarded client IP and scheme (configurable via
+  `FORWARDED_ALLOW_IPS`, default `*`), so per-IP rate limits (login, SCIM auth, and others)
+  see the real client address instead of the proxy's. Self-hosters using the bundled
+  nginx/Caddy setup need no action.
+
 ## [1.8.0] - 2026-05-23
 
 ### Fixed

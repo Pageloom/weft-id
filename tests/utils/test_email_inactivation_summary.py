@@ -33,7 +33,7 @@ def test_lists_users_and_threshold_in_both_bodies():
     mock_send.assert_called_once()
     to_email, subject, html_body, text_body = mock_send.call_args.args
     assert to_email == "admin@example.com"
-    assert subject == "WeftID: 2 users inactivated due to inactivity"
+    assert subject == "WeftID: 2 users deactivated due to inactivity"
     for body in (html_body, text_body):
         assert "Alice Smith" in body
         assert "alice@example.com" in body
@@ -49,7 +49,7 @@ def test_singular_subject():
         send_idle_users_inactivation_admin_notification("admin@example.com", _users(1), 30)
 
     subject = mock_send.call_args.args[1]
-    assert subject == "WeftID: 1 user inactivated due to inactivity"
+    assert subject == "WeftID: 1 user deactivated due to inactivity"
 
 
 def test_handles_missing_last_activity_and_name():

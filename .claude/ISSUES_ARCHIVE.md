@@ -5,6 +5,25 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [COPY] Status label still shows "Inactivated" where derived from the enum value
+
+**Fixed by:** `display_status()` Jinja helper (2026-06-13)
+
+**Discovered:** 2026-06-11 (terminology sweep follow-up)
+**Severity:** Low
+**Found in:** `app/templates/groups_members.html` and
+`app/templates/groups_detail_tab_membership.html` (`{{ status }}` filter chip),
+`app/templates/account_job_output.html` (bulk-op result badge)
+**Description:** After the "deactivated" terminology sweep, three spots still rendered the raw
+`inactivated` status enum value directly, so they displayed "Inactivated" while every other
+label said "Deactivated". The enum value could not be renamed (DB/data value).
+**Fix:** Added `display_status()` in `app/utils/templates.py` (registered as a Jinja global,
+mirroring `display_role()`) mapping `inactivated` -> "Deactivated" and capitalizing other
+values. Wired into the three templates. Underlying enum value unchanged. Unit tests added in
+`tests/utils/test_templates.py`.
+
+---
+
 ## [DOCS] API endpoint docstring claims "super_admin only" but service is relaxed
 
 **Fixed by:** docstring follow-up (2026-05-29)

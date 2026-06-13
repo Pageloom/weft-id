@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 3 | Duplication (pre-existing), Test coverage (pre-existing), Copy (status enum label) |
+| Low | 2 | Duplication (pre-existing), Test coverage (pre-existing) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
@@ -103,24 +103,5 @@ fix or swap to the new API before bumping.
 Does not block `make check` (deps_check only fails on critical/high).
 
 **Files Affected:** `pyproject.toml`, `poetry.lock`
-
----
-
-## [COPY] Status label still shows "Inactivated" where derived from the enum value
-
-**Found in:** `app/templates/groups_members.html` (`{{ status }}` filter chip),
-`app/templates/groups_detail_tab_membership.html` (`{{ status }}` filter chip),
-`app/templates/account_job_output.html` (`{{ item.status | capitalize }}` bulk-op result badge)
-**Severity:** Low
-**Description:** Per the 2026-06-11 terminology decision, the user lifecycle action/state is
-now "deactivated" in all visible copy (idle condition stays "inactive"). All hardcoded labels
-were updated, but these three spots render the raw `inactivated` status enum value directly,
-so they still display "inactivated"/"Inactivated". The enum value must NOT be renamed (it is a
-DB/data value used across queries and the bulk-op job results).
-**Current:** filter chip shows "inactivated"; job-result badge shows "Inactivated".
-**Suggested:** Add a small display-label map (e.g. a Jinja helper or dict) mapping status
-`inactivated` -> "Deactivated" for these renders, leaving the underlying value unchanged. Mirror
-the existing `display_role()` helper pattern.
-**Scope:** 3 templates + one small helper (needs a code change, not copy-only).
 
 ---

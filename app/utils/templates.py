@@ -55,3 +55,18 @@ def display_role(role: str) -> str:
 
 
 templates.env.globals["display_role"] = display_role
+
+
+# Status enum values keep their stored form ('inactivated') across the DB and
+# queries; only the visible label maps to the lifecycle term "Deactivated".
+_STATUS_LABELS = {
+    "inactivated": "Deactivated",
+}
+
+
+def display_status(status: str) -> str:
+    """Format a raw status value for display (e.g. 'inactivated' → 'Deactivated')."""
+    return _STATUS_LABELS.get(status, status.replace("_", " ").capitalize())
+
+
+templates.env.globals["display_status"] = display_status

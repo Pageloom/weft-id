@@ -550,3 +550,395 @@ def test_count_active_users(test_tenant, test_user, test_admin_user):
 
     # test_user and test_admin_user are both active
     assert count >= 2
+
+
+# -- available_to_all (SP) -----------------------------------------------------
+
+
+def test_user_can_access_sp_available_to_all(test_tenant, test_user):
+    """A user with no group membership can access an available_to_all SP."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    sp = _create_sp(tid, uid, name="Open SP")
+    database.service_providers.update_service_provider(tid, sp["id"], available_to_all=True)
+
+    assert database.sp_group_assignments.user_can_access_sp(tid, str(uid), sp["id"]) is True
+
+
+# -- proxy app grant helpers ---------------------------------------------------
+
+
+def _create_proxy_app(tid, uid, name="Proxy App", available_to_all=False):
+    domain = database.protected_domains.create_protected_domain(
+        tenant_id=tid,
+        tenant_id_value=str(tid),
+        domain=f"{uuid4().hex[:8]}.example.com",
+        portal_host=f"auth.{uuid4().hex[:8]}.example.com",
+        created_by=str(uid),
+    )
+    return database.proxy_apps.create_proxy_app(
+        tenant_id=tid,
+        tenant_id_value=str(tid),
+        protected_domain_id=domain["id"],
+        name=name,
+        external_url="https://app.example.com",
+        created_by=str(uid),
+        available_to_all=available_to_all,
+    )
+
+
+def test_create_proxy_app_assignment(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Proxy Grant Group")
+
+    row = database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+
+    assert row is not None
+    assert str(row["proxy_app_id"]) == str(app["id"])
+    assert str(row["group_id"]) == str(group["id"])
+
+
+def test_proxy_app_assignment_dual_fk_check(test_tenant, test_user):
+    """The one-of CHECK rejects a row with both sp_id and proxy_app_id set."""
+    import psycopg.errors
+
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    sp = _create_sp(tid, uid, name="Both FK SP")
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Both FK Group")
+
+    try:
+        database.execute(
+            tid,
+            """
+            insert into sp_group_assignments (tenant_id, sp_id, proxy_app_id, group_id, assigned_by)
+            values (:tid, :sp, :app, :grp, :by)
+            """,
+            {
+                "tid": str(tid),
+                "sp": sp["id"],
+                "app": app["id"],
+                "grp": group["id"],
+                "by": str(uid),
+            },
+        )
+        assert False, "Expected CHECK violation for both FK columns populated"
+    except psycopg.errors.CheckViolation:
+        pass
+
+
+def test_proxy_app_assignment_neither_fk_check(test_tenant, test_user):
+    """The one-of CHECK rejects a row with neither sp_id nor proxy_app_id."""
+    import psycopg.errors
+
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    group = _create_group(tid, name="Neither FK Group")
+
+    try:
+        database.execute(
+            tid,
+            """
+            insert into sp_group_assignments (tenant_id, group_id, assigned_by)
+            values (:tid, :grp, :by)
+            """,
+            {"tid": str(tid), "grp": group["id"], "by": str(uid)},
+        )
+        assert False, "Expected CHECK violation for no FK column populated"
+    except psycopg.errors.CheckViolation:
+        pass
+
+
+def test_delete_proxy_app_assignment(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Del Proxy Grant Group")
+
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+    deleted = database.sp_group_assignments.delete_proxy_app_assignment(tid, app["id"], group["id"])
+
+    assert deleted == 1
+    assert database.sp_group_assignments.list_assignments_for_proxy_app(tid, app["id"]) == []
+
+
+def test_list_and_count_assignments_for_proxy_app(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid)
+    group_a = _create_group(tid, name="Proxy Alpha")
+    group_b = _create_group(tid, name="Proxy Beta")
+
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group_a["id"], str(uid)
+    )
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group_b["id"], str(uid)
+    )
+
+    rows = database.sp_group_assignments.list_assignments_for_proxy_app(tid, app["id"])
+    assert [r["group_name"] for r in rows] == ["Proxy Alpha", "Proxy Beta"]
+    assert database.sp_group_assignments.count_assignments_for_proxy_app(tid, app["id"]) == 2
+
+
+# -- user_can_access_app (proxy apps) ------------------------------------------
+
+
+def test_user_can_access_proxy_app_direct(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Proxy Direct Group")
+
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+    database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+    assert database.sp_group_assignments.user_can_access_proxy_app(tid, str(uid), app["id"]) is True
+
+
+def test_user_can_access_proxy_app_inherited_dag(test_tenant, test_user):
+    """Proxy-app access via a descendant group (DAG closure table)."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid)
+    parent = _create_group(tid, name="Proxy Parent")
+    child = _create_group(tid, name="Proxy Child")
+
+    database.groups.add_group_relationship(tid, str(tid), parent["id"], child["id"])
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], parent["id"], str(uid)
+    )
+    database.groups.add_group_member(tid, str(tid), child["id"], str(uid))
+
+    assert database.sp_group_assignments.user_can_access_proxy_app(tid, str(uid), app["id"]) is True
+
+
+def test_user_can_access_proxy_app_no_access(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Proxy Exclusive Group")
+
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+
+    assert (
+        database.sp_group_assignments.user_can_access_proxy_app(tid, str(uid), app["id"]) is False
+    )
+
+
+def test_user_can_access_proxy_app_available_to_all(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid, available_to_all=True)
+
+    assert database.sp_group_assignments.user_can_access_proxy_app(tid, str(uid), app["id"]) is True
+
+
+def test_user_can_access_app_requires_exactly_one_kind(test_tenant, test_user):
+    """user_can_access_app rejects ambiguous / missing app-kind selectors."""
+    import pytest
+
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+
+    with pytest.raises(ValueError):
+        database.sp_group_assignments.user_can_access_app(tid, str(uid), str(uuid4()))
+    with pytest.raises(ValueError):
+        database.sp_group_assignments.user_can_access_app(
+            tid, str(uid), str(uuid4()), sp_id=True, proxy_app_id=True
+        )
+
+
+def test_sp_and_proxy_grants_are_independent(test_tenant, test_user):
+    """A group granted to an SP does not grant the proxy app, and vice versa."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    sp = _create_sp(tid, uid, name="Independent SP")
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Independent Group")
+
+    # Grant the group only to the SP.
+    database.sp_group_assignments.create_assignment(tid, str(tid), sp["id"], group["id"], str(uid))
+    database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+    assert database.sp_group_assignments.user_can_access_sp(tid, str(uid), sp["id"]) is True
+    assert (
+        database.sp_group_assignments.user_can_access_proxy_app(tid, str(uid), app["id"]) is False
+    )
+
+
+# -- partial unique indexes ----------------------------------------------------
+
+
+def test_duplicate_proxy_app_assignment_raises(test_tenant, test_user):
+    """The proxy-app partial unique index rejects a duplicate (proxy_app, group)."""
+    import psycopg.errors
+
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Dup Proxy Grant Group")
+
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+
+    try:
+        database.sp_group_assignments.create_proxy_app_assignment(
+            tid, str(tid), app["id"], group["id"], str(uid)
+        )
+        assert False, "Expected UniqueViolation for duplicate proxy-app assignment"
+    except psycopg.errors.UniqueViolation:
+        pass
+
+    assert database.sp_group_assignments.count_assignments_for_proxy_app(tid, app["id"]) == 1
+
+
+def test_same_group_allowed_across_sp_and_proxy_app(test_tenant, test_user):
+    """The same group_id may be granted to both an SP and a proxy app.
+
+    The two partial unique indexes are independent, so a group granted to an SP
+    does not collide with the same group granted to a proxy app.
+    """
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    sp = _create_sp(tid, uid, name="Shared Group SP")
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Shared Across Kinds Group")
+
+    sp_grant = database.sp_group_assignments.create_assignment(
+        tid, str(tid), sp["id"], group["id"], str(uid)
+    )
+    proxy_grant = database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+
+    assert sp_grant is not None
+    assert proxy_grant is not None
+    # Both grants exist independently.
+    assert database.sp_group_assignments.count_assignments_for_sp(tid, sp["id"]) == 1
+    assert database.sp_group_assignments.count_assignments_for_proxy_app(tid, app["id"]) == 1
+
+
+# -- cascade deletion of grants ------------------------------------------------
+
+
+def test_deleting_sp_cascades_its_grants(test_tenant, test_user):
+    """Deleting a service provider cascades and removes its grant rows.
+
+    Guards the acceptance criterion that existing SAML grants still
+    CASCADE-delete with their SP after the dual-FK generalization.
+    """
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    sp = _create_sp(tid, uid, name="Cascade SP")
+    group = _create_group(tid, name="Cascade SP Group")
+    grant = database.sp_group_assignments.create_assignment(
+        tid, str(tid), sp["id"], group["id"], str(uid)
+    )
+
+    database.service_providers.delete_service_provider(tid, sp["id"])
+
+    # The grant row is gone (cascade), and the group still exists.
+    remaining = database.fetchone(
+        tid,
+        "select id from sp_group_assignments where id = :id",
+        {"id": grant["id"]},
+    )
+    assert remaining is None
+    assert database.groups.get_group_by_id(tid, group["id"]) is not None
+
+
+def test_deleting_proxy_app_cascades_its_grants(test_tenant, test_user):
+    """Deleting a proxy app cascades and removes its grant rows."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Cascade Proxy Group")
+    grant = database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+
+    database.proxy_apps.delete_proxy_app(tid, app["id"])
+
+    remaining = database.fetchone(
+        tid,
+        "select id from sp_group_assignments where id = :id",
+        {"id": grant["id"]},
+    )
+    assert remaining is None
+    assert database.groups.get_group_by_id(tid, group["id"]) is not None
+
+
+def test_deleting_domain_cascades_to_proxy_grants(test_tenant, test_user):
+    """Deleting a protected domain transitively cascades proxy-app grant rows.
+
+    domain -> proxy_apps -> sp_group_assignments all CASCADE in one delete.
+    """
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    domain = database.protected_domains.create_protected_domain(
+        tenant_id=tid,
+        tenant_id_value=str(tid),
+        domain=f"{uuid4().hex[:8]}.example.com",
+        portal_host=f"auth.{uuid4().hex[:8]}.example.com",
+        created_by=str(uid),
+    )
+    app = database.proxy_apps.create_proxy_app(
+        tenant_id=tid,
+        tenant_id_value=str(tid),
+        protected_domain_id=domain["id"],
+        name="Domain Cascade App",
+        external_url="https://app.example.com",
+        created_by=str(uid),
+    )
+    group = _create_group(tid, name="Domain Cascade Group")
+    grant = database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+
+    database.protected_domains.delete_protected_domain(tid, domain["id"])
+
+    assert database.proxy_apps.get_proxy_app(tid, app["id"]) is None
+    remaining = database.fetchone(
+        tid,
+        "select id from sp_group_assignments where id = :id",
+        {"id": grant["id"]},
+    )
+    assert remaining is None
+
+
+def test_proxy_app_grants_tenant_isolated(test_tenant, test_user):
+    """A proxy-app grant in one tenant is invisible to another tenant."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="Isolated Proxy Grant Group")
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+
+    other = database.fetchone(
+        database.UNSCOPED,
+        "INSERT INTO tenants (subdomain, name) VALUES (:s, :n) RETURNING id",
+        {"s": f"other-{uuid4().hex[:8]}", "n": "Other Tenant"},
+    )
+    try:
+        oid = other["id"]
+        assert database.sp_group_assignments.list_assignments_for_proxy_app(oid, app["id"]) == []
+        assert database.sp_group_assignments.count_assignments_for_proxy_app(oid, app["id"]) == 0
+    finally:
+        database.execute(
+            database.UNSCOPED, "DELETE FROM tenants WHERE id = :id", {"id": other["id"]}
+        )

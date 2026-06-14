@@ -124,38 +124,171 @@ def bulk_create_assignments(
         f"""
         insert into sp_group_assignments (tenant_id, sp_id, group_id, assigned_by)
         values {values_clause}
-        on conflict (sp_id, group_id) do nothing
+        on conflict (sp_id, group_id) where sp_id is not null do nothing
         """,
         params,
     )
 
 
-def user_can_access_sp(tenant_id: TenantArg, user_id: str, sp_id: str) -> bool:
-    """Check if a user can access a service provider via group assignments.
-
-    Uses the group_lineage closure table: a user has access if they belong to
-    any group that is a descendant of (or equal to) an assigned group.
+def create_proxy_app_assignment(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    proxy_app_id: str,
+    group_id: str,
+    assigned_by: str,
+) -> dict | None:
+    """Create a single proxy-app-group assignment.
 
     Returns:
-        True if user has access, False otherwise.
+        Created assignment dict, or None on failure.
+    """
+    return fetchone(
+        tenant_id,
+        """
+        insert into sp_group_assignments (tenant_id, proxy_app_id, group_id, assigned_by)
+        values (:tenant_id, :proxy_app_id, :group_id, :assigned_by)
+        returning id, tenant_id, proxy_app_id, group_id, assigned_by, assigned_at
+        """,
+        {
+            "tenant_id": tenant_id_value,
+            "proxy_app_id": proxy_app_id,
+            "group_id": group_id,
+            "assigned_by": assigned_by,
+        },
+    )
+
+
+def delete_proxy_app_assignment(tenant_id: TenantArg, proxy_app_id: str, group_id: str) -> int:
+    """Delete a proxy-app-group assignment.
+
+    Returns:
+        Number of rows deleted.
+    """
+    return execute(
+        tenant_id,
+        """
+        delete from sp_group_assignments
+        where proxy_app_id = :proxy_app_id and group_id = :group_id
+        """,
+        {"proxy_app_id": proxy_app_id, "group_id": group_id},
+    )
+
+
+def list_assignments_for_proxy_app(tenant_id: TenantArg, proxy_app_id: str) -> list[dict]:
+    """List group assignments for a proxy app.
+
+    Returns:
+        List of assignment dicts joined with group info, ordered by group name.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select sga.id, sga.proxy_app_id, sga.group_id, sga.assigned_by, sga.assigned_at,
+               g.name as group_name, g.description as group_description,
+               g.group_type
+        from sp_group_assignments sga
+        join groups g on g.id = sga.group_id
+        where sga.proxy_app_id = :proxy_app_id
+        order by g.name
+        """,
+        {"proxy_app_id": proxy_app_id},
+    )
+
+
+def count_assignments_for_proxy_app(tenant_id: TenantArg, proxy_app_id: str) -> int:
+    """Count group assignments for a proxy app.
+
+    Returns:
+        Number of group assignments.
     """
     row = fetchone(
         tenant_id,
         """
+        select count(*) as cnt
+        from sp_group_assignments
+        where proxy_app_id = :proxy_app_id
+        """,
+        {"proxy_app_id": proxy_app_id},
+    )
+    return row["cnt"] if row else 0
+
+
+# Map of supported app kinds to the parent table that owns the available_to_all
+# flag and the grant FK column on sp_group_assignments. Keeping this in one
+# place lets a single resolver serve SAML SPs and proxy apps.
+_APP_KINDS = {
+    "sp_id": "service_providers",
+    "proxy_app_id": "proxy_apps",
+}
+
+
+def user_can_access_app(
+    tenant_id: TenantArg,
+    user_id: str,
+    app_id: str,
+    *,
+    sp_id: bool = False,
+    proxy_app_id: bool = False,
+) -> bool:
+    """Check if a user can access a protected app via group assignments.
+
+    Generic grant resolver shared by SAML service providers and proxy apps.
+    Exactly one of ``sp_id`` / ``proxy_app_id`` must be True to select the app
+    kind; ``app_id`` is the id of that app.
+
+    A user has access if the app is available_to_all, OR they belong to any
+    group that is a descendant of (or equal to) an assigned group. The
+    group_lineage closure table makes the descendant check DAG-aware.
+
+    Returns:
+        True if the user has access, False otherwise.
+    """
+    if sp_id == proxy_app_id:
+        raise ValueError("exactly one of sp_id / proxy_app_id must be True")
+
+    column = "sp_id" if sp_id else "proxy_app_id"
+    parent_table = _APP_KINDS[column]
+
+    row = fetchone(
+        tenant_id,
+        f"""
         select exists (
-            select 1 from service_providers
-            where id = :sp_id and available_to_all = true
+            select 1 from {parent_table}
+            where id = :app_id and available_to_all = true
         ) or exists (
             select 1
             from group_memberships gm
             join group_lineage gl on gl.descendant_id = gm.group_id
             join sp_group_assignments sga on sga.group_id = gl.ancestor_id
-            where gm.user_id = :user_id and sga.sp_id = :sp_id
+            where gm.user_id = :user_id and sga.{column} = :app_id
         ) as has_access
         """,
-        {"user_id": user_id, "sp_id": sp_id},
+        {"user_id": user_id, "app_id": app_id},
     )
     return bool(row and row["has_access"])
+
+
+def user_can_access_sp(tenant_id: TenantArg, user_id: str, sp_id: str) -> bool:
+    """Check if a user can access a service provider via group assignments.
+
+    Thin wrapper over user_can_access_app() for the SAML SP kind. Kept so
+    existing SAML callers are unchanged.
+
+    Returns:
+        True if user has access, False otherwise.
+    """
+    return user_can_access_app(tenant_id, user_id, sp_id, sp_id=True)
+
+
+def user_can_access_proxy_app(tenant_id: TenantArg, user_id: str, proxy_app_id: str) -> bool:
+    """Check if a user can access a proxy app via group assignments.
+
+    Thin wrapper over user_can_access_app() for the proxy-app kind.
+
+    Returns:
+        True if user has access, False otherwise.
+    """
+    return user_can_access_app(tenant_id, user_id, proxy_app_id, proxy_app_id=True)
 
 
 def get_accessible_sps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict]:

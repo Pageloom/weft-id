@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Proxy Apps - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Proxy Apps</h1>
+
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Register an HTTP app behind a
+            <a href="/admin/settings/protected-domains" class="text-blue-600 dark:text-blue-400 hover:underline">verified protected domain</a>
+            so WeftID can gate it with forward auth. WeftID answers your reverse proxy's auth
+            subrequest and injects <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">X-Forwarded-*</code>
+            identity headers on allow.
+        </p>
+
+        {% if success %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">
+                {% if success == 'deleted' %}Proxy app removed.{% else %}Operation completed.{% endif %}
+            </p>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">An error occurred. Try again.</p>
+        </div>
+        {% endif %}
+
+        <div class="mb-8">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Registered Apps</h2>
+
+            {% if apps %}
+            <div class="space-y-3">
+                {% for app in apps %}
+                <div class="border border-gray-200 dark:border-gray-700 rounded-md p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3">
+                                <a href="/admin/settings/proxy-apps/detail/{{ app.id }}"
+                                   class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+                                    {{ app.name }}
+                                </a>
+                                {% if app.enabled %}
+                                <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full">Enabled</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">Disabled</span>
+                                {% endif %}
+                                {% if app.available_to_all %}
+                                <span class="px-2 py-0.5 text-xs font-semibold bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full">All users</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">{{ app.external_url }}</code>
+                                {% if app.domain %}&middot; {{ app.domain }}{% endif %}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <a href="/admin/settings/proxy-apps/detail/{{ app.id }}"
+                               class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">Edit</a>
+                            <form method="post" action="/admin/settings/proxy-apps/delete/{{ app.id }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                                        data-confirm="Remove {{ app.name }}?&#10;&#10;Its group grants will be deleted."
+                                        data-destructive="true">Remove</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="border border-gray-200 dark:border-gray-700 rounded-md p-4 text-center">
+                <p class="text-sm text-gray-500 dark:text-gray-400">No proxy apps registered yet.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Add a Proxy App</h2>
+
+            {% if verified_domains %}
+            <form method="post" action="/admin/settings/proxy-apps/add" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="protected_domain_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Protected domain</label>
+                    <select name="protected_domain_id" id="protected_domain_id" required
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {% for d in verified_domains %}
+                        <option value="{{ d.id }}">{{ d.domain }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Only verified domains can host apps.</p>
+                </div>
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">App name</label>
+                    <input type="text" name="name" id="name" placeholder="Grafana" required maxlength="255"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="external_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">External URL</label>
+                    <input type="text" name="external_url" id="external_url" placeholder="https://grafana.acme-corp.com" required maxlength="2048"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The app's public https address. Its host must be under the protected domain.</p>
+                </div>
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description (optional)</label>
+                    <input type="text" name="description" id="description" maxlength="2000"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" name="available_to_all" class="rounded border-gray-300 dark:border-gray-600">
+                    Available to all authenticated users (no group grant needed)
+                </label>
+                <button type="submit"
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Add App
+                </button>
+            </form>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                You need a
+                <a href="/admin/settings/protected-domains" class="text-blue-600 dark:text-blue-400 hover:underline">verified protected domain</a>
+                before you can add a proxy app.
+                {% if has_unverified %}You have domains pending verification.{% endif %}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+document.querySelectorAll('.confirm-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const form = btn.closest('form');
+        WeftUtils.confirm(btn.dataset.confirm, () => { form.submit(); }, { destructive: btn.dataset.destructive === 'true' });
+    });
+});
+</script>
+{% endblock %}

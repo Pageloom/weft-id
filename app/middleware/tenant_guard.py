@@ -9,11 +9,16 @@ from collections.abc import Awaitable, Callable
 import settings
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.types import ASGIApp
 
 # Paths that bypass tenant validation (infrastructure endpoints)
 _EXEMPT_PATHS = frozenset({"/healthz", "/caddy/check-domain"})
+
+# Forward-auth endpoints are reachable on a protected domain's portal host
+# (e.g. auth.acme-corp.com), which is NOT a *.BASE_DOMAIN tenant subdomain. The
+# guard resolves the owning tenant from that portal host instead of the subdomain.
+_FORWARD_AUTH_PREFIX = "/forward-auth/"
 
 _ERROR_HTML = """\
 <!DOCTYPE html>
@@ -60,14 +65,32 @@ class TenantGuardMiddleware(BaseHTTPMiddleware):
         if request.url.path in _EXEMPT_PATHS:
             return await call_next(request)
 
+        host = _normalize_host(
+            request.headers.get("x-forwarded-host") or request.headers.get("host")
+        )
+
+        # Forward-auth paths may arrive on a protected-domain portal host. Resolve
+        # the owning tenant from that host (verified domains only) and stash it for
+        # downstream handlers. This does NOT affect tenant isolation for normal
+        # paths: it only applies under /forward-auth/ and only admits verified,
+        # enabled portal hosts. Anything else fails closed.
+        if request.url.path.startswith(_FORWARD_AUTH_PREFIX):
+            from services import protected_domains as protected_domains_service
+
+            row = protected_domains_service.resolve_verified_portal_host(host)
+            if row is not None:
+                request.state.forward_auth_tenant_id = str(row["tenant_id"])
+                request.state.forward_auth_domain = row["domain"]
+                request.state.forward_auth_portal_host = row["portal_host"]
+                return await call_next(request)
+            # Not a recognized portal host: fall through to normal tenant guard so
+            # forward-auth requests on a regular tenant subdomain (e.g. the
+            # canonical /forward-auth/authorize step) still work.
+
         base = settings.BASE_DOMAIN
         if not base:
             # BASE_DOMAIN not configured (e.g., test environment). Skip guard.
             return await call_next(request)
-
-        host = _normalize_host(
-            request.headers.get("x-forwarded-host") or request.headers.get("host")
-        )
 
         # Reject bare domain
         if host == base:
@@ -76,5 +99,12 @@ class TenantGuardMiddleware(BaseHTTPMiddleware):
         # Reject www subdomain
         if host == f"www.{base}":
             return HTMLResponse(content=_ERROR_HTML, status_code=400)
+
+        # A forward-auth request on a host that is neither a verified portal host
+        # nor a *.BASE_DOMAIN tenant subdomain has nowhere to resolve: fail closed.
+        if request.url.path.startswith(_FORWARD_AUTH_PREFIX) and not (
+            host == base or host.endswith(f".{base}")
+        ):
+            return JSONResponse({"detail": "Unknown forward-auth host"}, status_code=404)
 
         return await call_next(request)

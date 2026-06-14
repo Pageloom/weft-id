@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Protected Domains - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Protected Domains</h1>
+
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Register a DNS domain you want to protect with forward auth (for example
+            <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">acme-corp.com</code>),
+            so WeftID can gate HTTP apps behind it. You prove control of the domain with a
+            DNS-TXT record, and point a portal host (e.g. <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">auth.acme-corp.com</code>)
+            at WeftID. This is separate from
+            <a href="/admin/settings/privileged-domains" class="text-blue-600 dark:text-blue-400 hover:underline">privileged (email) domains</a>,
+            which route user identity by email address and do not protect web apps.
+        </p>
+
+        {% if success %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">
+                {% if success == 'deleted' %}
+                Protected domain removed.
+                {% else %}
+                Operation completed.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">An error occurred. Try again.</p>
+        </div>
+        {% endif %}
+
+        <div class="mb-8">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Registered Domains</h2>
+
+            {% if domains %}
+            <div class="space-y-3">
+                {% for domain in domains %}
+                <div class="border border-gray-200 dark:border-gray-700 rounded-md p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3">
+                                <a href="/admin/settings/protected-domains/detail/{{ domain.id }}"
+                                   class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+                                    {{ domain.domain }}
+                                </a>
+                                {% if domain.verification_status == 'verified' %}
+                                <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full">Verified</span>
+                                {% elif domain.verification_status == 'failed' %}
+                                <span class="px-2 py-0.5 text-xs font-semibold bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300 rounded-full">Verification failed</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 text-xs font-semibold bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 rounded-full">Pending verification</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Portal host: <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">{{ domain.portal_host }}</code>
+                                &middot; Added {{ fmt_datetime(domain.created_at) }}
+                                {% if domain.created_by_name %}by {{ domain.created_by_name }}{% endif %}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <a href="/admin/settings/protected-domains/detail/{{ domain.id }}"
+                               class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">Setup</a>
+                            <form method="post" action="/admin/settings/protected-domains/delete/{{ domain.id }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                                        data-confirm="Remove {{ domain.domain }} from protected domains?&#10;&#10;Its proxy apps and grants will be deleted."
+                                        data-destructive="true">Remove</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="border border-gray-200 dark:border-gray-700 rounded-md p-4 text-center">
+                <p class="text-sm text-gray-500 dark:text-gray-400">No protected domains registered yet.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Register a Domain to Protect</h2>
+            <form method="post" action="/admin/settings/protected-domains/add" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="domain" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Domain to protect</label>
+                    <input type="text" name="domain" id="domain" placeholder="acme-corp.com"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           required maxlength="253">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The DNS domain your apps live under.</p>
+                </div>
+                <div>
+                    <label for="portal_host" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">WeftID portal host</label>
+                    <input type="text" name="portal_host" id="portal_host" placeholder="auth.acme-corp.com"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           required maxlength="253">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">A hostname under that domain, pointed at WeftID (must be the domain itself or a subdomain of it).</p>
+                </div>
+                <button type="submit"
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Register Domain
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+document.querySelectorAll('.confirm-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const form = btn.closest('form');
+        const message = btn.dataset.confirm;
+        const isDestructive = btn.dataset.destructive === 'true';
+        WeftUtils.confirm(message, () => { form.submit(); }, { destructive: isDestructive });
+    });
+});
+</script>
+{% endblock %}

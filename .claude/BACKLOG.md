@@ -176,161 +176,6 @@ So that the interface is more readable for me without affecting other users.
 
 ---
 
-## Passkey Authentication & Tenant Auth Policy
-
-**User Story:**
-As a super admin,
-I want to require strong authentication (TOTP or passkey) for my tenant's users,
-So that accounts are protected beyond email-based verification.
-
-As a user,
-I want to sign in with a passkey (biometric prompt) instead of typing passwords and codes,
-So that authentication is faster and phishing-resistant.
-
-**Context:**
-
-WeftID currently supports password + email OTP as the baseline, with optional TOTP upgrade.
-There is no tenant-level control over which authentication methods are required. The
-`require_platform_mfa` flag on SAML IdPs exists in the schema and admin UI but is not
-enforced in the SSO flow (bug). This feature introduces passkeys (WebAuthn/FIDO2) as a
-passwordless primary auth method and gives super admins control over minimum auth strength.
-
-**Tenant Auth Policy Model:**
-
-Super admins configure the minimum authentication strength for their tenant:
-
-* **Baseline** (default): Password + email OTP. Current behavior, no change.
-* **Enhanced**: Super admin declares email OTP insufficient. Users must set up TOTP
-  and/or passkey (admin controls which methods are allowed):
-  * TOTP and passkey (user chooses one or both)
-  * TOTP only
-  * Passkey only
-
-**Passkey Login Flow:**
-
-1. User visits login page
-2. Clicks "Sign in with passkey"
-3. Browser/OS prompts biometric (Face ID, fingerprint, Windows Hello)
-4. On success: fully authenticated. No password, no email code, no MFA step
-5. Proceeds to dashboard (or SSO consent if SP-initiated)
-
-**Passkey Registration:**
-
-* Users register passkeys in account settings (opt-in regardless of tenant policy)
-* Multiple passkeys supported (each named by the user, e.g. "MacBook", "iPhone")
-* Registration generates backup codes (same pattern as TOTP)
-* WebAuthn discoverable credentials (resident keys) with user verification required
-
-**Coexistence (TOTP + Passkey):**
-
-A user can have both TOTP and passkey registered. Login defaults to passkey when
-available. A "Can't use passkey? Use one-time code" link falls back to password +
-TOTP/email flow.
-
-**Enforcement Flow (Enhanced Policy):**
-
-When super admin enables enhanced auth and a user has not yet set up a qualifying method:
-
-1. User signs in with email two-step (baseline) as normal
-2. After successful baseline auth, redirected to setup page
-3. User must register a passkey or set up TOTP (depending on allowed methods)
-4. Cannot access dashboard, cannot complete SP-initiated IdP SSO until setup is done
-5. Follows the same redirect-and-block pattern as forced password reset
-
-**Recovery:**
-
-* Backup codes: generated at passkey registration (like TOTP). Can be used when passkey
-  device is unavailable.
-* Admin recovery: admin can reset a user back to baseline auth (email OTP), clearing
-  their enhanced auth requirement. User would need to set up again if tenant policy
-  still requires enhanced auth.
-
-**Platform MFA for IdP-Authenticated Users:**
-
-The existing `require_platform_mfa` flag on SAML identity providers must be enforced.
-When enabled, after successful SAML authentication, the user must complete their
-configured two-step verification method before proceeding:
-
-* If user has passkey: passkey prompt
-* If user has TOTP: TOTP code entry
-* Baseline: email OTP
-
-**Admin Management:**
-
-* Tenant security settings page: auth policy configuration (baseline/enhanced, allowed methods)
-* User detail view: shows registered passkeys (name, created date, last used)
-* Admin can revoke individual passkeys
-* Admin can reset user to baseline auth
-* User list: filterable by auth method (email, TOTP, passkey)
-
-**Acceptance Criteria:**
-
-*Tenant auth policy:*
-- [ ] New tenant security setting: `required_auth_strength` (`baseline` | `enhanced`)
-- [ ] New tenant security setting: `allowed_enhanced_methods` (controls which methods are available when enhanced)
-- [ ] Super admin UI to configure auth policy on tenant security settings page
-- [ ] Default: baseline (no change to existing behavior)
-- [ ] API endpoints for reading/updating tenant auth policy
-
-*Passkey registration:*
-- [ ] `webauthn_credentials` table (user_id, tenant_id, credential_id, public_key, sign_count, name, created_at, last_used_at, etc.)
-- [ ] Migration for new tables and tenant settings columns
-- [ ] Account settings page: register new passkey (WebAuthn registration ceremony)
-- [ ] Support multiple passkeys per user, each with a user-provided name
-- [ ] Backup codes generated at passkey registration (same pattern as TOTP)
-- [ ] Account settings: list registered passkeys with name, created date, last used
-- [ ] Account settings: delete individual passkeys
-- [ ] API endpoints for passkey registration, listing, and deletion
-
-*Passkey authentication:*
-- [ ] Login page: "Sign in with passkey" option (WebAuthn authentication ceremony)
-- [ ] Successful passkey auth: fully authenticated, skip password and MFA
-- [ ] Passkey bound to tenant subdomain (RP ID = tenant domain for isolation)
-- [ ] User verification required (biometric/PIN, not just presence)
-- [ ] Sign count tracked and validated to detect cloned credentials
-- [ ] `user_signed_in` event logged with `method: "passkey"` in metadata
-
-*Coexistence and fallback:*
-- [ ] Users with both TOTP and passkey: login defaults to passkey
-- [ ] "Can't use passkey? Use one-time code" falls back to password + TOTP/email flow
-- [ ] Backup codes usable as fallback for passkey-only users
-
-*Enforcement:*
-- [ ] When enhanced auth required and user lacks qualifying method: redirect to setup after baseline login
-- [ ] Setup page presents allowed methods (TOTP, passkey, or both)
-- [ ] User cannot access dashboard until setup is complete
-- [ ] User cannot complete SP-initiated SSO consent until setup is complete
-- [ ] Follows forced-password-reset redirect-and-block pattern
-
-*Recovery:*
-- [ ] Admin can reset user to baseline auth (clears enhanced auth setup)
-- [ ] Reset logs `user_auth_reset_to_baseline` event
-- [ ] User re-enters enforcement flow on next login if tenant still requires enhanced
-
-*Platform MFA enforcement (bug fix):*
-- [ ] Enforce `require_platform_mfa` flag on SAML IdPs in the SSO flow
-- [ ] After SAML auth, if flag set, require user's configured two-step method
-- [ ] Supports passkey, TOTP, and email OTP based on user's method
-
-*Admin tooling:*
-- [ ] Tenant security settings: auth policy UI (baseline/enhanced, method selection)
-- [ ] User detail: registered passkeys section (name, dates, revoke action)
-- [ ] User list: filter by auth method
-- [ ] Admin action: reset user to baseline auth
-
-*Audit:*
-- [ ] `passkey_registered`, `passkey_deleted`, `passkey_auth_success`, `passkey_auth_failure` event types
-- [ ] `tenant_auth_policy_updated` event type
-- [ ] `user_auth_reset_to_baseline` event type
-- [ ] `platform_mfa_enforced` event type (for IdP users)
-- [ ] `track_activity()` for read operations
-
-**Effort:** XL
-**Value:** High
-**Version impact:** Minor (new feature, new tables, additive settings with defaults. Platform MFA enforcement is a bug fix bundled in.)
-
----
-
 ## HMAC-Based Export Data Verification
 
 **User Story:**
@@ -521,19 +366,21 @@ This is the dominant pattern for protecting homelab and small-team apps (Sonarr 
 - Reverse-proxy contract: 200 on allow (with `X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Groups`, and `X-Forwarded-Display-Name` headers for the upstream app to consume); 302 on missing/expired session (to `/forward-auth/start?return_url=<original>`); 403 on signed-in-but-denied.
 - Cookie scope: WeftID's session cookie is already tenant-subdomain scoped. Forward-auth check inspects the same cookie. Apps live on the same parent domain (e.g. `grafana.id.example.com`) and share the cookie scope.
 - New resource: **Proxy App**. Analogous to a SAML SP. Has: name, external URL pattern (`https://grafana.example.com`), group grants (which groups can access), optional forwarded-header config (which headers to set), optional public-paths list (URLs that bypass auth, e.g. `/healthz`). Lives in the admin UI alongside SAML SPs.
+- **Decided (grooming):** Proxy Apps live **under the Service Providers section** in the admin UI (not a separate top-level section), reinforcing the shared "protected app" model.
 - Group-based access: reuses the existing SP-group-grant model. Effective vs direct membership configurable per app.
+- **Decided (grooming):** group grants **reuse the existing SP-group plumbing** rather than a parallel `proxy_app_groups` table. `/lead` should introduce/extend a shared "protected app" abstraction over `sp_groups` so SAML SPs and proxy apps share grant logic.
 - Audit: each `/check` decision logs an audit event (configurable verbosity since per-request logging at scale would flood the log). Default: log on first allow per session, on every deny, and on session expiry.
 - Reverse-proxy examples for the documentation: Traefik `forwardAuth` middleware, nginx `auth_request`, Caddy `forward_auth` directive. The docs page should show full working configs for each.
-- One Postgres table: `proxy_apps` (tenant-scoped, name, URL pattern, header config, public paths). Group grants reuse the existing `sp_groups` table or a parallel `proxy_app_groups` table (decide during design; reusing is cleaner if a "ProtectedApp" parent abstraction emerges).
+- One Postgres table: `proxy_apps` (tenant-scoped, name, URL pattern, header config, public paths). Group grants **reuse the existing `sp_groups` plumbing** (decided in grooming) behind a shared "protected app" abstraction; no separate `proxy_app_groups` table.
 - Deployment: single container, no new component. The `/forward-auth/*` endpoints live in the existing FastAPI app, scaled by the same compose service.
 
 **Acceptance Criteria:**
 
 - [ ] Migration adds `proxy_apps` table (tenant-scoped, name, external URL pattern, public paths, forwarded-header config, available_to_all flag)
-- [ ] Migration adds `proxy_app_groups` table for group-based access grants (or extends the existing SP-group plumbing if the data model converges)
+- [ ] Group-based access grants reuse the existing SP-group plumbing (`sp_groups`) behind a shared "protected app" abstraction (decided in grooming; no separate `proxy_app_groups` table)
 - [ ] `GET /forward-auth/check` endpoint: 200 on allow with forwarded-user headers; 302 on missing/expired session; 403 on signed-in-but-denied
 - [ ] `GET /forward-auth/start?return_url=...` endpoint: validates return_url against registered proxy apps for the tenant (prevents open-redirect); kicks off the standard sign-in flow; returns to the original URL on success
-- [ ] Admin UI: **Proxy Apps** section under Service Providers (or its own top-level admin section, TBD during design) with create / edit / delete, group grants, public-paths list, forwarded-header config, copy-paste reverse-proxy config snippet
+- [ ] Admin UI: **Proxy Apps** section under the Service Providers section (decided in grooming) with create / edit / delete, group grants, public-paths list, forwarded-header config, copy-paste reverse-proxy config snippet
 - [ ] Header forwarding: `X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Groups`, `X-Forwarded-Display-Name` set on allow responses (configurable per app)
 - [ ] Public-paths bypass: requests matching configured patterns return 200 without auth (for healthchecks, public assets)
 - [ ] Audit events: `proxy_app_created`, `proxy_app_updated`, `proxy_app_deleted`, `proxy_app_grant_added`, `proxy_app_grant_removed`, `proxy_access_granted` (rate-limited: first allow per session), `proxy_access_denied`, `proxy_session_expired`
@@ -542,7 +389,11 @@ This is the dominant pattern for protecting homelab and small-team apps (Sonarr 
 - [ ] Test coverage: unit tests for the `/check` endpoint covering allow / deny / unauthenticated / public-path bypass / open-redirect rejection; integration test with a real Traefik container forwarding to a dummy upstream
 - [ ] Rate limiting on `/check` (because the reverse proxy hits it on every request to every protected resource — needs to be fast and resilient to floods)
 
-**Effort:** L
+**Effort:** XL (re-scoped from L during `/lead` grooming: forward auth must work across
+*different* domains, not just subdomains of the tenant host. That requires a per-domain
+cookie minted via an OAuth-style redirect handshake with signed single-use tokens, DNS-TXT
+domain-ownership verification, on-demand TLS for protected-domain portal hosts, and
+host->tenant resolution. In effect a forward-auth IdP. See `.claude/ITERATION_forward_auth_proxy.md`.)
 **Value:** Very High (the dominant pattern for protecting legacy HTTP apps in homelab and small-team deployments; one of the few SSO capabilities a tenant cannot get via SAML or OIDC alone)
 **Version impact:** Minor (additive: new tables, new endpoints, new admin section, new event types; no breaking changes to SAML / OAuth2 / SCIM)
 

@@ -4,6 +4,47 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Passkey Authentication & Tenant Auth Policy
+
+**Status:** Complete (2026-04-18, commits `97a4542` + `8edc155`)
+
+**Summary:** WeftID gained passwordless passkey (WebAuthn/FIDO2) authentication as a
+primary sign-in method, plus a tenant-level auth-strength policy (`baseline` vs
+`enhanced`) letting super admins declare email OTP insufficient and require TOTP and/or
+passkey. The long-standing bug where `require_platform_mfa` on SAML IdPs was stored but
+never enforced in the SSO flow was fixed as part of this work.
+
+**Implementation highlights:**
+
+- Migrations `0031_tenant_auth_policy.sql` (tenant `required_auth_strength` /
+  `allowed_enhanced_methods` columns) and `0032_webauthn_credentials.sql`
+  (`webauthn_credentials` table: credential id, public key, sign count, user-provided
+  name, created/last-used timestamps).
+- WebAuthn ceremony plumbing across `app/utils/webauthn.py`, `app/services/webauthn.py`,
+  `app/database/webauthn_credentials.py`, `app/schemas/webauthn.py` (built on the
+  `webauthn ^2.5.0` library).
+- Registration UX in `app/routers/account_passkeys.py` (+ API parity under
+  `app/routers/api/v1/account_passkeys.py`): register, list, rename, delete; multiple
+  named passkeys per user; user verification required.
+- Login flow in `app/routers/auth/passkey_login.py` with scoped ceremony (RP ID bound to
+  tenant subdomain) and sign-count clone detection; falls back to password + TOTP/email.
+- Enhanced-auth enforcement in `app/routers/auth/enhanced_enrollment.py` using the
+  `pending_enhanced_enrollment_user_id` session key, mirroring the forced-password-reset
+  redirect-and-block pattern (cannot reach dashboard or complete SP-initiated SSO until
+  enrolled).
+- `require_platform_mfa` now consumed in `app/services/saml/auth.py` (`requires_mfa=...`),
+  closing the enforcement gap.
+- Admin tooling: registered-passkey view and reset-to-baseline on the user detail page;
+  user-list filtering by auth method (`app/routers/api/v1/users_passkeys.py`,
+  `app/database/users/listing.py`).
+- Event types registered in `app/constants/event_types.py`: `passkey_registered`,
+  `passkey_auth_success` (and siblings), `tenant_auth_policy_updated`.
+
+**Version impact:** Minor (new feature, two new migrations/tables, additive settings with
+safe defaults; the platform-MFA enforcement is a bundled bug fix).
+
+---
+
 ## Admin Notification on Auto-Inactivation
 
 **Status:** Complete (2026-05-30)

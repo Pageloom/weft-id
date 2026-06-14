@@ -145,3 +145,51 @@ class TestCheckDomain:
         response = client.get("/caddy/check-domain", params={"domain": domain})
 
         assert response.status_code == 404
+
+
+def _insert_protected_domain(tenant_id, domain, portal_host, status="verified", enabled=True):
+    """Insert a protected domain row directly for ask-endpoint tests."""
+    import database
+
+    return database.protected_domains.create_protected_domain(
+        tenant_id=tenant_id,
+        tenant_id_value=str(tenant_id),
+        domain=domain,
+        portal_host=portal_host,
+        created_by=None,
+        verification_status=status,
+        enabled=enabled,
+    )
+
+
+class TestCheckDomainPortalHost:
+    """Ask-endpoint admission of forward-auth protected-domain portal hosts."""
+
+    def test_verified_portal_host_returns_200(self, client: TestClient, test_tenant):
+        """A verified, enabled portal host on an external domain is admitted."""
+        _insert_protected_domain(test_tenant["id"], "askv1.com", "auth.askv1.com")
+        response = client.get("/caddy/check-domain", params={"domain": "auth.askv1.com"})
+        assert response.status_code == 200
+
+    def test_pending_portal_host_returns_404(self, client: TestClient, test_tenant):
+        """An unverified portal host is NOT admitted (fail closed)."""
+        _insert_protected_domain(test_tenant["id"], "askv2.com", "auth.askv2.com", status="pending")
+        response = client.get("/caddy/check-domain", params={"domain": "auth.askv2.com"})
+        assert response.status_code == 404
+
+    def test_disabled_portal_host_returns_404(self, client: TestClient, test_tenant):
+        """A disabled (but verified) portal host is NOT admitted."""
+        _insert_protected_domain(test_tenant["id"], "askv3.com", "auth.askv3.com", enabled=False)
+        response = client.get("/caddy/check-domain", params={"domain": "auth.askv3.com"})
+        assert response.status_code == 404
+
+    def test_unregistered_external_host_returns_404(self, client: TestClient):
+        """An external host with no registration is NOT admitted."""
+        response = client.get("/caddy/check-domain", params={"domain": "auth.not-registered.com"})
+        assert response.status_code == 404
+
+    def test_verified_portal_host_case_insensitive(self, client: TestClient, test_tenant):
+        """Portal-host admission is case/trailing-dot insensitive."""
+        _insert_protected_domain(test_tenant["id"], "askv4.com", "auth.askv4.com")
+        response = client.get("/caddy/check-domain", params={"domain": "AUTH.ASKV4.COM."})
+        assert response.status_code == 200

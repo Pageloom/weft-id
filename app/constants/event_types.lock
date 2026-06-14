@@ -74,6 +74,9 @@ password_set
 primary_email_changed
 privileged_domain_added
 privileged_domain_deleted
+protected_domain_deleted
+protected_domain_registered
+protected_domain_verified
 reactivation_approved
 reactivation_denied
 reactivation_requested

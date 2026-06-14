@@ -8,7 +8,11 @@ import logging
 
 import settings
 from fastapi import APIRouter, Query, Response
-from services.health import check_db_connectivity, check_subdomain_exists
+from services.health import (
+    check_db_connectivity,
+    check_subdomain_exists,
+    is_admittable_portal_host,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +50,19 @@ def check_domain(domain: str = Query("")) -> Response:
     if domain == base:
         return Response(status_code=200)
 
-    # Must be a direct subdomain of BASE_DOMAIN
+    # Direct subdomain of BASE_DOMAIN that maps to an existing tenant.
     suffix = f".{base}"
-    if not domain.endswith(suffix):
+    if domain.endswith(suffix):
+        subdomain = domain[: -len(suffix)]
+        # Reject multi-level subdomains (e.g., foo.bar.id.example.com)
+        if "." not in subdomain and check_subdomain_exists(subdomain):
+            return Response(status_code=200)
         return Response(status_code=404)
 
-    subdomain = domain[: -len(suffix)]
-
-    # Reject multi-level subdomains (e.g., foo.bar.id.example.com)
-    if "." in subdomain:
-        return Response(status_code=404)
-
-    if check_subdomain_exists(subdomain):
+    # Forward-auth portal host for a VERIFIED protected domain (any external
+    # domain the operator has proven control of via the DNS-TXT challenge).
+    # A successful HTTP-01 challenge then doubles as proof of host control.
+    if is_admittable_portal_host(domain):
         return Response(status_code=200)
 
     return Response(status_code=404)

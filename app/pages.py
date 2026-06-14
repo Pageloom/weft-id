@@ -439,6 +439,22 @@ PAGES = [
                         ],
                     ),
                     Page(
+                        path="/admin/settings/protected-domains",
+                        title="Protected Domains",
+                        permission=PagePermission.SUPER_ADMIN,
+                        show_in_nav=True,
+                        docs_path="/docs/admin-guide/service-providers/forward-auth/",
+                        children=[
+                            Page(
+                                path="/admin/settings/protected-domains/detail",
+                                title="Protected Domain Details",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                        ],
+                    ),
+                    Page(
                         path="/admin/settings/user-attributes",
                         title="User attributes",
                         permission=PagePermission.SUPER_ADMIN,

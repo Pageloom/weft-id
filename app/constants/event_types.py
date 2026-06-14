@@ -124,6 +124,10 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "domain_group_link_created": "Group linked to privileged domain for auto-assignment",
     "domain_group_link_deleted": "Group unlinked from privileged domain",
     "domain_group_auto_assigned": "User auto-assigned to groups based on email domain",
+    # Forward-Auth Protected Domains
+    "protected_domain_registered": "Protected domain registered for forward auth",
+    "protected_domain_verified": "Protected domain ownership verified via DNS-TXT challenge",
+    "protected_domain_deleted": "Protected domain removed",
     # Background Tasks & Exports
     "export_task_created": "Background export job created",
     "export_downloaded": "Export file downloaded",
@@ -359,6 +363,9 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "tenant_auth_policy_updated": "admin",
     "domain_group_link_created": "admin",
     "domain_group_link_deleted": "admin",
+    "protected_domain_registered": "admin",
+    "protected_domain_verified": "admin",
+    "protected_domain_deleted": "admin",
     "branding_logo_uploaded": "admin",
     "branding_logo_deleted": "admin",
     "branding_settings_updated": "admin",

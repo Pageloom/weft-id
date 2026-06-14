@@ -28,6 +28,7 @@ from routers import branding as branding_router  # noqa: E402
 from routers import groups as groups_router  # noqa: E402
 from routers import health as health_router  # noqa: E402
 from routers import integrations as integrations_router  # noqa: E402
+from routers import protected_domains as protected_domains_router  # noqa: E402
 from routers import saml_idp as saml_idp_router  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
 from routers import settings_branding as settings_branding_router  # noqa: E402
@@ -38,6 +39,7 @@ from routers.api.v1 import exports as exports_api  # noqa: E402
 from routers.api.v1 import groups as groups_api  # noqa: E402
 from routers.api.v1 import jobs as jobs_api  # noqa: E402
 from routers.api.v1 import oauth2_clients  # noqa: E402
+from routers.api.v1 import protected_domains as protected_domains_api  # noqa: E402
 from routers.api.v1 import reactivation as reactivation_api  # noqa: E402
 from routers.api.v1 import saml as saml_api  # noqa: E402
 from routers.api.v1 import saml_identity_providers as saml_identity_providers_api  # noqa: E402
@@ -140,6 +142,7 @@ app.include_router(account_passkeys_router.router)
 app.include_router(admin_router.router)
 app.include_router(groups_router.router)
 app.include_router(integrations_router.router)
+app.include_router(protected_domains_router.router)
 app.include_router(saml_idp_router.router)
 app.include_router(settings_router.router)
 app.include_router(settings_branding_router.router)
@@ -158,6 +161,7 @@ app.include_router(exports_api.router)
 app.include_router(groups_api.router)
 app.include_router(jobs_api.router)
 app.include_router(oauth2_clients.router)
+app.include_router(protected_domains_api.router)
 app.include_router(reactivation_api.router)
 app.include_router(saml_api.router)
 app.include_router(saml_identity_providers_api.router)

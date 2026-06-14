@@ -455,6 +455,22 @@ PAGES = [
                         ],
                     ),
                     Page(
+                        path="/admin/settings/proxy-apps",
+                        title="Proxy Apps",
+                        permission=PagePermission.SUPER_ADMIN,
+                        show_in_nav=True,
+                        docs_path="/docs/admin-guide/service-providers/forward-auth/",
+                        children=[
+                            Page(
+                                path="/admin/settings/proxy-apps/detail",
+                                title="Proxy App Details",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                        ],
+                    ),
+                    Page(
                         path="/admin/settings/user-attributes",
                         title="User attributes",
                         permission=PagePermission.SUPER_ADMIN,

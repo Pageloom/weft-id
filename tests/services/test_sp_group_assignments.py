@@ -103,6 +103,20 @@ def _make_app_row(
     }
 
 
+def _make_proxy_app_row(
+    proxy_app_id: str | None = None,
+    name: str = "Test Proxy App",
+    external_url: str = "https://grafana.acme-corp.com",
+) -> dict:
+    """Create a mock accessible proxy-app row (shape of the proxy query)."""
+    return {
+        "id": proxy_app_id or str(uuid4()),
+        "name": name,
+        "description": "A proxied HTTP app",
+        "external_url": external_url,
+    }
+
+
 # =============================================================================
 # list_sp_group_assignments
 # =============================================================================
@@ -1064,6 +1078,7 @@ class TestGetUserAccessibleApps:
             patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
             result = sp_service.get_user_accessible_apps(requesting_user)
 
@@ -1084,6 +1099,7 @@ class TestGetUserAccessibleApps:
             patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
             result = sp_service.get_user_accessible_apps(requesting_user)
 
@@ -1102,6 +1118,7 @@ class TestGetUserAccessibleApps:
             patch("services.service_providers.group_assignments.track_activity") as mock_track,
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
             sp_service.get_user_accessible_apps(requesting_user)
 
@@ -1119,6 +1136,7 @@ class TestGetUserAccessibleApps:
                 patch("services.service_providers.group_assignments.track_activity"),
             ):
                 mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
+                mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
                 result = sp_service.get_user_accessible_apps(requesting_user)
 
@@ -1150,6 +1168,7 @@ class TestGetUserAccessibleAppsExtended:
             patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
             result = sp_service.get_user_accessible_apps(requesting_user)
 
@@ -1170,6 +1189,7 @@ class TestGetUserAccessibleAppsExtended:
             patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
             result = sp_service.get_user_accessible_apps(requesting_user)
 
@@ -1196,6 +1216,7 @@ class TestGetUserAccessibleAppsExtended:
             patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [app_row]
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
             result = sp_service.get_user_accessible_apps(requesting_user)
 
@@ -1222,6 +1243,7 @@ class TestGetUserAccessibleAppsExtended:
             patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [app_row]
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
             result = sp_service.get_user_accessible_apps(requesting_user)
 
@@ -1244,11 +1266,158 @@ class TestGetUserAccessibleAppsExtended:
             patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
             result = sp_service.get_user_accessible_apps(requesting_user)
 
             names = [item.name for item in result.items]
             assert names == ["Alpha", "Beta", "Gamma"]
+
+
+# =============================================================================
+# get_user_accessible_apps - proxy apps merged into My Apps
+# =============================================================================
+
+
+class TestGetUserAccessibleAppsWithProxy:
+    """My Apps merges SAML SPs and forward-auth proxy apps."""
+
+    def test_saml_app_has_kind_and_launch_url(self, make_requesting_user):
+        """A SAML row gets kind='saml' and the IdP launch path."""
+        from services import service_providers as sp_service
+
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(role="user")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [
+                _make_app_row(sp_id=sp_id, name="SAML App")
+            ]
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            item = result.items[0]
+            assert item.kind == "saml"
+            assert item.launch_url == f"/saml/idp/launch/{sp_id}"
+            assert item.entity_id == "https://app.example.com"
+
+    def test_proxy_app_has_kind_and_external_launch_url(self, make_requesting_user):
+        """A proxy row gets kind='proxy' and launch_url = its external URL."""
+        from services import service_providers as sp_service
+
+        proxy_id = str(uuid4())
+        requesting_user = make_requesting_user(role="user")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = [
+                _make_proxy_app_row(
+                    proxy_app_id=proxy_id,
+                    name="Grafana",
+                    external_url="https://grafana.acme-corp.com",
+                )
+            ]
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            item = result.items[0]
+            assert item.id == proxy_id
+            assert item.kind == "proxy"
+            assert item.launch_url == "https://grafana.acme-corp.com"
+            # Proxy apps carry no SAML-only fields.
+            assert item.entity_id is None
+            assert item.has_logo is False
+            assert item.logo_updated_at is None
+
+    def test_merged_and_sorted_by_name(self, make_requesting_user):
+        """SAML + proxy apps are merged and sorted case-insensitively by name."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="user")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [
+                _make_app_row(name="charlie"),
+                _make_app_row(name="Alpha"),
+            ]
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = [
+                _make_proxy_app_row(name="bravo"),
+                _make_proxy_app_row(name="Delta"),
+            ]
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            assert result.total == 4
+            assert [i.name for i in result.items] == ["Alpha", "bravo", "charlie", "Delta"]
+            kinds = {i.name: i.kind for i in result.items}
+            assert kinds == {
+                "Alpha": "saml",
+                "bravo": "proxy",
+                "charlie": "saml",
+                "Delta": "proxy",
+            }
+
+    def test_only_proxy_apps(self, make_requesting_user):
+        """A user with only proxy access still gets a populated list."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="user")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = [
+                _make_proxy_app_row(name="Sonarr")
+            ]
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            assert result.total == 1
+            assert result.items[0].kind == "proxy"
+
+    def test_same_name_saml_and_proxy_kept_as_distinct_items(self, make_requesting_user):
+        """A SAML SP and a proxy app sharing a name are NOT merged.
+
+        The merge concatenates the two kinds (they live in disjoint id spaces);
+        a same-named SP and proxy app are genuinely different apps and must both
+        appear, distinguished by kind/launch_url.
+        """
+        from services import service_providers as sp_service
+
+        sp_id = str(uuid4())
+        proxy_id = str(uuid4())
+        requesting_user = make_requesting_user(role="user")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [
+                _make_app_row(sp_id=sp_id, name="Dashboards")
+            ]
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = [
+                _make_proxy_app_row(proxy_app_id=proxy_id, name="Dashboards")
+            ]
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            assert result.total == 2
+            kinds = sorted(i.kind for i in result.items)
+            assert kinds == ["proxy", "saml"]
+            ids = {i.id for i in result.items}
+            assert ids == {sp_id, proxy_id}
 
 
 # =============================================================================

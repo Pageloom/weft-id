@@ -1,8 +1,21 @@
 # Caddyfile for WeftID production deployment
 #
 # Requires BASE_DOMAIN environment variable (e.g., id.example.com).
-# Caddy obtains individual TLS certificates per subdomain via HTTP-01
+# Caddy obtains individual TLS certificates per host via HTTP-01
 # challenge (on-demand TLS). No DNS provider configuration needed.
+#
+# Three site classes are served, all proxied to the same app:
+#   - BASE_DOMAIN          : the apex tenant/admin host
+#   - *.BASE_DOMAIN        : per-tenant subdomains
+#   - any other host       : forward-auth portal hosts on protected domains
+#                            (e.g. auth.acme-corp.com), admitted on demand by
+#                            the /caddy/check-domain ask endpoint.
+#
+# The ask endpoint gates which hosts may obtain a certificate: it admits
+# *.BASE_DOMAIN tenant subdomains AND verified protected-domain portal hosts,
+# and refuses everything else. This prevents certificate-issuance abuse while
+# letting a self-hoster point auth.<their-domain> at WeftID and have a cert
+# issued automatically once the domain is verified.
 
 {
 	on_demand_tls {
@@ -20,6 +33,23 @@
 }
 
 *.{$BASE_DOMAIN} {
+	tls {
+		on_demand
+	}
+	request_body {
+		max_size 1MB
+	}
+	reverse_proxy app:8000 {
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+# Catch-all for forward-auth portal hosts on protected domains. These live on
+# domains unrelated to BASE_DOMAIN, so they cannot be matched by the wildcard
+# above. on-demand TLS + the ask endpoint ensure only verified portal hosts
+# are admitted; the app's TenantGuardMiddleware resolves the owning tenant and
+# serves only /forward-auth/* (and /caddy/check-domain) for them.
+:443 {
 	tls {
 		on_demand
 	}

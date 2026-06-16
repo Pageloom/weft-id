@@ -2,6 +2,14 @@
 
 Privileged domains let you route users to a specific identity provider and auto-assign them to groups based on their email domain.
 
+!!! note "Privileged domains are not protected (web) domains"
+    A **privileged domain** here is an **email** domain (`acme.com`) used to route
+    identity and auto-assign groups. It is unrelated to a
+    [protected domain](../service-providers/forward-auth.md), which is a DNS/web
+    domain proven with a DNS-TXT challenge so WeftID can gate HTTP apps behind it
+    with forward auth. The same string can be registered as both; they are
+    independent concepts.
+
 ## Adding a domain
 
 1. Navigate to **Settings > Privileged Domains**

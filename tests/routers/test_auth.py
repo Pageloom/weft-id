@@ -2013,8 +2013,20 @@ def test_dashboard_shows_my_apps(test_user, mocker):
 
     # Set up mock apps with two entries
     app_items = [
-        UserApp(id="sp-1", name="App One", description="First app", entity_id="urn:app:one"),
-        UserApp(id="sp-2", name="App Two", description=None, entity_id="urn:app:two"),
+        UserApp(
+            id="sp-1",
+            name="App One",
+            description="First app",
+            entity_id="urn:app:one",
+            launch_url="/saml/idp/launch/sp-1",
+        ),
+        UserApp(
+            id="sp-2",
+            name="App Two",
+            description=None,
+            entity_id="urn:app:two",
+            launch_url="/saml/idp/launch/sp-2",
+        ),
     ]
     mock_apps.return_value = UserAppList(items=app_items, total=2)
 

@@ -8,3 +8,4 @@ Register downstream applications as SAML service providers. WeftID acts as the i
 - [SSO Flow](sso-flow.md) — How single sign-on works end to end
 - [Single Logout](slo.md) — How sign-out propagates to applications
 - [Outbound SCIM Provisioning](scim.md) — Push user and group changes to downstream applications
+- [Forward Auth for HTTP Apps](forward-auth.md) — Gate apps with no built-in SSO at your reverse proxy

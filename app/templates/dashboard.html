@@ -52,10 +52,10 @@
         {% if user_apps %}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {% for app in user_apps %}
-            <a href="/saml/idp/launch/{{ app.id }}"
+            <a href="{{ app.launch_url }}"
                class="group flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors">
                 <div class="flex items-center gap-3 min-w-0">
-                    {% if app.has_logo %}
+                    {% if app.kind == 'saml' and app.has_logo %}
                     <img src="/branding/sp-logo/{{ app.id }}{% if app.logo_updated_at %}?v={{ app.logo_updated_at.timestamp() | int }}{% endif %}"
                          width="32" height="32"
                          class="rounded border border-gray-200 dark:border-gray-700 flex-shrink-0" alt="">

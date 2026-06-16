@@ -150,3 +150,50 @@ class TestForwardAuthHostResolution:
 
         assert response.status_code == 422
         assert response.json().get("detail") != "Unknown forward-auth host"
+
+    def test_check_subrequest_resolves_from_host_not_forwarded_app_host(
+        self, client: TestClient, test_tenant
+    ):
+        """On a /check subrequest, tenant resolves from the portal Host header.
+
+        The real proxy shape sends Host=<portal host> and X-Forwarded-Host=<the
+        original app host>. The app host is NOT a verified portal host, so the
+        guard must resolve the tenant from Host (candidate order: Host first) and
+        admit the request to the handler, not fail closed with 404.
+        """
+        _insert_verified_domain(test_tenant["id"], "candorder.com", "auth.candorder.com")
+
+        response = client.get(
+            "/forward-auth/check",
+            headers={
+                "host": "auth.candorder.com",
+                "x-forwarded-host": "grafana.candorder.com",
+                "x-forwarded-uri": "/",
+            },
+        )
+
+        # Admitted past the guard: the handler runs and fails closed with 403
+        # (no proxy app configured), NOT the middleware's 404 "unknown host".
+        assert response.status_code == 403
+
+    def test_unverified_portal_host_fails_closed(self, client: TestClient, test_tenant):
+        """A registered-but-UNVERIFIED portal host is not admitted (fails closed).
+
+        resolve_verified_portal_host gates on verification_status='verified'; a
+        pending domain must yield the middleware's 404, never tenant context.
+        """
+        import database
+
+        database.protected_domains.create_protected_domain(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            domain="pending-fa.com",
+            portal_host="auth.pending-fa.com",
+            created_by=None,
+            verification_status="pending",
+        )
+
+        response = client.get("/forward-auth/check", headers={"host": "auth.pending-fa.com"})
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Unknown forward-auth host"

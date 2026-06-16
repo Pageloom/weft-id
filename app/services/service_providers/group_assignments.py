@@ -386,6 +386,13 @@ def get_user_accessible_apps(
 ) -> UserAppList:
     """Get all apps accessible to the requesting user.
 
+    Merges SAML service providers and forward-auth proxy apps into a single
+    My Apps list. Both kinds resolve access through the shared grant model
+    (group assignments via the DAG closure table, plus available_to_all). Each
+    item carries a ``kind`` discriminator and a server-computed ``launch_url``
+    so the dashboard and API consumers can branch without knowing the per-kind
+    URL convention.
+
     Authorization: Any authenticated user.
     """
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
@@ -393,16 +400,34 @@ def get_user_accessible_apps(
     tenant_id = requesting_user["tenant_id"]
     user_id = requesting_user["id"]
 
-    rows = database.sp_group_assignments.get_accessible_sps_for_user(tenant_id, user_id)
+    sp_rows = database.sp_group_assignments.get_accessible_sps_for_user(tenant_id, user_id)
+    proxy_rows = database.sp_group_assignments.get_accessible_proxy_apps_for_user(
+        tenant_id, user_id
+    )
+
     items = [
         UserApp(
             id=str(row["id"]),
             name=row["name"],
             description=row.get("description"),
+            kind="saml",
+            launch_url=f"/saml/idp/launch/{row['id']}",
             entity_id=row["entity_id"],
             has_logo=row.get("has_logo", False),
             logo_updated_at=row.get("logo_updated_at"),
         )
-        for row in rows
+        for row in sp_rows
     ]
+    items.extend(
+        UserApp(
+            id=str(row["id"]),
+            name=row["name"],
+            description=row.get("description"),
+            kind="proxy",
+            launch_url=row["external_url"],
+        )
+        for row in proxy_rows
+    )
+
+    items.sort(key=lambda a: a.name.lower())
     return UserAppList(items=items, total=len(items))

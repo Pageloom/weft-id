@@ -326,6 +326,40 @@ def get_accessible_sps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict
     )
 
 
+def get_accessible_proxy_apps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict]:
+    """Get all proxy apps a user can access via group assignments.
+
+    Mirrors get_accessible_sps_for_user() for the proxy-app kind: DAG-aware
+    via the group_lineage closure table, unioned with available_to_all apps,
+    filtered to enabled apps. Proxy apps have no trust_established flag and no
+    logo table, so those predicates/joins are dropped. The external_url is
+    returned so the service can compute the launch target (navigating to it
+    trips the forward-auth handshake).
+
+    Returns:
+        List of proxy-app dicts the user can access, ordered by name.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select distinct pa.id, pa.name, pa.description, pa.external_url
+        from proxy_apps pa
+        join sp_group_assignments sga on sga.proxy_app_id = pa.id
+        join group_lineage gl on gl.ancestor_id = sga.group_id
+        join group_memberships gm on gm.group_id = gl.descendant_id
+        where gm.user_id = :user_id
+          and pa.enabled = true
+        union
+        select pa.id, pa.name, pa.description, pa.external_url
+        from proxy_apps pa
+        where pa.available_to_all = true
+          and pa.enabled = true
+        order by name
+        """,
+        {"user_id": user_id},
+    )
+
+
 def get_accessible_sps_with_nameid_for_user(tenant_id: TenantArg, user_id: str) -> list[dict]:
     """Get accessible SPs for a user with their NameID format.
 

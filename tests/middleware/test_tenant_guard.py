@@ -125,27 +125,28 @@ class TestForwardAuthHostResolution:
         assert response.json()["detail"] == "Unknown forward-auth host"
 
     def test_verified_portal_host_passes_guard(self, client: TestClient, test_tenant):
-        """A verified portal host passes the guard (no JSON 404 from the middleware).
+        """A verified portal host passes the guard and reaches the /check route.
 
-        No /forward-auth/check route exists yet (Iteration 5), so FastAPI returns
-        its own 404 with the default 'Not Found' detail. The point is the request
-        is NOT rejected by the guard's fail-closed branch.
+        The route now exists (Iteration 5). With no proxy app fronting the host
+        it fails closed at the handler with 403 (deny), NOT the middleware's
+        fail-closed 404. The point is the request is admitted past the guard.
         """
         _insert_verified_domain(test_tenant["id"], "faresolve.com", "auth.faresolve.com")
 
         response = client.get("/forward-auth/check", headers={"host": "auth.faresolve.com"})
 
-        assert response.status_code == 404
-        # FastAPI's default 404, not the middleware's fail-closed message.
-        assert response.json()["detail"] != "Unknown forward-auth host"
+        # Handler-level deny (no app configured), not the middleware's 404.
+        assert response.status_code == 403
 
     def test_forward_auth_on_tenant_subdomain_passes_guard(self, client: TestClient, test_tenant):
         """A /forward-auth request on a normal tenant subdomain is not fail-closed."""
         import settings
 
         host = f"{test_tenant['subdomain']}.{settings.BASE_DOMAIN}"
+        # /authorize requires domain + portal_host query params; omitting them
+        # yields FastAPI's 422 (validation), proving the guard admitted the
+        # request rather than rejecting it with the fail-closed 404.
         response = client.get("/forward-auth/authorize", headers={"host": host})
 
-        # Route doesn't exist yet, but the guard must not block it.
-        assert response.status_code == 404
+        assert response.status_code == 422
         assert response.json().get("detail") != "Unknown forward-auth host"

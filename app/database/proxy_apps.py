@@ -8,7 +8,7 @@ layer. All queries are RLS-scoped by tenant.
 
 import json
 
-from database._core import TenantArg, execute, fetchall, fetchone
+from database._core import TenantArg, escape_like, execute, fetchall, fetchone
 
 _COLUMNS = """id, tenant_id, protected_domain_id, name, description,
               external_url, public_paths, header_config, available_to_all,
@@ -64,6 +64,53 @@ def get_proxy_app(tenant_id: TenantArg, proxy_app_id: str) -> dict | None:
         where id = :proxy_app_id
         """,
         {"proxy_app_id": proxy_app_id},
+    )
+
+
+def get_enabled_proxy_app_for_domain_and_host(
+    tenant_id: TenantArg,
+    protected_domain_id: str,
+    external_host: str,
+) -> dict | None:
+    """Resolve the enabled proxy app under a domain that fronts *external_host*.
+
+    The forward-auth ``/check`` hot path uses this: it is a single indexed query
+    (on ``protected_domain_id``) that additionally filters by the app's external
+    URL host. Matching is done on the URL's authority (``https://<host>`` exact,
+    or ``https://<host>/...`` / ``https://<host>:port...``) so a host can never
+    match a different app by substring. Only enabled apps are returned.
+
+    Returns:
+        Proxy-app dict, or None if no enabled app fronts that host.
+    """
+    exact = f"https://{external_host}"
+    # LIKE patterns built in Python; the host is escaped so its own characters
+    # cannot act as wildcards. The trailing % / authority delimiter is a literal
+    # LIKE wildcard added here (not in the SQL text, which psycopg reserves).
+    escaped = escape_like(external_host)
+    path_pattern = f"https://{escaped}/%"
+    port_pattern = f"https://{escaped}:%"
+    return fetchone(
+        tenant_id,
+        f"""
+        select {_COLUMNS}
+        from proxy_apps
+        where protected_domain_id = :protected_domain_id
+          and enabled = true
+          and (
+              external_url = :exact
+              or external_url like :path_pattern escape '\\'
+              or external_url like :port_pattern escape '\\'
+          )
+        order by created_at
+        limit 1
+        """,
+        {
+            "protected_domain_id": protected_domain_id,
+            "exact": exact,
+            "path_pattern": path_pattern,
+            "port_pattern": port_pattern,
+        },
     )
 
 

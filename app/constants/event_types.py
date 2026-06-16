@@ -134,6 +134,10 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "proxy_app_deleted": "Forward-auth proxy app removed",
     "proxy_app_grant_added": "Group granted access to forward-auth proxy app",
     "proxy_app_grant_removed": "Group access removed from forward-auth proxy app",
+    # Forward-Auth Runtime (reduced verbosity: first allow per session, every deny, expiry)
+    "proxy_access_granted": "Forward-auth access granted (first request of a per-domain session)",
+    "proxy_access_denied": "Forward-auth access denied",
+    "proxy_session_expired": "Forward-auth per-domain session expired or cookie invalid",
     # Background Tasks & Exports
     "export_task_created": "Background export job created",
     "export_downloaded": "Export file downloaded",
@@ -377,6 +381,9 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "proxy_app_deleted": "admin",
     "proxy_app_grant_added": "admin",
     "proxy_app_grant_removed": "admin",
+    "proxy_access_granted": "admin",
+    "proxy_access_denied": "admin",
+    "proxy_session_expired": "admin",
     "branding_logo_uploaded": "admin",
     "branding_logo_deleted": "admin",
     "branding_settings_updated": "admin",

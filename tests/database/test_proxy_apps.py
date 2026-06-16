@@ -236,3 +236,68 @@ def test_proxy_apps_tenant_isolation(test_tenant, test_user):
         database.execute(
             database.UNSCOPED, "DELETE FROM tenants WHERE id = :id", {"id": other["id"]}
         )
+
+
+# -- host resolution (forward-auth /check hot path) ----------------------------
+
+
+def test_get_enabled_app_by_host_exact_match(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    domain = _create_domain(tid, uid)
+    app = _create_app(tid, uid, domain["id"], external_url="https://grafana.acme-corp.com")
+
+    found = database.proxy_apps.get_enabled_proxy_app_for_domain_and_host(
+        tid, domain["id"], "grafana.acme-corp.com"
+    )
+    assert found is not None
+    assert str(found["id"]) == str(app["id"])
+
+
+def test_get_enabled_app_by_host_with_path_in_url(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    domain = _create_domain(tid, uid)
+    app = _create_app(tid, uid, domain["id"], external_url="https://grafana.acme-corp.com/app")
+
+    found = database.proxy_apps.get_enabled_proxy_app_for_domain_and_host(
+        tid, domain["id"], "grafana.acme-corp.com"
+    )
+    assert found is not None
+    assert str(found["id"]) == str(app["id"])
+
+
+def test_get_enabled_app_by_host_no_substring_confusion(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    domain = _create_domain(tid, uid)
+    _create_app(tid, uid, domain["id"], external_url="https://grafana.acme-corp.com")
+
+    # A host that is a prefix of the registered one must not match.
+    assert (
+        database.proxy_apps.get_enabled_proxy_app_for_domain_and_host(
+            tid, domain["id"], "grafana.acme-corp.co"
+        )
+        is None
+    )
+    # A host that contains the registered one as a suffix must not match.
+    assert (
+        database.proxy_apps.get_enabled_proxy_app_for_domain_and_host(
+            tid, domain["id"], "evilgrafana.acme-corp.com"
+        )
+        is None
+    )
+
+
+def test_get_enabled_app_by_host_excludes_disabled(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    domain = _create_domain(tid, uid)
+    _create_app(tid, uid, domain["id"], external_url="https://grafana.acme-corp.com", enabled=False)
+
+    assert (
+        database.proxy_apps.get_enabled_proxy_app_for_domain_and_host(
+            tid, domain["id"], "grafana.acme-corp.com"
+        )
+        is None
+    )

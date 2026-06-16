@@ -74,15 +74,26 @@ class TenantGuardMiddleware(BaseHTTPMiddleware):
         # downstream handlers. This does NOT affect tenant isolation for normal
         # paths: it only applies under /forward-auth/ and only admits verified,
         # enabled portal hosts. Anything else fails closed.
+        #
+        # On a forwardAuth /check subrequest the operator's reverse proxy sets
+        # X-Forwarded-Host to the ORIGINAL protected app host (e.g.
+        # grafana.acme-corp.com), while the subrequest's own Host header is the
+        # portal host WeftID is reached at. So for portal-host resolution we try
+        # BOTH candidate hosts (Host first, then X-Forwarded-Host) and admit the
+        # first that maps to a verified portal host. The original app host is
+        # carried separately to /check and never used for tenant resolution.
         if request.url.path.startswith(_FORWARD_AUTH_PREFIX):
             from services import protected_domains as protected_domains_service
 
-            row = protected_domains_service.resolve_verified_portal_host(host)
-            if row is not None:
-                request.state.forward_auth_tenant_id = str(row["tenant_id"])
-                request.state.forward_auth_domain = row["domain"]
-                request.state.forward_auth_portal_host = row["portal_host"]
-                return await call_next(request)
+            raw_host = _normalize_host(request.headers.get("host"))
+            candidates = [c for c in (raw_host, host) if c]
+            for candidate in candidates:
+                row = protected_domains_service.resolve_verified_portal_host(candidate)
+                if row is not None:
+                    request.state.forward_auth_tenant_id = str(row["tenant_id"])
+                    request.state.forward_auth_domain = row["domain"]
+                    request.state.forward_auth_portal_host = row["portal_host"]
+                    return await call_next(request)
             # Not a recognized portal host: fall through to normal tenant guard so
             # forward-auth requests on a regular tenant subdomain (e.g. the
             # canonical /forward-auth/authorize step) still work.

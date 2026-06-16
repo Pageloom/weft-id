@@ -25,6 +25,7 @@ from routers import account_passkeys as account_passkeys_router  # noqa: E402
 from routers import admin as admin_router  # noqa: E402
 from routers import auth, mfa, oauth2, saml, tenants, users  # noqa: E402
 from routers import branding as branding_router  # noqa: E402
+from routers import forward_auth as forward_auth_router  # noqa: E402
 from routers import groups as groups_router  # noqa: E402
 from routers import health as health_router  # noqa: E402
 from routers import integrations as integrations_router  # noqa: E402
@@ -137,6 +138,7 @@ app.include_router(health_router.router)
 
 # Include routers - Web UI (HTML)
 app.include_router(branding_router.router)
+app.include_router(forward_auth_router.router)
 app.include_router(auth.router)
 app.include_router(mfa.router)
 app.include_router(account_router.router)

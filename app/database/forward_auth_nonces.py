@@ -63,8 +63,9 @@ def consume_nonce(
     tenant_id: TenantArg,
     nonce: str,
     domain: str,
+    now: datetime,
 ) -> dict | None:
-    """Atomically consume a nonce, returning its row iff it was unconsumed.
+    """Atomically consume an unexpired nonce, returning its row iff it matched.
 
     This is the single-use guard. The conditional `DELETE ... RETURNING` is
     atomic: exactly one concurrent caller can delete a given row and get it
@@ -77,25 +78,32 @@ def consume_nonce(
     another (the token's HMAC already binds the domain, but this prevents the
     nonce being spent at all under the wrong domain).
 
+    The `expires_at > :now` predicate is defense-in-depth against stale tokens:
+    an expired nonce can never be consumed even if a future caller skips the
+    upstream token `exp` check. The token's own `exp` is the primary gate; this
+    is a belt-and-braces second one at the row level.
+
     Runs pre-auth on the portal host, so callers pass UNSCOPED.
 
     Args:
         tenant_id: RLS scope (UNSCOPED on the pre-auth portal-host path).
         nonce: The nonce extracted from the redeemed token.
         domain: The protected domain the redemption is for.
+        now: The current time; rows with expires_at <= now are never consumed.
 
     Returns:
-        The consumed nonce row if it existed and matched the domain, else None
-        (already consumed, never minted, or wrong domain).
+        The consumed nonce row if it existed, matched the domain, and was
+        unexpired, else None (already consumed, never minted, wrong domain, or
+        expired).
     """
     return fetchone(
         tenant_id,
         """
         delete from forward_auth_nonces
-        where nonce = :nonce and domain = :domain
+        where nonce = :nonce and domain = :domain and expires_at > :now
         returning nonce, tenant_id, domain, expires_at, created_at
         """,
-        {"nonce": nonce, "domain": domain},
+        {"nonce": nonce, "domain": domain, "now": now},
     )
 
 

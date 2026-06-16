@@ -233,9 +233,23 @@ def forward_auth_check(request: Request) -> Response:
         start_url = f"/forward-auth/start?rd={quote(rd, safe='')}"
         return RedirectResponse(url=start_url, status_code=302)
 
-    # Valid cookie -> allow. Build X-Forwarded-* from the authenticated identity
-    # ONLY (never reflected from request headers), honoring the app's header_config.
-    # The cookie payload uses compact keys (sub/name); map to the identity shape.
+    # Valid cookie, but the cookie is identity-only and scoped to the whole
+    # registrable domain. Re-check that the cookie's subject may access THIS
+    # app (per-app grants are otherwise enforced only once, at /authorize).
+    # On deny: 403 (signed-in-but-not-authorized), not a 302 re-handshake --
+    # re-handshaking would loop, since /authorize would also deny.
+    if not forward_auth_service.recheck_cookie_access(
+        tenant_id=ctx["tenant_id"],
+        user_id=str(identity.get("sub", "")),
+        proxy_app_id=str(app_row["id"]),
+        domain=ctx["domain"],
+        app_name=app_row.get("name"),
+    ):
+        return _deny_response("You do not have access to this application.")
+
+    # Allowed. Build X-Forwarded-* from the authenticated identity ONLY (never
+    # reflected from request headers), honoring the app's header_config. The
+    # cookie payload uses compact keys (sub/name); map to the identity shape.
     cookie_identity = {
         "user_id": identity.get("sub", ""),
         "email": identity.get("email", ""),

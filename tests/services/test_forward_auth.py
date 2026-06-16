@@ -35,7 +35,7 @@ def test_issue_records_nonce(test_tenant):
 
     # The nonce was persisted (consuming it succeeds).
     consumed = database.forward_auth_nonces.consume_nonce(
-        database.UNSCOPED, payload["nonce"], "issue.com"
+        database.UNSCOPED, payload["nonce"], "issue.com", datetime.now(UTC)
     )
     assert consumed is not None
     assert str(consumed["tenant_id"]) == str(tid)
@@ -169,7 +169,10 @@ def test_redeem_fails_closed_on_tenant_mismatch(test_tenant):
     # The mismatched redemption still BURNS the nonce (it is deleted before the
     # tenant check), so a retry cannot reuse it -- fail closed, no lingering row.
     assert (
-        database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "mismatch.com") is None
+        database.forward_auth_nonces.consume_nonce(
+            database.UNSCOPED, nonce, "mismatch.com", datetime.now(UTC)
+        )
+        is None
     )
 
 

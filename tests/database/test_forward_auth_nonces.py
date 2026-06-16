@@ -25,6 +25,13 @@ def _create(tenant_id, nonce=None, domain="acme-corp.com", ttl=60):
     )
 
 
+def _consume(tenant_id, nonce, domain, now=None):
+    """Consume helper defaulting ``now`` to the current time (unexpired path)."""
+    return database.forward_auth_nonces.consume_nonce(
+        tenant_id, nonce, domain, now or datetime.now(UTC)
+    )
+
+
 # -- create -------------------------------------------------------------------
 
 
@@ -50,7 +57,7 @@ def test_consume_nonce_first_time_succeeds(test_tenant):
     nonce = _mk_nonce()
     _create(tid, nonce=nonce, domain="acme-corp.com")
 
-    consumed = database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "acme-corp.com")
+    consumed = _consume(database.UNSCOPED, nonce, "acme-corp.com")
 
     assert consumed is not None
     assert consumed["nonce"] == nonce
@@ -63,18 +70,15 @@ def test_consume_nonce_second_time_is_rejected(test_tenant):
     nonce = _mk_nonce()
     _create(tid, nonce=nonce)
 
-    first = database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "acme-corp.com")
-    second = database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "acme-corp.com")
+    first = _consume(database.UNSCOPED, nonce, "acme-corp.com")
+    second = _consume(database.UNSCOPED, nonce, "acme-corp.com")
 
     assert first is not None
     assert second is None
 
 
 def test_consume_unknown_nonce_returns_none(test_tenant):
-    assert (
-        database.forward_auth_nonces.consume_nonce(database.UNSCOPED, _mk_nonce(), "acme-corp.com")
-        is None
-    )
+    assert _consume(database.UNSCOPED, _mk_nonce(), "acme-corp.com") is None
 
 
 def test_consume_wrong_domain_returns_none(test_tenant):
@@ -83,11 +87,11 @@ def test_consume_wrong_domain_returns_none(test_tenant):
     nonce = _mk_nonce()
     _create(tid, nonce=nonce, domain="acme-corp.com")
 
-    wrong = database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "evil.com")
+    wrong = _consume(database.UNSCOPED, nonce, "evil.com")
     assert wrong is None
 
     # The nonce is still present and consumable under the correct domain.
-    right = database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "acme-corp.com")
+    right = _consume(database.UNSCOPED, nonce, "acme-corp.com")
     assert right is not None
 
 
@@ -98,7 +102,7 @@ def test_concurrent_consume_only_one_winner(test_tenant):
     _create(tid, nonce=nonce, domain="race.com")
 
     def attempt():
-        return database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "race.com")
+        return _consume(database.UNSCOPED, nonce, "race.com")
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(lambda _: attempt(), range(8)))
@@ -123,11 +127,11 @@ def test_consume_scoped_to_tenant(test_tenant):
     )
     try:
         # Scoped to the OTHER tenant: the nonce is invisible -> not consumed.
-        missed = database.forward_auth_nonces.consume_nonce(other["id"], nonce, "scoped.com")
+        missed = _consume(other["id"], nonce, "scoped.com")
         assert missed is None
 
         # The original tenant scope still sees and consumes it.
-        hit = database.forward_auth_nonces.consume_nonce(tid, nonce, "scoped.com")
+        hit = _consume(tid, nonce, "scoped.com")
         assert hit is not None
     finally:
         database.execute(
@@ -174,13 +178,14 @@ def test_scoped_insert_rejects_foreign_tenant(test_tenant):
         )
 
 
-def test_expired_unconsumed_nonce_is_still_consumable(test_tenant):
-    """Expiry is enforced by token exp, not the nonce row -- consume ignores it.
+def test_expired_nonce_is_not_consumable(test_tenant):
+    """Defense-in-depth: an expired nonce can never be consumed.
 
-    An expired-but-unconsumed nonce row must remain consumable at the DB layer
-    (it is the cleanup job's job to purge it, and the token's own exp is what
-    actually rejects a stale token in verify). consume_nonce has no expiry
-    predicate, so it deletes the row regardless of expires_at.
+    CONTRACT CHANGE: ``consume_nonce`` now carries an ``expires_at > :now``
+    predicate, so an expired-but-unconsumed row is rejected at the DB layer even
+    if a future caller skips the upstream token ``exp`` check. (This test
+    previously asserted the OLD behavior -- that an expired row was still
+    consumable -- and has been updated to the new contract.)
     """
     tid = test_tenant["id"]
     nonce = _mk_nonce()
@@ -189,10 +194,14 @@ def test_expired_unconsumed_nonce_is_still_consumable(test_tenant):
         tid, str(tid), nonce, "stale.com", datetime.now(UTC) - timedelta(seconds=10)
     )
 
-    consumed = database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "stale.com")
-    assert consumed is not None
-    # And it is now gone (single-use still holds for expired rows).
-    assert database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "stale.com") is None
+    # Expired -> not consumable (the row survives; cleanup purges it later).
+    assert _consume(database.UNSCOPED, nonce, "stale.com") is None
+    # The row is still present (the DELETE matched nothing), and would be
+    # consumable if its expiry were in the future -- prove it via an explicit
+    # `now` in the past relative to expiry by re-minting unexpired.
+    fresh = _mk_nonce()
+    _create(tid, nonce=fresh, domain="stale.com", ttl=60)
+    assert _consume(database.UNSCOPED, fresh, "stale.com") is not None
 
 
 def test_scoped_consume_does_not_cross_tenant_double_spend(test_tenant):
@@ -213,9 +222,9 @@ def test_scoped_consume_does_not_cross_tenant_double_spend(test_tenant):
     )
     try:
         # B's scope: A's nonce is invisible -> not consumed.
-        assert database.forward_auth_nonces.consume_nonce(tenant_b["id"], nonce, "iso.com") is None
+        assert _consume(tenant_b["id"], nonce, "iso.com") is None
         # A can still consume its own.
-        assert database.forward_auth_nonces.consume_nonce(tid_a, nonce, "iso.com") is not None
+        assert _consume(tid_a, nonce, "iso.com") is not None
     finally:
         database.execute(
             database.UNSCOPED, "DELETE FROM tenants WHERE id = :id", {"id": tenant_b["id"]}
@@ -239,9 +248,9 @@ def test_delete_expired_nonces(test_tenant):
 
     assert deleted >= 1
     # The fresh nonce survives and is still consumable.
-    assert database.forward_auth_nonces.consume_nonce(tid, fresh, "acme-corp.com") is not None
+    assert _consume(tid, fresh, "acme-corp.com") is not None
     # The stale one was purged.
-    assert database.forward_auth_nonces.consume_nonce(tid, stale, "acme-corp.com") is None
+    assert _consume(tid, stale, "acme-corp.com") is None
 
 
 def test_create_nonce_cascades_on_tenant_delete():
@@ -256,7 +265,4 @@ def test_create_nonce_cascades_on_tenant_delete():
 
     database.execute(database.UNSCOPED, "DELETE FROM tenants WHERE id = :id", {"id": tenant["id"]})
 
-    assert (
-        database.forward_auth_nonces.consume_nonce(database.UNSCOPED, nonce, "acme-corp.com")
-        is None
-    )
+    assert _consume(database.UNSCOPED, nonce, "acme-corp.com") is None

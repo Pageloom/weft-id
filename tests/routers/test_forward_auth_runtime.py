@@ -17,6 +17,7 @@ globally-unique ``portal_host`` constraint under parallel test workers.
 
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
+from uuid import uuid4
 
 import database
 import pytest
@@ -98,7 +99,54 @@ def granted_user(test_tenant, test_user, proxy_app):
     return test_user
 
 
-def _cookie_for(user_id="u1", email="a@b.com", name="Alice", groups=None):
+@pytest.fixture
+def open_app(test_tenant, names, verified_domain):
+    """An ``available_to_all`` app: any valid cookie passes the /check re-check.
+
+    Used by the identity-only /check allow tests, where the cookie subject has
+    no group grant but the app is open to all.
+    """
+    return database.proxy_apps.create_proxy_app(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        protected_domain_id=str(verified_domain["id"]),
+        name="Open App",
+        external_url=f"https://open.{names['domain']}",
+        created_by=None,
+        public_paths=["/health", "/static/*"],
+        header_config={"user": True, "email": True, "groups": True, "display_name": True},
+        available_to_all=True,
+        enabled=True,
+    )
+
+
+@pytest.fixture
+def second_app(test_tenant, names, verified_domain):
+    """A SECOND enabled proxy app on the same domain, distinct host, no grants.
+
+    Used to prove cross-app authorization: a cookie minted for the first app
+    must NOT grant access to this one (per-app grant enforced at /check).
+    """
+    return database.proxy_apps.create_proxy_app(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        protected_domain_id=str(verified_domain["id"]),
+        name="Second App",
+        external_url=f"https://app2.{names['domain']}",
+        created_by=None,
+        public_paths=[],
+        header_config={"user": True, "email": True, "groups": True, "display_name": True},
+        available_to_all=False,
+        enabled=True,
+    )
+
+
+# A fixed valid-UUID subject for cookies whose specific id does not matter.
+# (The /check per-app re-check binds the subject into a UUID column.)
+_DEFAULT_COOKIE_SUB = "00000000-0000-0000-0000-0000000000a1"
+
+
+def _cookie_for(user_id=_DEFAULT_COOKIE_SUB, email="a@b.com", name="Alice", groups=None):
     return build_forward_auth_cookie_value(
         user_id=user_id, email=email, display_name=name, groups=groups or ["eng"]
     )
@@ -137,20 +185,22 @@ class TestCheck:
         assert loc.startswith("/forward-auth/start")
         assert "rd=%2Fdash" in loc
 
-    def test_valid_cookie_allows_with_headers(self, client, names, proxy_app):
-        cookie = _cookie_for(user_id="u-9", email="x@y.com", name="X Y", groups=["g1", "g2"])
+    def test_valid_cookie_allows_with_headers(self, client, names, open_app):
+        # available_to_all app: any valid cookie passes the per-app re-check.
+        uid = str(uuid4())
+        cookie = _cookie_for(user_id=uid, email="x@y.com", name="X Y", groups=["g1", "g2"])
         resp = client.get(
             "/forward-auth/check",
             headers={
                 "host": names["portal_host"],
-                "x-forwarded-host": names["app_host"],
+                "x-forwarded-host": f"open.{names['domain']}",
                 "x-forwarded-uri": "/dash",
             },
             cookies={FORWARD_AUTH_COOKIE_NAME: cookie},
             follow_redirects=False,
         )
         assert resp.status_code == 200
-        assert resp.headers["X-Forwarded-User"] == "u-9"
+        assert resp.headers["X-Forwarded-User"] == uid
         assert resp.headers["X-Forwarded-Email"] == "x@y.com"
         assert resp.headers["X-Forwarded-Display-Name"] == "X Y"
         assert resp.headers["X-Forwarded-Groups"] == "g1,g2"
@@ -244,7 +294,9 @@ class TestCheck:
         assert resp.status_code == 302
         assert resp.headers["location"].startswith("/forward-auth/start")
 
-    def test_sole_app_fallback_when_host_is_portal(self, client, names, proxy_app):
+    def test_sole_app_fallback_when_host_is_portal(self, client, names, open_app):
+        # open_app is the domain's sole enabled app and available_to_all, so a
+        # portal-host forwarded host falls back to it and the re-check passes.
         cookie = _cookie_for()
         resp = client.get(
             "/forward-auth/check",
@@ -278,6 +330,67 @@ class TestCheck:
                 follow_redirects=False,
             )
         assert resp.status_code == 429
+
+    def test_granted_user_cookie_allows_with_headers(self, client, names, granted_user, proxy_app):
+        # A direct-grant user's valid cookie passes the per-app re-check -> 200.
+        cookie = _cookie_for(user_id=str(granted_user["id"]), groups=["eng"])
+        resp = client.get(
+            "/forward-auth/check",
+            headers={
+                "host": names["portal_host"],
+                "x-forwarded-host": names["app_host"],
+                "x-forwarded-uri": "/dash",
+            },
+            cookies={FORWARD_AUTH_COOKIE_NAME: cookie},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 200
+        assert resp.headers["X-Forwarded-User"] == str(granted_user["id"])
+
+    def test_cross_app_cookie_denied_403(self, client, names, granted_user, proxy_app, second_app):
+        # SECURITY (cross-app authorization): a cookie minted for app A (proxy_app,
+        # which granted_user CAN access) must NOT grant access to app B
+        # (second_app, no grant) on the same domain. /check re-checks the per-app
+        # grant for the cookie subject and returns 403 (signed-in-but-not-
+        # authorized) -- NOT a 302 re-handshake (which would loop). No identity
+        # headers leak, and proxy_access_denied is audited.
+        cookie = _cookie_for(user_id=str(granted_user["id"]), groups=["eng"])
+        with patch("services.forward_auth.log_event") as log:
+            resp = client.get(
+                "/forward-auth/check",
+                headers={
+                    "host": names["portal_host"],
+                    "x-forwarded-host": f"app2.{names['domain']}",
+                    "x-forwarded-uri": "/dash",
+                },
+                cookies={FORWARD_AUTH_COOKIE_NAME: cookie},
+                follow_redirects=False,
+            )
+        assert resp.status_code == 403
+        assert "X-Forwarded-User" not in resp.headers
+        assert "X-Forwarded-Email" not in resp.headers
+        denied = [
+            c for c in log.call_args_list if c.kwargs.get("event_type") == "proxy_access_denied"
+        ]
+        assert len(denied) == 1
+        assert denied[0].kwargs["artifact_id"] == str(second_app["id"])
+        assert denied[0].kwargs["actor_user_id"] == str(granted_user["id"])
+
+    def test_available_to_all_cookie_allows_unrelated_user(self, client, names, open_app):
+        # available_to_all app: a cookie whose subject has no group grant still
+        # passes the re-check.
+        cookie = _cookie_for(user_id=str(uuid4()))
+        resp = client.get(
+            "/forward-auth/check",
+            headers={
+                "host": names["portal_host"],
+                "x-forwarded-host": f"open.{names['domain']}",
+                "x-forwarded-uri": "/dash",
+            },
+            cookies={FORWARD_AUTH_COOKIE_NAME: cookie},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------

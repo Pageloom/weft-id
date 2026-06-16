@@ -24,6 +24,7 @@ so double-spend is impossible even under concurrent callbacks.
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
+from uuid import UUID
 
 import database
 import settings
@@ -120,6 +121,7 @@ def redeem_authorization_token(
         database.UNSCOPED,
         payload["nonce"],
         expected_domain,
+        datetime.now(UTC),
     )
     if consumed is None:
         # Nonce already spent (replay) or never minted -> reject.
@@ -383,6 +385,56 @@ def authorize_app_access(
     """
     allowed = database.sp_group_assignments.user_can_access_app(
         tenant_id, user_id, proxy_app_id, proxy_app_id=True
+    )
+    if not allowed:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=user_id,
+            event_type="proxy_access_denied",
+            artifact_type="proxy_app",
+            artifact_id=proxy_app_id,
+            metadata={"domain": domain, "proxy_app_name": app_name},
+            dispatch_scim=False,
+        )
+    return allowed
+
+
+def recheck_cookie_access(
+    *,
+    tenant_id: str,
+    user_id: str,
+    proxy_app_id: str,
+    domain: str,
+    app_name: str | None = None,
+) -> bool:
+    """Re-check per-app access for a valid forward-auth cookie at /check.
+
+    The per-domain forward-auth cookie is identity-only and scoped to the whole
+    registrable domain, so a user granted ONE app on a domain would otherwise
+    reach EVERY app on it (per-app grants are enforced only once, at /authorize).
+    This closes that gap by re-resolving the grant for the cookie's subject
+    against the specific app the /check is gating.
+
+    Runs on the portal host with the middleware-resolved tenant scope. Adds one
+    indexed closure-table query to the hot path. ``available_to_all`` apps still
+    pass (the shared resolver short-circuits on the flag). On denial a
+    ``proxy_access_denied`` event is logged (mirroring ``authorize_app_access``),
+    and /check returns 403 (signed-in-but-not-authorized) rather than restarting
+    the handshake.
+
+    Returns:
+        True if the cookie's subject may access the app, False otherwise.
+    """
+    # The grant query binds user_id into a UUID column; a non-UUID subject
+    # (only reachable via a malformed cookie, which the HMAC already rules out)
+    # would raise. Fail closed instead of erroring on this pre-auth hot path.
+    try:
+        UUID(user_id)
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+    allowed = database.sp_group_assignments.user_can_access_proxy_app(
+        tenant_id, user_id, proxy_app_id
     )
     if not allowed:
         log_event(

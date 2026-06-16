@@ -1189,3 +1189,46 @@ class TestSPApiServiceErrors:
                 headers={"Host": api_host},
             )
         assert response.status_code == 500
+
+    def test_get_my_apps_returns_kind_and_launch_url(
+        self, client, api_user, api_host, override_api_auth
+    ):
+        """/my-apps surfaces both SAML and proxy apps with kind + launch_url."""
+        from schemas.service_providers import UserApp, UserAppList
+
+        override_api_auth(api_user, level="user")
+
+        merged = UserAppList(
+            items=[
+                UserApp(
+                    id="sp-1",
+                    name="SAML App",
+                    kind="saml",
+                    launch_url="/saml/idp/launch/sp-1",
+                    entity_id="https://sp.example.com",
+                ),
+                UserApp(
+                    id="proxy-1",
+                    name="Grafana",
+                    kind="proxy",
+                    launch_url="https://grafana.acme-corp.com",
+                ),
+            ],
+            total=2,
+        )
+
+        with patch(
+            "routers.api.v1.service_providers.sp_service.get_user_accessible_apps",
+            return_value=merged,
+        ):
+            response = client.get("/api/v1/my-apps", headers={"Host": api_host})
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 2
+        by_id = {item["id"]: item for item in body["items"]}
+        assert by_id["sp-1"]["kind"] == "saml"
+        assert by_id["sp-1"]["launch_url"] == "/saml/idp/launch/sp-1"
+        assert by_id["proxy-1"]["kind"] == "proxy"
+        assert by_id["proxy-1"]["launch_url"] == "https://grafana.acme-corp.com"
+        assert by_id["proxy-1"]["entity_id"] is None

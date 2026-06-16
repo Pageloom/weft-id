@@ -72,6 +72,7 @@ nav:
       - SSO Flow: admin-guide/service-providers/sso-flow.md
       - Single Logout: admin-guide/service-providers/slo.md
       - Outbound SCIM Provisioning: admin-guide/service-providers/scim.md
+      - Forward Auth for HTTP Apps: admin-guide/service-providers/forward-auth.md
     - Integrations:
       - admin-guide/integrations/index.md
       - Apps: admin-guide/integrations/apps.md

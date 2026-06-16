@@ -778,6 +778,154 @@ def test_sp_and_proxy_grants_are_independent(test_tenant, test_user):
     )
 
 
+# -- get_accessible_proxy_apps_for_user ----------------------------------------
+
+
+def test_get_accessible_proxy_apps_direct_and_inherited(test_tenant, test_user):
+    """Direct + DAG-inherited proxy access, ordered by name, with external_url."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+
+    # App1: direct access via group membership.
+    app1 = _create_proxy_app(tid, uid, name="Alpha Proxy")
+    direct_group = _create_group(tid, name="Proxy Direct Group")
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app1["id"], direct_group["id"], str(uid)
+    )
+    database.groups.add_group_member(tid, str(tid), direct_group["id"], str(uid))
+
+    # App2: inherited access via parent-child hierarchy (DAG closure table).
+    app2 = _create_proxy_app(tid, uid, name="Beta Proxy")
+    parent = _create_group(tid, name="Proxy Parent Group")
+    child = _create_group(tid, name="Proxy Child Group")
+    database.groups.add_group_relationship(tid, str(tid), parent["id"], child["id"])
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app2["id"], parent["id"], str(uid)
+    )
+    database.groups.add_group_member(tid, str(tid), child["id"], str(uid))
+
+    apps = database.sp_group_assignments.get_accessible_proxy_apps_for_user(tid, str(uid))
+
+    names = [a["name"] for a in apps]
+    assert "Alpha Proxy" in names
+    assert "Beta Proxy" in names
+    assert names == sorted(names)
+    # external_url is returned for the launch target.
+    assert all(a["external_url"] == "https://app.example.com" for a in apps)
+
+
+def test_get_accessible_proxy_apps_available_to_all(test_tenant, test_user):
+    """An available_to_all proxy app is returned without any group membership."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid, name="Open Proxy", available_to_all=True)
+
+    apps = database.sp_group_assignments.get_accessible_proxy_apps_for_user(tid, str(uid))
+
+    assert app["id"] in [a["id"] for a in apps]
+
+
+def test_get_accessible_proxy_apps_excludes_disabled(test_tenant, test_user):
+    """Disabled proxy apps are excluded even when a group is assigned."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid, name="Disabled Proxy")
+    group = _create_group(tid, name="Disabled Proxy Group")
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+    database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+    database.proxy_apps.update_proxy_app(tid, app["id"], enabled=False)
+
+    apps = database.sp_group_assignments.get_accessible_proxy_apps_for_user(tid, str(uid))
+
+    assert app["id"] not in [a["id"] for a in apps]
+
+
+def test_get_accessible_proxy_apps_empty(test_tenant, test_user):
+    """A user with no proxy grants gets an empty list."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+
+    apps = database.sp_group_assignments.get_accessible_proxy_apps_for_user(tid, str(uid))
+
+    assert apps == []
+
+
+def test_get_accessible_proxy_apps_dedups_two_groups_one_app(test_tenant, test_user):
+    """A user reaching the SAME proxy app via two granted groups gets ONE row.
+
+    Guards the acceptance criterion that My Apps dedups when a user reaches the
+    same app two ways. The UNION/DISTINCT in get_accessible_proxy_apps_for_user
+    must collapse the duplicate, not list the app twice.
+    """
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid, name="Doubly Granted Proxy")
+    group_a = _create_group(tid, name="Proxy Dedup A")
+    group_b = _create_group(tid, name="Proxy Dedup B")
+
+    # Both groups are granted to the same app, and the user is in both.
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group_a["id"], str(uid)
+    )
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group_b["id"], str(uid)
+    )
+    database.groups.add_group_member(tid, str(tid), group_a["id"], str(uid))
+    database.groups.add_group_member(tid, str(tid), group_b["id"], str(uid))
+
+    apps = database.sp_group_assignments.get_accessible_proxy_apps_for_user(tid, str(uid))
+
+    matching = [a for a in apps if str(a["id"]) == str(app["id"])]
+    assert len(matching) == 1
+
+
+def test_get_accessible_proxy_apps_dedups_grant_and_available_to_all(test_tenant, test_user):
+    """An app reachable via BOTH a group grant and available_to_all yields ONE row.
+
+    The two UNION branches (group lineage + available_to_all) must not double-
+    count an app that satisfies both.
+    """
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid, name="Open And Granted Proxy", available_to_all=True)
+    group = _create_group(tid, name="Open And Granted Group")
+    database.sp_group_assignments.create_proxy_app_assignment(
+        tid, str(tid), app["id"], group["id"], str(uid)
+    )
+    database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+    apps = database.sp_group_assignments.get_accessible_proxy_apps_for_user(tid, str(uid))
+
+    matching = [a for a in apps if str(a["id"]) == str(app["id"])]
+    assert len(matching) == 1
+
+
+def test_get_accessible_proxy_apps_tenant_isolated(test_tenant, test_user):
+    """A proxy app a user can reach in tenant A is invisible when queried as tenant B.
+
+    Even with available_to_all, RLS must scope the result to the querying tenant.
+    """
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    app = _create_proxy_app(tid, uid, name="Isolated Open Proxy", available_to_all=True)
+
+    other = database.fetchone(
+        database.UNSCOPED,
+        "INSERT INTO tenants (subdomain, name) VALUES (:s, :n) RETURNING id",
+        {"s": f"other-{uuid4().hex[:8]}", "n": "Other Tenant"},
+    )
+    try:
+        oid = other["id"]
+        apps = database.sp_group_assignments.get_accessible_proxy_apps_for_user(oid, str(uid))
+        assert app["id"] not in [a["id"] for a in apps]
+    finally:
+        database.execute(
+            database.UNSCOPED, "DELETE FROM tenants WHERE id = :id", {"id": other["id"]}
+        )
+
+
 # -- partial unique indexes ----------------------------------------------------
 
 

@@ -962,7 +962,25 @@ def get_my_apps(
 ):
     """Get applications accessible to the current user.
 
-    Any authenticated user can call this endpoint.
+    Any authenticated user can call this endpoint. The returned list merges
+    SAML service providers and forward-auth proxy apps, sorted by name.
+
+    Each item carries:
+
+    * ``id`` - the app's unique identifier
+    * ``name`` - display name
+    * ``description`` - optional description
+    * ``kind`` - ``"saml"`` for a SAML service provider, ``"proxy"`` for a
+      forward-auth proxy app
+    * ``launch_url`` - where to navigate to launch the app. For SAML apps this
+      is the IdP-initiated launch path (``/saml/idp/launch/{id}``); for proxy
+      apps this is the app's external URL (navigating to it trips the
+      forward-auth handshake).
+    * ``entity_id`` - SAML entity ID (SAML apps only; ``null`` for proxy apps)
+    * ``has_logo`` - whether a custom logo is uploaded (SAML apps only;
+      ``false`` for proxy apps)
+    * ``logo_updated_at`` - when the logo was last updated (SAML apps only;
+      ``null`` for proxy apps)
     """
     requesting_user = build_requesting_user(user, tenant_id, None)
     try:

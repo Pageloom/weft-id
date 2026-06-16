@@ -210,6 +210,38 @@ def chain_user(chain_config):
 
 
 # ---------------------------------------------------------------------------
+# Session-scoped forward-auth testbed (cross-domain handshake)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def forward_auth_config():
+    """Provision the cross-domain forward-auth testbed.
+
+    Creates a tenant on the base domain plus a VERIFIED protected domain on a
+    SECOND domain (``protected.localhost``) with a portal host, an enabled proxy
+    app, and a granted user. Yields the JSON config dict.
+
+    Tears down before (to clear stale data) and after the session.
+    """
+    _flush_memcached()
+
+    try:
+        _run_script("./dev/forward_auth_testbed.py", "--teardown-flag")
+    except Exception:
+        pass
+
+    stdout = _run_script("./dev/forward_auth_testbed.py", "--json-output")
+    config = json.loads(stdout)
+    yield config
+
+    try:
+        _run_script("./dev/forward_auth_testbed.py", "--teardown-flag")
+    except Exception as exc:
+        print(f"Warning: forward-auth testbed teardown failed: {exc}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
 # Browser configuration
 # ---------------------------------------------------------------------------
 

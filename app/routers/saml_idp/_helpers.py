@@ -56,7 +56,27 @@ def extract_pending_sso(session: dict) -> dict[str, str] | None:
 
 
 def get_post_auth_redirect(session: dict, default: str = "/dashboard") -> str:
-    """Return /saml/idp/consent if pending SSO context exists, else default."""
+    """Return the post-login destination.
+
+    Priority:
+      1. Pending SAML SSO consent (``/saml/idp/consent``).
+      2. A pending forward-auth authorize step (``pending_forward_auth_authorize``),
+         consumed here. Only a safe rooted-relative path is honored; anything else
+         is ignored (open-redirect guard).
+      3. ``default`` (``/dashboard``).
+    """
     if session.get("pending_sso_sp_entity_id"):
         return "/saml/idp/consent"
+
+    fa_target = session.pop("pending_forward_auth_authorize", None)
+    if (
+        isinstance(fa_target, str)
+        and fa_target.startswith("/forward-auth/authorize")
+        and not fa_target.startswith("//")
+        and "://" not in fa_target
+        and "\r" not in fa_target
+        and "\n" not in fa_target
+    ):
+        return fa_target
+
     return default

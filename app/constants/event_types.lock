@@ -77,11 +77,14 @@ privileged_domain_deleted
 protected_domain_deleted
 protected_domain_registered
 protected_domain_verified
+proxy_access_denied
+proxy_access_granted
 proxy_app_created
 proxy_app_deleted
 proxy_app_grant_added
 proxy_app_grant_removed
 proxy_app_updated
+proxy_session_expired
 reactivation_approved
 reactivation_denied
 reactivation_requested

@@ -711,6 +711,38 @@ PAGES = [
         show_in_nav=False,
         creates_nav_level=False,
     ),
+    # Forward-auth handshake endpoints (machine/proxy + browser redirects).
+    # These run on protected-domain portal hosts and the canonical tenant host;
+    # they enforce their own crypto/grant checks (not page-role gating), so they
+    # are PUBLIC at the page-access layer like the SAML ACS endpoints.
+    Page(
+        path="/forward-auth/check",
+        title="Forward-Auth Check",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
+        path="/forward-auth/start",
+        title="Forward-Auth Start",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
+        path="/forward-auth/authorize",
+        title="Forward-Auth Authorize",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
+        path="/forward-auth/callback",
+        title="Forward-Auth Callback",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
 ]
 
 

@@ -6,6 +6,63 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+# Recommended Path Forward: Becoming SaaS-Palatable
+
+This is a standing roadmap, not a work item. It records the **recommended sequence** for evolving WeftID from "multi-tenant SAML + SCIM federation platform" into an authentication middleware a SaaS builder would actually adopt — including the specific, frequently-asked capabilities **"multiple SSO per customer"** and **"social sign-in."** It frames the OIDC and Embedder Enablement items below; individual items hold the detail.
+
+**Target customer profiles (in increasing ambition):**
+1. *"Give me multiple SSO."* A customer (SaaS or org) that needs to connect several upstream IdPs per Organization (e.g. Okta + Entra + a partner's SAML).
+2. *"Give me social sign-in."* A product that wants Google/GitHub/Apple/Microsoft/etc. login for end users, not just enterprise federation.
+3. *"Let me build my SaaS on you."* A SaaS company that wants WeftID to be its entire identity layer — provision Organizations via API, self-serve SSO/SCIM setup for their customers, webhooks, hosted login, entitlements.
+
+**Guiding principle:** do not pursue profile 3 (the embedder go-to-market) until WeftID is an *exceptionally strong and versatile auth middleware* — i.e. the OIDC surface is complete and ideally OpenID-certified. Profiles 1 and 2 are largely delivered *along the way* by the OIDC work, and are worth surfacing as marketable capabilities before the full embedder story exists.
+
+**Recommended phase order:**
+
+- **Phase 0 — Forward-Auth Proxy (IN PROGRESS — do not disrupt).** Current branch work. Finish and ship as planned. Nothing in later phases should reprioritize or interrupt it. *(See "Forward-Auth Proxy for HTTP Apps" below.)*
+
+- **Phase 1 — Functional OIDC (both directions).** The foundation everything else needs.
+  - *Upstream* (WeftID consumes OIDC IdPs): **OIDC Upstream IdP Support**. This is what delivers **"multiple SSO"** beyond SAML and the enterprise half of **"social sign-in"** (Google/GitHub/Entra/Okta presets). Multiple SSO *per tenant* already works for SAML today (per-IdP entity IDs); this extends it to OIDC.
+  - *Downstream* (WeftID is an OIDC provider): **OIDC Provider (Downstream IdP for Apps)**. This is what lets a SaaS app say "Sign in with WeftID."
+
+- **Phase 2 — Social sign-in breadth + OIDC hardening.** Make the auth surface genuinely versatile and credible.
+  - **Social Sign-In Providers (Consumer IdPs)** — extends the generic OIDC connector with consumer providers (Apple, Microsoft personal, Facebook, Discord, LinkedIn, etc.) so **"social sign-in"** is a complete, marketable capability, not just the enterprise presets.
+  - **OIDC Hardening & Certification** — logout, introspection/revocation, device grant, dynamic registration, stronger client auth, and OpenID Foundation certification. This is the bar that makes WeftID "insanely strong," and the explicit gate before Phase 3.
+
+- **Phase 3 — Embedder Enablement (the SaaS go-to-market).** Only after Phases 1–2. The **"Theme: Embedder Enablement"** section below (9 items; MVP = Organizations API, Webhooks, Self-Serve SSO Portal, Guest Invitations). This turns "strong auth middleware" into "build your SaaS on us."
+
+**Capability → item map (for the two named asks):**
+- **"Multiple SSO"**: SAML multi-IdP per Organization — *already shipped*. OIDC multi-IdP — *OIDC Upstream IdP Support*. Self-service setup by the customer's own admin — *Self-Service SSO/SCIM Admin Portal* (Phase 3).
+- **"Social sign-in"**: enterprise-flavored (Google/GitHub) — *OIDC Upstream IdP Support*. Full consumer breadth (Apple/Microsoft/Facebook/etc.) — *Social Sign-In Providers*. As primary login for invited externals — *External/Guest Invitations + Passwordless* (Phase 3).
+
+---
+
+## Wire forward-auth nonce cleanup into the background-job registry
+
+**As a** WeftID operator
+**I want** abandoned forward-auth handshake nonces purged on a schedule
+**So that** the `forward_auth_nonces` table does not accumulate dead rows over time.
+
+**Context:**
+
+The forward-auth handshake records a single-use nonce at `/authorize` and consumes
+it at `/callback`. A handshake the user abandons (closes the tab before `/callback`)
+leaves an unconsumed, soon-expired row behind. `database.forward_auth_nonces.delete_expired_nonces(UNSCOPED, now)`
+already exists and is tested, but nothing calls it on a schedule. `consume_nonce`
+now also refuses expired rows (defense-in-depth), so stale rows are inert, just not
+reaped.
+
+**Acceptance Criteria:**
+
+- [ ] Register a recurring job in `app/jobs/registry.py` that calls `delete_expired_nonces(UNSCOPED, now())`
+- [ ] Job runs in `system_context()` and is covered by a test
+- [ ] Reasonable cadence (e.g. hourly) and idempotent
+
+**Effort:** S
+**Value:** Low (housekeeping; no correctness impact given the expiry-bounded consume)
+
+---
+
 ## Drop SendGrid Email Backend; Add Amazon SES and Postmark
 
 **User Story:**
@@ -347,62 +404,6 @@ Two related extensions also belong here: connector types that don't fit the "gen
 
 ---
 
-## Forward-Auth Proxy for HTTP Apps
-
-**User Story:**
-As a self-hoster running HTTP apps that have no built-in SSO (Sonarr, Radarr, Jellyfin admin, Grafana, internal dashboards, private wikis),
-I want WeftID to act as a forward-auth provider so my reverse proxy can gate those apps behind WeftID sign-in,
-So that I get SSO in front of legacy apps without modifying them.
-
-**Context:**
-
-Forward-auth (also called "auth_request" in nginx and "forward_auth" in Caddy) is the standard mechanism for putting SSO in front of HTTP apps that have no built-in authentication. The reverse proxy makes a subrequest to a dedicated check endpoint for every protected request; the auth server replies allow / deny / redirect-to-login.
-
-This is the dominant pattern for protecting homelab and small-team apps (Sonarr / Radarr / Jellyfin admin pages, Grafana, internal dashboards, private wikis) that ship without SSO support. WeftID's stack (FastAPI + Postgres + worker) is light enough that an in-process forward-auth endpoint serves the job without a separate component to deploy, version, or scale.
-
-**Design Notes:**
-
-- New endpoint family: `GET /forward-auth/check` (and a paired `/forward-auth/start` for the OAuth-style redirect handshake). The reverse proxy calls `/check` as a subrequest on every protected request.
-- Reverse-proxy contract: 200 on allow (with `X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Groups`, and `X-Forwarded-Display-Name` headers for the upstream app to consume); 302 on missing/expired session (to `/forward-auth/start?return_url=<original>`); 403 on signed-in-but-denied.
-- Cookie scope: WeftID's session cookie is already tenant-subdomain scoped. Forward-auth check inspects the same cookie. Apps live on the same parent domain (e.g. `grafana.id.example.com`) and share the cookie scope.
-- New resource: **Proxy App**. Analogous to a SAML SP. Has: name, external URL pattern (`https://grafana.example.com`), group grants (which groups can access), optional forwarded-header config (which headers to set), optional public-paths list (URLs that bypass auth, e.g. `/healthz`). Lives in the admin UI alongside SAML SPs.
-- **Decided (grooming):** Proxy Apps live **under the Service Providers section** in the admin UI (not a separate top-level section), reinforcing the shared "protected app" model.
-- Group-based access: reuses the existing SP-group-grant model. Effective vs direct membership configurable per app.
-- **Decided (grooming):** group grants **reuse the existing SP-group plumbing** rather than a parallel `proxy_app_groups` table. `/lead` should introduce/extend a shared "protected app" abstraction over `sp_groups` so SAML SPs and proxy apps share grant logic.
-- Audit: each `/check` decision logs an audit event (configurable verbosity since per-request logging at scale would flood the log). Default: log on first allow per session, on every deny, and on session expiry.
-- Reverse-proxy examples for the documentation: Traefik `forwardAuth` middleware, nginx `auth_request`, Caddy `forward_auth` directive. The docs page should show full working configs for each.
-- One Postgres table: `proxy_apps` (tenant-scoped, name, URL pattern, header config, public paths). Group grants **reuse the existing `sp_groups` plumbing** (decided in grooming) behind a shared "protected app" abstraction; no separate `proxy_app_groups` table.
-- Deployment: single container, no new component. The `/forward-auth/*` endpoints live in the existing FastAPI app, scaled by the same compose service.
-
-**Acceptance Criteria:**
-
-- [ ] Migration adds `proxy_apps` table (tenant-scoped, name, external URL pattern, public paths, forwarded-header config, available_to_all flag)
-- [ ] Group-based access grants reuse the existing SP-group plumbing (`sp_groups`) behind a shared "protected app" abstraction (decided in grooming; no separate `proxy_app_groups` table)
-- [ ] `GET /forward-auth/check` endpoint: 200 on allow with forwarded-user headers; 302 on missing/expired session; 403 on signed-in-but-denied
-- [ ] `GET /forward-auth/start?return_url=...` endpoint: validates return_url against registered proxy apps for the tenant (prevents open-redirect); kicks off the standard sign-in flow; returns to the original URL on success
-- [ ] Admin UI: **Proxy Apps** section under the Service Providers section (decided in grooming) with create / edit / delete, group grants, public-paths list, forwarded-header config, copy-paste reverse-proxy config snippet
-- [ ] Header forwarding: `X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Groups`, `X-Forwarded-Display-Name` set on allow responses (configurable per app)
-- [ ] Public-paths bypass: requests matching configured patterns return 200 without auth (for healthchecks, public assets)
-- [ ] Audit events: `proxy_app_created`, `proxy_app_updated`, `proxy_app_deleted`, `proxy_app_grant_added`, `proxy_app_grant_removed`, `proxy_access_granted` (rate-limited: first allow per session), `proxy_access_denied`, `proxy_session_expired`
-- [ ] My Apps dashboard surfaces proxy apps alongside SAML apps so users have a single launch point
-- [ ] Documentation page in `docs/admin-guide/service-providers/forward-auth.md` with full working reverse-proxy configs for Traefik, nginx, and Caddy; explanation of cookie scope and subdomain requirements; troubleshooting (cookie not sent, headers not forwarded, infinite redirect loop)
-- [ ] Test coverage: unit tests for the `/check` endpoint covering allow / deny / unauthenticated / public-path bypass / open-redirect rejection; integration test with a real Traefik container forwarding to a dummy upstream
-- [ ] Rate limiting on `/check` (because the reverse proxy hits it on every request to every protected resource — needs to be fast and resilient to floods)
-
-**Effort:** XL (re-scoped from L during `/lead` grooming: forward auth must work across
-*different* domains, not just subdomains of the tenant host. That requires a per-domain
-cookie minted via an OAuth-style redirect handshake with signed single-use tokens, DNS-TXT
-domain-ownership verification, on-demand TLS for protected-domain portal hosts, and
-host->tenant resolution. In effect a forward-auth IdP. See `.claude/ITERATION_forward_auth_proxy.md`.)
-**Value:** Very High (the dominant pattern for protecting legacy HTTP apps in homelab and small-team deployments; one of the few SSO capabilities a tenant cannot get via SAML or OIDC alone)
-**Version impact:** Minor (additive: new tables, new endpoints, new admin section, new event types; no breaking changes to SAML / OAuth2 / SCIM)
-
-**Dependencies:**
-- None hard. Builds on existing session middleware, group-based access plumbing, and the My Apps dashboard.
-- Synergy with **Standard user attributes** (already shipped): the `X-Forwarded-*` headers can include any tenant-configured attribute, not just the four defaults.
-
----
-
 ## OIDC Upstream IdP Support (with Entra, Google, GitHub, Okta Presets)
 
 **User Story:**
@@ -509,5 +510,579 @@ This is a peer protocol to the existing SAML IdP support, not a replacement. Bot
 3. Google Workspace preset (parallel to Entra)
 4. GitHub preset (developer-tenant differentiator, requires the extra-API-call group source)
 5. Okta preset (last because Okta tenants typically already work via SAML)
+
+---
+
+## OIDC Provider (Downstream IdP for Apps)
+
+**User Story:**
+As a tenant admin onboarding a downstream application that authenticates via OpenID Connect,
+I want WeftID to act as a spec-correct OIDC provider (discovery document, signed ID tokens, userinfo, JWKS),
+So that I can add "Sign in with WeftID" to modern apps that expect OIDC, instead of being limited to SAML or to the current opaque-token OAuth2 that those apps can't consume.
+
+**Context:**
+
+This is the **downstream** counterpart to the **OIDC Upstream IdP Support** item above — the two are different directions and must not be conflated:
+- *Upstream* (above): WeftID is the OIDC **client/relying party**, consuming an external IdP (Entra, Google, etc.) so users can log in to WeftID.
+- *Downstream* (this item): WeftID is the OIDC **provider/IdP**, so downstream apps can log in *to WeftID* and receive identity claims.
+
+WeftID already ships an OAuth2 authorization-code (+ PKCE) and client-credentials provider (`app/services/oauth2.py`, `app/routers/oauth2.py`, `app/database/oauth2/`, `app/schemas/oauth2.py`), but it issues only **opaque** access/refresh tokens. There is no OIDC discovery document, no signed ID token, no `/userinfo` endpoint, and no published JWKS. Modern apps that say "Sign in with OIDC" cannot integrate against the current surface — they expect a discoverable OP with verifiable ID tokens. This is the single most-expected missing capability on WeftID's downstream surface and the natural complement to the SAML IdP that already exists.
+
+The design is **additive on top of the existing OAuth2 provider**, not a rewrite: OIDC is OAuth2 plus an ID token, a discovery/JWKS surface, standardized claims, and a userinfo endpoint. The existing authorization-code + PKCE flow, client registry, consent page, and token store are reused; OIDC layers identity semantics on top.
+
+**Design Notes:**
+
+- Layer on the shipped OAuth2 provider. When a client requests the `openid` scope, the token response additionally includes a signed `id_token`; without `openid` the endpoint behaves exactly as today (backward compatible).
+- Signing: RS256 with an asymmetric keypair (the relying party verifies with the public key, so a symmetric HKDF secret is unsuitable for the ID-token signature itself). Provision a dedicated RSA (or EC) signing key with rotation support and a stable `kid`; private key encrypted at rest using the existing crypto infrastructure in `app/utils/crypto.py`. Decide per-tenant vs per-instance signing key during grooming — per-tenant isolates blast radius and matches the RLS model but multiplies key management; per-instance is simpler. Default recommendation: per-tenant issuer + per-tenant key, consistent with the multi-tenant isolation posture.
+- Issuer: tenant-scoped (`https://<tenant>.id.example.com`) so discovery, `iss`, and JWKS are unambiguous per tenant.
+- `sub`: the stable WeftID user id (never the email), so relying parties get a durable subject even if email changes — parallel to the upstream item's `(idp_id, sub)` correlation rule.
+- Claims: standard set from `profile`/`email`/`groups` scopes — `sub`, `email`, `email_verified`, `name`, `given_name`, `family_name`, and `groups` sourced from the existing group system (respecting DAG/effective membership).
+- Access control: an app's OIDC login must honor the **same group-based access control** used by SAML SPs and forward-auth proxy apps (the shared `sp_group_assignments` grant model). A user with no grant to the app is denied at the authorize step, not merely given a token with empty groups.
+- Multi-tenant: discovery, JWKS, issuer, and all token issuance are RLS-scoped; one tenant's keys/clients never resolve under another tenant's host.
+- API-first (project rule): client/OIDC configuration management exposed under `/api/v1/` alongside the existing OAuth2 client API.
+
+**Acceptance Criteria:**
+
+- [ ] `GET /.well-known/openid-configuration` (tenant-scoped) returns a spec-compliant discovery document: `issuer`, `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, `jwks_uri`, supported scopes, response types, grant types, subject types, `id_token_signing_alg_values_supported` (RS256), and claims supported
+- [ ] `GET /.well-known/jwks.json` (or discovery-advertised path) publishes the active public signing key(s) with stable `kid`; supports key rotation with overlap (old key served until tokens signed by it expire)
+- [ ] Token endpoint issues a signed `id_token` (RS256) when the `openid` scope is requested; omitted otherwise (backward compatible with existing opaque-token clients)
+- [ ] ID token contains: `iss` (tenant issuer), `sub` (stable WeftID user id), `aud` (client id), `exp`, `iat`, `auth_time`, `nonce` (echoed from the authorization request when supplied), and profile/email/group claims per requested scopes
+- [ ] `nonce` parameter accepted on the authorization request and bound into the ID token; replay of an authorization code is rejected (reuse existing single-use code semantics)
+- [ ] `GET /userinfo` (Bearer access token) returns claims consistent with the ID token and the granted scopes; rejects expired/revoked/invalid tokens
+- [ ] Scopes `openid profile email groups` supported and gate which claims are released; group claims sourced from the group system honoring effective (DAG) membership
+- [ ] OIDC login honors the existing app group-based access control (`sp_group_assignments` shared grant model); ungranted users are denied at authorize, not issued a token
+- [ ] Signing key provisioned with private key encrypted at rest; rotation procedure documented; `kid` stable per key
+- [ ] All discovery/JWKS/token/userinfo behavior is tenant-scoped under RLS; cross-tenant key/client/issuer leakage covered by tests
+- [ ] Per-client toggle or scope-gating so a relying party explicitly opts into OIDC (vs plain OAuth2); existing clients unaffected until they request `openid`
+- [ ] API surface under `/api/v1/` for managing OIDC-enabled clients, documenting all accepted fields (per API-first rule)
+- [ ] Audit events: `oidc_id_token_issued`, `oidc_userinfo_accessed`, `oidc_signing_key_rotated` (and reuse existing OAuth2 token/authorization events where applicable)
+- [ ] Documentation: `docs/admin-guide/identity-providers/oidc-provider-setup.md` (registering a downstream app, discovery URL, redirect URIs, scopes/claims, group claim behavior); glossary cross-links to the existing OAuth2/PKCE/OIDC entries
+- [ ] Test coverage: discovery document shape, JWKS publication + rotation, ID token signature/claims validation with a real RP verification path, nonce binding, userinfo, scope-gated claim release, access-control denial, multi-tenant isolation
+
+**Effort:** L (new discovery/JWKS/userinfo surface and ID-token signing on top of an existing OAuth2 provider; smaller than the XL upstream item because the OAuth2 flow, client registry, and token store already exist)
+**Value:** High (closes the most-expected gap on WeftID's downstream surface; "Sign in with OIDC" is the default integration expectation for modern apps, and today only SAML or opaque OAuth2 are available)
+**Version impact:** Minor (additive: new well-known/JWKS/userinfo endpoints, ID-token issuance gated on the `openid` scope, new signing-key storage and event types; no breaking change to SAML, existing OAuth2 clients, or forward-auth)
+
+**Dependencies:**
+- Builds on the shipped **OAuth2 provider** (authorization code + PKCE + client credentials): reuses the flow, client registry, consent page, and token store.
+- Builds on the **group system** and the shared **`sp_group_assignments` grant model** (also used by SAML SPs and the forward-auth proxy): OIDC apps slot into the same group-based access control.
+- Peer to **SAML IdP** (downstream): both let a downstream app authenticate users against WeftID; admins pick the protocol the app speaks.
+- Distinct from **OIDC Upstream IdP Support** (above): opposite direction; they share terminology but no code path.
+
+**Suggested implementation order** (when broken into iterations by `/lead`):
+1. Signing key model + rotation + JWKS endpoint (the trust anchor everything else verifies against)
+2. ID token issuance gated on the `openid` scope (extends the existing token endpoint)
+3. Discovery document + userinfo endpoint (the discoverable OP surface)
+4. Scope-gated claims + group claim sourcing + app access-control enforcement
+5. API management surface + docs + multi-tenant isolation tests
+
+---
+
+## OIDC Hardening & Certification
+
+**User Story:**
+As the WeftID product owner positioning WeftID as a best-in-class authentication middleware,
+I want WeftID's OIDC surface to go beyond functional and reach spec-completeness with external certification,
+So that integrators can trust WeftID's OIDC as "insanely strong and versatile" rather than self-asserted, and so the protocol surface is genuinely on par with WorkOS / Auth0 / authentik before any embedder go-to-market.
+
+**Context:**
+
+The **OIDC Provider (Downstream)** and **OIDC Upstream IdP Support** items get WeftID to *functional* OIDC: discovery, ID tokens, userinfo, JWKS, authorization-code + PKCE, JIT, presets. That is table stakes. The gap between "has an OIDC endpoint" and "an OIDC implementation you'd bet a product on" is a set of protocol-completeness features plus an objective, externally-verifiable quality bar.
+
+This item is deliberately kept **separate** from the two functional OIDC items so that the first usable OIDC version ships without waiting on the long tail — but the completeness bar is explicitly on record. Per the product-owner sequencing decision (2026-06), the **Embedder Enablement** theme is gated behind this OIDC work; this item defines what "OIDC complete" means.
+
+**North-star bar:** **OpenID Foundation certification.** Certification is the one objective signal that WeftID's OIDC is correct rather than merely present, and running the OpenID conformance suite surfaces spec gaps that would otherwise ship silently. Several acceptance criteria below exist specifically to pass conformance profiles.
+
+**Acceptance Criteria:**
+
+**Downstream provider completeness:**
+- [ ] OIDC logout: RP-initiated logout (`end_session_endpoint`), front-channel logout, and back-channel logout — the OIDC parallel to the existing SAML SLO; advertised in discovery
+- [ ] Token introspection endpoint (RFC 7662) for resource servers
+- [ ] Token revocation endpoint (RFC 7009)
+- [ ] Device Authorization Grant (RFC 8628) for CLIs / TVs / input-constrained devices
+- [ ] Dynamic Client Registration (RFC 7591) + management (RFC 7592), gated by policy/credential
+- [ ] Stronger client authentication: `private_key_jwt` and (where feasible) mTLS client auth, in addition to client-secret
+- [ ] Pairwise subject identifiers (`pairwise` `subject_type`) for cross-client privacy, in addition to `public`
+- [ ] Pushed Authorization Requests (PAR, RFC 9126) and signed request objects for higher-assurance flows
+- [ ] Consent/scope-grant persistence and management (remembered consent, revocable grants)
+
+**Upstream consumer completeness:**
+- [ ] Back-channel logout receiver: honor logout initiated by an upstream OIDC IdP and terminate the corresponding WeftID session(s)
+- [ ] RP-initiated logout to the upstream IdP on WeftID logout where the IdP supports it
+
+**Certification & conformance:**
+- [ ] Pass the OpenID Foundation conformance suite for the targeted profiles (at minimum: Basic OP, Config OP; stretch: Form Post OP, and the relevant RP profiles for the upstream side)
+- [ ] Pursue formal OpenID Foundation certification for WeftID as an OP (and, if scoped, as an RP)
+- [ ] Document certified profiles and any intentional deviations
+
+**Cross-cutting:**
+- [ ] Discovery document advertises every newly supported endpoint/capability accurately
+- [ ] Audit events for logout, introspection, revocation, device-grant issuance, and dynamic registration
+- [ ] Each feature independently testable; conformance run wired into CI where practical
+- [ ] Docs updated: logout integration, introspection/revocation for resource servers, device-grant flow, dynamic registration, client-auth options
+
+**Effort:** XL (broad protocol surface plus a certification effort; naturally splits into several iterations by RFC/feature)
+**Value:** High (this is what makes WeftID's auth middleware credible and versatile; explicit prerequisite for the embedder repositioning per the 2026-06 sequencing decision)
+**Version impact:** Minor (additive endpoints, grant types, and discovery metadata; no breaking change to the functional OIDC surface)
+
+**Dependencies:**
+- Builds on **OIDC Provider (Downstream IdP for Apps)** (the functional OP) and **OIDC Upstream IdP Support** (the functional RP). Start only after those are usable.
+- Gating prerequisite for the **Embedder Enablement** theme (per 2026-06 sequencing).
+
+**Suggested implementation order** (when broken into iterations by `/lead`):
+1. OIDC logout (RP-initiated + front/back-channel) — closes the most visible functional gap
+2. Token introspection + revocation — needed by any resource-server integration
+3. Conformance-suite pass for Basic + Config OP profiles (drives correctness fixes across the board)
+4. Device grant + dynamic client registration
+5. Stronger client auth (`private_key_jwt`/mTLS) + pairwise subjects + PAR
+6. Formal OpenID certification + documentation of certified profiles
+
+---
+
+## Social Sign-In Providers (Consumer IdPs)
+
+**User Story:**
+As a product team using WeftID for authentication,
+I want my end users to sign in with consumer identity providers (Apple, Microsoft personal accounts, Facebook, Discord, LinkedIn, and similar),
+So that "social sign-in" is a complete, marketable capability and not just the enterprise-flavored Google/GitHub presets that ship with upstream OIDC.
+
+**Context:**
+
+The **OIDC Upstream IdP Support** item delivers a generic OIDC connector plus enterprise-leaning presets (Entra, Google Workspace, GitHub, Okta). That covers the *enterprise* half of "social sign-in," but not the consumer breadth product teams expect when they say "let users log in with Apple/Facebook/Microsoft." This item extends the same generic OIDC/OAuth connector with consumer providers, reusing the existing connector, claim-mapping, and JIT plumbing rather than building bespoke flows.
+
+It sits in **Phase 2** of the Recommended Path Forward (social-sign-in breadth), alongside OIDC hardening, after functional OIDC lands.
+
+**Design Notes:**
+
+- Build on the generic OIDC connector from **OIDC Upstream IdP Support**; most providers are thin preset layers (authority URL, scopes, claim quirks).
+- Providers that aren't spec-OIDC (e.g. Facebook's Graph-flavored OAuth2, Apple's `form_post` + client-secret-as-JWT) get small per-provider adapters, mirroring the SCIM "quirks" pattern.
+- Consumer providers are **end-user login** sources; they coexist with enterprise SSO and with invited-guest passwordless (ties into the Embedder **External/Guest Invitations** item).
+- Per-Organization opt-in: an admin enables which social providers are offered; nothing appears on the login screen unless enabled.
+- Account linking: a user who first signs in socially and later via another method should correlate on verified email (documented policy; reuse the upstream `(idp_id, sub)` + email-merge rules).
+
+**Acceptance Criteria:**
+
+- [ ] Apple sign-in (handles `form_post` response mode and client-secret-as-JWT signing)
+- [ ] Microsoft personal accounts (consumer, distinct from the Entra enterprise preset)
+- [ ] Facebook login (Graph-flavored OAuth2 adapter)
+- [ ] At least two more common consumer providers (e.g. Discord, LinkedIn) shipped via the preset mechanism
+- [ ] Each provider is a thin preset/adapter over the generic OIDC connector; non-OIDC quirks isolated per provider
+- [ ] Per-Organization opt-in: providers are off until an admin enables them; login screen reflects only enabled providers
+- [ ] Claim → user attribute mapping reuses the existing attribute registry
+- [ ] Account linking/correlation on verified email documented and tested
+- [ ] JIT provisioning parity with the upstream OIDC flow
+- [ ] Audit events for social login start/success/failure and JIT provisioning
+- [ ] Docs: per-provider setup walkthroughs (app registration, redirect URIs, scopes)
+
+**Effort:** L (mostly presets/adapters on top of the generic OIDC connector; a few providers need real per-provider handling)
+**Value:** Medium (completes the "social sign-in" capability named in the Recommended Path Forward; broadens WeftID's appeal beyond enterprise federation)
+**Version impact:** Minor (additive provider presets; no change to existing flows)
+
+**Dependencies:**
+- Builds on **OIDC Upstream IdP Support** (the generic connector + preset mechanism). Do not start before that connector exists.
+- Composes with the Embedder **External/Guest Invitations + Passwordless** item (social as a primary login method for externals).
+
+---
+
+## Optional Adaptive Auth Policies
+
+**User Story:**
+As a tenant admin with elevated security requirements,
+I want to optionally enable adaptive authentication protections (login throttling/IP reputation, GeoIP allow-deny, breached-password checks, CAPTCHA),
+So that I can harden my tenant's login against credential-stuffing and risky sign-ins without those protections being forced on tenants that don't want them.
+
+**Context:**
+
+authentik exposes a rich policy engine (Reputation, GeoIP, HaveIBeenPwned/zxcvbn, CAPTCHA) that gates its login flows. WeftID's login flow is intentionally opinionated and hard-coded, which keeps the attack/complexity surface small. This item adds a *curated, optional* subset of those protections **without** turning WeftID into a general policy engine.
+
+**Hard constraint (product owner):** every protection here is **strictly opt-in, off by default, and per-tenant configurable.** The default login flow must be byte-for-byte unchanged unless a tenant admin explicitly enables a given protection. No protection may run, add latency, call an external service, or alter login UX in the default (un-configured) state. This is the governing requirement, not a nice-to-have — acceptance criteria are framed around it.
+
+**Design Notes:**
+
+- Each protection is an independent, separately-toggled feature; enabling one does not enable any other.
+- All settings are tenant-scoped (RLS), surfaced in a tenant security-settings area, and auditable (enabling/disabling is an event).
+- External-dependency protections (HaveIBeenPwned, GeoIP database, CAPTCHA provider) only ever make network calls or load data when that specific protection is enabled; the default deployment makes zero such calls.
+- Fail-open vs fail-closed behavior per protection is an explicit, documented choice (e.g. HIBP lookup failure should not lock out logins; GeoIP allow-list failure mode is admin-configurable).
+
+**Acceptance Criteria:**
+
+- [ ] **Default-off invariant:** with no configuration, the login flow, its latency, its UX, and its outbound network calls are identical to today; covered by a regression test asserting no policy code path executes when all protections are disabled
+- [ ] **Login throttling / IP reputation (opt-in):** per-tenant toggle; tracks failed-login attempts per IP/username and applies back-off or temporary block above a configurable threshold; counters scoped per tenant
+- [ ] **GeoIP allow-deny (opt-in):** per-tenant toggle; admin configures allowed/denied countries or ASNs; configurable fail-open/fail-closed when GeoIP lookup is unavailable; GeoIP data only loaded when enabled
+- [ ] **Breached-password check (opt-in):** per-tenant toggle; HaveIBeenPwned k-anonymity range query at password-set/change time; never sends the full hash; lookup failure fails open (does not block the password change); only calls HIBP when enabled
+- [ ] **CAPTCHA on login (opt-in):** per-tenant toggle; pluggable provider (reCAPTCHA / hCaptcha / Turnstile); challenge only rendered when enabled, optionally gated on prior failed attempts
+- [ ] Each protection independently toggleable; enabling/disabling emits an audit event (`auth_policy_enabled` / `auth_policy_disabled` with which policy)
+- [ ] All configuration tenant-scoped under RLS; one tenant's settings never affect another
+- [ ] API-first: protections configurable via `/api/v1/` with documented fields
+- [ ] Documentation: admin-guide page describing each protection, its default-off behavior, external dependencies, and fail-open/closed semantics
+
+**Effort:** L (four independent protections, each with config, enforcement, audit, and external-dependency handling)
+**Value:** Low (nice-to-have hardening; not urgent. Most valuable to security-conscious tenants, but must never become friction for the default install)
+**Version impact:** Minor (additive: new per-tenant settings, new optional enforcement paths gated behind toggles, new event types; default behavior unchanged)
+
+**Dependencies:**
+- Independent of the OIDC items. Touches the login flow and tenant settings only.
+- Each protection can ship independently; this item can be broken into one iteration per protection by `/lead`.
+
+---
+
+# Theme: Embedder Enablement (WeftID as Identity-as-a-Service for SaaS Builders)
+
+**Strategic framing:**
+
+The items in this theme reposition WeftID from a *federation tool an organization's IT runs* to an *embeddable identity layer a SaaS company builds on* — the WorkOS / Auth0-B2B / Frontegg / Stytch playbook. In this model the **SaaS company is the customer**, and each of *their* customers is a WeftID **Organization** (an existing tenant, RLS-isolated; "Organization" is the embedder-facing term, `tenant` remains the internal data-model term). The SaaS provider never builds SSO, SCIM, OIDC, MFA, or user management — they call WeftID's APIs and ship "enterprise-ready" from day one.
+
+**Why this is the strongest use case:** the buyer of a SaaS product is not the IT department that owns Entra/Okta. Asking that IT department to stand up federation "just so external/partner users can get into an app" is exactly the work IT deflects. When the SaaS provider owns the identity layer via WeftID, the customer can onboard external users — *auditably* — without filing that ticket. WeftID already has the hard middleware (multi-tenant RLS isolation, SAML SP/IdP, inbound + outbound SCIM, groups, audit log, per-tenant branding, and the queued OIDC provider). What's missing is the **embedding control plane**: programmatic org lifecycle, a platform credential, event egress, self-service connection setup, and external-user onboarding.
+
+**MVP of the theme:** items 1, 3, 4, 5 (provision orgs, sync via webhooks, self-serve SSO setup, invite auditable externals). Item 2 ships inside item 1. The rest compound value but are not load-bearing.
+
+**Sequencing (product owner, 2026-06):** this entire theme is **deferred behind the OIDC work.** WeftID must first be an exceptionally strong and versatile authentication middleware — both OIDC directions solid (the **OIDC Upstream IdP Support** and **OIDC Provider (Downstream IdP for Apps)** items, plus any OIDC-completeness follow-ups) — before the embedder go-to-market is pursued. Do not start Embedder Enablement items until the OIDC surface is complete. The dependency graph already reflects this: the hosted-login item builds on the OIDC provider, and the self-serve SSO portal leans on the upstream OIDC presets.
+
+---
+
+## [Embedder] Organizations / Tenant Lifecycle API
+
+**User Story:**
+As a SaaS engineering team embedding WeftID,
+I want to create, configure, suspend, and delete customer Organizations programmatically via API,
+So that a customer signing up in my product automatically gets an isolated WeftID Organization without anyone running a CLI command.
+
+**Context:**
+
+Today tenants are created **only** by the `python -m app.cli.provision_tenant` CLI script. That is a non-starter for embedding: an embedder needs to `POST /organizations` at customer-signup time, from their own backend, with no shell access to the WeftID host. This item exposes the full tenant lifecycle (which already exists internally) as a control-plane REST API. "Organization" is the embedder-facing name for what is internally a tenant (subdomain, RLS scope, branding).
+
+**Design Notes:**
+
+- The API is **control-plane** (cross-tenant): it creates and manages tenants, so it cannot be authenticated by a per-tenant credential. It depends on the **Platform API keys** item (#2) for auth.
+- Reuse the existing provisioning logic in `app/cli/provision_tenant.py` / `app/services/` rather than forking it; the CLI becomes a thin wrapper over the same service path.
+- Org creation provisions: subdomain (or auto-assigned), display name, initial branding, and optionally a first admin user (invitation email) — matching what the CLI does today.
+- Lifecycle states: active, suspended (login disabled, data retained, billing/offboarding hold), deleted (hard delete with cascade, or soft-delete + purge window — decide during grooming).
+- Idempotency keys on create (so a retried signup webhook doesn't double-provision).
+
+**Acceptance Criteria:**
+
+- [ ] `POST /api/v1/organizations` creates an Organization (subdomain optional/auto, name, branding, optional first-admin invite); idempotency-key supported
+- [ ] `GET /api/v1/organizations` lists, `GET /api/v1/organizations/{id}` retrieves
+- [ ] `PATCH /api/v1/organizations/{id}` updates name/branding/settings
+- [ ] `POST /api/v1/organizations/{id}/suspend` and `/reactivate` toggle login without data loss
+- [ ] `DELETE /api/v1/organizations/{id}` removes the Organization with documented cascade semantics
+- [ ] All endpoints authenticated by a platform (control-plane) credential, never a per-tenant token
+- [ ] The existing `provision_tenant` CLI is refactored to call the same service path (no logic divergence)
+- [ ] Every lifecycle action emits an audit event attributable to the platform actor
+- [ ] API docstrings document all accepted fields (API-first rule); endpoints documented in the self-hosting/embedder guide
+
+**Effort:** L
+**Value:** High (foundational — embedding is impossible without programmatic org provisioning)
+**Version impact:** Minor (additive control-plane endpoints; CLI behavior preserved)
+
+**Dependencies:**
+- Requires **Platform API keys & scoped management auth** (#2) for authentication.
+- Reuses existing tenant provisioning service logic.
+
+---
+
+## [Embedder] Platform API Keys & Scoped Management Auth
+
+**User Story:**
+As a SaaS platform operator,
+I want a privileged platform API credential (distinct from per-tenant tokens) that can manage all of my Organizations,
+So that my backend can drive org lifecycle, connection setup, and cross-org reporting through one auditable, scope-limited control-plane identity.
+
+**Context:**
+
+All current API auth is **per-tenant** (session, per-tenant OAuth2 client, SCIM bearer). There is no credential that legitimately operates **above** a single tenant. The control-plane items in this theme (org lifecycle, admin portal links, webhooks config) require exactly that. This item introduces a platform-scoped credential with explicit, least-privilege scopes — not a god-mode key.
+
+**Design Notes:**
+
+- Platform keys live outside any single tenant's RLS scope; their use of `UNSCOPED` operations is deliberate and must be tightly bounded and audited (this is the one place cross-tenant access is legitimate, so it needs strong guardrails).
+- Scopes (least privilege): e.g. `organizations:write`, `organizations:read`, `connections:write`, `webhooks:write`, `directory:read`. A key grants only the scopes it was issued with.
+- Key rotation, revocation, and per-key audit (every control-plane action records which platform key performed it).
+- Keys are hashed at rest (Argon2, same as OAuth2 tokens); shown once on creation.
+- Management surface to create/rotate/revoke keys (super-admin/operator only), plus API.
+
+**Acceptance Criteria:**
+
+- [ ] Platform API key type with hashed-at-rest storage, shown once on issue
+- [ ] Scope model enforced per request; a key lacking a scope is denied (403) with a clear error
+- [ ] Cross-tenant (`UNSCOPED`) access is reachable **only** via platform keys and only for whitelisted control-plane operations; covered by tests asserting per-tenant tokens cannot reach control-plane endpoints
+- [ ] Create / list / rotate / revoke keys via API and admin UI (operator role)
+- [ ] Every control-plane action audits the acting platform key id
+- [ ] Rate limiting on control-plane endpoints
+- [ ] Docs: key issuance, scope reference, rotation, and the security model for cross-tenant access
+
+**Effort:** M
+**Value:** High (the auth foundation the entire control plane depends on)
+**Version impact:** Minor (additive credential type + scope enforcement; existing per-tenant auth unchanged)
+
+**Dependencies:**
+- Prerequisite for items #1, #4, #3 (their endpoints are control-plane).
+- Reuses existing crypto/hashing infrastructure.
+
+---
+
+## [Embedder] Outbound Webhooks / Event Streaming
+
+**User Story:**
+As a SaaS engineering team,
+I want WeftID to push identity events to my backend via signed webhooks,
+So that I can keep my own user/membership records in sync without polling WeftID's API.
+
+**Context:**
+
+WeftID has a rich internal audit/event log, but **it never leaves WeftID** — there are no outbound webhooks today. An embedder's app must learn, in near-real-time, when a user is provisioned via SCIM, deactivated, added to a group, or when an SSO connection goes live, so it can mirror that state into its own database. This is essential plumbing for embedding.
+
+**Design Notes:**
+
+- Reuse the outbound-SCIM worker patterns (`app/services/scim/worker.py`): a durable queue, retries with exponential backoff, dead-letter after N attempts, and a delivery log.
+- Per-Organization webhook endpoints **and** platform-level endpoints (an embedder may want one firehose across all their orgs, or per-org routing — support both).
+- HMAC-signed payloads (shared secret per endpoint) with a timestamp to prevent replay; documented verification recipe.
+- Event catalog mapped from the existing `event_types` registry: e.g. `user.created`, `user.updated`, `user.deactivated`, `user.deleted`, `group.membership.changed`, `scim.user.provisioned`, `sso.connection.activated`, `mfa.enrolled`.
+- At-least-once delivery; consumers must dedupe on event id (documented).
+
+**Acceptance Criteria:**
+
+- [ ] Configurable webhook endpoints (per-Organization and platform-wide) with subscribed event types
+- [ ] HMAC signature header + timestamp; documented verification example
+- [ ] Durable delivery with retry/backoff and dead-letter; delivery log queryable
+- [ ] Event catalog mapped from `app/constants/event_types.py`; documented payload schemas
+- [ ] At-least-once semantics with stable event ids for consumer dedupe
+- [ ] Test/redeliver controls (send test event, replay a failed delivery)
+- [ ] API + admin UI to manage endpoints; secrets shown once
+- [ ] Docs: event catalog, signature verification, retry semantics
+
+**Effort:** L
+**Value:** High (without event egress, embedders must poll; this is core sync plumbing)
+**Version impact:** Minor (additive: new tables, worker, endpoints, event delivery)
+
+**Dependencies:**
+- Reuses the outbound-SCIM worker/queue/retry patterns.
+- Platform-level endpoints require **Platform API keys** (#2); per-org endpoints work with tenant auth.
+
+---
+
+## [Embedder] Self-Service SSO/SCIM Admin Portal (Magic-Link)
+
+**User Story:**
+As a SaaS provider onboarding an enterprise customer,
+I want to send that customer's IT admin a branded, self-service link where they configure their own SSO and SCIM connection,
+So that I never have to manually broker certificate/metadata exchange, and the customer's IT can do it themselves in minutes.
+
+**Context:**
+
+This is the theme's **killer differentiator** and the direct answer to the stated pain ("IT won't set up federation, and the SaaS buyer can't do it for them"). Modeled on WorkOS's Admin Portal: the embedder generates a short-lived, scoped link via API; the customer's IT admin opens it, picks their IdP (Entra/Okta/Google/generic SAML or OIDC), and is walked through metadata/cert exchange and SCIM token setup — all within their own Organization's RLS scope, with no access to anything else. It converts "stand up federation" from a multi-week support thread into the customer admin's own guided 10-minute task.
+
+**Design Notes:**
+
+- Embedder calls `POST /api/v1/organizations/{id}/portal-links` (control-plane) → returns a short-lived signed URL scoped to that Organization and a specific intent (`sso`, `scim`, or `both`).
+- The portal is a **restricted, branded UI** that exposes *only* connection setup for that one Organization — not the full admin app. Reuses the existing SAML/OIDC IdP and inbound-SCIM configuration surfaces, wrapped in a guarded, single-purpose flow.
+- Guided setup per IdP preset (reuse the upstream SAML presets and, once shipped, the OIDC upstream presets): copy-paste redirect URIs/ACS URLs/metadata, upload/import IdP metadata, generate SCIM bearer token.
+- Link is single-Organization, expiring, optionally single-use; all actions inside it audit as the customer admin (or a portal-actor), not the platform.
+- On completion, fire `sso.connection.activated` / `scim.connection.activated` webhooks (#3) so the embedder knows the customer is live.
+
+**Acceptance Criteria:**
+
+- [ ] `POST /api/v1/organizations/{id}/portal-links` issues a short-lived, signed, Organization-scoped portal URL with an intent (sso/scim/both)
+- [ ] Portal UI exposes only connection setup for that Organization; cannot navigate to users, billing, or other orgs (enforced server-side, not just UI)
+- [ ] Guided SSO setup (SAML now; OIDC upstream when that item ships) with preset walkthroughs and metadata/cert import
+- [ ] Guided SCIM receiver setup (generate/show bearer token, endpoint URLs)
+- [ ] Portal is brandable per embedder/Organization
+- [ ] Links expire; actions inside audit to the customer admin/portal actor; completion fires connection-activated webhooks
+- [ ] Abuse protections: link expiry, optional single-use, rate limiting
+- [ ] Docs: embedder flow (generate link) + customer-admin flow (use link)
+
+**Effort:** L
+**Value:** High (the standout differentiator; directly removes the IT-federation bottleneck)
+**Version impact:** Minor (additive: portal-link issuance, a guarded portal UI over existing config surfaces)
+
+**Dependencies:**
+- Requires **Platform API keys** (#2) to issue links; **Webhooks** (#3) for completion signals.
+- Reuses existing SAML IdP + inbound-SCIM config; gains OIDC upstream presets when that item ships.
+
+---
+
+## [Embedder] External / Guest User Invitations + Passwordless Login
+
+**User Story:**
+As an admin in a customer Organization (or a SaaS provider acting on their behalf),
+I want to invite external/partner users who authenticate without going through our corporate IdP, using passwordless login,
+So that contractors, partners, and cross-org collaborators get auditable access to the app even though they can't be added to our Entra/Okta tenant.
+
+**Context:**
+
+This is the second half of the stated pain: enterprises force their *own* staff through SSO, but the people who actually need app access are often **externals who cannot be provisioned into the corporate IdP at all.** Today WeftID has email OTP only as an **MFA factor**, not as a primary login method, and no first-class "invite an external" flow. This item makes passwordless (magic-link / email-OTP, optionally social) a **primary** authentication path and adds guest-user invitations that coexist with SSO users in the same Organization, under one audit trail.
+
+**Design Notes:**
+
+- Promote email-OTP/magic-link from MFA-only to a **primary** login method (per-Organization opt-in).
+- Guest invitation flow: an admin (or the embedder via API) invites an external by email; the invite carries Organization + group/access assignment; the user accepts via magic link and never touches the corporate IdP.
+- Guests are clearly distinguished from SSO/directory-sourced users (badge/flag), and are fully represented in the audit log, group system, and access checks.
+- Optional social login for guests (reuses the upstream OIDC/social work — Google/GitHub) where the embedder enables it.
+- Coexistence: an Organization can have SSO-required internal users and invited external guests simultaneously (ties into the per-org auth policy item #6).
+
+**Acceptance Criteria:**
+
+- [ ] Magic-link / email-OTP available as a **primary** login method (per-Organization opt-in), not just MFA
+- [ ] Guest invitation via admin UI and API: invite by email with Organization + group/access assignment
+- [ ] Guest accepts via magic link, bypassing any configured corporate IdP, and lands with the assigned access
+- [ ] Guests flagged distinctly; appear in audit log, groups, and access checks like any user
+- [ ] Optional social login for guests where enabled (reuses upstream OIDC/social)
+- [ ] SSO users and guests coexist in one Organization without conflict
+- [ ] Invitation lifecycle: pending/accepted/expired/revoked, with audit events
+- [ ] API-first; documented fields
+
+**Effort:** M
+**Value:** High (directly solves the "auditable external access without corporate SSO" frustration that motivates the whole repositioning)
+**Version impact:** Minor (additive: primary passwordless path, invitation flow, guest flag)
+
+**Dependencies:**
+- Complements **Per-organization auth policy** (#6) for SSO-required-vs-guest coexistence.
+- Optional social login reuses the **OIDC Upstream IdP Support** work.
+
+---
+
+## [Embedder] Per-Organization Auth Policy (SSO-Required vs. Invited-External-Allowed)
+
+**User Story:**
+As an admin in a customer Organization,
+I want to require SSO for users on our corporate domain while allowing invited externals to use passwordless,
+So that employees are always forced through our IdP but partners and contractors can still get in.
+
+**Context:**
+
+Embedding customers need **mixed-mode** access: corporate identities must go through SSO (compliance), but invited externals must not be blocked by it. This item adds a per-Organization policy layer on top of the existing privileged-domain routing: domain-matched users are routed to (and required to use) the configured IdP, while invited guests use passwordless — all in one Organization, one audit trail.
+
+**Design Notes:**
+
+- Extends existing privileged/protected-domain routing: a verified corporate domain bound to an IdP can be marked **SSO-required** (password/passwordless disabled for matching emails).
+- Guests (item #5) are exempt from the SSO-required rule by virtue of being invited externals.
+- Per-Organization configuration; auditable when changed; sensible safe default (no enforcement unless configured).
+
+**Acceptance Criteria:**
+
+- [ ] Per-Organization policy: mark a domain (or the whole org) as SSO-required
+- [ ] SSO-required users on a matching email domain cannot use password/passwordless; routed to the bound IdP
+- [ ] Invited guests remain able to authenticate passwordlessly despite an SSO-required policy
+- [ ] Policy changes are audited; default is non-enforcing
+- [ ] Clear end-user messaging when a login method is blocked by policy
+- [ ] API-first; documented
+
+**Effort:** M
+**Value:** Medium (high for compliance-sensitive customers; depends on #5 to be meaningful)
+**Version impact:** Minor (additive policy layer on existing domain routing; no change to default behavior)
+
+**Dependencies:**
+- Builds on existing **privileged/protected domain** routing.
+- Pairs with **External/Guest invitations** (#5).
+
+---
+
+## [Embedder] Hosted / Embeddable Login (AuthKit-Style) with White-Label on Customer Domains
+
+**User Story:**
+As a SaaS engineering team,
+I want a turnkey, brandable hosted login I redirect users to (optionally on the customer's own domain),
+So that I get SSO, MFA, and passwordless without building or maintaining any login UI myself.
+
+**Context:**
+
+Even with the OIDC provider shipped, embedders still benefit from a **turnkey login experience** they don't build — the WorkOS AuthKit model. The SaaS app redirects to WeftID's hosted login; WeftID handles IdP selection, SSO, MFA, and passwordless, then returns the user via the OIDC provider flow. White-labeling (per-Organization branding, optional custom/customer domain) makes the login feel native to the SaaS product.
+
+**Design Notes:**
+
+- Builds directly on the **OIDC Provider (Downstream)** item — the hosted login is the human-facing front end; OIDC is the protocol hand-off.
+- Per-Organization branding already exists; extend to a fully white-labeled hosted login page.
+- Optional custom-domain hosting reuses the protected-domains/portal-host + on-demand-TLS infrastructure from the forward-auth work.
+- IdP discovery/selection: if the Organization has SSO configured, route appropriately; otherwise present passwordless/guest options (ties into #5/#6).
+
+**Acceptance Criteria:**
+
+- [ ] Hosted login screen, fully branded per Organization, driving SSO + MFA + passwordless
+- [ ] Redirect-based hand-off to embedder via the OIDC provider flow (standard authorization-code + PKCE)
+- [ ] IdP selection/routing based on Organization config and email domain
+- [ ] Optional custom-domain hosting via the protected-domains/portal-host + on-demand-TLS infra
+- [ ] No login UI required on the embedder side; documented integration (redirect, callback)
+- [ ] Accessible, responsive, localized
+
+**Effort:** L
+**Value:** Medium (major DX/adoption boost; not load-bearing once OIDC + invites exist)
+**Version impact:** Minor (additive hosted UI on top of OIDC provider)
+
+**Dependencies:**
+- Builds on **OIDC Provider (Downstream IdP for Apps)**.
+- Custom-domain hosting reuses **Forward-Auth Proxy** protected-domains/portal-host infrastructure.
+
+---
+
+## [Embedder] Custom Roles & Entitlements API ("Access Levels")
+
+**User Story:**
+As a SaaS engineering team,
+I want to define my application's own roles/entitlements per Organization and ask WeftID whether a user has a given access level,
+So that I can model my product's access semantics in WeftID instead of inventing a parallel permission system in my own app.
+
+**Context:**
+
+WeftID's roles are fixed (`user`/`admin`/`super_admin`) — those govern *WeftID's* admin surface, not the embedder's application semantics. An embedder needs to define access levels meaningful to *their* product ("billing_manager", "viewer", "project_admin"), assign them to users/groups per Organization, and query them at request time. This is the authentik "Application Entitlements" / WorkOS FGA idea, scoped to embedding. The user explicitly asked for "define groups and access levels via the APIs."
+
+**Design Notes:**
+
+- Keep the existing WeftID platform roles for WeftID's own admin RBAC; add a **separate, embedder-defined entitlement layer** on top (don't overload the three platform roles).
+- Per-Organization custom roles/entitlements, assignable to users and groups (reuse the group system + DAG effective membership for inheritance).
+- An **authorization-check endpoint**: "does user U in Organization O have entitlement E?" — fast, cacheable, auditable. Optionally surfaced as a claim in the OIDC `groups`/`entitlements` scope.
+- Decide scope of fine-grained-ness during grooming (role/entitlement labels vs. full relationship-based FGA — start with the former).
+
+**Acceptance Criteria:**
+
+- [ ] Define custom roles/entitlements per Organization via API (create/list/update/delete)
+- [ ] Assign entitlements to users and groups; group assignments inherit via DAG effective membership
+- [ ] `GET`/`POST` authorization-check endpoint: resolve whether a user has an entitlement, with low latency
+- [ ] Entitlements exposable as OIDC claims (ties into the OIDC provider `entitlements`/`groups` scope)
+- [ ] Distinct from WeftID's platform roles; embedder entitlements never grant WeftID admin access
+- [ ] Assignment changes audited
+- [ ] API-first; documented fields
+
+**Effort:** L
+**Value:** Medium (lets embedders model app access in WeftID; differentiator vs. raw SSO)
+**Version impact:** Minor (additive entitlement layer + check endpoint)
+
+**Dependencies:**
+- Reuses the **group system** and DAG effective membership.
+- Composes with **OIDC Provider** (entitlement claims) and the shared grant model.
+
+---
+
+## [Embedder] Official SDKs (Node + Python First)
+
+**User Story:**
+As a SaaS developer integrating WeftID,
+I want official client libraries for my stack,
+So that I can provision Organizations, issue portal links, verify webhooks, and run OIDC login in hours instead of hand-rolling REST calls.
+
+**Context:**
+
+Raw REST is a friction tax on adoption. Every comparable platform (WorkOS, Auth0, Stytch) ships first-party SDKs that wrap the management + auth APIs, handle auth/signing, and provide typed models. This item delivers official SDKs for the two most common embedder stacks first.
+
+**Design Notes:**
+
+- Generate from the existing OpenAPI schema where possible; hand-polish ergonomics (auth, pagination, webhook signature verification helpers, OIDC login helpers).
+- Node/TypeScript and Python first; others (Go, Ruby, PHP) as follow-ups based on demand.
+- Cover: Organizations API, platform-key auth, portal-link issuance, webhook signature verification, OIDC login/callback helpers.
+- Versioned, published to npm/PyPI, with quickstart docs and runnable examples.
+
+**Acceptance Criteria:**
+
+- [ ] Node/TypeScript SDK: org lifecycle, portal links, webhook verification, OIDC login helpers; typed models; published to npm
+- [ ] Python SDK: same surface; published to PyPI
+- [ ] Generated from OpenAPI where practical, with ergonomic hand-polish
+- [ ] Quickstart docs + runnable example apps for each SDK
+- [ ] Versioning/release process documented; CI publishes on tag
+- [ ] Webhook-signature and OIDC-callback helpers covered by tests
+
+**Effort:** M
+**Value:** Medium (compounds adoption; not load-bearing for the capability itself)
+**Version impact:** N/A to the core app (separate published packages); tracks the API surface
+
+**Dependencies:**
+- Tracks the **Organizations API** (#1), **Platform keys** (#2), **Webhooks** (#3), and **OIDC Provider** surfaces.
 
 ---

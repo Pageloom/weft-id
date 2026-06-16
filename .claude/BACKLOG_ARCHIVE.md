@@ -4,6 +4,68 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Forward-Auth Proxy for HTTP Apps
+
+**Status:** Complete (2026-06-16, branch `feature/forward-auth-proxy`, 6 iterations + final review)
+
+**Summary:** WeftID became a multi-domain forward-auth authority: reverse proxies (Traefik/nginx/Caddy) gate HTTP apps with no built-in SSO via `GET /forward-auth/{check,start,authorize,callback}`. Apps are protectable on **unrelated domains** (not just tenant subdomains) through an OAuth-style redirect handshake that mints a signed single-use token and a per-domain forward-auth cookie, leaving the primary session cookie untouched. Includes Protected Domains (DNS-TXT ownership proof + on-demand-TLS portal-host admission), Proxy Apps (CRUD/grants under Service Providers, reusing the SP-group plumbing via a shared `user_can_access_app` resolver and a dual-FK `sp_group_assignments`), per-app `X-Forwarded-*` headers, public-path bypass, reduced-verbosity audit, My Apps surfacing, full multi-proxy docs, and a cross-domain E2E test. Final review fixed a cross-app authorization bypass on `/check` (per-app grant now re-checked) and hardened nonce consumption.
+
+**Original backlog item:**
+
+**User Story:**
+As a self-hoster running HTTP apps that have no built-in SSO (Sonarr, Radarr, Jellyfin admin, Grafana, internal dashboards, private wikis),
+I want WeftID to act as a forward-auth provider so my reverse proxy can gate those apps behind WeftID sign-in,
+So that I get SSO in front of legacy apps without modifying them.
+
+**Context:**
+
+Forward-auth (also called "auth_request" in nginx and "forward_auth" in Caddy) is the standard mechanism for putting SSO in front of HTTP apps that have no built-in authentication. The reverse proxy makes a subrequest to a dedicated check endpoint for every protected request; the auth server replies allow / deny / redirect-to-login.
+
+This is the dominant pattern for protecting homelab and small-team apps (Sonarr / Radarr / Jellyfin admin pages, Grafana, internal dashboards, private wikis) that ship without SSO support. WeftID's stack (FastAPI + Postgres + worker) is light enough that an in-process forward-auth endpoint serves the job without a separate component to deploy, version, or scale.
+
+**Design Notes:**
+
+- New endpoint family: `GET /forward-auth/check` (and a paired `/forward-auth/start` for the OAuth-style redirect handshake). The reverse proxy calls `/check` as a subrequest on every protected request.
+- Reverse-proxy contract: 200 on allow (with `X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Groups`, and `X-Forwarded-Display-Name` headers for the upstream app to consume); 302 on missing/expired session (to `/forward-auth/start?return_url=<original>`); 403 on signed-in-but-denied.
+- Cookie scope: WeftID's session cookie is already tenant-subdomain scoped. Forward-auth check inspects the same cookie. Apps live on the same parent domain (e.g. `grafana.id.example.com`) and share the cookie scope.
+- New resource: **Proxy App**. Analogous to a SAML SP. Has: name, external URL pattern (`https://grafana.example.com`), group grants (which groups can access), optional forwarded-header config (which headers to set), optional public-paths list (URLs that bypass auth, e.g. `/healthz`). Lives in the admin UI alongside SAML SPs.
+- **Decided (grooming):** Proxy Apps live **under the Service Providers section** in the admin UI (not a separate top-level section), reinforcing the shared "protected app" model.
+- Group-based access: reuses the existing SP-group-grant model. Effective vs direct membership configurable per app.
+- **Decided (grooming):** group grants **reuse the existing SP-group plumbing** rather than a parallel `proxy_app_groups` table. `/lead` should introduce/extend a shared "protected app" abstraction over `sp_groups` so SAML SPs and proxy apps share grant logic.
+- Audit: each `/check` decision logs an audit event (configurable verbosity since per-request logging at scale would flood the log). Default: log on first allow per session, on every deny, and on session expiry.
+- Reverse-proxy examples for the documentation: Traefik `forwardAuth` middleware, nginx `auth_request`, Caddy `forward_auth` directive. The docs page should show full working configs for each.
+- One Postgres table: `proxy_apps` (tenant-scoped, name, URL pattern, header config, public paths). Group grants **reuse the existing `sp_groups` plumbing** (decided in grooming) behind a shared "protected app" abstraction; no separate `proxy_app_groups` table.
+- Deployment: single container, no new component. The `/forward-auth/*` endpoints live in the existing FastAPI app, scaled by the same compose service.
+
+**Acceptance Criteria:**
+
+- [ ] Migration adds `proxy_apps` table (tenant-scoped, name, external URL pattern, public paths, forwarded-header config, available_to_all flag)
+- [ ] Group-based access grants reuse the existing SP-group plumbing (`sp_groups`) behind a shared "protected app" abstraction (decided in grooming; no separate `proxy_app_groups` table)
+- [ ] `GET /forward-auth/check` endpoint: 200 on allow with forwarded-user headers; 302 on missing/expired session; 403 on signed-in-but-denied
+- [ ] `GET /forward-auth/start?return_url=...` endpoint: validates return_url against registered proxy apps for the tenant (prevents open-redirect); kicks off the standard sign-in flow; returns to the original URL on success
+- [ ] Admin UI: **Proxy Apps** section under the Service Providers section (decided in grooming) with create / edit / delete, group grants, public-paths list, forwarded-header config, copy-paste reverse-proxy config snippet
+- [ ] Header forwarding: `X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Groups`, `X-Forwarded-Display-Name` set on allow responses (configurable per app)
+- [ ] Public-paths bypass: requests matching configured patterns return 200 without auth (for healthchecks, public assets)
+- [ ] Audit events: `proxy_app_created`, `proxy_app_updated`, `proxy_app_deleted`, `proxy_app_grant_added`, `proxy_app_grant_removed`, `proxy_access_granted` (rate-limited: first allow per session), `proxy_access_denied`, `proxy_session_expired`
+- [ ] My Apps dashboard surfaces proxy apps alongside SAML apps so users have a single launch point
+- [ ] Documentation page in `docs/admin-guide/service-providers/forward-auth.md` with full working reverse-proxy configs for Traefik, nginx, and Caddy; explanation of cookie scope and subdomain requirements; troubleshooting (cookie not sent, headers not forwarded, infinite redirect loop)
+- [ ] Test coverage: unit tests for the `/check` endpoint covering allow / deny / unauthenticated / public-path bypass / open-redirect rejection; integration test with a real Traefik container forwarding to a dummy upstream
+- [ ] Rate limiting on `/check` (because the reverse proxy hits it on every request to every protected resource — needs to be fast and resilient to floods)
+
+**Effort:** XL (re-scoped from L during `/lead` grooming: forward auth must work across
+*different* domains, not just subdomains of the tenant host. That requires a per-domain
+cookie minted via an OAuth-style redirect handshake with signed single-use tokens, DNS-TXT
+domain-ownership verification, on-demand TLS for protected-domain portal hosts, and
+host->tenant resolution. In effect a forward-auth IdP. See `.claude/ITERATION_forward_auth_proxy.md`.)
+**Value:** Very High (the dominant pattern for protecting legacy HTTP apps in homelab and small-team deployments; one of the few SSO capabilities a tenant cannot get via SAML or OIDC alone)
+**Version impact:** Minor (additive: new tables, new endpoints, new admin section, new event types; no breaking changes to SAML / OAuth2 / SCIM)
+
+**Dependencies:**
+- None hard. Builds on existing session middleware, group-based access plumbing, and the My Apps dashboard.
+- Synergy with **Standard user attributes** (already shipped): the `X-Forwarded-*` headers can include any tenant-configured attribute, not just the four defaults.
+
+---
+
 ## Passkey Authentication & Tenant Auth Policy
 
 **Status:** Complete (2026-04-18, commits `97a4542` + `8edc155`)

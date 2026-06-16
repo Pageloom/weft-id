@@ -181,6 +181,75 @@ class TestAuthorizeAppAccess:
         assert kwargs["actor_user_id"] == "00000000-0000-0000-0000-000000000000"
 
 
+class TestRecheckCookieAccess:
+    """The /check re-check: re-resolve per-app grant for a valid cookie."""
+
+    _UID = "00000000-0000-0000-0000-0000000000c1"
+
+    def test_allow_does_not_log(self):
+        with (
+            patch.object(
+                fa.database.sp_group_assignments, "user_can_access_proxy_app", return_value=True
+            ),
+            patch.object(fa, "log_event") as log,
+        ):
+            allowed = fa.recheck_cookie_access(
+                tenant_id="t1", user_id=self._UID, proxy_app_id="a1", domain="acme.com"
+            )
+        assert allowed is True
+        log.assert_not_called()
+
+    def test_deny_logs_proxy_access_denied(self):
+        with (
+            patch.object(
+                fa.database.sp_group_assignments, "user_can_access_proxy_app", return_value=False
+            ),
+            patch.object(fa, "log_event") as log,
+        ):
+            allowed = fa.recheck_cookie_access(
+                tenant_id="t1",
+                user_id=self._UID,
+                proxy_app_id="a1",
+                domain="acme.com",
+                app_name="Grafana",
+            )
+        assert allowed is False
+        log.assert_called_once()
+        kwargs = log.call_args.kwargs
+        assert kwargs["event_type"] == "proxy_access_denied"
+        assert kwargs["actor_user_id"] == self._UID
+        assert kwargs["artifact_id"] == "a1"
+        assert kwargs["metadata"]["domain"] == "acme.com"
+        assert kwargs["metadata"]["proxy_app_name"] == "Grafana"
+
+    def test_uses_proxy_app_grant_resolver(self):
+        # Routes to user_can_access_proxy_app (proxy-app kind), not the SP one.
+        with (
+            patch.object(
+                fa.database.sp_group_assignments, "user_can_access_proxy_app", return_value=True
+            ) as resolver,
+            patch.object(fa, "log_event"),
+        ):
+            fa.recheck_cookie_access(
+                tenant_id="t1", user_id=self._UID, proxy_app_id="a1", domain="acme.com"
+            )
+        resolver.assert_called_once_with("t1", self._UID, "a1")
+
+    def test_non_uuid_subject_fails_closed(self):
+        # A non-UUID cookie subject (only reachable via a malformed cookie, which
+        # the HMAC rules out) denies without touching the DB or erroring.
+        with (
+            patch.object(fa.database.sp_group_assignments, "user_can_access_proxy_app") as resolver,
+            patch.object(fa, "log_event") as log,
+        ):
+            allowed = fa.recheck_cookie_access(
+                tenant_id="t1", user_id="not-a-uuid", proxy_app_id="a1", domain="acme.com"
+            )
+        assert allowed is False
+        resolver.assert_not_called()
+        log.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Identity assembly
 # ---------------------------------------------------------------------------

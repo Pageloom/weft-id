@@ -195,8 +195,8 @@ class TestCheck:
                 "host": names["portal_host"],
                 "x-forwarded-host": f"open.{names['domain']}",
                 "x-forwarded-uri": "/dash",
+                "cookie": f"{FORWARD_AUTH_COOKIE_NAME}={cookie}",
             },
-            cookies={FORWARD_AUTH_COOKIE_NAME: cookie},
             follow_redirects=False,
         )
         assert resp.status_code == 200
@@ -268,8 +268,8 @@ class TestCheck:
                     "host": names["portal_host"],
                     "x-forwarded-host": names["app_host"],
                     "x-forwarded-uri": "/dash",
+                    "cookie": f"{FORWARD_AUTH_COOKIE_NAME}={tampered}",
                 },
-                cookies={FORWARD_AUTH_COOKIE_NAME: tampered},
                 follow_redirects=False,
             )
         assert resp.status_code == 302
@@ -287,8 +287,8 @@ class TestCheck:
                 "host": names["portal_host"],
                 "x-forwarded-host": names["app_host"],
                 "x-forwarded-uri": "/dash",
+                "cookie": f"{FORWARD_AUTH_COOKIE_NAME}={expired}",
             },
-            cookies={FORWARD_AUTH_COOKIE_NAME: expired},
             follow_redirects=False,
         )
         assert resp.status_code == 302
@@ -304,8 +304,8 @@ class TestCheck:
                 "host": names["portal_host"],
                 "x-forwarded-host": names["portal_host"],
                 "x-forwarded-uri": "/dash",
+                "cookie": f"{FORWARD_AUTH_COOKIE_NAME}={cookie}",
             },
-            cookies={FORWARD_AUTH_COOKIE_NAME: cookie},
             follow_redirects=False,
         )
         assert resp.status_code == 200
@@ -340,8 +340,8 @@ class TestCheck:
                 "host": names["portal_host"],
                 "x-forwarded-host": names["app_host"],
                 "x-forwarded-uri": "/dash",
+                "cookie": f"{FORWARD_AUTH_COOKIE_NAME}={cookie}",
             },
-            cookies={FORWARD_AUTH_COOKIE_NAME: cookie},
             follow_redirects=False,
         )
         assert resp.status_code == 200
@@ -362,8 +362,8 @@ class TestCheck:
                     "host": names["portal_host"],
                     "x-forwarded-host": f"app2.{names['domain']}",
                     "x-forwarded-uri": "/dash",
+                    "cookie": f"{FORWARD_AUTH_COOKIE_NAME}={cookie}",
                 },
-                cookies={FORWARD_AUTH_COOKIE_NAME: cookie},
                 follow_redirects=False,
             )
         assert resp.status_code == 403
@@ -386,8 +386,8 @@ class TestCheck:
                 "host": names["portal_host"],
                 "x-forwarded-host": f"open.{names['domain']}",
                 "x-forwarded-uri": "/dash",
+                "cookie": f"{FORWARD_AUTH_COOKIE_NAME}={cookie}",
             },
-            cookies={FORWARD_AUTH_COOKIE_NAME: cookie},
             follow_redirects=False,
         )
         assert resp.status_code == 200

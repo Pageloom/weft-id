@@ -59,6 +59,7 @@ pip = ">=26.0"
 zensical = "^0.0.28"
 pygments = ">=2.16,<2.20"  # 2.20.0 breaks pymdownx.superfences (filename=None crash)
 pymdown-extensions = ">=10.21.3"  # CVE-2026-46338, transitive via zensical
+httpx2 = "^2.4.0"
 
 [tool.poetry.scripts]
 # Note: These are for documentation. Run commands directly:
@@ -102,7 +103,23 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 addopts = "--strict-markers --tb=short -n auto --ignore=tests/e2e"
-filterwarnings = ["ignore::DeprecationWarning:onelogin.*:"]
+# Warnings are errors: a test run must be warning-clean so deprecations cannot
+# silently accumulate into a future break. Each ignore below must stay narrowly
+# scoped, carry a reason, and be revisited when the dependency is bumped. New
+# third-party warnings are surfaced for a decision, never blanket-silenced.
+filterwarnings = [
+    "error",
+    # onelogin (python3-saml) emits DeprecationWarnings from its own internals
+    # that we cannot fix from here; scoped to that package only.
+    "ignore::DeprecationWarning:onelogin.*:",
+    # FastAPI does not close a parsed UploadFile when a router-level dependency
+    # (require_super_admin) rejects before the file param is bound, so its
+    # SpooledTemporaryFile is closed only at GC, where __del__ raises an
+    # unraisable exception. GC-time noise with no production impact; a real fix
+    # needs an upload-auth restructure (collides with the CSRF middleware's body
+    # parsing). Scoped to that exact message. Tracked in .claude/ISSUES.md.
+    "ignore:.*SpooledTemporaryFile.*:pytest.PytestUnraisableExceptionWarning",
+]
 
 [tool.coverage.run]
 source = ["app"]

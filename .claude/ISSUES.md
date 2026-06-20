@@ -11,8 +11,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 2 | Duplication (pre-existing), Test coverage (pre-existing) |
-| Deps | 1 | pygments (LOW, blocked by upstream) |
+| Low | 1 | Test coverage (E2E anchor, deferred) |
+| Deps | 2 | starlette (HIGH, FastAPI-compat eval needed), pygments (LOW, blocked by upstream) |
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
 consistency, private-helper import boundary, `list_active_tokens` dead code, canonical-email
@@ -22,7 +22,7 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last security scan:** 2026-05-15 (mirror-failure audit event + user_profile_updated PII redaction landed on feature/user-attributes; remaining low items unchanged)
 **Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
 **Last API coverage audit:** 2026-04-23 (3 gaps resolved: group clear relationships, IdP reimport XML, SAML debug entries)
-**Last dependency audit:** 2026-05-15 (python-multipart, urllib3, pip bumped; pygments still pinned `<2.20`, see [DEPS] entry below)
+**Last dependency audit:** 2026-06-20 (cryptography 48.0.0→48.0.1, python-multipart 0.0.29→0.0.31, pip 26.1.1→26.1.2, msgpack 1.1.2→1.2.1 bumped, clearing 4 HIGH CVEs; starlette HIGH deferred for FastAPI-compat eval, pygments still pinned `<2.20`, see [DEPS] entries below)
 **Last refactor scan:** 2026-03-21 (standard: new code since 2026-02-27, all categories; 5 new issues)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
@@ -48,37 +48,41 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 
 ---
 
----
-
-## [REFACTOR] Duplication: Tab route pattern repeated 6x in saml_idp/admin.py
-
-**Found in:** `app/routers/saml_idp/admin.py:225-436`
-**Impact:** Low
-**Category:** Duplication
-**Description:** Six tab routes (sp_tab_details, sp_tab_attributes, sp_tab_groups, sp_tab_certificates, sp_tab_metadata, sp_tab_danger) follow an identical pattern: call `_load_sp_common()`, handle errors, build tab-specific context, return template response. The file is at 1089 lines with 33 route handlers.
-**Why It Matters:** The repetitive pattern adds bulk, but the file is well-organized with clear section headers. This is low priority because each handler is compact (30-50 lines) and the structure is consistent.
-**Accepted:** Each tab has genuinely different context loading logic. A generic helper would need callbacks that add complexity without improving readability. Monitor for further growth.
-**Files Affected:** `app/routers/saml_idp/admin.py`
-
----
-
-
-## [TEST] Regression anchors for user_attributes feature
+## [TEST] Regression anchor for user_attributes feature (E2E, deferred)
 
 **Discovered:** 2026-05-14 (test agent final-pass review)
 **Severity:** Low (deferred regression coverage)
 **Source:** Test review (M-test1 + L bundle)
 
-Useful regression anchors, none are current bugs:
+Five of the six original anchors landed on feature/forward-auth-proxy (2026-06-16);
+see ISSUES_ARCHIVE.md. One remains, deferred because it needs Playwright + Docker:
 
 - E2E for admin → user fills → SP receives (full cross-iteration journey)
-- `apply_idp_attributes` "overwrites user-set canonical value when mirror=on" explicit test
-- `apply_idp_attributes` "preserves unrelated canonical rows" explicit test
-- Dashboard banner empty-case test (`missing_required == []`)
-- JIT-provisioned user mirror-failure path (sibling to existing existing-user test)
-- Admin user-detail route integration test for `user_profile_updated` event emission
 
-**Files Affected:** `tests/services/test_saml_attribute_ingestion.py`, `tests/services/test_user_attributes_service.py`, `tests/routers/test_auth.py`, `tests/routers/test_user_detail_profile.py`, `tests/e2e/`
+**Files Affected:** `tests/e2e/`
+
+---
+
+## [DEPS] starlette 1.0.1 — 4 CVEs (HIGH, FastAPI-compat eval needed)
+
+**Discovered:** 2026-06-20
+**Severity:** High (2 HIGH, 1 MEDIUM, 1 LOW)
+**Source:** `python dev/deps_check.py`
+
+- **CVE-2026-48818** (GHSA-wqp7-x3pw-xc5r, HIGH) — fixed in 1.1.0
+- **CVE-2026-54283** (HIGH) — fixed in 1.3.1
+- **CVE-2026-48817** (GHSA-x746-7m8f-x49c, MEDIUM): `HTTPEndpoint` method
+  lookup via unrestricted `getattr` — fixed in 1.1.0
+- **CVE-2026-54282** (GHSA-jp82-jpqv-5vv3, LOW): `request.url` rebuilt from an
+  unvalidated path — fixed in 1.3.0
+
+**Remediation: DEFERRED (separate task).** Clearing the HIGHs needs starlette
+≥1.3.1, but `fastapi >=0.135.2,<0.137.0` constrains the starlette range, so the
+bump risks a FastAPI-compat break and needs its own verification pass (the
+2026-06-20 audit bumped the low-risk deps in isolation per request). Bump
+starlette together with a compatible FastAPI, then run the full suite.
+
+**Files Affected:** `pyproject.toml`, `poetry.lock`
 
 ---
 

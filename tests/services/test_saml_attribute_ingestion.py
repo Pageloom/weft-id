@@ -364,6 +364,59 @@ class TestAuthenticateViaSAMLWiring:
 
         assert str(user["id"]) == str(test_user["id"])
 
+    def test_jit_user_apply_idp_attributes_failure_does_not_break_login(
+        self, test_tenant, test_super_admin_user, idp_data_no_mapping
+    ):
+        """Sibling of the existing-user case: a mirror failure during JIT
+        provisioning still yields a logged-in, provisioned user and emits the
+        mirror-failure event. The new account must not be rolled back just
+        because the attribute mirror raised."""
+        from schemas.saml import IdPCreate
+        from services import saml as saml_service
+
+        requesting = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        idp = saml_service.create_identity_provider(
+            requesting,
+            IdPCreate(**idp_data_no_mapping, is_enabled=True, jit_provisioning=True),
+            "https://test.example.com",
+        )
+
+        new_email = "iter5.jit.mirrorfail@example.com"
+        saml_result = self._make_saml_result(
+            idp.id,
+            new_email,
+            std_attrs={"department": "Sales"},
+            first_name="JIT",
+            last_name="Mirror",
+        )
+
+        import database
+
+        with (
+            patch(
+                "services.saml.provisioning.apply_idp_attributes",
+                side_effect=RuntimeError("simulated DB outage"),
+            ),
+            patch("services.saml.provisioning.log_event") as mock_log,
+        ):
+            user = saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
+        # The JIT user was provisioned and login succeeded despite the failure;
+        # the new account was not rolled back.
+        assert user is not None
+        persisted = database.users.get_user_by_email_for_saml(test_tenant["id"], new_email)
+        assert persisted is not None
+        assert str(persisted["id"]) == str(user["id"])
+
+        mirror_failed_calls = [
+            c
+            for c in mock_log.call_args_list
+            if c.kwargs.get("event_type") == "user_idp_attribute_mirror_failed"
+        ]
+        assert len(mirror_failed_calls) == 1
+        meta = mirror_failed_calls[0].kwargs["metadata"]
+        assert meta == {"idp_id": idp.id, "error_class": "RuntimeError"}
+
 
 # ---------------------------------------------------------------------------
 # Mirror flag end-to-end
@@ -540,6 +593,94 @@ class TestMirrorFlagEndToEnd:
         )
         idp_row_map = {r["attribute_key"]: r["value"] for r in idp_rows}
         assert idp_row_map.get("job_title") == "Senior Engineer"
+
+    def test_mirror_on_overwrites_user_set_canonical_value(
+        self, test_tenant, test_super_admin_user, test_user, idp_data_no_mapping
+    ):
+        """With mirror=on, an IdP login overwrites a pre-existing canonical row.
+
+        The mirror is authoritative while enabled: a value previously set by the
+        user/admin is replaced by the IdP's value on the next login. Pin this so
+        the upsert is never softened into "write only when canonical is empty".
+        """
+        import database
+        from schemas.saml import IdPCreate
+        from services import saml as saml_service
+
+        requesting = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+        # Seed a user-set canonical value before any IdP login.
+        database.user_attributes.upsert_attribute(
+            test_tenant["id"], test_tenant["id"], str(test_user["id"]), "job_title", "Old Title"
+        )
+
+        # Enable + mirror_from_idp=true for job_title.
+        self._set_attribute_policy(requesting, "job_title", enabled=True, mirror_from_idp=True)
+        idp = saml_service.create_identity_provider(
+            requesting,
+            IdPCreate(**idp_data_no_mapping, is_enabled=True),
+            "https://test.example.com",
+        )
+
+        saml_service.authenticate_via_saml(
+            test_tenant["id"],
+            self._make_saml_result(idp.id, test_user["email"], {"job_title": "Engineer"}),
+        )
+
+        canonical = database.user_attributes.get_attribute(
+            test_tenant["id"], str(test_user["id"]), "job_title"
+        )
+        assert canonical is not None
+        assert canonical["value"] == "Engineer"  # overwritten, not "Old Title"
+
+    def test_mirror_on_preserves_unrelated_canonical_rows(
+        self, test_tenant, test_super_admin_user, test_user, idp_data_no_mapping
+    ):
+        """An IdP login only touches mirrored keys; other canonical rows persist.
+
+        A login that mirrors ``job_title`` must leave an unrelated canonical
+        ``department`` row (never sent by this IdP) untouched. Pin this so the
+        per-key upsert is never widened into a full canonical replace.
+        """
+        import database
+        from schemas.saml import IdPCreate
+        from services import saml as saml_service
+
+        requesting = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+        # Clear any pre-existing job_title canonical from prior tests.
+        database.user_attributes.delete_attribute(
+            test_tenant["id"], str(test_user["id"]), "job_title"
+        )
+
+        # Seed an unrelated canonical value the IdP login will never mention.
+        database.user_attributes.upsert_attribute(
+            test_tenant["id"], test_tenant["id"], str(test_user["id"]), "department", "Research"
+        )
+
+        # Enable + mirror_from_idp=true for job_title only.
+        self._set_attribute_policy(requesting, "job_title", enabled=True, mirror_from_idp=True)
+        idp = saml_service.create_identity_provider(
+            requesting,
+            IdPCreate(**idp_data_no_mapping, is_enabled=True),
+            "https://test.example.com",
+        )
+
+        saml_service.authenticate_via_saml(
+            test_tenant["id"],
+            self._make_saml_result(idp.id, test_user["email"], {"job_title": "Engineer"}),
+        )
+
+        # job_title mirrored; department left exactly as the user set it.
+        job_title = database.user_attributes.get_attribute(
+            test_tenant["id"], str(test_user["id"]), "job_title"
+        )
+        assert job_title is not None and job_title["value"] == "Engineer"
+        department = database.user_attributes.get_attribute(
+            test_tenant["id"], str(test_user["id"]), "department"
+        )
+        assert department is not None
+        assert department["value"] == "Research"
 
 
 # ---------------------------------------------------------------------------

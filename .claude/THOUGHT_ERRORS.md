@@ -32,6 +32,18 @@ This runs lint (ruff), format check (ruff), type check (mypy), and compliance ch
 
 The test environment sets `IS_DEV=true` in `tests/conftest.py`. This is required because production validation would otherwise fail with default secret values.
 
+## Warnings in Test Runs Are Errors
+
+**Wrong:** Letting a `DeprecationWarning` / `StarletteDeprecationWarning` / etc. scroll past in the pytest summary and moving on.
+**Right:** Treat every warning as a defect. `filterwarnings = ["error", ...]` in `pyproject.toml` turns warnings into failures so they cannot accumulate unnoticed.
+
+The user's standing preference: warnings are accidents waiting to happen. A test run must be warning-clean.
+
+- A new warning means the build fails. **Do not** blanket-silence it. Fix the root cause (our code) when it is ours.
+- If the warning is genuinely third-party and unfixable from our side (e.g. an import-time deprecation in a dependency), **surface it to the user for a decision** before adding any ignore. Do not add a `filterwarnings` ignore unilaterally.
+- Every allow-listed ignore in `filterwarnings` must be narrowly scoped (specific category + module/message), carry an inline comment explaining why it is unfixable here, and have a tracking note in `.claude/ISSUES.md` so it gets revisited (e.g. when the dependency is bumped).
+- When a dependency bump introduces a new warning, that is part of "dealing with" the bump, not a separate task to defer.
+
 ---
 
 ## Test Assertions with UUIDs

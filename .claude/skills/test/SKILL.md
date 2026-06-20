@@ -71,6 +71,16 @@ make coverage ARGS="--html"         # Also generate htmlcov/ report
 
 This runs unit tests and E2E tests separately, then uses `coverage combine` to merge the data files into a single report. The combined stat shows true coverage including SAML SSO/SLO paths that only E2E tests exercise. Requires Docker services and MailDev running.
 
+## Warnings Are Errors
+
+A test run must be warning-clean. `filterwarnings = ["error", ...]` in `pyproject.toml` turns warnings into failures. If a warning appears:
+
+- Fix the root cause when the warning comes from our code.
+- If it is a genuinely unfixable third-party warning, **stop and surface it to the user for a decision** before adding any `filterwarnings` ignore. Never blanket-silence.
+- Each allow-listed ignore must be narrowly scoped, carry an inline comment, and get a tracking note in `.claude/ISSUES.md`.
+
+See `.claude/THOUGHT_ERRORS.md` ("Warnings in Test Runs Are Errors").
+
 ## Test Code Quality Standards
 
 ### Test Hygiene Audit

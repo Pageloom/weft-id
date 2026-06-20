@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 1 | Test coverage (E2E anchor, deferred) |
+| Low | 2 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
@@ -60,6 +60,40 @@ see ISSUES_ARCHIVE.md. One remains, deferred because it needs Playwright + Docke
 - E2E for admin → user fills → SP receives (full cross-iteration journey)
 
 **Files Affected:** `tests/e2e/`
+
+---
+
+## [BUG] Upload routes leak the parsed file when super-admin check rejects
+
+**Discovered:** 2026-06-20 (surfaced by enabling `filterwarnings = ["error"]`)
+**Severity:** Low (no production impact; currently warning-ignored + tracked)
+**Source:** pytest `PytestUnraisableExceptionWarning` (`SpooledTemporaryFile.__del__`)
+
+On routes that take an `UploadFile` under a router-level `require_super_admin`
+dependency, FastAPI parses (buffers) the multipart body before the dependency
+runs. When the dependency rejects, the file param is never bound, so its
+`SpooledTemporaryFile` is never closed and is reclaimed only at GC, where
+`__del__` raises an unraisable exception. In tests this attaches
+non-deterministically to whatever test is running and fails the suite under
+error-mode warnings.
+
+**Impact:** None in production (small in-memory temp file, GC-time noise). The
+only observable effect is the test warning.
+
+**Current handling:** A narrowly-scoped `filterwarnings` ignore in
+`pyproject.toml` (matched to the `SpooledTemporaryFile` message only) keeps the
+suite warning-clean. This is a deliberate, documented exception to the
+warnings-are-errors policy.
+
+**Real fix (deferred):** Restructure super-admin-guarded upload routes so the
+body is not buffered before the access check (e.g. in-handler auth for upload
+routes, or a mechanism that closes form files on dependency rejection). The
+obvious fix (parse the form after the auth check via `async with request.form()`)
+collides with the CSRF middleware, which already owns multipart body parsing, so
+this needs a coordinated change. When fixed, remove the `filterwarnings` ignore.
+
+**Files Affected:** `app/routers/saml_idp/admin.py` (and the other 5 `UploadFile`
+routes share the latent pattern), `app/middleware/csrf.py`, `pyproject.toml`
 
 ---
 

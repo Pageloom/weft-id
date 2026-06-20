@@ -43,19 +43,31 @@ def _build_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
     )
 
 
-def _load_sp_common(
-    request: Request,
+def _load_sp_tab(
     tenant_id: str,
     user: dict,
     sp_id: str,
-):
-    """Load SP config and group count for the tab bar.
+    tab: str,
+) -> RedirectResponse | tuple:
+    """Authorize and load the shared data for an SP detail tab.
 
-    Returns (sp_config, group_count, requesting_user) or redirects on error.
+    Every tab route runs the same prologue: a page-access check followed by an
+    SP load with identical error handling. This helper centralizes that. It
+    returns either a ``RedirectResponse`` (the caller should return it directly)
+    or a ``(sp_config, group_count, requesting_user)`` tuple. Handlers then build
+    their own template context, which varies per tab.
     """
+    if not has_page_access(f"/admin/settings/service-providers/detail/{tab}", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
     requesting_user = _build_requesting_user(user, tenant_id)
-    sp_config = sp_service.get_service_provider(requesting_user, sp_id)
-    group_count = sp_service.count_sp_group_assignments(requesting_user, sp_id)
+    try:
+        sp_config = sp_service.get_service_provider(requesting_user, sp_id)
+        group_count = sp_service.count_sp_group_assignments(requesting_user, sp_id)
+    except ServiceError as exc:
+        logger.warning("Failed to get SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+
     return sp_config, group_count, requesting_user
 
 
@@ -229,14 +241,10 @@ def sp_tab_details(
     sp_id: str,
 ):
     """Details tab: name, description, entity ID, ACS URL, SLO URL, metadata URL."""
-    if not has_page_access("/admin/settings/service-providers/detail/details", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
-    try:
-        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
-    except ServiceError as exc:
-        logger.warning("Failed to get SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+    loaded = _load_sp_tab(tenant_id, user, sp_id, "details")
+    if isinstance(loaded, RedirectResponse):
+        return loaded
+    sp_config, group_count, requesting_user = loaded
 
     base_url = get_base_url(request)
     sp_metadata_url = f"{base_url}/saml/idp/metadata/{sp_id}"
@@ -263,14 +271,10 @@ def sp_tab_attributes(
     sp_id: str,
 ):
     """Attributes tab: attribute mapping and include_group_claims toggle."""
-    if not has_page_access("/admin/settings/service-providers/detail/attributes", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
-    try:
-        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
-    except ServiceError as exc:
-        logger.warning("Failed to get SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+    loaded = _load_sp_tab(tenant_id, user, sp_id, "attributes")
+    if isinstance(loaded, RedirectResponse):
+        return loaded
+    sp_config, group_count, requesting_user = loaded
 
     # Compute expected mapping from SP metadata for display
     from utils.saml_idp import auto_detect_attribute_mapping
@@ -358,14 +362,10 @@ def sp_tab_groups(
     sp_id: str,
 ):
     """Groups tab: assigned groups with add/remove controls."""
-    if not has_page_access("/admin/settings/service-providers/detail/groups", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
-    try:
-        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
-    except ServiceError as exc:
-        logger.warning("Failed to get SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+    loaded = _load_sp_tab(tenant_id, user, sp_id, "groups")
+    if isinstance(loaded, RedirectResponse):
+        return loaded
+    sp_config, group_count, requesting_user = loaded
 
     assigned_groups = []
     available_groups = []
@@ -398,16 +398,10 @@ def sp_tab_certificates(
     sp_id: str,
 ):
     """Certificates tab: signing certificate status and rotation."""
-    if not has_page_access(
-        "/admin/settings/service-providers/detail/certificates", user.get("role")
-    ):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
-    try:
-        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
-    except ServiceError as exc:
-        logger.warning("Failed to get SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+    loaded = _load_sp_tab(tenant_id, user, sp_id, "certificates")
+    if isinstance(loaded, RedirectResponse):
+        return loaded
+    sp_config, group_count, requesting_user = loaded
 
     signing_cert = None
     try:
@@ -436,14 +430,10 @@ def sp_tab_metadata(
     sp_id: str,
 ):
     """Metadata tab: stored XML viewer, refresh/reimport controls."""
-    if not has_page_access("/admin/settings/service-providers/detail/metadata", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
-    try:
-        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
-    except ServiceError as exc:
-        logger.warning("Failed to get SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+    loaded = _load_sp_tab(tenant_id, user, sp_id, "metadata")
+    if isinstance(loaded, RedirectResponse):
+        return loaded
+    sp_config, group_count, requesting_user = loaded
 
     context = get_template_context(
         request,
@@ -465,14 +455,10 @@ def sp_tab_danger(
     sp_id: str,
 ):
     """Danger tab: enable/disable toggle and delete."""
-    if not has_page_access("/admin/settings/service-providers/detail/danger", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
-    try:
-        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
-    except ServiceError as exc:
-        logger.warning("Failed to get SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+    loaded = _load_sp_tab(tenant_id, user, sp_id, "danger")
+    if isinstance(loaded, RedirectResponse):
+        return loaded
+    sp_config, group_count, requesting_user = loaded
 
     context = get_template_context(
         request,

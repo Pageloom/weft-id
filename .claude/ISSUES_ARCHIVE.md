@@ -5,6 +5,57 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REFACTOR] Duplication: Tab route prologue repeated 6x in saml_idp/admin.py
+
+**Fixed by:** `_load_sp_tab()` helper (2026-06-16, feature/forward-auth-proxy)
+
+**Found in:** `app/routers/saml_idp/admin.py`
+**Impact:** Low
+**Description:** The six SP detail tab routes (details, attributes, groups,
+certificates, metadata, danger) each repeated an identical 9-line prologue: a
+page-access check redirecting to `/dashboard`, an SP load via `_load_sp_common`,
+and a `try/except ServiceError` redirecting to the SP list. Six copies meant the
+error-redirect behavior could drift between tabs.
+**Fix:** Replaced `_load_sp_common` with `_load_sp_tab(tenant_id, user, sp_id, tab)`,
+which centralizes the access check (page path derived from the tab name), the SP
+load, and the shared error handling. It returns either a `RedirectResponse` (the
+caller returns it directly) or a `(sp_config, group_count, requesting_user)` tuple.
+Per-tab template context stays inline in each handler, so no callbacks were needed
+and the existing context-assertion tests remain valid. All 118 `test_saml_idp.py`
+tests pass; mypy and ruff clean.
+**Why a generic helper now (was "Accepted"):** The original deferral feared a
+generic helper would need callbacks for the varying context. Extracting only the
+genuinely duplicated prologue (auth + load + error) avoids that: it removes the
+divergence risk without touching the per-tab context logic.
+
+---
+
+## [TEST] Regression anchors for user_attributes feature (5 of 6 landed)
+
+**Fixed by:** unit/integration anchors added (2026-06-16, feature/forward-auth-proxy)
+
+**Discovered:** 2026-05-14 (test agent final-pass review)
+**Severity:** Low (deferred regression coverage)
+Five of the six deferred regression anchors were added:
+- `apply_idp_attributes` "overwrites user-set canonical value when mirror=on"
+  (`test_mirror_on_overwrites_user_set_canonical_value`)
+- `apply_idp_attributes` "preserves unrelated canonical rows"
+  (`test_mirror_on_preserves_unrelated_canonical_rows`)
+- JIT-provisioned user mirror-failure path
+  (`test_jit_user_apply_idp_attributes_failure_does_not_break_login`)
+- Dashboard banner empty-case (`missing_required == []`)
+  (`test_dashboard_passes_empty_missing_required_to_template`)
+- Admin user-detail route integration test for `user_profile_updated` emission
+  (`test_admin_update_attributes_emits_user_profile_updated_event`)
+
+**Still open:** the full cross-iteration E2E (admin fills attribute -> user
+login -> SP receives it) remains in `.claude/ISSUES.md` as it needs Playwright
++ Docker, a larger separate lift.
+**Files:** `tests/services/test_saml_attribute_ingestion.py`,
+`tests/routers/test_auth.py`, `tests/routers/test_user_detail_profile.py`
+
+---
+
 ## [COPY] Status label still shows "Inactivated" where derived from the enum value
 
 **Fixed by:** `display_status()` Jinja helper (2026-06-13)

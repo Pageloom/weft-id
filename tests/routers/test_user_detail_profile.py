@@ -180,6 +180,59 @@ def test_admin_update_attributes_calls_set_and_clear(test_admin_user, mocker, ov
     assert apply_helper.call_args.kwargs == {"enforce_user_lock": False}
 
 
+def test_admin_update_attributes_emits_user_profile_updated_event(
+    test_tenant, test_super_admin_user, test_admin_user, test_user, mocker, override_auth
+):
+    """Integration: the admin update-attributes route emits user_profile_updated.
+
+    Exercises the full route -> apply_attribute_form_updates -> set_user_attribute
+    -> log_event chain with no service mock, pinning that an admin edit produces
+    an audit event with ``cause=admin_edit`` and a per-key change action.
+    """
+    from services.settings import attributes as attributes_settings
+
+    tenant_id = test_tenant["id"]
+    super_admin = {
+        "id": str(test_super_admin_user["id"]),
+        "tenant_id": tenant_id,
+        "role": "super_admin",
+    }
+
+    # Enable job_title so the admin edit is accepted and persisted.
+    attributes_settings.seed_tenant_attribute_config(tenant_id)
+    attributes_settings.update_tenant_attribute_config(
+        super_admin,
+        "job_title",
+        enabled=True,
+        required=False,
+        mirror_from_idp=False,
+        locked_for_users=False,
+        send_to_sps_default=False,
+    )
+
+    override_auth(test_admin_user, level="admin")
+    log_spy = mocker.patch("services.users.attributes.log_event")
+
+    client = TestClient(app)
+    response = client.post(
+        f"/users/{test_user['id']}/update-attributes",
+        data={"csrf_token": "test-token", "attr_job_title": "Director"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/users/{test_user['id']}/profile" in response.headers["location"]
+    assert "success=attributes_saved" in response.headers["location"]
+
+    profile_events = [
+        c for c in log_spy.call_args_list if c.kwargs.get("event_type") == "user_profile_updated"
+    ]
+    assert len(profile_events) == 1
+    meta = profile_events[0].kwargs["metadata"]
+    assert meta["cause"] == "admin_edit"
+    assert meta["changes"] == {"job_title": "added"}
+
+
 def test_admin_update_attributes_user_not_found_redirects_to_list(
     test_admin_user, mocker, override_auth
 ):

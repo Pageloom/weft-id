@@ -2432,3 +2432,43 @@ def test_dashboard_passes_missing_required_to_template(test_user, mocker):
     passed_kwargs = mock_context.call_args.kwargs
     assert passed_kwargs["missing_required"] == ["job_title"]
     mock_compute.assert_called_once()
+
+
+def test_dashboard_passes_empty_missing_required_to_template(test_user, mocker):
+    """When nothing is missing, the dashboard passes an empty banner list.
+
+    Sibling of the non-empty case: a complete profile must yield
+    ``missing_required == []`` so the template renders no banner at all.
+    """
+    from fastapi.responses import HTMLResponse
+
+    override_tenant(app, test_user["tenant_id"])
+
+    mock_user = mocker.patch(f"{DEPS_AUTH}.get_current_user")
+    mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
+    mock_context = mocker.patch(f"{UTILS_TEMPLATE}.get_template_context")
+    mock_template = mocker.patch(f"{AUTH_DASHBOARD}.templates.TemplateResponse")
+    mock_groups = mocker.patch(f"{AUTH_DASHBOARD}.groups_service.get_my_groups")
+    mock_apps = mocker.patch(f"{AUTH_DASHBOARD}.sp_service.get_user_accessible_apps")
+    mock_compute = mocker.patch(
+        "services.users.compute_missing_required",
+        return_value=[],
+    )
+
+    mock_user.return_value = test_user
+    mock_get_email.return_value = test_user["email"]
+    groups_result = Mock()
+    groups_result.items = []
+    mock_groups.return_value = groups_result
+    apps_result = Mock()
+    apps_result.items = []
+    mock_apps.return_value = apps_result
+    mock_context.return_value = {"request": Mock(), "user": test_user}
+    mock_template.return_value = HTMLResponse(content="<html>ok</html>")
+
+    client = TestClient(app)
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    passed_kwargs = mock_context.call_args.kwargs
+    assert passed_kwargs["missing_required"] == []
+    mock_compute.assert_called_once()

@@ -5,6 +5,32 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [DEPS] starlette 1.0.1 — 4 CVEs (HIGH/MED/LOW)
+
+**Fixed by:** bump to starlette 1.3.1 (2026-06-20, feature/forward-auth-proxy)
+
+**Discovered:** 2026-06-20
+**Severity:** High (2 HIGH, 1 MEDIUM, 1 LOW)
+**Source:** `python dev/deps_check.py`
+
+- **CVE-2026-48818** (GHSA-wqp7-x3pw-xc5r, HIGH) — fixed in 1.1.0
+- **CVE-2026-54283** (HIGH) — fixed in 1.3.1
+- **CVE-2026-48817** (GHSA-x746-7m8f-x49c, MEDIUM): `HTTPEndpoint` method
+  lookup via unrestricted `getattr` — fixed in 1.1.0
+- **CVE-2026-54282** (GHSA-jp82-jpqv-5vv3, LOW): `request.url` rebuilt from an
+  unvalidated path — fixed in 1.3.0
+
+**Fix:** Initially deferred over a feared FastAPI-compat break, but the resolved
+FastAPI (`>=0.135.2,<0.137.0`) only requires `starlette >=0.46.0` with no upper
+bound, so 1.3.1 (the version clearing all four CVEs) resolves cleanly. Raised
+the pin to `>=1.3.1` in pyproject and refreshed the lock. Full unit suite (6517
+tests) passes and `make check` is green; only new deprecation warnings
+(httpx/testclient, per-request cookies) surfaced, no behavior changes.
+
+**Files Affected:** `pyproject.toml`, `poetry.lock`
+
+---
+
 ## [REFACTOR] Duplication: Tab route prologue repeated 6x in saml_idp/admin.py
 
 **Fixed by:** `_load_sp_tab()` helper (2026-06-16, feature/forward-auth-proxy)

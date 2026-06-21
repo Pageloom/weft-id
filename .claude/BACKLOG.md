@@ -736,6 +736,8 @@ The items in this theme reposition WeftID from a *federation tool an organizatio
 
 **MVP of the theme:** items 1, 3, 4, 5 (provision orgs, sync via webhooks, self-serve SSO setup, invite auditable externals). Item 2 ships inside item 1. The rest compound value but are not load-bearing.
 
+**Two ways to set a customer up.** Connection setup (IdPs, SCIM, groups, attributes) can happen either way, and both are always available with no mode flag — the SaaS picks per customer: *delegated* (hand the customer's IT admin a magic link to self-configure — the **Self-Service SSO/SCIM Admin Portal**) or *managed* (the SaaS provider's own staff do it on the customer's behalf via the **Operator Backoffice / master tenant**). The two items are deliberate mirror images.
+
 **Sequencing (product owner, 2026-06):** this entire theme is **deferred behind the OIDC work.** WeftID must first be an exceptionally strong and versatile authentication middleware — both OIDC directions solid (the **OIDC Upstream IdP Support** and **OIDC Provider (Downstream IdP for Apps)** items, plus any OIDC-completeness follow-ups) — before the embedder go-to-market is pursued. Do not start Embedder Enablement items until the OIDC surface is complete. The dependency graph already reflects this: the hosted-login item builds on the OIDC provider, and the self-serve SSO portal leans on the upstream OIDC presets.
 
 ---
@@ -897,6 +899,59 @@ This is the theme's **killer differentiator** and the direct answer to the state
 **Dependencies:**
 - Requires **Platform API keys** (#2) to issue links; **Webhooks** (#3) for completion signals.
 - Reuses existing SAML IdP + inbound-SCIM config; gains OIDC upstream presets when that item ships.
+
+---
+
+## [Embedder] Operator Backoffice: Manage Organizations On-Behalf (Master Tenant)
+
+**User Story:**
+As a SaaS provider running WeftID for my customers,
+I want a designated **master Organization** whose authorized members can enter any other Organization and configure its upstream identity setup (IdPs, SCIM, groups, user attributes, branding, invitations) on the customer's behalf,
+So that I can fully manage customers who want it done for them — auditably, through a backoffice and API — without sending a self-serve portal link and without shell/CLI access to the host.
+
+**Context:**
+
+This is the **inverse and complement** of the **Self-Service SSO/SCIM Admin Portal** (#4). That item is the *delegated* path: hand the customer's own IT admin a magic link and let them self-configure. This item is the *managed* / done-for-them path: the SaaS provider's own staff do the setup inside the customer's Organization. Per the product-owner decision (2026-06), **both paths are always available with no mode flag** — the SaaS picks per interaction whether to send a portal link or do it themselves.
+
+**Core architectural concept (product-owner direction):** each deployment (the multi-tenant database) can designate one existing tenant as the **master tenant**. Members of the master tenant, subject to explicit operator scopes, can operate across **all** other tenants in that deployment. This is the *human-operator* embodiment of the control plane — the SaaS provider's own WeftID Organization elevated to operator status — as opposed to the *machine credential* in **Platform API keys** (#2). The two should resolve to one scope model with two principal types (human operator, platform key); grooming must unify them.
+
+**Tenant-isolation-model note (architecturally significant):** today the only human principals are per-tenant admins (`super_admin` is scoped to a single tenant). This item introduces a sanctioned, bounded **cross-RLS operator path** for humans. Rationale: embedders managing customers directly have no cross-tenant human operator surface today; tenant config is reachable only from inside each tenant. The master-tenant path must be: explicitly designated (never implicit; default none), least-privilege scoped, and fully audited **in the target Organization's own trail** as an on-behalf action by the named master operator — so the customer's audit history stays honest.
+
+**On-behalf model (per decision): scoped operations, no impersonation.** Operators never assume a customer user's identity or session. They perform operations that *target* a specific Organization (configure its IdP, SCIM connection, groups, attributes, etc.) carrying the master operator's own identity. Narrower blast radius than login-as impersonation, and every action is attributable to a real operator.
+
+**Design Notes:**
+
+- **Master-tenant designation:** a deployment-level setting marking one existing tenant as master/operator. Default: none (no cross-tenant operator surface exists unless explicitly designated). Designation is itself an audited, operator-only action.
+- **Authorization:** cross-tenant operator powers gated by master-tenant membership **plus** explicit operator scopes (share the scope model with Platform API keys #2 — e.g. `organizations:read`, `connections:write`, `directory:write`). Distinct from in-tenant `super_admin`, which stays single-tenant.
+- **Execution:** cross-tenant operations reuse the existing per-tenant service functions, invoked with a *target* `tenant_id` by an authorized master operator (the legitimate, bounded `UNSCOPED` → re-scope-to-target pattern). No existing per-tenant endpoint may be widened; ordinary tenant admins must still be unable to reach another tenant.
+- **Operable surface (target Org):** upstream IdP setup (SAML now; OIDC upstream when shipped), inbound/outbound SCIM connection setup, groups, user attributes, branding, guest invitations, entitlements — the Organization admin configuration surface, reachable from the master side.
+- **Backoffice UI (first-party operator console):** list all Organizations, drill into one, perform the above. The API underlies it and is non-negotiable (API-first); the UI is the turnkey path for SaaS ops/support staff who don't want to build their own tooling.
+- **Audit & attribution:** every on-behalf action writes to the **target** Org's audit trail, distinctly flagged as performed on-behalf by `<master operator>`, **and** to the master tenant's own operator log (who entered which Org and what they changed). Both sides stay legible.
+- **Open grooming questions:** per-Organization opt-out of on-behalf access (some embedders may contractually need to disable it for a given customer); whether to reconcile/rename the master-tenant operator role against `super_admin`.
+
+**Acceptance Criteria:**
+
+- [ ] A deployment can designate exactly one master tenant; default none; designation is audited and restricted to operator/super-admin
+- [ ] Authorized master-tenant members can list every Organization and select one to operate within (read + configure), gated by explicit operator scopes
+- [ ] On-behalf operations cover, for any target Organization: upstream IdP config (SAML; OIDC when shipped), SCIM connection setup, groups, user attributes, branding, guest invitations, entitlements
+- [ ] **No impersonation:** operators never assume a customer user's identity/session; operations carry the master operator identity
+- [ ] Every on-behalf action is audited in the **target** Organization's trail, distinctly flagged as on-behalf by `<master operator>`, and also recorded in the master tenant's operator log
+- [ ] Cross-tenant (`UNSCOPED` → target) access is reachable **only** via master-tenant operators (or platform keys #2) and only for whitelisted configuration operations; tests assert ordinary per-tenant admins cannot reach another tenant
+- [ ] First-party operator backoffice UI (list orgs, drill in, configure) over the same API; API docstrings document all accepted fields (API-first rule)
+- [ ] Always-available alongside the Self-Service Portal (#4); **no managed/delegated mode flag** — the SaaS chooses per interaction
+- [ ] Rate limiting on cross-tenant operations; missing-scope requests denied (403) with a clear error
+- [ ] Docs: master-tenant designation, operator scope reference, on-behalf audit semantics, and the security model for the sanctioned cross-tenant path
+
+**Effort:** L (introduces a cross-tenant operator authorization model + on-behalf audit attribution + a backoffice UI over existing config surfaces; may split into "auth model + audit" then "backoffice UI" iterations)
+**Value:** High (the *done-for-them* half of the embedder management story; pairs with #4 to cover both "give customers control" and "do it for them")
+**Version impact:** Minor (additive: master-tenant designation, cross-tenant operator scopes, backoffice, on-behalf audit attribution; no change to existing per-tenant flows). Architecturally significant despite being additive — it introduces the first sanctioned cross-RLS human-operator path, so the isolation-model rationale above must be honored during implementation.
+
+**Dependencies:**
+- Shares the scope model with **Platform API keys** (#2) — unify during grooming (one scope set, two principals: human operator and machine key).
+- Complements **Self-Service SSO/SCIM Admin Portal** (#4): same target config surfaces, opposite actor (SaaS operator vs. customer admin).
+- Operates over the org list/lifecycle from **Organizations / Tenant Lifecycle API** (#1).
+- Gains OIDC-upstream config as a target surface when **OIDC Upstream IdP Support** ships.
+- Sequenced within the Embedder theme (deferred behind the OIDC work per the 2026-06 decision).
 
 ---
 

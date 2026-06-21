@@ -419,11 +419,15 @@ def admin_revoke_credential(
     if revoked_count > 0:
         log_event(
             tenant_id=tenant_id,
-            actor_user_id=str(user_id),
+            actor_user_id=str(requesting_user["id"]),
             event_type="oauth2_user_tokens_revoked",
             artifact_type="user",
             artifact_id=str(user_id),
-            metadata={"reason": "admin_revoked_passkey", "tokens_revoked": revoked_count},
+            metadata={
+                "reason": "admin_revoked_passkey",
+                "tokens_revoked": revoked_count,
+                "target_user_id": str(user_id),
+            },
         )
 
     log_event(

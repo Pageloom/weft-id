@@ -500,6 +500,14 @@ def _handle_active_transition(
     elif new_active and current.get("is_inactivated") and not current.get("is_anonymized"):
         database.users.reactivate_user(tenant_id, user_id)
         database.users.clear_reactivation_denied(tenant_id, user_id)
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=SYSTEM_ACTOR_ID,
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="scim_user_reactivated",
+            metadata={"idp_id": idp_id, "cause": "scim_active_true"},
+        )
 
 
 # ---------------------------------------------------------------------------

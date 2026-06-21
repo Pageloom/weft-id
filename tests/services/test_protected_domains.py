@@ -86,6 +86,28 @@ def test_register_rejects_malformed_domain(test_tenant, test_admin_user):
         )
 
 
+def test_register_rejects_public_suffix_domain(test_tenant, test_admin_user):
+    """A bare public suffix (e.g. co.uk) cannot be registered: a forward-auth
+    cookie scoped to it would span the whole registry."""
+    with pytest.raises(ValidationError) as exc:
+        svc.register_protected_domain(
+            _ru(test_admin_user, test_tenant["id"]),
+            ProtectedDomainCreate(domain="co.uk", portal_host="auth.co.uk"),
+        )
+    assert exc.value.code == "public_suffix_not_allowed"
+
+
+def test_register_allows_registrable_domain_under_public_suffix(test_tenant, test_admin_user):
+    """A real registrable domain beneath a public suffix is fine."""
+    created = _register(
+        test_admin_user,
+        test_tenant["id"],
+        domain="acme-corp.co.uk",
+        portal_host="auth.acme-corp.co.uk",
+    )
+    assert created.domain == "acme-corp.co.uk"
+
+
 def test_register_duplicate_domain_conflicts(test_tenant, test_admin_user):
     _register(test_admin_user, test_tenant["id"], domain="dup.com")
     with pytest.raises(ConflictError) as exc:
@@ -156,6 +178,17 @@ def test_verify_fails_when_record_missing(test_tenant, test_admin_user):
     assert result.status == "failed"
     fetched = svc.get_protected_domain(_ru(test_admin_user, test_tenant["id"]), created.id)
     assert fetched.verification_status == "failed"
+
+
+def test_verify_logs_event_on_failure(test_tenant, test_admin_user):
+    """A failed verification (record missing) emits an audit event so the
+    pending -> failed state transition is not silent."""
+    created = _register(test_admin_user, test_tenant["id"], domain="verifyfail.com")
+    with patch.object(svc, "_resolve_txt", return_value=[]):
+        svc.verify_protected_domain(_ru(test_admin_user, test_tenant["id"]), created.id)
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "protected_domain_verification_failed"
+    assert str(events[0]["artifact_id"]) == created.id
 
 
 def test_verify_fails_on_token_mismatch(test_tenant, test_admin_user):

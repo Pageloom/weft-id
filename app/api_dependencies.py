@@ -24,6 +24,12 @@ session_cookie_scheme = APIKeyCookie(name="session", auto_error=False)
 
 _CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
+# Upper bound on the inbound SCIM bearer token length, enforced before the
+# pre-auth sha256 so an oversized Authorization header can't drive work
+# proportional to attacker input. WeftID-minted tokens are 64 hex chars;
+# 512 leaves generous headroom for any third-party provider token format.
+_MAX_BEARER_TOKEN_LEN = 512
+
 
 def _validate_session_csrf(request: Request) -> None:
     """Validate CSRF token for session-cookie-authenticated API requests.
@@ -255,6 +261,14 @@ def require_inbound_scim_auth(
     token_plaintext = authorization.split(" ", 1)[1].strip()
     if not token_plaintext:
         _raise_scim_auth_error("empty bearer token")
+
+    # Bound the token length before hashing. WeftID-minted inbound SCIM
+    # tokens are 64 hex chars; any legitimate provider token is well under
+    # this ceiling. Rejecting oversized headers here keeps the pre-auth
+    # hash path from doing work proportional to attacker-controlled input
+    # rather than relying on the reverse proxy's header-size limits.
+    if len(token_plaintext) > _MAX_BEARER_TOKEN_LEN:
+        _raise_scim_auth_error("bearer token too long")
 
     digest = hashlib.sha256(token_plaintext.encode("utf-8")).hexdigest()
 

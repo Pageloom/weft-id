@@ -270,7 +270,7 @@ def test_cookie_rejects_non_dict_payload():
 
 def test_cookie_rejects_missing_identity_fields():
     payload_b64 = fa._b64url_encode(
-        json.dumps({"exp": int(time.time()) + 3600, "sub": "u"}).encode()
+        json.dumps({"v": 1, "exp": int(time.time()) + 3600, "sub": "u"}).encode()
     )
     forged = f"{payload_b64}.{fa._sign(fa._cookie_key, payload_b64)}"
     assert fa.read_forward_auth_cookie(forged) is None
@@ -280,6 +280,7 @@ def test_cookie_rejects_non_list_groups():
     payload_b64 = fa._b64url_encode(
         json.dumps(
             {
+                "v": 1,
                 "sub": "u",
                 "email": "e",
                 "name": "n",
@@ -301,7 +302,7 @@ def test_cookie_rejects_non_finite_exp():
     for bad_exp in (float("nan"), float("inf")):
         payload_b64 = fa._b64url_encode(
             json.dumps(
-                {"sub": "u", "email": "e", "name": "n", "groups": [], "exp": bad_exp}
+                {"v": 1, "sub": "u", "email": "e", "name": "n", "groups": [], "exp": bad_exp}
             ).encode()
         )
         forged = f"{payload_b64}.{fa._sign(fa._cookie_key, payload_b64)}"
@@ -314,6 +315,7 @@ def test_token_rejects_non_finite_exp():
         payload_b64 = fa._b64url_encode(
             json.dumps(
                 {
+                    "v": 1,
                     "sub": "u",
                     "tid": "t",
                     "dom": "acme.com",
@@ -326,6 +328,47 @@ def test_token_rejects_non_finite_exp():
         )
         forged = f"{payload_b64}.{fa._sign(fa._token_key, payload_b64)}"
         assert fa.verify_authorization_token(forged, expected_domain="acme.com") is None
+
+
+# -- format version (v) guard -------------------------------------------------
+
+
+def test_token_rejects_wrong_and_missing_version():
+    """A validly-signed token whose `v` is not 1 (or absent) must be rejected."""
+    base = {
+        "sub": "u",
+        "tid": "t",
+        "dom": "acme-corp.com",
+        "app": "a",
+        "rd": "/",
+        "nonce": "n",
+        "exp": int(time.time()) + 60,
+    }
+    for v in (2, 0, "1", None):  # None => key omitted below
+        payload = dict(base)
+        if v is not None:
+            payload["v"] = v
+        payload_b64 = fa._b64url_encode(json.dumps(payload, sort_keys=True).encode())
+        forged = f"{payload_b64}.{fa._sign(fa._token_key, payload_b64)}"
+        assert fa.verify_authorization_token(forged, expected_domain="acme-corp.com") is None
+
+
+def test_cookie_rejects_wrong_and_missing_version():
+    """A validly-signed cookie whose `v` is not 1 (or absent) must be rejected."""
+    base = {
+        "sub": "u",
+        "email": "e@x.com",
+        "name": "n",
+        "groups": [],
+        "exp": int(time.time()) + 3600,
+    }
+    for v in (2, 0, "1", None):  # None => key omitted below
+        payload = dict(base)
+        if v is not None:
+            payload["v"] = v
+        payload_b64 = fa._b64url_encode(json.dumps(payload, sort_keys=True).encode())
+        forged = f"{payload_b64}.{fa._sign(fa._cookie_key, payload_b64)}"
+        assert fa.read_forward_auth_cookie(forged) is None
 
 
 # -- per-domain cookie: expiry ------------------------------------------------

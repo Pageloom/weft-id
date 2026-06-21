@@ -10,6 +10,30 @@ stays framework-agnostic. This module exposes:
   ``PublicKeyCredentialCreationOptions`` JSON dict and the raw challenge.
 - ``verify_registration`` -- verify a registration response from the browser.
 - ``WebAuthnError`` -- raised on any verification failure.
+
+Trust boundary (tenant selection):
+
+The ``tenant_id`` passed into these helpers originates from the request host
+(``x-forwarded-host``/``host`` -> ``get_tenant_id_from_request``), which is a
+proxy-controlled header in a real deployment (the app port is never published
+directly). That header dependency does NOT translate into a cross-tenant RP-ID
+risk, for three independent reasons:
+
+1. ``rp_id_for_tenant`` / ``rp_name_for_tenant`` / the host part of
+   ``origin_for_tenant`` are all derived from the tenant DB *record*, never
+   from headers -- a spoofed header cannot shift the RP ID to another tenant's
+   value, only resolve to a different tenant entirely.
+2. For the authenticated register/manage ceremonies, the caller's
+   ``tenant_id`` and authenticated user are the *same* value by construction:
+   ``get_current_user`` looks the session user up under the header-derived
+   tenant via RLS, so a mismatched host yields no user (redirect to login)
+   rather than acting in another tenant.
+3. The pre-auth authentication (login) ceremony is bound client-side: the
+   browser refuses an assertion whose ``rp_id`` is not a registrable suffix of
+   the real origin, so a spoofed RP ID simply fails the ceremony.
+
+Removing the header dependency entirely (a tenant-vs-proxy ``TRUSTED_PROXIES``
+invariant) is tracked project-wide, not here.
 """
 
 from __future__ import annotations

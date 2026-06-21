@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 from services.scim.inbound_group_write import (
+    _MAX_MEMBERS_PER_REQUEST,
     _extract_display_name,
     _resolve_members,
 )
@@ -64,3 +65,12 @@ def test_resolve_members_rejects_non_string_value():
     with pytest.raises(ScimWriteError) as exc_info:
         _resolve_members("t", "i", [{"value": 12345}])
     assert exc_info.value.scim_type == "invalidValue"
+
+
+def test_resolve_members_rejects_oversized_array():
+    """A members[] array over the ceiling is rejected before any per-member
+    DB resolution, bounding O(N) work on an authenticated endpoint."""
+    oversized = [{"value": "x"}] * (_MAX_MEMBERS_PER_REQUEST + 1)
+    with pytest.raises(ScimWriteError) as exc_info:
+        _resolve_members("t", "i", oversized)
+    assert exc_info.value.status_code == 413

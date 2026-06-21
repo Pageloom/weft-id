@@ -368,6 +368,31 @@ def test_update_security_settings_as_super_admin(test_tenant, test_super_admin_u
     _verify_event_logged(test_tenant["id"], "tenant_settings_updated", test_tenant["id"])
 
 
+def test_update_security_settings_noop_logs_no_event(test_tenant, test_super_admin_user):
+    """Re-submitting identical values must NOT write a tenant_settings_updated
+    event -- a no-op PATCH should not pollute the audit trail."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    settings_update = TenantSecuritySettingsUpdate(
+        session_timeout_seconds=3600,
+        persistent_sessions=False,
+        allow_users_edit_profile=False,
+    )
+    # First call applies the change (and logs).
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    before = database.event_log.list_events(test_tenant["id"], limit=100)
+    count_before = sum(1 for e in before if e["event_type"] == "tenant_settings_updated")
+
+    # Second identical call is a no-op: no diff, so no umbrella event.
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    after = database.event_log.list_events(test_tenant["id"], limit=100)
+    count_after = sum(1 for e in after if e["event_type"] == "tenant_settings_updated")
+    assert count_after == count_before
+
+
 def test_update_security_settings_partial_update(test_tenant, test_super_admin_user):
     """Test that partial updates work (only specified fields change)."""
     from schemas.settings import TenantSecuritySettingsUpdate

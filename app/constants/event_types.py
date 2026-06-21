@@ -127,6 +127,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # Forward-Auth Protected Domains
     "protected_domain_registered": "Protected domain registered for forward auth",
     "protected_domain_verified": "Protected domain ownership verified via DNS-TXT challenge",
+    "protected_domain_verification_failed": (
+        "Protected domain DNS-TXT verification failed (record missing or mismatched)"
+    ),
     "protected_domain_deleted": "Protected domain removed",
     # Forward-Auth Proxy Apps
     "proxy_app_created": "Forward-auth proxy app created",
@@ -234,6 +237,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "scim_user_received": "User received via inbound SCIM (create or merge)",
     "scim_user_updated": "User updated via inbound SCIM (PUT / PATCH)",
     "scim_user_deactivated": "User deactivated via inbound SCIM (DELETE / active=false)",
+    "scim_user_reactivated": "User reactivated via inbound SCIM (active=true)",
     "scim_user_rebound": "User rebound to a different identity provider via inbound SCIM",
     "scim_group_received": "Group received via inbound SCIM (create)",
     "scim_group_updated": "Group updated via inbound SCIM (PUT / PATCH)",
@@ -375,6 +379,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "domain_group_link_deleted": "admin",
     "protected_domain_registered": "admin",
     "protected_domain_verified": "admin",
+    "protected_domain_verification_failed": "admin",
     "protected_domain_deleted": "admin",
     "proxy_app_created": "admin",
     "proxy_app_updated": "admin",
@@ -406,6 +411,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "scim_user_received": "security",
     "scim_user_updated": "admin",
     "scim_user_deactivated": "security",
+    "scim_user_reactivated": "security",
     "scim_user_rebound": "security",
     "scim_group_received": "admin",
     "scim_group_updated": "admin",
@@ -475,6 +481,7 @@ EVENT_TYPE_SCIM_TRIGGERS: dict[str, str] = {
     "scim_user_received": "enqueue_user_self",
     "scim_user_updated": "enqueue_user_self",
     "scim_user_deactivated": "enqueue_user_self",
+    "scim_user_reactivated": "enqueue_user_self",
     "user_updated": "enqueue_user_self",
     "user_profile_updated": "enqueue_user_self",
     "user_attributes_synced": "enqueue_user_self",

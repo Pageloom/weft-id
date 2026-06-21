@@ -58,6 +58,14 @@ from services.scim.inbound_write import ScimWriteError
 
 logger = logging.getLogger(__name__)
 
+# Upper bound on the number of `members[]` entries accepted in a single
+# Group write. Each entry triggers per-member DB lookups during resolution,
+# so an unbounded array (capped only by the 1 MiB body limit, ~tens of
+# thousands of entries) would let one authenticated request drive O(N) work.
+# This ceiling covers realistic group sizes; larger memberships should be
+# synced incrementally via PATCH batches rather than one giant PUT.
+_MAX_MEMBERS_PER_REQUEST = 5000
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -158,6 +166,17 @@ def _resolve_members(
             status_code=400,
             detail="`members` must be an array.",
             scim_type="invalidValue",
+        )
+    if len(members) > _MAX_MEMBERS_PER_REQUEST:
+        # 413 carries no standard SCIM scimType (those are defined for 400
+        # only, RFC 7644 §3.12), so it's left unset.
+        raise ScimWriteError(
+            status_code=413,
+            detail=(
+                f"`members` exceeds the per-request limit of "
+                f"{_MAX_MEMBERS_PER_REQUEST}. Sync large memberships via "
+                "incremental PATCH operations."
+            ),
         )
 
     user_ids: list[str] = []

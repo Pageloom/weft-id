@@ -163,6 +163,7 @@ def _build_assertion_attributes(
                 exc_info=True,
             )
     enabled_tenant_keys = {row.get("attribute_key") for row in config_rows if row.get("enabled")}
+    config_by_key = {row.get("attribute_key"): row for row in config_rows}
 
     # Standard attributes from EAV. Read once; merge by registry key.
     try:
@@ -222,6 +223,16 @@ def _build_assertion_attributes(
         # loaded at all -- e.g., DB read failure -- so a transient outage does
         # not silently drop every standard attribute.)
         if config_rows and key not in enabled_tenant_keys:
+            continue
+        # Provenance gate: a value the user set themselves ('self'-sourced) is
+        # spoofable, so it must NOT enter a signed assertion unless the tenant
+        # explicitly marked this attribute safe to propagate
+        # (allow_self_sourced_to_sp). 'idp'/'admin' values are authority-grade
+        # and always pass. Default-deny: when the per-key flag is absent (e.g. a
+        # config-read outage left config_by_key empty), withhold the self value.
+        if row.get("source") == "self" and not (
+            config_by_key.get(key, {}).get("allow_self_sourced_to_sp")
+        ):
             continue
         try:
             typed = deserialize(key, str(raw))

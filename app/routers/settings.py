@@ -306,6 +306,9 @@ def admin_user_attributes(
                     "mirror_from_idp": bool(row["mirror_from_idp"]) if row else True,
                     "locked_for_users": bool(row["locked_for_users"]) if row else False,
                     "send_to_sps_default": (bool(row["send_to_sps_default"]) if row else True),
+                    "allow_self_sourced_to_sp": (
+                        bool(row["allow_self_sourced_to_sp"]) if row else False
+                    ),
                 }
             )
         if category_attrs:

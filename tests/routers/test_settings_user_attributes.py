@@ -24,6 +24,7 @@ def _config_row(key: str, category: str, **flags) -> dict:
         "mirror_from_idp": False,
         "locked_for_users": False,
         "send_to_sps_default": True,
+        "allow_self_sourced_to_sp": False,
         "updated_at": datetime.now(UTC),
     }
     base.update(flags)
@@ -75,7 +76,7 @@ def test_user_attributes_page_super_admin_renders(test_super_admin_user, overrid
     professional = next(c for c in categories if c["key"] == "professional")
     assert professional["any_enabled"] is True
 
-    # Each category exposes its attributes with all five flags.
+    # Each category exposes its attributes with all six flags.
     contact = next(c for c in categories if c["key"] == "contact")
     sample = contact["attributes"][0]
     for field in (
@@ -87,6 +88,7 @@ def test_user_attributes_page_super_admin_renders(test_super_admin_user, overrid
         "mirror_from_idp",
         "locked_for_users",
         "send_to_sps_default",
+        "allow_self_sourced_to_sp",
     ):
         assert field in sample
 

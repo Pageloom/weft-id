@@ -197,6 +197,50 @@ def test_set_user_attribute_no_event_when_unchanged(test_user):
     mock_log.assert_not_called()
 
 
+def test_set_user_attribute_self_tags_source_self(test_user):
+    """A user editing their own value records source='self' (SP-gated)."""
+    _seed_config(test_user["tenant_id"])
+    requester = _make_requester(test_user, role="member")
+    set_user_attribute(requester, str(test_user["id"]), "job_title", "Engineer")
+
+    fetched = database.user_attributes.get_attribute(
+        test_user["tenant_id"], str(test_user["id"]), "job_title"
+    )
+    assert fetched is not None
+    assert fetched["source"] == "self"
+
+
+def test_set_user_attribute_admin_tags_source_admin(test_user):
+    """An admin editing another user records source='admin' (always emitted)."""
+    _seed_config(test_user["tenant_id"])
+    admin = RequestingUser(
+        id=str(uuid4()),
+        tenant_id=str(test_user["tenant_id"]),
+        role="admin",
+    )
+    set_user_attribute(admin, str(test_user["id"]), "job_title", "Engineer")
+
+    fetched = database.user_attributes.get_attribute(
+        test_user["tenant_id"], str(test_user["id"]), "job_title"
+    )
+    assert fetched is not None
+    assert fetched["source"] == "admin"
+
+
+def test_set_user_attribute_admin_self_edit_tags_admin(test_user):
+    """An admin editing their OWN value is still 'admin'-sourced: the gate keys
+    off who set it, not whose profile it is. (test_user is provisioned admin.)"""
+    _seed_config(test_user["tenant_id"])
+    admin_self = _make_requester(test_user, role="admin")
+    set_user_attribute(admin_self, str(test_user["id"]), "job_title", "Engineer")
+
+    fetched = database.user_attributes.get_attribute(
+        test_user["tenant_id"], str(test_user["id"]), "job_title"
+    )
+    assert fetched is not None
+    assert fetched["source"] == "admin"
+
+
 # ---------------------------------------------------------------------------
 # clear_user_attribute
 # ---------------------------------------------------------------------------
@@ -350,6 +394,40 @@ def test_apply_idp_attributes_mirrors_when_flag_on(test_user):
     )
     assert len(canonical) == 1
     assert canonical[0]["value"] == "Engineer"
+    # Mirrored values are 'idp'-sourced (authority-grade, always emitted to SPs).
+    assert canonical[0]["source"] == "idp"
+
+
+def test_apply_idp_attributes_mirror_overwrites_self_source(test_user):
+    """An IdP mirror over a prior self-edited value reclaims provenance to
+    'idp', so a value the user previously self-asserted becomes authoritative
+    once the IdP sends it."""
+    _seed_config(test_user["tenant_id"], mirror_from_idp=True)
+    idp = _make_idp(test_user["tenant_id"], test_user["id"])
+
+    # Pre-seed a self-sourced canonical value.
+    database.user_attributes.upsert_attribute(
+        tenant_id=test_user["tenant_id"],
+        tenant_id_value=str(test_user["tenant_id"]),
+        user_id=test_user["id"],
+        attribute_key="job_title",
+        value="Self Set",
+        source="self",
+    )
+
+    apply_idp_attributes(
+        tenant_id=str(test_user["tenant_id"]),
+        user_id=str(test_user["id"]),
+        idp_id=str(idp["id"]),
+        attributes={"job_title": "Engineer"},
+        actor_user_id=str(test_user["id"]),
+    )
+    fetched = database.user_attributes.get_attribute(
+        test_user["tenant_id"], str(test_user["id"]), "job_title"
+    )
+    assert fetched is not None
+    assert fetched["value"] == "Engineer"
+    assert fetched["source"] == "idp"
 
 
 def test_apply_idp_attributes_mirrors_only_flagged_keys(test_user):

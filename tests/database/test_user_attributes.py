@@ -47,6 +47,81 @@ def test_upsert_overwrites_existing_row(test_user):
 
 
 # ---------------------------------------------------------------------------
+# Provenance (source column)
+# ---------------------------------------------------------------------------
+
+
+def test_upsert_defaults_source_to_admin(test_user):
+    """Callers that omit source get the trusted 'admin' default."""
+    row = database.user_attributes.upsert_attribute(
+        tenant_id=test_user["tenant_id"],
+        tenant_id_value=str(test_user["tenant_id"]),
+        user_id=test_user["id"],
+        attribute_key="job_title",
+        value="Engineer",
+    )
+    assert row["source"] == "admin"
+
+
+@pytest.mark.parametrize("source", ["idp", "admin", "self"])
+def test_upsert_round_trips_source(test_user, source):
+    """Each valid provenance value is stored and read back."""
+    database.user_attributes.upsert_attribute(
+        tenant_id=test_user["tenant_id"],
+        tenant_id_value=str(test_user["tenant_id"]),
+        user_id=test_user["id"],
+        attribute_key="job_title",
+        value="Engineer",
+        source=source,
+    )
+    fetched = database.user_attributes.get_attribute(
+        test_user["tenant_id"], test_user["id"], "job_title"
+    )
+    assert fetched is not None
+    assert fetched["source"] == source
+
+
+def test_upsert_overwrites_source_on_conflict(test_user):
+    """A later write overwrites the provenance of the existing row."""
+    database.user_attributes.upsert_attribute(
+        tenant_id=test_user["tenant_id"],
+        tenant_id_value=str(test_user["tenant_id"]),
+        user_id=test_user["id"],
+        attribute_key="job_title",
+        value="Engineer",
+        source="self",
+    )
+    updated = database.user_attributes.upsert_attribute(
+        tenant_id=test_user["tenant_id"],
+        tenant_id_value=str(test_user["tenant_id"]),
+        user_id=test_user["id"],
+        attribute_key="job_title",
+        value="Engineer",
+        source="idp",
+    )
+    assert updated["source"] == "idp"
+
+
+def test_source_check_constraint_rejects_unknown_value(test_user):
+    """The CHECK constraint rejects a source outside the allowed enum."""
+    with pytest.raises(Exception):
+        database.execute(
+            test_user["tenant_id"],
+            """
+            INSERT INTO user_attributes (
+                tenant_id, user_id, attribute_key, value, source
+            ) VALUES (
+                :tenant_id, :user_id, 'job_title', 'Eng', 'bogus'
+            )
+            """,
+            {
+                "tenant_id": str(test_user["tenant_id"]),
+                "user_id": test_user["id"],
+            },
+        )
+
+
+# ---------------------------------------------------------------------------
 # Read / list / delete
 # ---------------------------------------------------------------------------
 

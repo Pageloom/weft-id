@@ -512,6 +512,134 @@ class TestBuildAssertionAttributes:
             )
 
 
+class TestSelfSourcedProvenanceFilter:
+    """A user-set ('self'-sourced) value must not enter a signed assertion
+    unless the tenant marked the attribute ``allow_self_sourced_to_sp``.
+    'idp'/'admin'-sourced values are authority-grade and always pass.
+    """
+
+    @staticmethod
+    def _config(allow_self: bool) -> list[dict]:
+        """Enabled config for job_title with an explicit allow_self flag."""
+        return [
+            {
+                "attribute_key": "job_title",
+                "enabled": True,
+                "allow_self_sourced_to_sp": allow_self,
+            },
+        ]
+
+    @patch("services.service_providers.sso.database")
+    def test_self_sourced_withheld_by_default(self, mock_db):
+        """allow_self_sourced_to_sp=False => a 'self' value is dropped."""
+        mock_db.user_attributes.list_attributes.return_value = [
+            {"attribute_key": "job_title", "value": "Engineer", "source": "self"},
+        ]
+        mock_db.tenant_attribute_config.list_config.return_value = self._config(False)
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="A",
+            last_name="B",
+            group_names=[],
+            attribute_mapping={"job_title": "jobTitle"},
+        )
+        assert "job_title" not in result
+
+    @patch("services.service_providers.sso.database")
+    def test_self_sourced_emitted_when_opted_in(self, mock_db):
+        """allow_self_sourced_to_sp=True => the 'self' value flows to the SP."""
+        mock_db.user_attributes.list_attributes.return_value = [
+            {"attribute_key": "job_title", "value": "Engineer", "source": "self"},
+        ]
+        mock_db.tenant_attribute_config.list_config.return_value = self._config(True)
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="A",
+            last_name="B",
+            group_names=[],
+            attribute_mapping={"job_title": "jobTitle"},
+        )
+        assert result["job_title"] == "Engineer"
+
+    @patch("services.service_providers.sso.database")
+    def test_admin_sourced_always_emitted(self, mock_db):
+        """An 'admin' value is authority-grade: emitted even with allow off."""
+        mock_db.user_attributes.list_attributes.return_value = [
+            {"attribute_key": "job_title", "value": "Engineer", "source": "admin"},
+        ]
+        mock_db.tenant_attribute_config.list_config.return_value = self._config(False)
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="A",
+            last_name="B",
+            group_names=[],
+            attribute_mapping={"job_title": "jobTitle"},
+        )
+        assert result["job_title"] == "Engineer"
+
+    @patch("services.service_providers.sso.database")
+    def test_idp_sourced_always_emitted(self, mock_db):
+        """An 'idp' value is authority-grade: emitted even with allow off."""
+        mock_db.user_attributes.list_attributes.return_value = [
+            {"attribute_key": "job_title", "value": "Engineer", "source": "idp"},
+        ]
+        mock_db.tenant_attribute_config.list_config.return_value = self._config(False)
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="A",
+            last_name="B",
+            group_names=[],
+            attribute_mapping={"job_title": "jobTitle"},
+        )
+        assert result["job_title"] == "Engineer"
+
+    @patch("services.service_providers.sso.database")
+    def test_self_sourced_withheld_on_config_outage(self, mock_db):
+        """Default-deny: when the config read fails (no per-key flag), a 'self'
+        value is withheld rather than leaked into the signed assertion."""
+        mock_db.user_attributes.list_attributes.return_value = [
+            {"attribute_key": "job_title", "value": "Engineer", "source": "self"},
+        ]
+        mock_db.tenant_attribute_config.list_config.side_effect = RuntimeError("db down")
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="A",
+            last_name="B",
+            group_names=[],
+            attribute_mapping={"job_title": "jobTitle"},
+        )
+        assert "job_title" not in result
+
+    @patch("services.service_providers.sso.database")
+    def test_missing_source_treated_as_trusted(self, mock_db):
+        """A row with no source key (legacy/unset) is not 'self', so it is not
+        gated by the provenance filter and flows as before."""
+        mock_db.user_attributes.list_attributes.return_value = [
+            {"attribute_key": "job_title", "value": "Engineer"},
+        ]
+        mock_db.tenant_attribute_config.list_config.return_value = self._config(False)
+        result = _build_assertion_attributes(
+            "tenant-1",
+            "user-1",
+            email="a@b.com",
+            first_name="A",
+            last_name="B",
+            group_names=[],
+            attribute_mapping={"job_title": "jobTitle"},
+        )
+        assert result["job_title"] == "Engineer"
+
+
 # ============================================================================
 # SP create seeding: _seeded_attribute_mapping
 # ============================================================================

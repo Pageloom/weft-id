@@ -5,7 +5,9 @@ Values are text-serialized via ``app/constants/user_attributes.py``.
 
 This table holds whatever the user/admin set, plus values mirrored in by
 the IdP login flow when the tenant has ``mirror_from_idp=true`` for that
-attribute. There is no per-row source enum; the read-only IdP-mirror
+attribute. Each row carries a ``source`` enum ('idp' | 'admin' | 'self')
+recording who last set the value; the assertion builder reads it to decide
+whether a value may cross into a signed assertion. The read-only IdP-mirror
 audit copy lives in ``user_idp_attributes``.
 """
 
@@ -19,7 +21,7 @@ def list_attributes(tenant_id: TenantArg, user_id: str) -> list[dict]:
     return fetchall(
         tenant_id,
         """
-        select id, tenant_id, user_id, attribute_key, value, updated_at
+        select id, tenant_id, user_id, attribute_key, value, source, updated_at
         from user_attributes
         where user_id = :user_id
         order by attribute_key
@@ -33,7 +35,7 @@ def get_attribute(tenant_id: TenantArg, user_id: str, attribute_key: str) -> dic
     return fetchone(
         tenant_id,
         """
-        select id, tenant_id, user_id, attribute_key, value, updated_at
+        select id, tenant_id, user_id, attribute_key, value, source, updated_at
         from user_attributes
         where user_id = :user_id and attribute_key = :attribute_key
         """,
@@ -47,11 +49,17 @@ def upsert_attribute(
     user_id: str,
     attribute_key: str,
     value: str,
+    source: str = "admin",
 ) -> dict:
     """Insert or update one attribute row.
 
     Authorization (e.g. lock checks) is the service layer's job; this
-    function only writes whatever it is given.
+    function only writes whatever it is given. ``source`` records the
+    provenance of this value ('idp' | 'admin' | 'self') and is overwritten
+    on every upsert so the row always reflects who last set it. It defaults
+    to 'admin' (the trusted, always-emitted provenance) for callers that
+    don't track it; the sole production caller (``set_user_attribute``)
+    always passes it explicitly, so the default only ever applies in tests.
 
     Returns:
         The full upserted row.
@@ -60,20 +68,22 @@ def upsert_attribute(
         tenant_id,
         """
         insert into user_attributes (
-            tenant_id, user_id, attribute_key, value
+            tenant_id, user_id, attribute_key, value, source
         ) values (
-            :tenant_id, :user_id, :attribute_key, :value
+            :tenant_id, :user_id, :attribute_key, :value, :source
         )
         on conflict (user_id, attribute_key) do update set
             value = excluded.value,
+            source = excluded.source,
             updated_at = now()
-        returning id, tenant_id, user_id, attribute_key, value, updated_at
+        returning id, tenant_id, user_id, attribute_key, value, source, updated_at
         """,
         {
             "tenant_id": tenant_id_value,
             "user_id": user_id,
             "attribute_key": attribute_key,
             "value": value,
+            "source": source,
         },
     )
     assert result is not None  # INSERT ... RETURNING always yields a row

@@ -51,6 +51,10 @@
                                 title="Include this attribute in SAML assertions to newly-registered service providers. Per-SP mappings override this.">
                                 Send to new SPs
                             </th>
+                            <th class="px-3 py-3 text-center"
+                                title="Allow values that users set themselves to be sent to service providers. When off, only admin- or IdP-sourced values are emitted into signed assertions; user-edited values are withheld.">
+                                Allow user-edited to SPs
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -59,6 +63,9 @@
                             <td class="px-6 py-3">
                                 <div class="font-medium text-gray-900 dark:text-gray-100">{{ attr.label }}</div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400 font-mono">{{ attr.key }}</div>
+                                <div class="self-source-warning mt-1 text-xs text-amber-700 dark:text-amber-400 {% if not (attr.enabled and attr.allow_self_sourced_to_sp and not attr.locked_for_users) %}hidden{% endif %}">
+                                    Users can self-set this value and it will be sent to service providers as a signed claim.
+                                </div>
                             </td>
                             <td class="px-3 py-3 text-center">
                                 <input type="checkbox"
@@ -92,6 +99,13 @@
                                        class="flag-input flag-send h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
                                        data-flag="send_to_sps_default"
                                        {% if attr.send_to_sps_default %}checked{% endif %}
+                                       {% if not attr.enabled %}disabled{% endif %}>
+                            </td>
+                            <td class="px-3 py-3 text-center">
+                                <input type="checkbox"
+                                       class="flag-input flag-allow-self h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                                       data-flag="allow_self_sourced_to_sp"
+                                       {% if attr.allow_self_sourced_to_sp %}checked{% endif %}
                                        {% if not attr.enabled %}disabled{% endif %}>
                             </td>
                         </tr>
@@ -144,6 +158,18 @@
             if (el.dataset.flag === 'enabled') return;
             el.disabled = !enabled;
         });
+    };
+
+    // Caution: an enabled, user-unlocked attribute whose self-set values are
+    // allowed out to SPs lets a user self-assert a signed claim. Surface the
+    // warning live so the admin sees the implication as they toggle.
+    const refreshSelfSourceWarning = (row) => {
+        const warning = row.querySelector('.self-source-warning');
+        if (!warning) return;
+        const enabled = row.querySelector('.flag-enabled').checked;
+        const locked = row.querySelector('.flag-locked').checked;
+        const allowSelf = row.querySelector('.flag-allow-self').checked;
+        warning.classList.toggle('hidden', !(enabled && allowSelf && !locked));
     };
 
     const refreshCategoryStatus = (categoryKey) => {
@@ -200,6 +226,7 @@
                     refreshSecondaryDisabledState(row);
                     refreshCategoryStatus(row.dataset.category);
                 }
+                refreshSelfSourceWarning(row);
                 await saveRow(row);
             });
         });

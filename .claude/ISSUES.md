@@ -10,8 +10,10 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 1 | File Structure (pre-existing) |
-| Low | 2 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked) |
+| High | 1 | Outbound SCIM SSRF (save-time-only guard, DNS rebinding) |
+| Medium | 3 | File Structure (pre-existing); Self-editable attrs emitted in signed SAML assertions; Mirrored-attr scrub skips per-user IdP disconnect |
+| Low | 3 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked); Security defense-in-depth bundle (6 items) |
+| Compliance | 6 | Audit-trail gaps (SCIM reactivation, protected-domain verify-failed, no-op settings event, WebAuthn revoke actor); latent UNSCOPED WITH CHECK; migration 0034 numbering/comment |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
@@ -19,8 +21,8 @@ consistency, private-helper import boundary, `list_active_tokens` dead code, can
 validation, Pydantic `max_length`) plus the project-wide proxy-headers / forwarded-host trust
 boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHIVE.md.
 
-**Last security scan:** 2026-05-15 (mirror-failure audit event + user_profile_updated PII redaction landed on feature/user-attributes; remaining low items unchanged)
-**Last compliance scan:** 2026-04-13 (all clear, 15 checks; re-verified during security/april-2026-sweep branch)
+**Last security scan:** 2026-06-21 (targeted 60-day sweep of forward-auth proxy, inbound/outbound SCIM, WebAuthn, and user-attributes→SAML flow; forward-auth, inbound SCIM, and WebAuthn verified well-defended; 1 HIGH SSRF + 2 MEDIUM attribute-provenance + Low DiD bundle logged below)
+**Last compliance scan:** 2026-06-21 (automated checker clean, 0 violations across 1612 files; targeted 60-day manual sweep of SCIM, WebAuthn, attributes/auth-policy/settings, forward-auth proxy, and migrations 0031-0048; 6 warning-level judgment findings logged below, no blockers)
 **Last API coverage audit:** 2026-04-23 (3 gaps resolved: group clear relationships, IdP reimport XML, SAML debug entries)
 **Last dependency audit:** 2026-06-20 (cryptography 48.0.0→48.0.1, python-multipart 0.0.29→0.0.31, pip 26.1.1→26.1.2, msgpack 1.1.2→1.2.1, starlette 1.0.1→1.3.1 bumped, clearing all 6 HIGH/MED CVEs; full suite green; pygments still pinned `<2.20`, see [DEPS] entry below)
 **Last refactor scan:** 2026-03-21 (standard: new code since 2026-02-27, all categories; 5 new issues)
@@ -28,6 +30,160 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
+
+---
+
+## [SECURITY] SSRF: Outbound SCIM target URL validated only at save time (DNS rebinding)
+
+**Found in:** `app/services/scim/client.py:223` (request sent), `app/services/scim/admin.py:312` + `app/services/scim/admin.py:83` (`_validate_scim_target_url`, the only validation)
+**Severity:** High
+**OWASP Category:** A10:2021 - Server-Side Request Forgery
+**Description:** The admin-supplied SCIM `scim_target_url` is validated for private/loopback/link-local/metadata IPs **only** at config-save time (`_validate_scim_target_url` resolves the hostname via `getaddrinfo` and rejects `addr.is_private` at `admin.py:137-161`). The background worker re-resolves and dials the hostname at send time (`client.py:223` `client.request(...)`) with **no IP re-validation and no IP pinning**. The validated IP is never carried forward.
+**Attack Scenario:** A super_admin (or a compromised super_admin session) sets the target to `https://attacker.example`, which resolves to a public IP at save (passes). The attacker controls that hostname's DNS with a low TTL and re-points it to `169.254.169.254` (cloud metadata), `127.0.0.1`, or an internal `10.x`/`172.16.x` service. The next queue drain POSTs the SCIM body and bearer token to the internal target, or GETs cloud-metadata credential endpoints. The save-time guard is the control the team deliberately built to stop exactly this; DNS rebinding defeats it.
+**Evidence:**
+```
+$ grep -rn "_validate_scim_target_url\|url_safety\|is_private\|getaddrinfo" \
+    app/services/scim/client.py app/services/scim/worker.py app/jobs/process_scim_push_queue.py
+# 0 hits — no SSRF validation anywhere on the send path
+```
+`client.py:208` constructs `httpx.Client(...)` with no `follow_redirects` argument (relies on the implicit httpx default of `False`; a 302 to a private IP would otherwise be followed unchecked).
+**Impact:** Read/write access to internal services and cloud metadata (credential theft, internal pivot) from a server-side request originated by WeftID.
+**Remediation:** Re-validate at send time and pin the checked IP to the dialed IP (resolve once, run through the existing `app/utils/url_safety.py` blocklist, then connect to that exact IP with the `Host` header preserved via a custom httpx transport), eliminating the resolve→connect TOCTOU. The repo already has a hardened guard (`url_safety._is_ip_blocked`, `_SafeRedirectHandler`) used for SAML metadata fetches (`app/utils/saml.py`); reuse it on the SCIM path. Also set `follow_redirects=False` explicitly in the `httpx.Client(...)` call and add a regression test. Save-time validation becomes advisory once request-time pinning is in place.
+
+**Files Affected:** `app/services/scim/client.py`, `app/services/scim/worker.py`, `app/jobs/process_scim_push_queue.py`, `app/utils/url_safety.py` (reuse)
+
+---
+
+## [SECURITY] Broken Access Control: self-editable user attributes emitted in signed SAML assertions without provenance
+
+**Found in:** `app/services/service_providers/sso.py:211-234` (emission); `app/services/users/attributes.py:109-119` (self-edit policy); `app/constants/user_attributes.py:54` (`Source` literal defined but not persisted/checked)
+**Severity:** Medium (High if any downstream SP authorizes on these attributes)
+**OWASP Category:** A01:2021 - Broken Access Control (attribute spoofing)
+**Description:** When a standard attribute is enabled and left unlocked (`locked_for_users=false`, the default for new config rows) with profile editing on (tenant default), a regular member can self-edit values like `department`, `employee_id`, `job_title`, or `organization` via `POST /profile/update-attributes`. `_build_assertion_attributes` reads the canonical `user_attributes` row and emits it into the **signed** assertion with no indication of who set it. The registry defines `Source = Literal["idp", "admin", "self"]` but provenance is neither persisted nor consulted at emission.
+**Attack Scenario:** A member self-asserts `department=Finance` (or any attribute a downstream SP keys access decisions on); the SP receives it inside a WeftID-signed assertion and trusts it as IdP/admin-grade truth, yielding privilege escalation at the SP.
+**Evidence:** `sso.py:211-234` treats every canonical row identically with no `source` filter; self-edit is allowed whenever the attribute is enabled+unlocked (`attributes.py:109-119`).
+**Impact:** Spoofed attribute-based authorization at any downstream SP that consumes these attributes.
+**Remediation:** Persist and honor attribute provenance: either add a per-attribute "emit to SPs only when admin/IdP-sourced" option, or carry `source` through to the assertion builder so an SP-facing policy can exclude self-edited values. At minimum, warn in the tenant-config UI that an unlocked + SP-emitted attribute is user-spoofable, and document that SPs must not authorize on self-editable attributes.
+
+**Files Affected:** `app/services/service_providers/sso.py`, `app/services/users/attributes.py`, `app/constants/user_attributes.py`, `app/templates/settings_user_attributes.html`
+
+---
+
+## [SECURITY] Stale mirrored attributes retained on per-user IdP disconnect
+
+**Found in:** `app/services/saml/domains.py:424-498` (`assign_user_idp`); contrast scrub at `app/services/saml/providers.py:382-408` (`delete_identity_provider` only)
+**Severity:** Medium
+**OWASP Category:** A01:2021 - Broken Access Control (stale authorization data)
+**Description:** The opt-in scrub of mirrored attributes (commit 93a98fd) is wired only into the bulk **IdP-delete** path (`_scrub_canonical_matches_mirror`). But an IdP cannot be deleted while any user is assigned (`providers.py:348-356`), so the realistic disconnect is `assign_user_idp(user, saml_idp_id=None)` (admin converts a user to password-only). That path inactivates the user and unverifies emails but never touches `user_attributes` / `user_idp_attributes`.
+**Attack Scenario:** A user disconnected from IdP A (or moved to IdP B) keeps the canonical attributes last mirrored from IdP A. On reactivation as a password user or re-IdP, those stale values (e.g. `department`, `employee_id`) continue to be emitted in assertions to SPs, with no provenance, indefinitely. `mirror_from_idp` defaults to true, maximizing how many values get mirrored in the first place.
+**Evidence:** `grep` shows `_scrub_canonical_matches_mirror` is referenced only from `delete_identity_provider`; `assign_user_idp` (`domains.py:424`) has no `user_attributes`/`user_idp_attributes` cleanup.
+**Impact:** Departed-IdP attribute values keep flowing to downstream SPs; compounds the spoofing/trust issue above.
+**Remediation:** Offer the same opt-in scrub on `assign_user_idp` when `saml_idp_id` transitions to `None` or to a different IdP, clearing canonical rows still matching the old IdP's mirror snapshot, emitting `user_profile_updated` with `cause=idp_disconnect_scrub` to mirror the existing delete-path behavior.
+
+**Files Affected:** `app/services/saml/domains.py`, `app/services/saml/providers.py`, `app/services/users/attributes.py`
+
+---
+
+## [SECURITY] Defense-in-depth bundle (Low) — 6 hardening items
+
+**Discovered:** 2026-06-21 (60-day targeted sweep)
+**Severity:** Low (each individually mitigated by another control; logged for hardening)
+**OWASP Category:** Mixed (A05 / A08 / A09 / resource exhaustion)
+
+Each item is currently mitigated, but worth closing as defense-in-depth:
+
+1. **Outbound SCIM redirect-following is implicit.** `httpx.Client(...)` at `client.py:208` relies on httpx's default `follow_redirects=False`; a future change to `True` would widen the SSRF gap above. Set it explicitly and add a test. (A10)
+2. **Inbound SCIM bearer not length-capped pre-hash.** `app/api_dependencies.py:255` hashes the raw `Authorization` token with no length bound before `sha256`; oversized-header defense relies on the reverse proxy. Reject `len(token) > ~512` before hashing on this pre-auth path. (A04)
+3. **Inbound SCIM `members[]` array unbounded.** `app/services/scim/inbound_group_write.py` bounds membership only by the global 1 MiB body cap; a ~1 MiB `members[]` PUT triggers O(N) per-member DB lookups on an authenticated endpoint. Add a per-request member ceiling. (Resource exhaustion)
+4. **Forward-auth cookie can scope to a public suffix.** `app/services/protected_domains.py:59-88` (`_validate_host`) has no public-suffix-list check, so a registered domain like `co.uk` would set a `Domain=co.uk` cookie (`app/utils/forward_auth.py:386`). Unreachable without DNS control of the suffix (DNS-TXT gate), but add a PSL/denylist guard. (A05)
+5. **Forward-auth token `v` (version) field minted but never verified.** `app/utils/forward_auth.py:175` sets `"v": 1`; `verify_authorization_token` (`:217-242`) and `read_forward_auth_cookie` (`:321-344`) never assert it. Harmless today (HMAC covers it) but a future `v: 2` format could enable downgrade confusion. Add `if payload.get("v") != 1: return None`. (A08)
+6. **WebAuthn tenant selection is header-rooted.** `rp_id_for_tenant` now reads the tenant record (c60d27e, correct), but the `tenant_id` it receives originates from `x-forwarded-host`/`host` (`app/dependencies.py:32`). Mitigated because the deploy compose never publishes the app port directly (`deploy/docker-compose.yml`), so the header is proxy-controlled. Cross-check the resolved tenant against the authenticated user's `tenant_id` in the ceremony, or assert a `TRUSTED_PROXIES` invariant, to remove the header dependency. (A05)
+
+**Note (product decision, not a code bug):** Inbound SCIM `POST /Users` merges on primary email across IdP connections within a tenant and silently rebinds the user to the posting IdP (`app/services/scim/inbound_write.py:604-660`). It is RLS-confined to one tenant and emits a `scim_user_rebound` audit event, but the rebind is silent in the admin UI. Consider rejecting with `409` when the matched user is bound to a different IdP unless an explicit "allow cross-IdP claim" policy is enabled, and surface `scim_user_rebound` in the admin activity view.
+
+**Files Affected:** `app/services/scim/client.py`, `app/api_dependencies.py`, `app/services/scim/inbound_group_write.py`, `app/services/protected_domains.py`, `app/utils/forward_auth.py`, `app/dependencies.py`, `app/services/scim/inbound_write.py`
+
+---
+
+## [COMPLIANCE] SCIM-driven reactivation is not audited
+
+**Found in:** `app/services/scim/inbound_write.py:500-502` (`_handle_active_transition`, reactivate branch)
+**Severity:** Warning
+**Principle Violated:** Activity/Event Logging ("if there is a write, there is a log")
+**Description:** The deactivate branch (lines 489-499) emits the security-tier `scim_user_deactivated` event. The reactivate branch performs two mutations (`reactivate_user` + `clear_reactivation_denied`), re-enabling a previously disabled account, but logs no dedicated event. The umbrella `scim_user_updated` (admin-tier) fires from the caller but does not record that a disabled account was re-enabled.
+**Impact:** Audit-trail asymmetry. A security filter for "account re-enabled" catches admin-driven reactivations (`user_reactivated`) and all SCIM deactivations, but silently misses every SCIM-driven reactivation. `app/constants/event_types.py` has `scim_user_deactivated` but no `scim_user_reactivated`.
+**Suggested fix:** Add a `scim_user_reactivated` (security-tier) event after the reactivate mutations, mirroring the deactivate branch, and register it in `app/constants/event_types.py`:
+```python
+database.users.reactivate_user(tenant_id, user_id)
+database.users.clear_reactivation_denied(tenant_id, user_id)
+log_event(
+    tenant_id=tenant_id, actor_user_id=SYSTEM_ACTOR_ID,
+    artifact_type="user", artifact_id=user_id,
+    event_type="scim_user_reactivated",
+    metadata={"idp_id": idp_id, "cause": "scim_active_true"},
+)
+```
+**Files Affected:** `app/services/scim/inbound_write.py`, `app/constants/event_types.py`
+
+---
+
+## [COMPLIANCE] WebAuthn admin token-revoke attributes the action to the target user
+
+**Found in:** `app/services/webauthn.py:420-427` (`admin_revoke_credential`)
+**Severity:** Warning
+**Principle Violated:** Event Logging correctness (actor attribution)
+**Description:** This is an admin action (the function established `requesting_user["id"] != user_id` at line 382), but the `oauth2_user_tokens_revoked` event sets `actor_user_id=str(user_id)` (the *target*). The sibling `passkey_deleted` event in the same function (line ~431) correctly uses `actor_user_id=str(requesting_user["id"])`. The self-service pattern (`password.py`, where actor==target legitimately) was copied without adjusting for the cross-user admin context.
+**Impact:** The audit trail attributes the token revocation to the victim rather than the admin who performed it. Inconsistent actor attribution within the same function.
+**Suggested fix:** Use `actor_user_id=str(requesting_user["id"])` and move the target into metadata (e.g. `"target_user_id": str(user_id)`), matching the `passkey_deleted` event in the same function.
+**Files Affected:** `app/services/webauthn.py`
+
+---
+
+## [COMPLIANCE] protected-domain verification "failed" branch writes without a log
+
+**Found in:** `app/services/protected_domains.py:347-349` (`verify_protected_domain`, failure branch)
+**Severity:** Warning
+**Principle Violated:** Activity/Event Logging ("if there is a write, there is a log")
+**Description:** The success branch logs `protected_domain_verified` (lines 325-339). The failure branch flips `verification_status="failed"` (a real admin-triggered state transition) with no `log_event()`, and no `protected_domain_verification_failed` event type is registered. The idempotent "already verified" early return is a pure read and correctly logs nothing.
+**Impact:** An admin-triggered state transition (pending → failed) leaves no audit trail. Low-sensitivity field and re-runnable action, hence warning not blocking.
+**Suggested fix:** Add a `protected_domain_verification_failed` event type and `log_event(...)` after the failed-status update, or document this branch as an intentional exception.
+**Files Affected:** `app/services/protected_domains.py`, `app/constants/event_types.py`
+
+---
+
+## [COMPLIANCE] update_security_settings logs a no-op audit event
+
+**Found in:** `app/services/settings/security.py:404-412`
+**Severity:** Warning
+**Principle Violated:** Event Logging correctness (log reflects a real write)
+**Description:** The umbrella `tenant_settings_updated` event fires unconditionally with `metadata={"changes": changes} if changes else None`, so a no-op update (re-submitting identical values) writes an audit event with `metadata=None`. The dedicated sub-events (cert lifetime, password policy, etc.) are all correctly gated on an actual diff, and the parallel `update_tenant_attribute_config` (`attributes.py:110`) correctly logs only `if changes:`.
+**Impact:** No-op PATCHes pollute the audit trail with non-change events.
+**Suggested fix:** Gate the umbrella event on `if changes:` to match the attribute-config pattern, or document that a "settings touched" event is intentional even on no-op.
+**Files Affected:** `app/services/settings/security.py`
+
+---
+
+## [COMPLIANCE] Latent UNSCOPED WITH CHECK permits cross-tenant writes (hardening)
+
+**Found in:** migrations `0037_scim_unscoped_rls.sql`, `0045_scim_inbound_tokens_unscoped_rls.sql`, `0047_protected_domains_unscoped_rls.sql`, `0048_forward_auth_nonces.sql`
+**Severity:** Warning (latent — safe today)
+**Principle Violated:** RLS Policy Consistency / Tenant Isolation (defense-in-depth)
+**Description:** All four UNSCOPED policies use the same `CASE WHEN tenant unset THEN true` in **both** USING and WITH CHECK. Reads are correctly permissive (lookup happens before tenant scope exists, keyed on globally-unique columns / 256-bit secrets, then re-scoped). But because WITH CHECK is equally permissive, any INSERT/UPDATE run under `UNSCOPED` could silently write an arbitrary `tenant_id` rather than failing closed.
+**Impact:** Safe today — all UNSCOPED write paths are DELETE-only (nonce/expiry consume) or trusted system/worker code. But a future UNSCOPED INSERT/UPDATE on any of these tables would bypass tenant isolation silently. The existing `check_scim_rls_widening_violations` scanner restricts UNSCOPED SCIM call sites but does not cover `protected_domains` or `forward_auth_nonces`.
+**Suggested fix:** Make WITH CHECK stricter than USING — keep UNSCOPED reads permissive but drop the `WHEN unset THEN true` branch from WITH CHECK only, so an accidental UNSCOPED write fails closed. Apply via a new forward migration (do not rewrite applied migrations).
+**Files Affected:** new migration; `dev/compliance_check.py` (optional scanner coverage for the two non-SCIM tables)
+
+---
+
+## [COMPLIANCE] Migration 0034 numbering gap and stale 0035 comment
+
+**Found in:** `db-init/migrations/` (sequence skips 0033 → 0035); `0035_user_attributes_mirror_default_true.sql` header
+**Severity:** Warning (documentation)
+**Principle Violated:** Migration consistency
+**Description:** There is no `0034` file on disk; the sequence jumps from `0033_user_attributes.sql` to `0035`. The `0035` header references "the column added in 0034," but the `mirror_from_idp` column it alters actually lives in `0033`. No runtime impact (the runner tracks applied versions via `schema_migration_log`), but the numbering gap and stale comment are confusing.
+**Impact:** Documentation drift; potential confusion if any environment recorded a `0034` in `schema_migration_log`.
+**Suggested fix:** Confirm 0034 was intentionally collapsed into 0033; correct the `0035` header comment to reference `0033`; verify no environment has a `0034` row in `schema_migration_log`.
+**Files Affected:** `db-init/migrations/0035_user_attributes_mirror_default_true.sql`
 
 ---
 

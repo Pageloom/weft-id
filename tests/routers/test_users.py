@@ -1986,6 +1986,40 @@ def test_update_user_idp_remove_idp(test_super_admin_user, mocker, override_auth
     assert mock_assign.call_args[1]["saml_idp_id"] is None
 
 
+def test_update_user_idp_scrub_checkbox_threads_true(test_super_admin_user, mocker, override_auth):
+    """The pre-checked 'remove mirrored' box posts scrub_mirrored=on -> True."""
+    override_auth(test_super_admin_user)
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": "", "scrub_mirrored": "on"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert mock_assign.call_args[1]["scrub_mirrored_attributes"] is True
+
+
+def test_update_user_idp_scrub_checkbox_unchecked_threads_false(
+    test_super_admin_user, mocker, override_auth
+):
+    """Unchecking the box omits the field, so the opt-out threads False."""
+    override_auth(test_super_admin_user)
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": ""},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert mock_assign.call_args[1]["scrub_mirrored_attributes"] is False
+
+
 def test_update_user_idp_denied_for_admin(test_admin_user, mocker, override_auth):
     """Test admin cannot assign user to IdP (super_admin only)."""
     override_auth(test_admin_user)

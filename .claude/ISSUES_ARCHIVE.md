@@ -5,6 +5,60 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] Stale mirrored attributes retained on per-user IdP disconnect
+
+**Fixed by:** default-on mirror scrub wired into the per-user `assign_user_idp`
+path, with an opt-out at every boundary (2026-06-21)
+
+**Severity:** Medium
+**OWASP Category:** A01:2021 - Broken Access Control (stale authorization data)
+
+**Description:** The mirror-attribute scrub (commit 93a98fd) was wired only into
+the bulk IdP-delete path. But an IdP cannot be deleted while any user is assigned
+to it, so the realistic disconnect is `assign_user_idp(user, saml_idp_id=None)`
+(admin converts a user to password-only) or a move to a different IdP. That path
+inactivated the user and unverified emails but never touched `user_attributes` /
+`user_idp_attributes`, so canonical values last mirrored from the departed IdP
+(e.g. `department`, `employee_id`) kept flowing into signed assertions to
+downstream SPs indefinitely, with `source='idp'` provenance for an IdP
+relationship that no longer existed.
+
+**Fix:**
+- Extracted the delete-path scrub helper into
+  `services.users.attributes.scrub_canonical_matches_mirror`, adding an optional
+  `user_id` filter so it can scope to a single user (per-user disconnect) or all
+  users (IdP delete). `delete_identity_provider` now calls the shared helper.
+- `assign_user_idp` gained a `scrub_mirrored_attributes` flag, **default true**.
+  When the user is leaving an IdP (disconnect to password, or move to a different
+  IdP), it clears canonical rows still matching the old IdP's mirror snapshot
+  (diverged/admin-edited values are preserved) and drops that IdP's mirror rows
+  for the user via new `database.user_idp_attributes.delete_for_user_idp`. Emits
+  the same `user_profile_updated` / `cause=idp_disconnect_scrub` event the delete
+  path emits, and records `scrubbed_mirrored_attributes` + `scrubbed_count` in
+  the `user_saml_idp_assigned` event.
+- **Default-on, surfaced at every boundary with an opt-out.** The product
+  decision is that IdP-sourced (mirrored) attributes are removed by default when
+  the IdP relationship ends. `delete_identity_provider`'s scrub default also
+  flipped from false to true for consistency. The opt-out is exposed on the admin
+  API (`UserIdpAssignment.scrub_mirrored_attributes` defaults true; delete query
+  param defaults true), the user-detail web form (a pre-checked "Remove
+  attributes mirrored from {IdP}" box plus an inline warning and a confirm-dialog
+  line, shown only when the user has an IdP), and the IdP-delete danger tab
+  (pre-checked box). Unchecking / passing false retains the mirrored values.
+
+**Tests:** service tests (disconnect scrubs by default, opt-out preserves, move
+scrub, diverged-value preserved, first-assignment no-op, per-user event +
+count), DB test for `delete_for_user_idp`, API + web-router tests for default-on
+and opt-out flag threading, updated delete-path tests for the new default.
+
+**Files Affected:** `app/services/saml/domains.py`,
+`app/services/saml/providers.py`, `app/services/users/attributes.py`,
+`app/services/users/__init__.py`, `app/database/user_idp_attributes.py`,
+`app/schemas/saml.py`, `app/routers/api/v1/users/admin.py`,
+`app/routers/users/detail.py`, `app/templates/user_detail_tab_profile.html`
+
+---
+
 ## [SECURITY] Broken Access Control: self-editable user attributes emitted in signed SAML assertions without provenance
 
 **Fixed by:** per-row attribute provenance + trusted-source SP emission gate

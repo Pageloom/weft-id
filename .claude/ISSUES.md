@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 2 | File Structure (pre-existing); Mirrored-attr scrub skips per-user IdP disconnect |
+| Medium | 1 | File Structure (pre-existing) |
 | Low | 3 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked); Security defense-in-depth bundle (5 items) |
 | Compliance | 6 | Audit-trail gaps (SCIM reactivation, protected-domain verify-failed, no-op settings event, WebAuthn revoke actor); latent UNSCOPED WITH CHECK; migration 0034 numbering/comment |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
@@ -29,21 +29,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [SECURITY] Stale mirrored attributes retained on per-user IdP disconnect
-
-**Found in:** `app/services/saml/domains.py:424-498` (`assign_user_idp`); contrast scrub at `app/services/saml/providers.py:382-408` (`delete_identity_provider` only)
-**Severity:** Medium
-**OWASP Category:** A01:2021 - Broken Access Control (stale authorization data)
-**Description:** The opt-in scrub of mirrored attributes (commit 93a98fd) is wired only into the bulk **IdP-delete** path (`_scrub_canonical_matches_mirror`). But an IdP cannot be deleted while any user is assigned (`providers.py:348-356`), so the realistic disconnect is `assign_user_idp(user, saml_idp_id=None)` (admin converts a user to password-only). That path inactivates the user and unverifies emails but never touches `user_attributes` / `user_idp_attributes`.
-**Attack Scenario:** A user disconnected from IdP A (or moved to IdP B) keeps the canonical attributes last mirrored from IdP A. On reactivation as a password user or re-IdP, those stale values (e.g. `department`, `employee_id`) continue to be emitted in assertions to SPs, with no provenance, indefinitely. `mirror_from_idp` defaults to true, maximizing how many values get mirrored in the first place.
-**Evidence:** `grep` shows `_scrub_canonical_matches_mirror` is referenced only from `delete_identity_provider`; `assign_user_idp` (`domains.py:424`) has no `user_attributes`/`user_idp_attributes` cleanup.
-**Impact:** Departed-IdP attribute values keep flowing to downstream SPs; compounds the spoofing/trust issue above.
-**Remediation:** Offer the same opt-in scrub on `assign_user_idp` when `saml_idp_id` transitions to `None` or to a different IdP, clearing canonical rows still matching the old IdP's mirror snapshot, emitting `user_profile_updated` with `cause=idp_disconnect_scrub` to mirror the existing delete-path behavior.
-
-**Files Affected:** `app/services/saml/domains.py`, `app/services/saml/providers.py`, `app/services/users/attributes.py`
 
 ---
 

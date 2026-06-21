@@ -361,6 +361,10 @@ def assign_user_idp(
 
     Request Body:
         saml_idp_id: IdP UUID to assign, or null for password-only
+        scrub_mirrored_attributes: When true and the user is leaving an IdP,
+            clear canonical attribute values still matching the old IdP's
+            mirror snapshot and drop that IdP's mirror rows for this user
+            (default false). Values changed since the mirror are left alone.
 
     Returns:
         204 No Content on success
@@ -376,6 +380,7 @@ def assign_user_idp(
             requesting_user=requesting_user,
             user_id=user_id,
             saml_idp_id=assignment.saml_idp_id,
+            scrub_mirrored_attributes=assignment.scrub_mirrored_attributes,
         )
         return None
     except ServiceError as e:

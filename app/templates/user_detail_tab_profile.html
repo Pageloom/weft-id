@@ -323,9 +323,27 @@
                     </p>
                 </div>
                 {% endif %}
+                {% if target_user.saml_idp_id %}
+                <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
+                    <p class="text-xs text-amber-800 dark:text-amber-300">
+                        <strong>Leaving this IdP:</strong> attributes mirrored from
+                        {{ target_user.saml_idp_name or 'this IdP' }} (e.g. department, employee ID)
+                        will be removed so they stop flowing to connected apps. Values the user or
+                        an admin has since changed are kept.
+                    </p>
+                </div>
+                <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" name="scrub_mirrored" value="on" checked
+                           class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                    <span>
+                        Remove attributes mirrored from {{ target_user.saml_idp_name or 'this IdP' }}
+                        (uncheck to keep them on this profile).
+                    </span>
+                </label>
+                {% endif %}
                 <button type="submit"
                         class="confirm-btn bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                        data-confirm="Update authentication for {{ target_user.first_name }} {{ target_user.last_name }}?&#10;&#10;This action may make their password unusable or deactivate their account.">
+                        data-confirm="Update authentication for {{ target_user.first_name }} {{ target_user.last_name }}?&#10;&#10;This action may make their password unusable or deactivate their account.{% if target_user.saml_idp_id %}&#10;&#10;Attributes mirrored from their current IdP will be removed unless you unchecked that option.{% endif %}">
                     Update Authentication
                 </button>
             </form>

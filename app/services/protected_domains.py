@@ -42,6 +42,68 @@ _CHALLENGE_PREFIX = "_weftid-challenge"
 # Prefix on the TXT value so the record is unambiguous and self-describing.
 _CHALLENGE_VALUE_PREFIX = "weftid-domain-verification="
 
+# Multi-label public suffixes a tenant must never register as a protected
+# domain: setting a forward-auth cookie with Domain=<suffix> would scope it
+# across every registrable domain beneath the suffix. Single-label TLDs
+# (com, net, ...) are already rejected by the "must contain a dot" rule, so
+# this list covers only the common multi-label ones. It is a defense-in-depth
+# denylist, NOT a full public-suffix list; the DNS-TXT ownership challenge is
+# the primary control (an attacker cannot publish TXT under a suffix they do
+# not control).
+_PUBLIC_SUFFIX_DENYLIST = frozenset(
+    {
+        "co.uk",
+        "org.uk",
+        "gov.uk",
+        "ac.uk",
+        "ltd.uk",
+        "plc.uk",
+        "me.uk",
+        "net.uk",
+        "sch.uk",
+        "com.au",
+        "net.au",
+        "org.au",
+        "edu.au",
+        "gov.au",
+        "id.au",
+        "co.nz",
+        "net.nz",
+        "org.nz",
+        "govt.nz",
+        "ac.nz",
+        "co.za",
+        "org.za",
+        "co.jp",
+        "ne.jp",
+        "or.jp",
+        "go.jp",
+        "ac.jp",
+        "com.br",
+        "net.br",
+        "org.br",
+        "gov.br",
+        "com.mx",
+        "com.cn",
+        "net.cn",
+        "org.cn",
+        "gov.cn",
+        "com.sg",
+        "com.hk",
+        "co.in",
+        "net.in",
+        "org.in",
+        "gen.in",
+        "firm.in",
+        "co.kr",
+        "or.kr",
+        "com.tr",
+        "com.tw",
+        "com.ar",
+        "com.co",
+    }
+)
+
 
 # =============================================================================
 # Validation helpers (private)
@@ -84,6 +146,14 @@ def _validate_host(value: str, field: str) -> None:
         raise ValidationError(
             message="Domains may only contain letters, digits, hyphens, and dots.",
             code="invalid_domain",
+            field=field,
+        )
+    # Reject bare public suffixes so a forward-auth cookie can't be scoped
+    # across an entire registry (e.g. Domain=co.uk).
+    if value in _PUBLIC_SUFFIX_DENYLIST:
+        raise ValidationError(
+            message="Enter a registrable domain, not a public suffix (e.g. acme-corp.co.uk).",
+            code="public_suffix_not_allowed",
             field=field,
         )
 
@@ -346,6 +416,14 @@ def verify_protected_domain(
     # Not found / mismatch -> failed (re-runnable; operator can retry).
     database.protected_domains.update_protected_domain(
         tenant_id, domain_id, verification_status="failed"
+    )
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        event_type="protected_domain_verification_failed",
+        artifact_type="protected_domain",
+        artifact_id=domain_id,
+        metadata={"domain": domain},
     )
     return ProtectedDomainVerifyResult(
         verified=False,

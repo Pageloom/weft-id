@@ -1265,6 +1265,11 @@ def test_admin_revoke_credential_revokes_oauth2_tokens(test_user, test_admin_use
     )
     assert oauth_call.kwargs["metadata"]["reason"] == "admin_revoked_passkey"
     assert oauth_call.kwargs["metadata"]["tokens_revoked"] == 2
+    # Actor is the admin who performed the revoke, not the target user; the
+    # target is recorded in metadata (matches the sibling passkey_deleted event).
+    assert oauth_call.kwargs["actor_user_id"] == str(test_admin_user["id"])
+    assert oauth_call.kwargs["artifact_id"] == str(test_user["id"])
+    assert oauth_call.kwargs["metadata"]["target_user_id"] == str(test_user["id"])
 
 
 def test_admin_revoke_credential_skips_token_event_when_no_tokens(

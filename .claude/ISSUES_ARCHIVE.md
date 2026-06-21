@@ -5,6 +5,83 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] Defense-in-depth bundle (Low) — 5 hardening items
+
+**Fixed:** 2026-06-21 (security/ssrf-and-more branch). All five items closed:
+
+1. **Inbound SCIM bearer length-capped pre-hash.** `app/api_dependencies.py`
+   now rejects tokens over `_MAX_BEARER_TOKEN_LEN` (512) before the sha256/DB
+   lookup, so an oversized `Authorization` header can't drive pre-auth work
+   proportional to attacker input.
+2. **Inbound SCIM `members[]` ceiling.** `inbound_group_write._resolve_members`
+   rejects arrays over `_MAX_MEMBERS_PER_REQUEST` (5000) with a 413 before any
+   per-member resolution, bounding O(N) DB work on the authenticated endpoint.
+3. **Forward-auth public-suffix guard.** `protected_domains._validate_host`
+   rejects registering a bare public suffix (curated `_PUBLIC_SUFFIX_DENYLIST`,
+   e.g. `co.uk`) so a forward-auth cookie can't be scoped across a registry.
+   Defense-in-depth on top of the DNS-TXT ownership gate.
+4. **Forward-auth token `v` verified.** Both `verify_authorization_token` and
+   `read_forward_auth_cookie` now assert `payload.get("v") == 1`, closing the
+   door on future-version downgrade confusion.
+5. **WebAuthn header-rooted tenant selection documented.** Analysis showed the
+   concern is already neutralized at three layers (RP ID/origin derived from the
+   tenant DB record; authenticated ceremonies bind the session user to the same
+   header-derived tenant via RLS; the login ceremony is bound client-side by the
+   browser's rp_id/origin check). Added a trust-boundary docstring to
+   `app/utils/webauthn.py` (mirroring `utils/urls.py`); the broader
+   `TRUSTED_PROXIES` invariant remains tracked project-wide.
+
+The product-decision note (silent cross-IdP rebind on inbound SCIM `POST /Users`)
+was informational, not a code bug, and is left for product triage.
+
+**Files:** `app/api_dependencies.py`, `app/services/scim/inbound_group_write.py`,
+`app/services/protected_domains.py`, `app/utils/forward_auth.py`,
+`app/utils/webauthn.py`
+
+---
+
+## [COMPLIANCE] SCIM-driven reactivation is not audited
+
+**Fixed:** 2026-06-21. Added a security-tier `scim_user_reactivated` event
+(registered in `event_types.py`/`.lock`, tagged `enqueue_user_self` so downstream
+SPs re-provision) emitted in the reactivate branch of `_handle_active_transition`,
+mirroring the existing `scim_user_deactivated` branch.
+
+**Files:** `app/services/scim/inbound_write.py`, `app/constants/event_types.py`
+
+---
+
+## [COMPLIANCE] WebAuthn admin token-revoke attributes the action to the target user
+
+**Fixed:** 2026-06-21. `admin_revoke_credential`'s `oauth2_user_tokens_revoked`
+event now uses `actor_user_id=str(requesting_user["id"])` (the admin) with the
+target in `metadata.target_user_id`, matching the sibling `passkey_deleted` event.
+
+**Files:** `app/services/webauthn.py`
+
+---
+
+## [COMPLIANCE] protected-domain verification "failed" branch writes without a log
+
+**Fixed:** 2026-06-21. Added an admin-tier `protected_domain_verification_failed`
+event (registered in `event_types.py`/`.lock`) emitted after the
+pending → failed status update, so the admin-triggered transition is audited.
+
+**Files:** `app/services/protected_domains.py`, `app/constants/event_types.py`
+
+---
+
+## [COMPLIANCE] update_security_settings logs a no-op audit event
+
+**Fixed:** 2026-06-21. `_build_changes_metadata` now records only fields whose
+value actually changed (old != new), and the umbrella `tenant_settings_updated`
+event is gated on `if changes:`. A no-op PATCH (empty update or identical-value
+resubmit) now writes no event, consistent with the dedicated sub-events.
+
+**Files:** `app/services/settings/security.py`
+
+---
+
 ## [SECURITY] Stale mirrored attributes retained on per-user IdP disconnect
 
 **Fixed by:** default-on mirror scrub wired into the per-user `assign_user_idp`

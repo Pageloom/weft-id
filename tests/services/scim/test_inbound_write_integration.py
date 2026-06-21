@@ -356,6 +356,36 @@ def test_soft_delete_records_scim_user_deactivated_event(test_tenant, idp):
     assert len(events) >= 1
 
 
+def test_reactivate_records_scim_user_reactivated_event(test_tenant, idp):
+    """An active=true transition that re-enables a disabled account emits a
+    dedicated security-tier event, mirroring the deactivate branch."""
+    payload, _ = create_or_merge_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        {"userName": "rx@example.test"},
+        location_builder=_location_builder,
+    )
+    user_id = payload["id"]
+    soft_delete_user(str(test_tenant["id"]), str(idp["id"]), user_id)
+    replace_user(
+        str(test_tenant["id"]),
+        str(idp["id"]),
+        user_id,
+        {"userName": "rx@example.test", "active": True},
+        location_builder=_location_builder,
+    )
+    events = database.fetchall(
+        str(test_tenant["id"]),
+        """
+        select event_type
+        from event_logs
+        where artifact_id = :id and event_type = 'scim_user_reactivated'
+        """,
+        {"id": user_id},
+    )
+    assert len(events) >= 1
+
+
 # ---------------------------------------------------------------------------
 # Event log: PUT / PATCH emit `scim_user_updated`
 # (needed for outbound SCIM dispatch to fan changes out to downstream SPs).

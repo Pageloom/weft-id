@@ -104,6 +104,23 @@ def test_empty_bearer_token(client, api_host, reset_rate_limit):
     _assert_same_401(resp)
 
 
+def test_oversized_bearer_token_rejected_before_hash(client, api_host, reset_rate_limit):
+    """A token over the length ceiling is rejected before the sha256/DB lookup.
+
+    Bounding the pre-auth path keeps an oversized Authorization header from
+    driving hashing + a DB query proportional to attacker-controlled input.
+    """
+    idp = str(uuid4())
+    oversized = "x" * 600  # > _MAX_BEARER_TOKEN_LEN (512)
+    with patch("database.scim_inbound_tokens.get_by_hash") as get_by_hash:
+        resp = client.get(
+            _users_path(idp),
+            headers={"host": api_host, "Authorization": f"Bearer {oversized}"},
+        )
+    _assert_same_401(resp)
+    get_by_hash.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Unknown / revoked / wrong-IdP
 # ---------------------------------------------------------------------------

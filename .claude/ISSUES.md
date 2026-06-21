@@ -11,8 +11,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 3 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked); Security defense-in-depth bundle (5 items) |
-| Compliance | 6 | Audit-trail gaps (SCIM reactivation, protected-domain verify-failed, no-op settings event, WebAuthn revoke actor); latent UNSCOPED WITH CHECK; migration 0034 numbering/comment |
+| Low | 2 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked) |
+| Compliance | 2 | Latent UNSCOPED WITH CHECK (hardening); migration 0034 numbering/comment |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
@@ -29,88 +29,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [SECURITY] Defense-in-depth bundle (Low) — 5 hardening items
-
-**Discovered:** 2026-06-21 (60-day targeted sweep)
-**Severity:** Low (each individually mitigated by another control; logged for hardening)
-**OWASP Category:** Mixed (A05 / A08 / A09 / resource exhaustion)
-
-> Item 1 (outbound SCIM redirect-following implicit) was resolved 2026-06-21:
-> `build_safe_client` now sets `follow_redirects=False` explicitly. See
-> ISSUES_ARCHIVE.md (SSRF guard). Remaining items below.
-
-Each item is currently mitigated, but worth closing as defense-in-depth:
-
-1. **Inbound SCIM bearer not length-capped pre-hash.** `app/api_dependencies.py:255` hashes the raw `Authorization` token with no length bound before `sha256`; oversized-header defense relies on the reverse proxy. Reject `len(token) > ~512` before hashing on this pre-auth path. (A04)
-2. **Inbound SCIM `members[]` array unbounded.** `app/services/scim/inbound_group_write.py` bounds membership only by the global 1 MiB body cap; a ~1 MiB `members[]` PUT triggers O(N) per-member DB lookups on an authenticated endpoint. Add a per-request member ceiling. (Resource exhaustion)
-3. **Forward-auth cookie can scope to a public suffix.** `app/services/protected_domains.py:59-88` (`_validate_host`) has no public-suffix-list check, so a registered domain like `co.uk` would set a `Domain=co.uk` cookie (`app/utils/forward_auth.py:386`). Unreachable without DNS control of the suffix (DNS-TXT gate), but add a PSL/denylist guard. (A05)
-4. **Forward-auth token `v` (version) field minted but never verified.** `app/utils/forward_auth.py:175` sets `"v": 1`; `verify_authorization_token` (`:217-242`) and `read_forward_auth_cookie` (`:321-344`) never assert it. Harmless today (HMAC covers it) but a future `v: 2` format could enable downgrade confusion. Add `if payload.get("v") != 1: return None`. (A08)
-5. **WebAuthn tenant selection is header-rooted.** `rp_id_for_tenant` now reads the tenant record (c60d27e, correct), but the `tenant_id` it receives originates from `x-forwarded-host`/`host` (`app/dependencies.py:32`). Mitigated because the deploy compose never publishes the app port directly (`deploy/docker-compose.yml`), so the header is proxy-controlled. Cross-check the resolved tenant against the authenticated user's `tenant_id` in the ceremony, or assert a `TRUSTED_PROXIES` invariant, to remove the header dependency. (A05)
-
-**Note (product decision, not a code bug):** Inbound SCIM `POST /Users` merges on primary email across IdP connections within a tenant and silently rebinds the user to the posting IdP (`app/services/scim/inbound_write.py:604-660`). It is RLS-confined to one tenant and emits a `scim_user_rebound` audit event, but the rebind is silent in the admin UI. Consider rejecting with `409` when the matched user is bound to a different IdP unless an explicit "allow cross-IdP claim" policy is enabled, and surface `scim_user_rebound` in the admin activity view.
-
-**Files Affected:** `app/api_dependencies.py`, `app/services/scim/inbound_group_write.py`, `app/services/protected_domains.py`, `app/utils/forward_auth.py`, `app/dependencies.py`, `app/services/scim/inbound_write.py`
-
----
-
-## [COMPLIANCE] SCIM-driven reactivation is not audited
-
-**Found in:** `app/services/scim/inbound_write.py:500-502` (`_handle_active_transition`, reactivate branch)
-**Severity:** Warning
-**Principle Violated:** Activity/Event Logging ("if there is a write, there is a log")
-**Description:** The deactivate branch (lines 489-499) emits the security-tier `scim_user_deactivated` event. The reactivate branch performs two mutations (`reactivate_user` + `clear_reactivation_denied`), re-enabling a previously disabled account, but logs no dedicated event. The umbrella `scim_user_updated` (admin-tier) fires from the caller but does not record that a disabled account was re-enabled.
-**Impact:** Audit-trail asymmetry. A security filter for "account re-enabled" catches admin-driven reactivations (`user_reactivated`) and all SCIM deactivations, but silently misses every SCIM-driven reactivation. `app/constants/event_types.py` has `scim_user_deactivated` but no `scim_user_reactivated`.
-**Suggested fix:** Add a `scim_user_reactivated` (security-tier) event after the reactivate mutations, mirroring the deactivate branch, and register it in `app/constants/event_types.py`:
-```python
-database.users.reactivate_user(tenant_id, user_id)
-database.users.clear_reactivation_denied(tenant_id, user_id)
-log_event(
-    tenant_id=tenant_id, actor_user_id=SYSTEM_ACTOR_ID,
-    artifact_type="user", artifact_id=user_id,
-    event_type="scim_user_reactivated",
-    metadata={"idp_id": idp_id, "cause": "scim_active_true"},
-)
-```
-**Files Affected:** `app/services/scim/inbound_write.py`, `app/constants/event_types.py`
-
----
-
-## [COMPLIANCE] WebAuthn admin token-revoke attributes the action to the target user
-
-**Found in:** `app/services/webauthn.py:420-427` (`admin_revoke_credential`)
-**Severity:** Warning
-**Principle Violated:** Event Logging correctness (actor attribution)
-**Description:** This is an admin action (the function established `requesting_user["id"] != user_id` at line 382), but the `oauth2_user_tokens_revoked` event sets `actor_user_id=str(user_id)` (the *target*). The sibling `passkey_deleted` event in the same function (line ~431) correctly uses `actor_user_id=str(requesting_user["id"])`. The self-service pattern (`password.py`, where actor==target legitimately) was copied without adjusting for the cross-user admin context.
-**Impact:** The audit trail attributes the token revocation to the victim rather than the admin who performed it. Inconsistent actor attribution within the same function.
-**Suggested fix:** Use `actor_user_id=str(requesting_user["id"])` and move the target into metadata (e.g. `"target_user_id": str(user_id)`), matching the `passkey_deleted` event in the same function.
-**Files Affected:** `app/services/webauthn.py`
-
----
-
-## [COMPLIANCE] protected-domain verification "failed" branch writes without a log
-
-**Found in:** `app/services/protected_domains.py:347-349` (`verify_protected_domain`, failure branch)
-**Severity:** Warning
-**Principle Violated:** Activity/Event Logging ("if there is a write, there is a log")
-**Description:** The success branch logs `protected_domain_verified` (lines 325-339). The failure branch flips `verification_status="failed"` (a real admin-triggered state transition) with no `log_event()`, and no `protected_domain_verification_failed` event type is registered. The idempotent "already verified" early return is a pure read and correctly logs nothing.
-**Impact:** An admin-triggered state transition (pending → failed) leaves no audit trail. Low-sensitivity field and re-runnable action, hence warning not blocking.
-**Suggested fix:** Add a `protected_domain_verification_failed` event type and `log_event(...)` after the failed-status update, or document this branch as an intentional exception.
-**Files Affected:** `app/services/protected_domains.py`, `app/constants/event_types.py`
-
----
-
-## [COMPLIANCE] update_security_settings logs a no-op audit event
-
-**Found in:** `app/services/settings/security.py:404-412`
-**Severity:** Warning
-**Principle Violated:** Event Logging correctness (log reflects a real write)
-**Description:** The umbrella `tenant_settings_updated` event fires unconditionally with `metadata={"changes": changes} if changes else None`, so a no-op update (re-submitting identical values) writes an audit event with `metadata=None`. The dedicated sub-events (cert lifetime, password policy, etc.) are all correctly gated on an actual diff, and the parallel `update_tenant_attribute_config` (`attributes.py:110`) correctly logs only `if changes:`.
-**Impact:** No-op PATCHes pollute the audit trail with non-change events.
-**Suggested fix:** Gate the umbrella event on `if changes:` to match the attribute-config pattern, or document that a "settings touched" event is intentional even on no-op.
-**Files Affected:** `app/services/settings/security.py`
 
 ---
 

@@ -76,6 +76,7 @@ privileged_domain_added
 privileged_domain_deleted
 protected_domain_deleted
 protected_domain_registered
+protected_domain_verification_failed
 protected_domain_verified
 proxy_access_denied
 proxy_access_granted
@@ -122,6 +123,7 @@ scim_token_imported
 scim_token_revoked
 scim_token_rotated
 scim_user_deactivated
+scim_user_reactivated
 scim_user_rebound
 scim_user_received
 scim_user_updated

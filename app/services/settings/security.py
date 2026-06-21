@@ -57,14 +57,20 @@ def _build_changes_metadata(
     update: TenantSecuritySettingsUpdate,
     resolved: dict[str, Any],
 ) -> dict:
-    """Build an old/new changes dict for fields that were explicitly set in the update."""
+    """Build an old/new changes dict for explicitly-set fields that actually changed.
+
+    A field that is re-submitted with its existing value is not a change and is
+    omitted, so a no-op PATCH yields an empty dict (and the caller skips the
+    umbrella audit event). This mirrors the dedicated sub-events, which already
+    gate on a real old/new diff.
+    """
     changes: dict = {}
     for attr, db_key, default in _SETTINGS_FIELDS:
         if getattr(update, attr) is not None:
-            changes[attr] = {
-                "old": current.get(db_key, default),
-                "new": resolved[attr],
-            }
+            old = current.get(db_key, default)
+            new = resolved[attr]
+            if old != new:
+                changes[attr] = {"old": old, "new": new}
     return changes
 
 
@@ -401,15 +407,18 @@ def update_security_settings(
         tenant_id_value=tenant_id,
     )
 
-    # Log the event
-    log_event(
-        tenant_id=tenant_id,
-        actor_user_id=requesting_user["id"],
-        artifact_type="tenant_settings",
-        artifact_id=tenant_id,
-        event_type="tenant_settings_updated",
-        metadata={"changes": changes} if changes else None,
-    )
+    # Log the umbrella event only when something actually changed. A no-op
+    # PATCH (identical values re-submitted) must not pollute the audit trail;
+    # this matches the gated pattern in update_tenant_attribute_config.
+    if changes:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="tenant_settings",
+            artifact_id=tenant_id,
+            event_type="tenant_settings_updated",
+            metadata={"changes": changes},
+        )
 
     # Log dedicated event when certificate lifetime changes
     if settings_update.max_certificate_lifetime_years is not None:

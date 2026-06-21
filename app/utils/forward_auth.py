@@ -218,6 +218,11 @@ def verify_authorization_token(
     if payload is None:
         return None
 
+    # Format version: only v1 is understood. Rejecting anything else closes
+    # the door on downgrade confusion if a future v2 format is introduced.
+    if payload.get("v") != 1:
+        return None
+
     # Required fields present and well-typed.
     required = ("sub", "tid", "dom", "app", "rd", "nonce", "exp")
     if any(field not in payload for field in required):
@@ -320,6 +325,10 @@ def read_forward_auth_cookie(
 
     payload = _unpack(_cookie_key, cookie_value)
     if payload is None:
+        return None
+
+    # Format version: only v1 is understood (see verify_authorization_token).
+    if payload.get("v") != 1:
         return None
 
     if (

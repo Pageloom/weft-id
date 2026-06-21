@@ -27,6 +27,7 @@ from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
 from services.saml._converters import idp_row_to_config, idp_row_to_list_item
 from services.types import RequestingUser
+from services.users.attributes import scrub_canonical_matches_mirror
 from utils.saml import make_sp_entity_id
 
 logger = logging.getLogger(__name__)
@@ -306,7 +307,7 @@ def delete_identity_provider(
     requesting_user: RequestingUser,
     idp_id: str,
     *,
-    scrub_mirrored_attributes: bool = False,
+    scrub_mirrored_attributes: bool = True,
 ) -> None:
     """
     Delete an IdP configuration.
@@ -319,11 +320,12 @@ def delete_identity_provider(
     Must explicitly migrate users/unbind domains first.
 
     Args:
-        scrub_mirrored_attributes: When true, also clear canonical
+        scrub_mirrored_attributes: Default true. Also clears canonical
             user_attributes rows whose value still matches this IdP's
-            last-mirrored snapshot. Canonical values that have diverged
-            (because a user/admin edited them after the mirror write)
-            are left alone.
+            last-mirrored snapshot, so the deleted IdP's attributes stop
+            flowing to downstream SPs. Canonical values that have diverged
+            (because a user/admin edited them after the mirror write) are
+            left alone. Pass false to retain the mirrored values.
     """
     require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
@@ -383,7 +385,7 @@ def delete_identity_provider(
     # Must run before the IdP delete because the cascade wipes the mirror rows.
     scrubbed_count = 0
     if scrub_mirrored_attributes:
-        scrubbed_count = _scrub_canonical_matches_mirror(
+        scrubbed_count = scrub_canonical_matches_mirror(
             tenant_id=tenant_id,
             idp_id=idp_id,
             actor_user_id=requesting_user["id"],
@@ -403,66 +405,6 @@ def delete_identity_provider(
             "scrubbed_count": scrubbed_count,
         },
     )
-
-
-def _scrub_canonical_matches_mirror(
-    *,
-    tenant_id: str,
-    idp_id: str,
-    actor_user_id: str,
-) -> int:
-    """Delete canonical user_attributes rows whose value still equals this
-    IdP's last-mirrored snapshot value.
-
-    Canonical rows that have diverged from the mirror snapshot (because the
-    user or an admin edited them after the mirror write) are left alone.
-    Emits one ``user_profile_updated`` event per affected user with
-    ``cause: idp_disconnect_scrub`` listing the cleared keys. Returns the
-    total number of canonical rows deleted.
-    """
-    # Single set-based DELETE ... USING ... RETURNING. The previous
-    # implementation issued one DELETE per (user, key) tuple, which made
-    # IdP disconnects O(n*m) round-trips. The set-based form is O(1) and
-    # returns the actually-deleted (user_id, attribute_key) pairs so we can
-    # group in Python and emit one event per affected user.
-    with database.session(tenant_id=tenant_id) as cur:
-        cur.execute(
-            """
-            delete from user_attributes ua
-            using user_idp_attributes uia
-            where ua.user_id = uia.user_id
-              and ua.attribute_key = uia.attribute_key
-              and ua.value = uia.value
-              and uia.idp_id = %(idp_id)s
-              and ua.tenant_id = %(tenant_id)s
-            returning ua.user_id, ua.attribute_key
-            """,
-            {"idp_id": idp_id, "tenant_id": tenant_id},
-        )
-        deleted_rows = cur.fetchall()
-
-    if not deleted_rows:
-        return 0
-
-    by_user: dict[str, list[str]] = {}
-    for r in deleted_rows:
-        by_user.setdefault(str(r["user_id"]), []).append(r["attribute_key"])
-
-    for user_id, keys in by_user.items():
-        log_event(
-            tenant_id=tenant_id,
-            actor_user_id=actor_user_id,
-            artifact_type="user",
-            artifact_id=user_id,
-            event_type="user_profile_updated",
-            metadata={
-                "cause": "idp_disconnect_scrub",
-                "idp_id": idp_id,
-                "cleared_keys": keys,
-            },
-        )
-
-    return len(deleted_rows)
 
 
 def establish_idp_trust(

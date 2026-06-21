@@ -201,7 +201,7 @@ def delete_identity_provider(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_super_admin_api)],
     idp_id: str,
-    scrub_mirrored_attributes: Annotated[bool, Query()] = False,
+    scrub_mirrored_attributes: Annotated[bool, Query()] = True,
 ):
     """
     Delete a SAML Identity Provider.
@@ -212,10 +212,11 @@ def delete_identity_provider(
     - idp_id: UUID of the IdP
 
     Query parameters:
-    - scrub_mirrored_attributes: When true, also clear canonical
+    - scrub_mirrored_attributes: Default true. Also clears canonical
       user_attributes rows whose value still matches this IdP's
-      last-mirrored snapshot. Values that have diverged are left alone.
-      Defaults to false.
+      last-mirrored snapshot, so the deleted IdP's attributes stop flowing
+      to downstream SPs. Values that have diverged are left alone. Set false
+      to retain the mirrored values.
 
     Returns 204 No Content on success.
     """

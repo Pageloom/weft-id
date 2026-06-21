@@ -45,6 +45,7 @@ from services.users.attributes import (
     list_user_attributes,
     list_user_idp_attributes,
     list_users_with_missing_required,
+    scrub_canonical_matches_mirror,
     set_user_attribute,
 )
 
@@ -123,6 +124,7 @@ __all__ = [
     "list_user_attributes",
     "list_user_idp_attributes",
     "list_users_with_missing_required",
+    "scrub_canonical_matches_mirror",
     "set_user_attribute",
     # Attribute view builders
     "build_attribute_groups_for_admin",

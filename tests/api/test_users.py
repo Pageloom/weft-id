@@ -1523,6 +1523,44 @@ def test_assign_user_idp_set_password_only(make_user_dict, override_api_auth):
         assert call_kwargs.kwargs["saml_idp_id"] is None
 
 
+def test_assign_user_idp_scrub_flag_defaults_true(make_user_dict, override_api_auth):
+    """Omitting scrub_mirrored_attributes threads through as True (default on)."""
+    super_admin = make_user_dict(role="super_admin")
+    target_user_id = str(uuid4())
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.users.saml_service") as mock_svc:
+        client = TestClient(app)
+        response = client.put(
+            f"/api/v1/users/{target_user_id}/idp",
+            json={"saml_idp_id": None},
+        )
+
+        assert response.status_code == 204
+        call_kwargs = mock_svc.assign_user_idp.call_args
+        assert call_kwargs.kwargs["scrub_mirrored_attributes"] is True
+
+
+def test_assign_user_idp_scrub_flag_opt_out_passed_through(make_user_dict, override_api_auth):
+    """scrub_mirrored_attributes=false in the body reaches the service call."""
+    super_admin = make_user_dict(role="super_admin")
+    target_user_id = str(uuid4())
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.users.saml_service") as mock_svc:
+        client = TestClient(app)
+        response = client.put(
+            f"/api/v1/users/{target_user_id}/idp",
+            json={"saml_idp_id": None, "scrub_mirrored_attributes": False},
+        )
+
+        assert response.status_code == 204
+        call_kwargs = mock_svc.assign_user_idp.call_args
+        assert call_kwargs.kwargs["scrub_mirrored_attributes"] is False
+
+
 def test_assign_user_idp_not_found(make_user_dict, override_api_auth):
     """Returns 404 when user or IdP not found."""
     super_admin = make_user_dict(role="super_admin")

@@ -238,6 +238,32 @@ def test_delete_for_user_removes_all_idps(test_user):
     )
 
 
+def test_delete_for_user_idp_removes_only_that_idp(test_user):
+    """delete_for_user_idp clears one IdP's snapshot, leaving others intact."""
+    idp_a = _create_idp(test_user["tenant_id"], test_user["id"])
+    idp_b = _create_idp(test_user["tenant_id"], test_user["id"])
+    for idp in (idp_a, idp_b):
+        database.user_idp_attributes.replace_idp_attributes(
+            tenant_id=test_user["tenant_id"],
+            tenant_id_value=str(test_user["tenant_id"]),
+            user_id=test_user["id"],
+            idp_id=str(idp["id"]),
+            attributes={"job_title": "Engineer"},
+        )
+    rows_affected = database.user_idp_attributes.delete_for_user_idp(
+        test_user["tenant_id"], test_user["id"], str(idp_a["id"])
+    )
+    assert rows_affected == 1
+    a_rows = database.user_idp_attributes.list_attributes_for_idp(
+        test_user["tenant_id"], test_user["id"], str(idp_a["id"])
+    )
+    b_rows = database.user_idp_attributes.list_attributes_for_idp(
+        test_user["tenant_id"], test_user["id"], str(idp_b["id"])
+    )
+    assert a_rows == []
+    assert len(b_rows) == 1
+
+
 def test_cross_tenant_insert_rejected_by_rls(test_user):
     """A direct INSERT targeting another tenant's tenant_id must be rejected."""
     import pytest

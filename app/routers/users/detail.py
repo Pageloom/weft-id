@@ -433,6 +433,7 @@ def update_user_idp_route(
     user: Annotated[dict, Depends(get_current_user)],
     user_id: str,
     saml_idp_id: Annotated[str, Form(max_length=50)] = "",
+    scrub_mirrored: Annotated[str | None, Form(max_length=10)] = None,
 ):
     """
     Assign a user to an IdP or set them as a password-only user.
@@ -442,11 +443,14 @@ def update_user_idp_route(
     - IdP user (saml_idp_id set) - authenticates via SAML
 
     Security: Assigning to IdP wipes password. Removing from IdP inactivates user.
+    When scrub_mirrored is checked and the user leaves an IdP, canonical
+    attributes still matching that IdP's mirror snapshot are also cleared.
     """
     if user.get("role") != "super_admin":
         return RedirectResponse(url="/dashboard", status_code=303)
 
     idp_id = saml_idp_id.strip() if saml_idp_id else None
+    scrub = scrub_mirrored in ("on", "true", "1")
 
     requesting_user = build_requesting_user(user, tenant_id, request)
 
@@ -455,6 +459,7 @@ def update_user_idp_route(
             requesting_user=requesting_user,
             user_id=user_id,
             saml_idp_id=idp_id,
+            scrub_mirrored_attributes=scrub,
         )
     except NotFoundError as exc:
         return RedirectResponse(

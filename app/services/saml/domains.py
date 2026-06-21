@@ -16,6 +16,7 @@ from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
+from services.users.attributes import scrub_canonical_matches_mirror
 
 logger = logging.getLogger(__name__)
 
@@ -425,6 +426,7 @@ def assign_user_idp(
     requesting_user: RequestingUser,
     user_id: str,
     saml_idp_id: str | None,
+    scrub_mirrored_attributes: bool = True,
 ) -> None:
     """
     Assign a user to an IdP or set them as a password-only user.
@@ -444,6 +446,13 @@ def assign_user_idp(
         requesting_user: The authenticated user
         user_id: User UUID to update
         saml_idp_id: IdP UUID to assign, or None for password-only
+        scrub_mirrored_attributes: Default true. When the user is leaving an
+            IdP (disconnect to password, or move to a different IdP), clear the
+            canonical attribute values that still match the old IdP's
+            last-mirrored snapshot and drop that IdP's mirror rows for this
+            user, so departed-IdP attributes stop flowing to downstream SPs.
+            Values the user or an admin has since changed are left alone. Pass
+            false to retain the mirrored values on the profile.
     """
     require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
@@ -497,6 +506,22 @@ def assign_user_idp(
         saml_idp_id=saml_idp_id,
     )
 
+    # Optional scrub of attributes mirrored from the IdP the user is leaving.
+    # The user is "leaving" current_idp_id when disconnecting to password or
+    # moving to a different IdP. The scrub reads the old mirror snapshot, so it
+    # must run before that snapshot is dropped.
+    leaving_old_idp = had_idp and (not will_have_idp or str(current_idp_id) != saml_idp_id)
+    scrubbed_count = 0
+    if scrub_mirrored_attributes and leaving_old_idp:
+        old_idp_id = str(current_idp_id)
+        scrubbed_count = scrub_canonical_matches_mirror(
+            tenant_id=tenant_id,
+            idp_id=old_idp_id,
+            actor_user_id=requesting_user["id"],
+            user_id=user_id,
+        )
+        database.user_idp_attributes.delete_for_user_idp(tenant_id, user_id, old_idp_id)
+
     # Update group memberships based on IdP change
     user_email = user.get("email", "")
     if had_idp and will_have_idp and str(current_idp_id) != saml_idp_id:
@@ -536,5 +561,7 @@ def assign_user_idp(
             "previous_idp_id": str(current_idp_id) if current_idp_id else None,
             "password_wiped": False,
             "user_inactivated": user_inactivated,
+            "scrubbed_mirrored_attributes": scrub_mirrored_attributes and leaving_old_idp,
+            "scrubbed_count": scrubbed_count,
         },
     )

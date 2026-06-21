@@ -454,6 +454,17 @@ class UserIdpAssignment(BaseModel):
         max_length=36,
         description="IdP UUID to assign, or null for password-only user",
     )
+    scrub_mirrored_attributes: bool = Field(
+        True,
+        description=(
+            "Default true. When the user is leaving an IdP (disconnect to "
+            "password or move to a different IdP), clear canonical attribute "
+            "values that still match the old IdP's last-mirrored snapshot and "
+            "drop that IdP's mirror rows for this user. Values changed by a "
+            "user or admin since the mirror are left alone. Set false to retain "
+            "the mirrored values on the profile."
+        ),
+    )
 
 
 # ============================================================================

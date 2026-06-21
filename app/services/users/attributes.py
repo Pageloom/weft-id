@@ -601,6 +601,81 @@ def apply_idp_attributes(
         )
 
 
+def scrub_canonical_matches_mirror(
+    *,
+    tenant_id: str,
+    idp_id: str,
+    actor_user_id: str,
+    user_id: str | None = None,
+) -> int:
+    """Delete canonical ``user_attributes`` rows whose value still equals an
+    IdP's last-mirrored snapshot value.
+
+    Used when a user's relationship to ``idp_id`` ends (the IdP is deleted, or
+    the user is disconnected / moved to a different IdP), so attributes that
+    only ever flowed in from that IdP stop being emitted in assertions.
+
+    Canonical rows that have diverged from the mirror snapshot (because the
+    user or an admin edited them after the mirror write) are left alone, since
+    those carry independent provenance. Emits one ``user_profile_updated``
+    event per affected user with ``cause: idp_disconnect_scrub`` listing the
+    cleared keys. Returns the total number of canonical rows deleted.
+
+    When ``user_id`` is given the scrub is confined to that single user (the
+    per-user disconnect path); otherwise every user mirrored from ``idp_id`` is
+    scrubbed (the IdP-delete path).
+    """
+    # Single set-based DELETE ... USING ... RETURNING. A per-(user, key)
+    # DELETE would make IdP disconnects O(n*m) round-trips. The set-based form
+    # returns the actually-deleted (user_id, attribute_key) pairs so we can
+    # group in Python and emit one event per affected user.
+    params: dict[str, str] = {"idp_id": idp_id, "tenant_id": tenant_id}
+    user_filter = ""
+    if user_id is not None:
+        user_filter = "and ua.user_id = %(user_id)s"
+        params["user_id"] = user_id
+
+    with database.session(tenant_id=tenant_id) as cur:
+        cur.execute(
+            f"""
+            delete from user_attributes ua
+            using user_idp_attributes uia
+            where ua.user_id = uia.user_id
+              and ua.attribute_key = uia.attribute_key
+              and ua.value = uia.value
+              and uia.idp_id = %(idp_id)s
+              and ua.tenant_id = %(tenant_id)s
+              {user_filter}
+            returning ua.user_id, ua.attribute_key
+            """,
+            params,
+        )
+        deleted_rows = cur.fetchall()
+
+    if not deleted_rows:
+        return 0
+
+    by_user: dict[str, list[str]] = {}
+    for r in deleted_rows:
+        by_user.setdefault(str(r["user_id"]), []).append(r["attribute_key"])
+
+    for affected_user_id, keys in by_user.items():
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=actor_user_id,
+            artifact_type="user",
+            artifact_id=affected_user_id,
+            event_type="user_profile_updated",
+            metadata={
+                "cause": "idp_disconnect_scrub",
+                "idp_id": idp_id,
+                "cleared_keys": keys,
+            },
+        )
+
+    return len(deleted_rows)
+
+
 # ---------------------------------------------------------------------------
 # Required-field enforcement (Iteration 7)
 # ---------------------------------------------------------------------------

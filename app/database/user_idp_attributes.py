@@ -228,3 +228,20 @@ def delete_for_user(tenant_id: TenantArg, user_id: str) -> int:
         """,
         {"user_id": user_id},
     )
+
+
+def delete_for_user_idp(tenant_id: TenantArg, user_id: str, idp_id: str) -> int:
+    """Delete one user's IdP-mirror rows for a single IdP. Returns row count.
+
+    Used on per-user IdP disconnect/move, where the FK cascade the IdP-delete
+    path relies on does not fire because the IdP still exists. Leaves other
+    IdPs' snapshots for the user intact.
+    """
+    return execute(
+        tenant_id,
+        """
+        delete from user_idp_attributes
+        where user_id = :user_id and idp_id = :idp_id
+        """,
+        {"user_id": user_id, "idp_id": idp_id},
+    )

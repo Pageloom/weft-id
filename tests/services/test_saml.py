@@ -7082,7 +7082,7 @@ def test_delete_idp_scrub_preserves_diverged_canonical_values(
 def test_delete_idp_without_scrub_preserves_canonical_values(
     test_tenant, test_super_admin_user, test_user, test_idp_data
 ):
-    """Default behavior (scrub=False) leaves canonical rows untouched."""
+    """Opting out (scrub=False) leaves canonical rows untouched."""
     import database
     from schemas.saml import IdPCreate
     from services import saml as saml_service
@@ -7096,7 +7096,7 @@ def test_delete_idp_without_scrub_preserves_canonical_values(
 
     _seed_mirrored_attributes(tenant_id, user_id, idp.id, {"job_title": "Engineer"})
 
-    saml_service.delete_identity_provider(requesting_user, idp.id)
+    saml_service.delete_identity_provider(requesting_user, idp.id, scrub_mirrored_attributes=False)
 
     canonical = database.user_attributes.get_attribute(tenant_id, user_id, "job_title")
     assert canonical is not None
@@ -7183,7 +7183,7 @@ def test_delete_idp_scrub_records_count_in_idp_deleted_event(
 def test_delete_idp_without_scrub_records_zero_scrubbed_count(
     test_tenant, test_super_admin_user, test_idp_data
 ):
-    """Default delete records scrubbed=False and count=0."""
+    """Opting out of the scrub records scrubbed=False and count=0."""
     import database
     from schemas.saml import IdPCreate
     from services import saml as saml_service
@@ -7194,7 +7194,7 @@ def test_delete_idp_without_scrub_records_zero_scrubbed_count(
     data = IdPCreate(**test_idp_data, is_enabled=False)
     idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
-    saml_service.delete_identity_provider(requesting_user, idp.id)
+    saml_service.delete_identity_provider(requesting_user, idp.id, scrub_mirrored_attributes=False)
 
     events = database.event_log.list_events(
         tenant_id,
@@ -7501,3 +7501,226 @@ def test_delete_idp_scrub_does_not_leak_across_tenants(
             "DELETE FROM tenants WHERE id = :id",
             {"id": tenant_b["id"]},
         )
+
+
+# ---------------------------------------------------------------------------
+# Per-user IdP disconnect/move scrub (assign_user_idp)
+# ---------------------------------------------------------------------------
+
+
+def test_assign_user_idp_disconnect_scrub_clears_matching_values(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Disconnecting to password with scrub=True clears canonical values that
+    still match the old IdP's mirror snapshot, and drops the mirror rows."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=idp.id)
+    _seed_mirrored_attributes(
+        tenant_id, user_id, idp.id, {"job_title": "Engineer", "department": "Eng"}
+    )
+
+    saml_service.assign_user_idp(
+        requesting_user, user_id, saml_idp_id=None, scrub_mirrored_attributes=True
+    )
+
+    assert database.user_attributes.get_attribute(tenant_id, user_id, "job_title") is None
+    assert database.user_attributes.get_attribute(tenant_id, user_id, "department") is None
+    # Mirror snapshot for the departed IdP is gone too.
+    assert database.user_idp_attributes.list_attributes(tenant_id, user_id) == []
+
+
+def test_assign_user_idp_disconnect_scrub_preserves_diverged_values(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """A canonical value edited since the mirror (so diverged) survives the scrub."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=idp.id)
+    _seed_mirrored_attributes(tenant_id, user_id, idp.id, {"job_title": "Engineer"})
+    # Admin edits the canonical value after the mirror.
+    database.user_attributes.upsert_attribute(
+        tenant_id, tenant_id, user_id, "job_title", "Staff Engineer"
+    )
+
+    saml_service.assign_user_idp(
+        requesting_user, user_id, saml_idp_id=None, scrub_mirrored_attributes=True
+    )
+
+    canonical = database.user_attributes.get_attribute(tenant_id, user_id, "job_title")
+    assert canonical is not None
+    assert canonical["value"] == "Staff Engineer"
+
+
+def test_assign_user_idp_disconnect_scrubs_by_default(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """With no flag passed, disconnect scrubs mirrored attributes (default on)."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=idp.id)
+    _seed_mirrored_attributes(tenant_id, user_id, idp.id, {"job_title": "Engineer"})
+
+    # No scrub_mirrored_attributes argument -> default-on path.
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=None)
+
+    assert database.user_attributes.get_attribute(tenant_id, user_id, "job_title") is None
+    assert database.user_idp_attributes.list_attributes(tenant_id, user_id) == []
+
+
+def test_assign_user_idp_disconnect_opt_out_preserves_values(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """scrub=False (opt-out) leaves canonical values and mirror rows untouched."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=idp.id)
+    _seed_mirrored_attributes(tenant_id, user_id, idp.id, {"job_title": "Engineer"})
+
+    saml_service.assign_user_idp(
+        requesting_user, user_id, saml_idp_id=None, scrub_mirrored_attributes=False
+    )
+
+    canonical = database.user_attributes.get_attribute(tenant_id, user_id, "job_title")
+    assert canonical is not None
+    assert canonical["value"] == "Engineer"
+    assert len(database.user_idp_attributes.list_attributes(tenant_id, user_id)) == 1
+
+
+def test_assign_user_idp_move_scrubs_only_old_idp(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Moving to a different IdP with scrub=True clears the OLD IdP's mirrored
+    values but leaves a value diverged from that snapshot alone."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    data1 = IdPCreate(**test_idp_data, is_enabled=True)
+    idp1 = saml_service.create_identity_provider(requesting_user, data1, "https://test.example.com")
+    idp_data_2 = {**test_idp_data, "name": "Second IdP", "entity_id": "https://second.example.com"}
+    data2 = IdPCreate(**idp_data_2, is_enabled=True)
+    idp2 = saml_service.create_identity_provider(
+        requesting_user, data2, "https://second.example.com"
+    )
+
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=idp1.id)
+    _seed_mirrored_attributes(tenant_id, user_id, idp1.id, {"job_title": "Engineer"})
+
+    saml_service.assign_user_idp(
+        requesting_user, user_id, saml_idp_id=idp2.id, scrub_mirrored_attributes=True
+    )
+
+    assert database.user_attributes.get_attribute(tenant_id, user_id, "job_title") is None
+    assert database.user_idp_attributes.list_attributes(tenant_id, user_id) == []
+
+
+def test_assign_user_idp_scrub_emits_event_and_records_count(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """The scrub emits one idp_disconnect_scrub event and records the count in
+    the user_saml_idp_assigned metadata."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=idp.id)
+    _seed_mirrored_attributes(
+        tenant_id, user_id, idp.id, {"job_title": "Engineer", "department": "Eng"}
+    )
+
+    saml_service.assign_user_idp(
+        requesting_user, user_id, saml_idp_id=None, scrub_mirrored_attributes=True
+    )
+
+    events = database.event_log.list_events(
+        tenant_id, artifact_type="user", artifact_id=user_id, limit=50
+    )
+    scrub_events = [
+        e for e in events if (e.get("metadata") or {}).get("cause") == "idp_disconnect_scrub"
+    ]
+    assert len(scrub_events) == 1
+    assert set(scrub_events[0]["metadata"]["cleared_keys"]) == {"job_title", "department"}
+
+    assign_events = [e for e in events if e["event_type"] == "user_saml_idp_assigned"]
+    # Most recent assignment is the disconnect.
+    disconnect_meta = assign_events[0]["metadata"]
+    assert disconnect_meta["scrubbed_mirrored_attributes"] is True
+    assert disconnect_meta["scrubbed_count"] == 2
+
+
+def test_assign_user_idp_to_idp_does_not_scrub(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """A first-time assignment (no old IdP to leave) never scrubs, even when the
+    flag is set."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Pre-seed a canonical value (as if from some prior state); no old IdP bound.
+    database.user_attributes.upsert_attribute(
+        tenant_id, tenant_id, user_id, "job_title", "Engineer"
+    )
+
+    saml_service.assign_user_idp(
+        requesting_user, user_id, saml_idp_id=idp.id, scrub_mirrored_attributes=True
+    )
+
+    canonical = database.user_attributes.get_attribute(tenant_id, user_id, "job_title")
+    assert canonical is not None
+    assert canonical["value"] == "Engineer"

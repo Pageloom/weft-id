@@ -208,6 +208,7 @@ class TestStandardAttributesInAssertion:
                 mirror_from_idp=True,
                 locked_for_users=False,
                 send_to_sps_default=True,
+                allow_self_sourced_to_sp=False,
             )
 
             # 2. Look up the IdP admin user id

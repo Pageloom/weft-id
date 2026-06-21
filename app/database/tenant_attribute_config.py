@@ -1,7 +1,8 @@
 """Database layer for tenant_attribute_config.
 
 Per-tenant per-attribute toggles: ``enabled``, ``required``,
-``mirror_from_idp``, ``locked_for_users``, and ``send_to_sps_default``.
+``mirror_from_idp``, ``locked_for_users``, ``send_to_sps_default``, and
+``allow_self_sourced_to_sp``.
 Rows are seeded for every attribute in the registry when the tenant is
 created (see migration 0033 for existing tenants and the
 ``seed_tenant_attribute_config`` service function for new tenants). The
@@ -24,7 +25,7 @@ def list_config(tenant_id: TenantArg) -> list[dict]:
         """
         select id, tenant_id, attribute_key, category, enabled, required,
                mirror_from_idp, locked_for_users, send_to_sps_default,
-               updated_at
+               allow_self_sourced_to_sp, updated_at
         from tenant_attribute_config
         order by
             case category
@@ -46,7 +47,7 @@ def get_config(tenant_id: TenantArg, attribute_key: str) -> dict | None:
         """
         select id, tenant_id, attribute_key, category, enabled, required,
                mirror_from_idp, locked_for_users, send_to_sps_default,
-               updated_at
+               allow_self_sourced_to_sp, updated_at
         from tenant_attribute_config
         where attribute_key = :attribute_key
         """,
@@ -62,6 +63,7 @@ def update_config(
     mirror_from_idp: bool,
     locked_for_users: bool,
     send_to_sps_default: bool,
+    allow_self_sourced_to_sp: bool,
 ) -> int:
     """Update one attribute config row. Returns affected row count (0 or 1).
 
@@ -78,6 +80,7 @@ def update_config(
             mirror_from_idp = :mirror_from_idp,
             locked_for_users = :locked_for_users,
             send_to_sps_default = :send_to_sps_default,
+            allow_self_sourced_to_sp = :allow_self_sourced_to_sp,
             updated_at = now()
         where attribute_key = :attribute_key
         """,
@@ -88,6 +91,7 @@ def update_config(
             "mirror_from_idp": mirror_from_idp,
             "locked_for_users": locked_for_users,
             "send_to_sps_default": send_to_sps_default,
+            "allow_self_sourced_to_sp": allow_self_sourced_to_sp,
         },
     )
 
@@ -102,7 +106,9 @@ def insert_config_row(
 
     Used by the service-layer seed helper for newly-created tenants.
     Defaults: enabled=false, required=false, mirror_from_idp=true,
-    locked_for_users=false, send_to_sps_default=true.
+    locked_for_users=false, send_to_sps_default=true,
+    allow_self_sourced_to_sp=false (the unlisted column falls back to its
+    secure DB default).
     """
     return execute(
         tenant_id,

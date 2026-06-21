@@ -328,6 +328,7 @@ def list_attribute_config(
             mirror_from_idp=bool(row["mirror_from_idp"]),
             locked_for_users=bool(row["locked_for_users"]),
             send_to_sps_default=bool(row["send_to_sps_default"]),
+            allow_self_sourced_to_sp=bool(row["allow_self_sourced_to_sp"]),
             updated_at=row["updated_at"],
         )
         for row in rows
@@ -361,6 +362,9 @@ def update_attribute_config(
         locked_for_users: Only admins can edit this. Users see it read-only.
         send_to_sps_default: Include this attribute in assertions to
             newly-added SPs.
+        allow_self_sourced_to_sp: Allow user-edited (self-sourced) values to
+            be sent to service providers. Defaults to false; when false, only
+            admin- or IdP-sourced values are emitted into signed assertions.
 
     Returns:
         The updated attribute config row.
@@ -376,6 +380,7 @@ def update_attribute_config(
             mirror_from_idp=payload.mirror_from_idp,
             locked_for_users=payload.locked_for_users,
             send_to_sps_default=payload.send_to_sps_default,
+            allow_self_sourced_to_sp=payload.allow_self_sourced_to_sp,
         )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
@@ -388,5 +393,6 @@ def update_attribute_config(
         mirror_from_idp=bool(updated["mirror_from_idp"]),
         locked_for_users=bool(updated["locked_for_users"]),
         send_to_sps_default=bool(updated["send_to_sps_default"]),
+        allow_self_sourced_to_sp=bool(updated["allow_self_sourced_to_sp"]),
         updated_at=updated["updated_at"],
     )

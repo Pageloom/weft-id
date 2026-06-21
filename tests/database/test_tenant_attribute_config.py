@@ -95,6 +95,7 @@ def test_update_config_changes_flags(test_tenant):
         mirror_from_idp=True,
         locked_for_users=True,
         send_to_sps_default=False,
+        allow_self_sourced_to_sp=True,
     )
     assert rows_affected == 1
     row = database.tenant_attribute_config.get_config(test_tenant["id"], "job_title")
@@ -104,6 +105,7 @@ def test_update_config_changes_flags(test_tenant):
     assert row["mirror_from_idp"] is True
     assert row["locked_for_users"] is True
     assert row["send_to_sps_default"] is False
+    assert row["allow_self_sourced_to_sp"] is True
 
 
 def test_update_config_returns_zero_for_missing_key(test_tenant):
@@ -116,6 +118,7 @@ def test_update_config_returns_zero_for_missing_key(test_tenant):
         mirror_from_idp=False,
         locked_for_users=False,
         send_to_sps_default=True,
+        allow_self_sourced_to_sp=False,
     )
     assert rows_affected == 0
 

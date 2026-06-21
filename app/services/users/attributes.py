@@ -208,12 +208,22 @@ def set_user_attribute(
     existing = database.user_attributes.get_attribute(tenant_id, user_id, attribute_key)
     old_value = existing["value"] if existing else None
 
+    # Provenance is role-based, not identity-based: a value set by an admin /
+    # super_admin is 'admin'-sourced (authority-grade, always emitted to SPs),
+    # even when the admin edits their own profile. A value a non-admin sets on
+    # themselves is 'self'-sourced (spoofable, withheld from SP assertions
+    # unless the tenant opts the attribute in). This deliberately differs from
+    # ``cause`` below, which records who acted on whom for the audit trail.
+    is_admin = requesting_user["role"] in ("admin", "super_admin")
+    source = "admin" if is_admin else "self"
+
     row = database.user_attributes.upsert_attribute(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
         user_id=user_id,
         attribute_key=attribute_key,
         value=serialized,
+        source=source,
     )
 
     if old_value != serialized:
@@ -551,17 +561,20 @@ def apply_idp_attributes(
                 },
             )
 
-        # Mirror enabled+mirror_from_idp keys into user_attributes.
+        # Mirror enabled+mirror_from_idp keys into user_attributes. These are
+        # 'idp'-sourced (authority-grade): they always emit to SPs and overwrite
+        # any prior 'self'/'admin' provenance, since the IdP is now the writer.
         for key, value in mirror_writes.items():
             cur.execute(
                 """
                 insert into user_attributes (
-                    tenant_id, user_id, attribute_key, value
+                    tenant_id, user_id, attribute_key, value, source
                 ) values (
-                    %(tenant_id)s, %(user_id)s, %(attribute_key)s, %(value)s
+                    %(tenant_id)s, %(user_id)s, %(attribute_key)s, %(value)s, 'idp'
                 )
                 on conflict (user_id, attribute_key) do update set
                     value = excluded.value,
+                    source = excluded.source,
                     updated_at = now()
                 """,
                 {

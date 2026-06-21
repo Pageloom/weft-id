@@ -45,6 +45,7 @@ def update_tenant_attribute_config(
     mirror_from_idp: bool,
     locked_for_users: bool,
     send_to_sps_default: bool,
+    allow_self_sourced_to_sp: bool = False,
 ) -> dict:
     """Update one attribute's config row.
 
@@ -82,6 +83,7 @@ def update_tenant_attribute_config(
         mirror_from_idp=mirror_from_idp,
         locked_for_users=locked_for_users,
         send_to_sps_default=send_to_sps_default,
+        allow_self_sourced_to_sp=allow_self_sourced_to_sp,
     )
     if rows_affected == 0:
         # Race -- the row was deleted between get_config and update_config.
@@ -101,6 +103,7 @@ def update_tenant_attribute_config(
         "mirror_from_idp",
         "locked_for_users",
         "send_to_sps_default",
+        "allow_self_sourced_to_sp",
     ):
         old_value = bool(existing.get(flag))
         new_value = bool(updated.get(flag))

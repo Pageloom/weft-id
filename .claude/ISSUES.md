@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 3 | File Structure (pre-existing); Self-editable attrs emitted in signed SAML assertions; Mirrored-attr scrub skips per-user IdP disconnect |
+| Medium | 2 | File Structure (pre-existing); Mirrored-attr scrub skips per-user IdP disconnect |
 | Low | 3 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked); Security defense-in-depth bundle (5 items) |
 | Compliance | 6 | Audit-trail gaps (SCIM reactivation, protected-domain verify-failed, no-op settings event, WebAuthn revoke actor); latent UNSCOPED WITH CHECK; migration 0034 numbering/comment |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
@@ -29,21 +29,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [SECURITY] Broken Access Control: self-editable user attributes emitted in signed SAML assertions without provenance
-
-**Found in:** `app/services/service_providers/sso.py:211-234` (emission); `app/services/users/attributes.py:109-119` (self-edit policy); `app/constants/user_attributes.py:54` (`Source` literal defined but not persisted/checked)
-**Severity:** Medium (High if any downstream SP authorizes on these attributes)
-**OWASP Category:** A01:2021 - Broken Access Control (attribute spoofing)
-**Description:** When a standard attribute is enabled and left unlocked (`locked_for_users=false`, the default for new config rows) with profile editing on (tenant default), a regular member can self-edit values like `department`, `employee_id`, `job_title`, or `organization` via `POST /profile/update-attributes`. `_build_assertion_attributes` reads the canonical `user_attributes` row and emits it into the **signed** assertion with no indication of who set it. The registry defines `Source = Literal["idp", "admin", "self"]` but provenance is neither persisted nor consulted at emission.
-**Attack Scenario:** A member self-asserts `department=Finance` (or any attribute a downstream SP keys access decisions on); the SP receives it inside a WeftID-signed assertion and trusts it as IdP/admin-grade truth, yielding privilege escalation at the SP.
-**Evidence:** `sso.py:211-234` treats every canonical row identically with no `source` filter; self-edit is allowed whenever the attribute is enabled+unlocked (`attributes.py:109-119`).
-**Impact:** Spoofed attribute-based authorization at any downstream SP that consumes these attributes.
-**Remediation:** Persist and honor attribute provenance: either add a per-attribute "emit to SPs only when admin/IdP-sourced" option, or carry `source` through to the assertion builder so an SP-facing policy can exclude self-edited values. At minimum, warn in the tenant-config UI that an unlocked + SP-emitted attribute is user-spoofable, and document that SPs must not authorize on self-editable attributes.
-
-**Files Affected:** `app/services/service_providers/sso.py`, `app/services/users/attributes.py`, `app/constants/user_attributes.py`, `app/templates/settings_user_attributes.html`
 
 ---
 

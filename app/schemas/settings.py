@@ -30,6 +30,14 @@ class TenantAttributeConfigRow(BaseModel):
     send_to_sps_default: bool = Field(
         ..., description="Include this attribute in assertions to newly-added SPs."
     )
+    allow_self_sourced_to_sp: bool = Field(
+        ...,
+        description=(
+            "Allow user-edited (self-sourced) values to be sent to service "
+            "providers. When false (default), only admin- or IdP-sourced values "
+            "are emitted into signed assertions; user-set values are withheld."
+        ),
+    )
     updated_at: datetime = Field(..., description="When the row was last updated")
 
 
@@ -50,6 +58,14 @@ class TenantAttributeConfigUpdate(BaseModel):
     )
     send_to_sps_default: bool = Field(
         ..., description="Include this attribute in assertions to newly-added SPs."
+    )
+    allow_self_sourced_to_sp: bool = Field(
+        default=False,
+        description=(
+            "Allow user-edited (self-sourced) values to be sent to service "
+            "providers. Defaults to false (secure): user-set values are withheld "
+            "from signed assertions unless this is explicitly enabled."
+        ),
     )
 
 

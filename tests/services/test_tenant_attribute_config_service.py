@@ -44,6 +44,8 @@ def test_seed_inserts_all_fourteen_rows(test_tenant):
         assert r["mirror_from_idp"] is True
         assert r["locked_for_users"] is False
         assert r["send_to_sps_default"] is True
+        # Secure default: user-edited values are NOT propagated to SPs.
+        assert r["allow_self_sourced_to_sp"] is False
 
 
 def test_seed_is_idempotent(test_tenant):
@@ -124,6 +126,27 @@ def test_update_tenant_attribute_config_super_admin_succeeds(test_tenant):
     assert updated["mirror_from_idp"] is True
     assert updated["locked_for_users"] is True
     assert updated["send_to_sps_default"] is False
+
+
+def test_update_tenant_attribute_config_persists_allow_self_sourced(test_tenant):
+    """The allow_self_sourced_to_sp flag round-trips and shows in the diff."""
+    seed_tenant_attribute_config(str(test_tenant["id"]))
+    requester = _super(test_tenant["id"])
+
+    with patch("services.settings.attributes.log_event") as mock_log:
+        updated = update_tenant_attribute_config(
+            requester,
+            "job_title",
+            enabled=True,
+            required=False,
+            mirror_from_idp=True,
+            locked_for_users=False,
+            send_to_sps_default=True,
+            allow_self_sourced_to_sp=True,
+        )
+    assert updated["allow_self_sourced_to_sp"] is True
+    changes = mock_log.call_args.kwargs["metadata"]["changes"]
+    assert changes["allow_self_sourced_to_sp"] == {"old": False, "new": True}
 
 
 def test_update_tenant_attribute_config_emits_event_with_changes(test_tenant):

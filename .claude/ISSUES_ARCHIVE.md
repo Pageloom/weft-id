@@ -5,6 +5,55 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] Broken Access Control: self-editable user attributes emitted in signed SAML assertions without provenance
+
+**Fixed by:** per-row attribute provenance + trusted-source SP emission gate
+(migration `0049_user_attributes_source.sql`, 2026-06-21)
+
+**Severity:** Medium (High if any downstream SP authorizes on these attributes)
+**OWASP Category:** A01:2021 - Broken Access Control (attribute spoofing)
+
+**Description:** A non-admin could self-edit standard attributes (`department`,
+`employee_id`, `job_title`, `organization`) on an enabled+unlocked attribute via
+`POST /profile/update-attributes`. `_build_assertion_attributes` read the
+canonical `user_attributes` row and emitted it into the **signed** assertion with
+no indication of who set it, so a downstream SP that authorizes on the attribute
+trusted a user-asserted value as IdP/admin-grade truth (privilege escalation at
+the SP).
+
+**Fix:**
+- New `user_attributes.source` column (`idp`|`admin`|`self`, CHECK-constrained),
+  written at every canonical write site. Provenance is **role-based**: admin /
+  super_admin writes are `admin`-sourced even when an admin edits their own
+  profile (the threat is a *non-admin* self-asserting, not row ownership); the
+  IdP mirror writes `idp` and reclaims provenance over a prior self-edit.
+  `cause` (audit) stays identity-based; `source` (security gate) is role-based.
+- New per-attribute `tenant_attribute_config.allow_self_sourced_to_sp` (secure
+  default `FALSE`). `_build_assertion_attributes` withholds `self`-sourced rows
+  unless the tenant opts the attribute in; default-deny on a config-read outage.
+  `idp`/`admin` values always flow.
+- Backfill classifies existing rows `idp` when they match a current IdP-mirror
+  snapshot, else `admin` (no row marked `self`), so nothing currently flowing to
+  SPs stops on upgrade; only future self-edits are gated.
+- Settings UI gains an "Allow user-edited to SPs" toggle plus a live caution for
+  the spoofable enabled+unlocked+allowed combination. API read/write and the
+  `TenantAttributeConfig` schemas carry the new flag.
+
+**Tests:** DB round-trip / CHECK / default; role-based source tagging (self /
+admin / admin-self-edit); IdP mirror reclaims provenance over a self value;
+emission gate (withheld by default, emitted on opt-in, always for idp/admin,
+withheld on config outage, legacy null-source treated as trusted); settings
+service diff persists and logs the new flag.
+
+**Files Affected:** `db-init/migrations/0049_user_attributes_source.sql`,
+`app/database/user_attributes.py`, `app/database/tenant_attribute_config.py`,
+`app/services/users/attributes.py`, `app/services/service_providers/sso.py`,
+`app/services/settings/attributes.py`, `app/schemas/settings.py`,
+`app/routers/api/v1/settings.py`, `app/routers/settings.py`,
+`app/templates/settings_user_attributes.html`
+
+---
+
 ## [SECURITY] SSRF: outbound SCIM + SAML SLO targets dialed without send-time IP validation
 
 **Fixed by:** `utils.safe_http.build_safe_client` (IP-pinned httpx transport) +

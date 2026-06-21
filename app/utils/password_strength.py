@@ -60,7 +60,7 @@ def check_hibp(password: str) -> int:
     suffix = sha1[5:]
 
     try:
-        response = httpx.get(
+        response = httpx.get(  # ssrf-ok: hardcoded HIBP range API (fixed public host)
             f"{HIBP_API_URL}{prefix}",
             timeout=HIBP_TIMEOUT_SECONDS,
             headers={"User-Agent": "WeftID-PasswordCheck"},

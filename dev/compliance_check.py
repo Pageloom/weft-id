@@ -28,6 +28,10 @@ Principles checked:
                         routes (catches dead links at CI time)
    11. outbound-timeouts - Outbound HTTP/network calls must have explicit
                         timeouts to prevent indefinite hangs
+   11b. outbound-ssrf    - Outbound HTTP calls to caller-supplied URLs must
+                        route through an SSRF guard (build_safe_client /
+                        utils.url_safety); raw httpx/requests/urllib calls are
+                        forbidden unless marked '# ssrf-ok: <reason>'
    12. job-context      - Job handlers that call log_event() must use
                         system_context() to provide request context
    13. api-auth         - All API route handlers must require authentication
@@ -2499,6 +2503,131 @@ def check_outbound_timeout_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# 11b. Outbound SSRF Guard
+# =============================================================================
+
+_OUTBOUND_SSRF_SUPPRESS = "# ssrf-ok:"
+
+# Calls that open a connection to a caller-supplied URL/host using a default
+# (unvalidated) resolver. Every one of these can be pointed at an internal
+# address unless the URL is a hardcoded constant or the call routes through an
+# SSRF guard. The guard for httpx is `utils`/`services.scim` `build_safe_client`
+# (IP-pinned transport); for urllib it is `utils.url_safety` (validate + safe
+# redirect handler).
+_OUTBOUND_SSRF_CALLS: dict[str, str] = {
+    # httpx convenience functions create a throwaway client with the default
+    # transport -- no IP validation.
+    "httpx.get": "httpx.get()",
+    "httpx.post": "httpx.post()",
+    "httpx.put": "httpx.put()",
+    "httpx.delete": "httpx.delete()",
+    "httpx.patch": "httpx.patch()",
+    "httpx.head": "httpx.head()",
+    "httpx.options": "httpx.options()",
+    "httpx.request": "httpx.request()",
+    "httpx.stream": "httpx.stream()",
+    # Direct client construction with the default transport.
+    "httpx.Client": "httpx.Client()",
+    "httpx.AsyncClient": "httpx.AsyncClient()",
+    # requests library (not a current dependency, but catch if introduced).
+    "requests.get": "requests.get()",
+    "requests.post": "requests.post()",
+    "requests.put": "requests.put()",
+    "requests.delete": "requests.delete()",
+    "requests.patch": "requests.patch()",
+    "requests.head": "requests.head()",
+    "requests.options": "requests.options()",
+    "requests.request": "requests.request()",
+    "requests.Session": "requests.Session()",
+}
+
+# Bare method names flagged regardless of import style (urllib).
+_OUTBOUND_SSRF_METHODS: dict[str, str] = {
+    "urlopen": "urlopen()",
+    "build_opener": "build_opener()",
+}
+
+
+def check_outbound_ssrf_violations(report: ComplianceReport) -> None:
+    """Ensure every outbound HTTP call routes through an SSRF guard.
+
+    This is a backstop: any server-side request to a caller-supplied URL is
+    an SSRF vector unless the resolved IP is validated against the private /
+    loopback / link-local / metadata blocklist *at send time*. We cannot
+    statically prove a given URL is safe, so the rule is structural -- raw
+    outbound calls (``httpx.get``/``post``, ``httpx.Client``,
+    ``requests.*``, ``urlopen``, ``build_opener``) are forbidden.
+
+    Allowed alternatives:
+    - httpx: build the client via ``build_safe_client()`` (IP-pinned
+      transport in ``utils``/``services.scim``) and call methods on it.
+    - urllib metadata fetches: go through ``utils.url_safety``.
+
+    Suppress an individual finding with ``# ssrf-ok: <reason>`` on the call
+    line. Use this only when the target is a hardcoded constant pointing at a
+    trusted public host (e.g. the HIBP range API), or when the call *is* the
+    guard implementation itself.
+    """
+    app_path = get_app_path()
+    if not app_path.exists():
+        return
+
+    for py_file in app_path.rglob("*.py"):
+        if "__pycache__" in py_file.parts:
+            continue
+
+        report.files_scanned += 1
+
+        try:
+            source = py_file.read_text()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        source_lines = source.splitlines()
+        rel_path = str(py_file.relative_to(get_project_root()))
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+
+            call_name = _get_dotted_call_name(node.func)
+            if call_name is None:
+                continue
+
+            evidence = _OUTBOUND_SSRF_CALLS.get(call_name)
+            if evidence is None:
+                method_name = call_name.rsplit(".", 1)[-1]
+                evidence = _OUTBOUND_SSRF_METHODS.get(method_name)
+            if evidence is None:
+                continue
+
+            line_num = node.lineno
+            if line_num <= len(source_lines) and _OUTBOUND_SSRF_SUPPRESS in source_lines[line_num - 1]:
+                continue
+
+            report.add(
+                Violation(
+                    principle="Outbound SSRF Guard",
+                    severity="high",
+                    file_path=rel_path,
+                    line_number=line_num,
+                    function_name=None,
+                    description=(
+                        f"{evidence} bypasses SSRF protection (unvalidated target resolution)"
+                    ),
+                    evidence=f"{call_name}(...)",
+                    suggested_fix=(
+                        "Route through an SSRF guard: build the httpx client via "
+                        "build_safe_client(), or use utils.url_safety for urllib fetches. "
+                        "If the target is a hardcoded trusted public host, add "
+                        "'# ssrf-ok: <reason>' on the call line."
+                    ),
+                )
+            )
+
+
+# =============================================================================
 # 12. Job System Context
 # =============================================================================
 
@@ -3168,6 +3297,7 @@ def run_compliance_check(
         "migration-safety",
         "template-links",
         "outbound-timeouts",
+        "outbound-ssrf",
         "job-context",
         "api-auth",
         "form-input-length",
@@ -3210,6 +3340,9 @@ def run_compliance_check(
 
     if "outbound-timeouts" in principles:
         check_outbound_timeout_violations(report)
+
+    if "outbound-ssrf" in principles:
+        check_outbound_ssrf_violations(report)
 
     if "job-context" in principles:
         check_job_system_context_violations(report)
@@ -3290,6 +3423,7 @@ def main() -> int:
             "migration-safety",
             "template-links",
             "outbound-timeouts",
+            "outbound-ssrf",
             "job-context",
             "api-auth",
             "form-input-length",

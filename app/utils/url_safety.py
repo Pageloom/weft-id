@@ -47,6 +47,17 @@ def _is_ip_blocked(ip_str: str) -> bool:
     return False
 
 
+def is_blocked_ip(ip_str: str) -> bool:
+    """Public predicate: whether an IP string is in a blocked network.
+
+    Wraps the module's private blocklist so other modules (e.g. the
+    outbound SCIM safe transport) can reuse the exact same set of
+    private / loopback / link-local / reserved / metadata ranges without
+    reaching into a private helper.
+    """
+    return _is_ip_blocked(ip_str)
+
+
 def validate_metadata_url(url: str) -> str:
     """Validate a metadata URL for safe fetching.
 
@@ -194,7 +205,8 @@ def fetch_metadata_xml(url: str, timeout: int = 10) -> str:
         handlers: list[urllib.request.BaseHandler] = [_SafeRedirectHandler()]
         if ssl_ctx is not None:
             handlers.append(urllib.request.HTTPSHandler(context=ssl_ctx))
-        opener = urllib.request.build_opener(*handlers)
+        # URL pre-validated by validate_metadata_url; _SafeRedirectHandler re-validates each hop
+        opener = urllib.request.build_opener(*handlers)  # ssrf-ok: pre-validated; safe redirects
         with opener.open(req, timeout=timeout) as response:  # noqa: S310
             data = read_response_with_limit(response, MAX_METADATA_BYTES)
             content = data.decode("utf-8")

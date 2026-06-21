@@ -48,6 +48,7 @@ from types import ModuleType
 from typing import Literal
 
 import httpx
+from utils.safe_http import build_safe_client
 
 from ._sanitise import redact_bearer
 from .quirks import get_quirk_module
@@ -76,6 +77,13 @@ _BACKOFF_SECONDS = [0.0, 1.0, 4.0]
 # Per-call HTTP timeout. The worker is a background process; long timeouts
 # are fine, we'd rather wait than spuriously declare failure.
 _HTTP_TIMEOUT_SECONDS = 30.0
+
+# Dev-only hostnames that resolve to private docker-bridge addresses and are
+# intentionally permitted on the SCIM path (the external Authentik testbed at
+# `host.docker.internal`, the in-stack loopback E2E target `app`). Mirrors
+# `_DEV_HOSTNAME_ALLOWLIST` in `services.scim.admin`; production never uses
+# these names and `IS_DEV` is false, so the allowlist is inert there.
+_DEV_HOSTNAME_ALLOWLIST = frozenset({"host.docker.internal", "app"})
 
 PushStatus = Literal["success", "retryable", "permanent", "absent"]
 
@@ -205,7 +213,13 @@ def _send_with_retry(
     propagate.
     """
     owns_client = http_client is None
-    client = http_client or httpx.Client(timeout=_HTTP_TIMEOUT_SECONDS)
+    # When the caller supplies no client we build an SSRF-hardened one that
+    # re-resolves and IP-pins the target per request (DNS-rebinding defense)
+    # and refuses redirects. See `_safe_transport`.
+    client = http_client or build_safe_client(
+        timeout=_HTTP_TIMEOUT_SECONDS,
+        dev_hostname_allowlist=_DEV_HOSTNAME_ALLOWLIST,
+    )
     headers = _bearer_headers(token)
 
     last_result: PushResult = PushResult(

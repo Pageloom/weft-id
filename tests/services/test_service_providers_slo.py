@@ -244,10 +244,20 @@ class TestPropagateLogoutToSps:
             for i in range(count)
         ]
 
+    @staticmethod
+    def _client_post(mock_factory):
+        """The `.post` mock of the client yielded by `build_safe_client()`.
+
+        The service uses the client as a context manager
+        (`with build_safe_client(...) as client:`), so the real client is
+        `mock_factory.return_value.__enter__.return_value`.
+        """
+        return mock_factory.return_value.__enter__.return_value.post
+
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_returns_zero_for_empty_list(self, mock_db, mock_httpx, mock_log):
+    def test_returns_zero_for_empty_list(self, mock_db, mock_client, mock_log):
         result = propagate_logout_to_sps(
             tenant_id="tenant-1",
             user_id="user-1",
@@ -258,9 +268,9 @@ class TestPropagateLogoutToSps:
         mock_log.assert_not_called()
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_propagates_to_sp_with_slo_url(self, mock_db, mock_httpx, mock_log):
+    def test_propagates_to_sp_with_slo_url(self, mock_db, mock_client, mock_log):
         mock_db.service_providers.get_service_provider.return_value = {
             "id": "sp-0",
             "name": "Test SP",
@@ -274,7 +284,7 @@ class TestPropagateLogoutToSps:
 
         mock_response = MagicMock()
         mock_response.is_success = True
-        mock_httpx.post.return_value = mock_response
+        self._client_post(mock_client).return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -291,16 +301,16 @@ class TestPropagateLogoutToSps:
             )
 
         assert result == 1
-        mock_httpx.post.assert_called_once_with(
+        # Routed through the SSRF-guarded client; timeout lives on the client.
+        self._client_post(mock_client).assert_called_once_with(
             "https://sp0.example.com/slo",
             data={"SAMLRequest": "base64-logout-request"},
-            timeout=5.0,
         )
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_skips_sp_without_slo_url(self, mock_db, mock_httpx, mock_log):
+    def test_skips_sp_without_slo_url(self, mock_db, mock_client, mock_log):
         mock_db.service_providers.get_service_provider.return_value = {
             "id": "sp-0",
             "name": "No SLO SP",
@@ -315,12 +325,12 @@ class TestPropagateLogoutToSps:
         )
 
         assert result == 0
-        mock_httpx.post.assert_not_called()
+        self._client_post(mock_client).assert_not_called()
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_skips_sp_not_found(self, mock_db, mock_httpx, mock_log):
+    def test_skips_sp_not_found(self, mock_db, mock_client, mock_log):
         mock_db.service_providers.get_service_provider.return_value = None
 
         result = propagate_logout_to_sps(
@@ -331,12 +341,12 @@ class TestPropagateLogoutToSps:
         )
 
         assert result == 0
-        mock_httpx.post.assert_not_called()
+        self._client_post(mock_client).assert_not_called()
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_handles_http_error_gracefully(self, mock_db, mock_httpx, mock_log):
+    def test_handles_http_error_gracefully(self, mock_db, mock_client, mock_log):
         mock_db.service_providers.get_service_provider.return_value = {
             "id": "sp-0",
             "name": "Test SP",
@@ -351,7 +361,7 @@ class TestPropagateLogoutToSps:
         mock_response = MagicMock()
         mock_response.is_success = False
         mock_response.status_code = 500
-        mock_httpx.post.return_value = mock_response
+        self._client_post(mock_client).return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -370,9 +380,9 @@ class TestPropagateLogoutToSps:
         assert result == 0
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_handles_connection_error_gracefully(self, mock_db, mock_httpx, mock_log):
+    def test_handles_connection_error_gracefully(self, mock_db, mock_client, mock_log):
         mock_db.service_providers.get_service_provider.return_value = {
             "id": "sp-0",
             "name": "Test SP",
@@ -384,7 +394,9 @@ class TestPropagateLogoutToSps:
             "private_key_pem_enc": "encrypted-key",
         }
 
-        mock_httpx.post.side_effect = Exception("Connection refused")
+        # An SSRF-blocked or unreachable target surfaces as an exception; the
+        # best-effort loop must swallow it and continue.
+        self._client_post(mock_client).side_effect = Exception("Connection refused")
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -404,9 +416,9 @@ class TestPropagateLogoutToSps:
         assert result == 0
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_logs_propagation_event(self, mock_db, mock_httpx, mock_log):
+    def test_logs_propagation_event(self, mock_db, mock_client, mock_log):
         mock_db.service_providers.get_service_provider.return_value = {
             "id": "sp-0",
             "name": "Test SP",
@@ -420,7 +432,7 @@ class TestPropagateLogoutToSps:
 
         mock_response = MagicMock()
         mock_response.is_success = True
-        mock_httpx.post.return_value = mock_response
+        self._client_post(mock_client).return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -444,9 +456,9 @@ class TestPropagateLogoutToSps:
         assert call_kwargs["metadata"]["notified_count"] == 1
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_skips_sp_without_certificate(self, mock_db, mock_httpx, mock_log):
+    def test_skips_sp_without_certificate(self, mock_db, mock_client, mock_log):
         mock_db.service_providers.get_service_provider.return_value = {
             "id": "sp-0",
             "name": "Test SP",
@@ -463,12 +475,12 @@ class TestPropagateLogoutToSps:
         )
 
         assert result == 0
-        mock_httpx.post.assert_not_called()
+        self._client_post(mock_client).assert_not_called()
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_propagate_multiple_sps_all_succeed(self, mock_db, mock_httpx, mock_log):
+    def test_propagate_multiple_sps_all_succeed(self, mock_db, mock_client, mock_log):
         mock_db.service_providers.get_service_provider.side_effect = [
             {"id": f"sp-{i}", "name": f"SP {i}", "slo_url": f"https://sp{i}.example.com/slo"}
             for i in range(3)
@@ -481,7 +493,7 @@ class TestPropagateLogoutToSps:
 
         mock_response = MagicMock()
         mock_response.is_success = True
-        mock_httpx.post.return_value = mock_response
+        self._client_post(mock_client).return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -498,16 +510,16 @@ class TestPropagateLogoutToSps:
             )
 
         assert result == 3
-        assert mock_httpx.post.call_count == 3
+        assert self._client_post(mock_client).call_count == 3
         # Verify event metadata
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["metadata"]["sp_count"] == 3
         assert call_kwargs["metadata"]["notified_count"] == 3
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_propagate_multiple_sps_partial_failure(self, mock_db, mock_httpx, mock_log):
+    def test_propagate_multiple_sps_partial_failure(self, mock_db, mock_client, mock_log):
         """3 SPs: first not found, second no SLO URL, third succeeds."""
         mock_db.service_providers.get_service_provider.side_effect = [
             None,  # SP 0 not found
@@ -522,7 +534,7 @@ class TestPropagateLogoutToSps:
 
         mock_response = MagicMock()
         mock_response.is_success = True
-        mock_httpx.post.return_value = mock_response
+        self._client_post(mock_client).return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -539,16 +551,16 @@ class TestPropagateLogoutToSps:
             )
 
         assert result == 1
-        assert mock_httpx.post.call_count == 1
+        assert self._client_post(mock_client).call_count == 1
         # Verify event counts reflect partial success
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["metadata"]["sp_count"] == 3
         assert call_kwargs["metadata"]["notified_count"] == 1
 
     @patch("services.service_providers.slo.log_event")
-    @patch("services.service_providers.slo.httpx")
+    @patch("services.service_providers.slo.build_safe_client")
     @patch("services.service_providers.slo.database")
-    def test_propagate_uses_per_sp_certificate(self, mock_db, mock_httpx, mock_log):
+    def test_propagate_uses_per_sp_certificate(self, mock_db, mock_client, mock_log):
         """Per-SP cert is used when available; tenant cert lookup is skipped."""
         mock_db.service_providers.get_service_provider.return_value = {
             "id": "sp-0",
@@ -562,7 +574,7 @@ class TestPropagateLogoutToSps:
 
         mock_response = MagicMock()
         mock_response.is_success = True
-        mock_httpx.post.return_value = mock_response
+        self._client_post(mock_client).return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),

@@ -10,9 +10,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | Outbound SCIM SSRF (save-time-only guard, DNS rebinding) |
 | Medium | 3 | File Structure (pre-existing); Self-editable attrs emitted in signed SAML assertions; Mirrored-attr scrub skips per-user IdP disconnect |
-| Low | 3 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked); Security defense-in-depth bundle (6 items) |
+| Low | 3 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked); Security defense-in-depth bundle (5 items) |
 | Compliance | 6 | Audit-trail gaps (SCIM reactivation, protected-domain verify-failed, no-op settings event, WebAuthn revoke actor); latent UNSCOPED WITH CHECK; migration 0034 numbering/comment |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
@@ -30,27 +29,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [SECURITY] SSRF: Outbound SCIM target URL validated only at save time (DNS rebinding)
-
-**Found in:** `app/services/scim/client.py:223` (request sent), `app/services/scim/admin.py:312` + `app/services/scim/admin.py:83` (`_validate_scim_target_url`, the only validation)
-**Severity:** High
-**OWASP Category:** A10:2021 - Server-Side Request Forgery
-**Description:** The admin-supplied SCIM `scim_target_url` is validated for private/loopback/link-local/metadata IPs **only** at config-save time (`_validate_scim_target_url` resolves the hostname via `getaddrinfo` and rejects `addr.is_private` at `admin.py:137-161`). The background worker re-resolves and dials the hostname at send time (`client.py:223` `client.request(...)`) with **no IP re-validation and no IP pinning**. The validated IP is never carried forward.
-**Attack Scenario:** A super_admin (or a compromised super_admin session) sets the target to `https://attacker.example`, which resolves to a public IP at save (passes). The attacker controls that hostname's DNS with a low TTL and re-points it to `169.254.169.254` (cloud metadata), `127.0.0.1`, or an internal `10.x`/`172.16.x` service. The next queue drain POSTs the SCIM body and bearer token to the internal target, or GETs cloud-metadata credential endpoints. The save-time guard is the control the team deliberately built to stop exactly this; DNS rebinding defeats it.
-**Evidence:**
-```
-$ grep -rn "_validate_scim_target_url\|url_safety\|is_private\|getaddrinfo" \
-    app/services/scim/client.py app/services/scim/worker.py app/jobs/process_scim_push_queue.py
-# 0 hits — no SSRF validation anywhere on the send path
-```
-`client.py:208` constructs `httpx.Client(...)` with no `follow_redirects` argument (relies on the implicit httpx default of `False`; a 302 to a private IP would otherwise be followed unchecked).
-**Impact:** Read/write access to internal services and cloud metadata (credential theft, internal pivot) from a server-side request originated by WeftID.
-**Remediation:** Re-validate at send time and pin the checked IP to the dialed IP (resolve once, run through the existing `app/utils/url_safety.py` blocklist, then connect to that exact IP with the `Host` header preserved via a custom httpx transport), eliminating the resolve→connect TOCTOU. The repo already has a hardened guard (`url_safety._is_ip_blocked`, `_SafeRedirectHandler`) used for SAML metadata fetches (`app/utils/saml.py`); reuse it on the SCIM path. Also set `follow_redirects=False` explicitly in the `httpx.Client(...)` call and add a regression test. Save-time validation becomes advisory once request-time pinning is in place.
-
-**Files Affected:** `app/services/scim/client.py`, `app/services/scim/worker.py`, `app/jobs/process_scim_push_queue.py`, `app/utils/url_safety.py` (reuse)
 
 ---
 
@@ -84,24 +62,27 @@ $ grep -rn "_validate_scim_target_url\|url_safety\|is_private\|getaddrinfo" \
 
 ---
 
-## [SECURITY] Defense-in-depth bundle (Low) — 6 hardening items
+## [SECURITY] Defense-in-depth bundle (Low) — 5 hardening items
 
 **Discovered:** 2026-06-21 (60-day targeted sweep)
 **Severity:** Low (each individually mitigated by another control; logged for hardening)
 **OWASP Category:** Mixed (A05 / A08 / A09 / resource exhaustion)
 
+> Item 1 (outbound SCIM redirect-following implicit) was resolved 2026-06-21:
+> `build_safe_client` now sets `follow_redirects=False` explicitly. See
+> ISSUES_ARCHIVE.md (SSRF guard). Remaining items below.
+
 Each item is currently mitigated, but worth closing as defense-in-depth:
 
-1. **Outbound SCIM redirect-following is implicit.** `httpx.Client(...)` at `client.py:208` relies on httpx's default `follow_redirects=False`; a future change to `True` would widen the SSRF gap above. Set it explicitly and add a test. (A10)
-2. **Inbound SCIM bearer not length-capped pre-hash.** `app/api_dependencies.py:255` hashes the raw `Authorization` token with no length bound before `sha256`; oversized-header defense relies on the reverse proxy. Reject `len(token) > ~512` before hashing on this pre-auth path. (A04)
-3. **Inbound SCIM `members[]` array unbounded.** `app/services/scim/inbound_group_write.py` bounds membership only by the global 1 MiB body cap; a ~1 MiB `members[]` PUT triggers O(N) per-member DB lookups on an authenticated endpoint. Add a per-request member ceiling. (Resource exhaustion)
-4. **Forward-auth cookie can scope to a public suffix.** `app/services/protected_domains.py:59-88` (`_validate_host`) has no public-suffix-list check, so a registered domain like `co.uk` would set a `Domain=co.uk` cookie (`app/utils/forward_auth.py:386`). Unreachable without DNS control of the suffix (DNS-TXT gate), but add a PSL/denylist guard. (A05)
-5. **Forward-auth token `v` (version) field minted but never verified.** `app/utils/forward_auth.py:175` sets `"v": 1`; `verify_authorization_token` (`:217-242`) and `read_forward_auth_cookie` (`:321-344`) never assert it. Harmless today (HMAC covers it) but a future `v: 2` format could enable downgrade confusion. Add `if payload.get("v") != 1: return None`. (A08)
-6. **WebAuthn tenant selection is header-rooted.** `rp_id_for_tenant` now reads the tenant record (c60d27e, correct), but the `tenant_id` it receives originates from `x-forwarded-host`/`host` (`app/dependencies.py:32`). Mitigated because the deploy compose never publishes the app port directly (`deploy/docker-compose.yml`), so the header is proxy-controlled. Cross-check the resolved tenant against the authenticated user's `tenant_id` in the ceremony, or assert a `TRUSTED_PROXIES` invariant, to remove the header dependency. (A05)
+1. **Inbound SCIM bearer not length-capped pre-hash.** `app/api_dependencies.py:255` hashes the raw `Authorization` token with no length bound before `sha256`; oversized-header defense relies on the reverse proxy. Reject `len(token) > ~512` before hashing on this pre-auth path. (A04)
+2. **Inbound SCIM `members[]` array unbounded.** `app/services/scim/inbound_group_write.py` bounds membership only by the global 1 MiB body cap; a ~1 MiB `members[]` PUT triggers O(N) per-member DB lookups on an authenticated endpoint. Add a per-request member ceiling. (Resource exhaustion)
+3. **Forward-auth cookie can scope to a public suffix.** `app/services/protected_domains.py:59-88` (`_validate_host`) has no public-suffix-list check, so a registered domain like `co.uk` would set a `Domain=co.uk` cookie (`app/utils/forward_auth.py:386`). Unreachable without DNS control of the suffix (DNS-TXT gate), but add a PSL/denylist guard. (A05)
+4. **Forward-auth token `v` (version) field minted but never verified.** `app/utils/forward_auth.py:175` sets `"v": 1`; `verify_authorization_token` (`:217-242`) and `read_forward_auth_cookie` (`:321-344`) never assert it. Harmless today (HMAC covers it) but a future `v: 2` format could enable downgrade confusion. Add `if payload.get("v") != 1: return None`. (A08)
+5. **WebAuthn tenant selection is header-rooted.** `rp_id_for_tenant` now reads the tenant record (c60d27e, correct), but the `tenant_id` it receives originates from `x-forwarded-host`/`host` (`app/dependencies.py:32`). Mitigated because the deploy compose never publishes the app port directly (`deploy/docker-compose.yml`), so the header is proxy-controlled. Cross-check the resolved tenant against the authenticated user's `tenant_id` in the ceremony, or assert a `TRUSTED_PROXIES` invariant, to remove the header dependency. (A05)
 
 **Note (product decision, not a code bug):** Inbound SCIM `POST /Users` merges on primary email across IdP connections within a tenant and silently rebinds the user to the posting IdP (`app/services/scim/inbound_write.py:604-660`). It is RLS-confined to one tenant and emits a `scim_user_rebound` audit event, but the rebind is silent in the admin UI. Consider rejecting with `409` when the matched user is bound to a different IdP unless an explicit "allow cross-IdP claim" policy is enabled, and surface `scim_user_rebound` in the admin activity view.
 
-**Files Affected:** `app/services/scim/client.py`, `app/api_dependencies.py`, `app/services/scim/inbound_group_write.py`, `app/services/protected_domains.py`, `app/utils/forward_auth.py`, `app/dependencies.py`, `app/services/scim/inbound_write.py`
+**Files Affected:** `app/api_dependencies.py`, `app/services/scim/inbound_group_write.py`, `app/services/protected_domains.py`, `app/utils/forward_auth.py`, `app/dependencies.py`, `app/services/scim/inbound_write.py`
 
 ---
 

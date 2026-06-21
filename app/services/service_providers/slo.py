@@ -7,9 +7,9 @@ IdP-Initiated: Propagates logout to all downstream SPs with active sessions.
 import logging
 
 import database
-import httpx
 from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import NotFoundError, ValidationError
+from utils.safe_http import build_safe_client
 from utils.saml_idp import make_idp_entity_id
 
 logger = logging.getLogger(__name__)
@@ -139,60 +139,63 @@ def propagate_logout_to_sps(
 
     notified = 0
 
-    for sp_info in active_sps:
-        sp_id = sp_info.get("sp_id", "")
-        sp_entity_id = sp_info.get("sp_entity_id", "")
-        name_id = sp_info.get("name_id", "")
-        session_index = sp_info.get("session_index")
+    # The SLO target is the SP's admin-configured `slo_url` -- a server-side
+    # request to an arbitrary host, so it must go through the SSRF guard (IP
+    # validation + pinning, no redirects). In dev the targets are *.BASE_DOMAIN
+    # tenant subdomains served by the reverse proxy, so enable that rewrite.
+    with build_safe_client(timeout=5.0, dev_base_domain_rewrite=True) as client:
+        for sp_info in active_sps:
+            sp_id = sp_info.get("sp_id", "")
+            sp_entity_id = sp_info.get("sp_entity_id", "")
+            name_id = sp_info.get("name_id", "")
+            session_index = sp_info.get("session_index")
 
-        try:
-            # Look up SP to get SLO URL
-            sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
-            if sp_row is None:
-                logger.debug("SP %s not found, skipping SLO propagation", sp_id)
-                continue
+            try:
+                # Look up SP to get SLO URL
+                sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
+                if sp_row is None:
+                    logger.debug("SP %s not found, skipping SLO propagation", sp_id)
+                    continue
 
-            slo_url = sp_row.get("slo_url")
-            if not slo_url:
-                logger.debug("SP %s has no SLO URL, skipping", sp_id)
-                continue
+                slo_url = sp_row.get("slo_url")
+                if not slo_url:
+                    logger.debug("SP %s has no SLO URL, skipping", sp_id)
+                    continue
 
-            # Resolve signing certificate (per-SP first, then tenant fallback)
-            cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
-            if cert is None:
-                cert = database.saml.get_sp_certificate(tenant_id)
-            if cert is None:
-                logger.warning("No signing certificate for SP %s, skipping SLO", sp_id)
-                continue
+                # Resolve signing certificate (per-SP first, then tenant fallback)
+                cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+                if cert is None:
+                    cert = database.saml.get_sp_certificate(tenant_id)
+                if cert is None:
+                    logger.warning("No signing certificate for SP %s, skipping SLO", sp_id)
+                    continue
 
-            private_key_pem = decrypt_private_key(cert["private_key_pem_enc"])
-            issuer_entity_id = make_idp_entity_id(tenant_id, sp_id)
+                private_key_pem = decrypt_private_key(cert["private_key_pem_enc"])
+                issuer_entity_id = make_idp_entity_id(tenant_id, sp_id)
 
-            # Build signed LogoutRequest
-            logout_request_b64 = build_idp_logout_request(
-                issuer_entity_id=issuer_entity_id,
-                destination=slo_url,
-                name_id=name_id,
-                name_id_format=None,
-                session_index=session_index,
-                certificate_pem=cert["certificate_pem"],
-                private_key_pem=private_key_pem,
-            )
+                # Build signed LogoutRequest
+                logout_request_b64 = build_idp_logout_request(
+                    issuer_entity_id=issuer_entity_id,
+                    destination=slo_url,
+                    name_id=name_id,
+                    name_id_format=None,
+                    session_index=session_index,
+                    certificate_pem=cert["certificate_pem"],
+                    private_key_pem=private_key_pem,
+                )
 
-            # POST the LogoutRequest to the SP (best-effort, short timeout)
-            response = httpx.post(
-                slo_url,
-                data={"SAMLRequest": logout_request_b64},
-                timeout=5.0,
-            )
-            if response.is_success:
-                notified += 1
-                logger.info("SLO propagated to SP %s (%s)", sp_id, sp_entity_id)
-            else:
-                logger.warning("SLO propagation to SP %s returned %s", sp_id, response.status_code)
+                # POST the LogoutRequest to the SP (best-effort, short timeout)
+                response = client.post(slo_url, data={"SAMLRequest": logout_request_b64})
+                if response.is_success:
+                    notified += 1
+                    logger.info("SLO propagated to SP %s (%s)", sp_id, sp_entity_id)
+                else:
+                    logger.warning(
+                        "SLO propagation to SP %s returned %s", sp_id, response.status_code
+                    )
 
-        except Exception:
-            logger.warning("SLO propagation failed for SP %s", sp_id, exc_info=True)
+            except Exception:
+                logger.warning("SLO propagation failed for SP %s", sp_id, exc_info=True)
 
     # Log the propagation event
     if active_sps:

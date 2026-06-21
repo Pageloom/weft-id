@@ -34,7 +34,7 @@ def _fetch_hibp_suffixes(prefix: str) -> list[str]:
     Returns an empty list on network error or timeout.
     """
     try:
-        response = httpx.get(
+        response = httpx.get(  # ssrf-ok: hardcoded HIBP range API (fixed public host)
             f"{HIBP_API_URL}{prefix}",
             timeout=HIBP_TIMEOUT_SECONDS,
             headers={"User-Agent": "WeftID-BreachMonitor"},

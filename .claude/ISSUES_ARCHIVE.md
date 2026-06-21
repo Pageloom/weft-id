@@ -5,6 +5,50 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] SSRF: outbound SCIM + SAML SLO targets dialed without send-time IP validation
+
+**Fixed by:** `utils.safe_http.build_safe_client` (IP-pinned httpx transport) +
+`outbound-ssrf` compliance backstop (2026-06-21)
+
+**Severity:** High
+**OWASP Category:** A10:2021 - Server-Side Request Forgery
+
+**Description:** Admin-supplied URLs (SCIM `scim_target_url`, SP `slo_url`) were
+validated for private/reserved IPs only at config-save time, then re-resolved
+and dialed later by the worker / logout flow with no IP re-validation or pinning
+(DNS-rebinding window to `169.254.169.254`, loopback, RFC1918). The SAML SLO
+back-channel (`propagate_logout_to_sps`) used a bare `httpx.post(slo_url, ...)`
+with no SSRF guard at all.
+
+**Fix:**
+- New `app/utils/safe_http.py`: `build_safe_client()` returns an `httpx.Client`
+  whose `PinnedResolveTransport` resolves the host once per request, rejects any
+  resolved address in the shared `url_safety` blocklist, then dials that exact IP
+  (URL host rewritten to the IP literal; `Host` header preserved; `sni_hostname`
+  extension carries the real hostname for TLS SNI + cert verification),
+  eliminating the resolve→connect TOCTOU. `follow_redirects=False` is explicit
+  (closes DiD bundle item 1). Dev escape hatches (hostname allowlist for the
+  SCIM testbed; `*.BASE_DOMAIN` reverse-proxy rewrite for SLO) are inert in prod.
+- `services.scim.client` builds its client via `build_safe_client(...)`.
+- `services.service_providers.slo.propagate_logout_to_sps` routes the
+  back-channel POST through the guard.
+- `utils.url_safety` exposes a public `is_blocked_ip()` reused by the guard.
+- New compliance check `outbound-ssrf` (backstop): forbids raw
+  `httpx`/`requests`/`urllib` outbound calls unless routed through a guard or
+  marked `# ssrf-ok: <reason>`. HIBP (fixed public host) and the guard
+  internals carry markers.
+
+**Tests:** `tests/utils/test_safe_http.py` (resolve/validate, IP pinning,
+blocked-address rejection, dev allowlist + base-domain rewrite, redirects off);
+updated SLO propagation tests to assert the guarded client path.
+
+**Files Affected:** `app/utils/safe_http.py`, `app/utils/url_safety.py`,
+`app/services/scim/client.py`, `app/services/service_providers/slo.py`,
+`app/utils/password_strength.py`, `app/jobs/check_hibp_breaches.py`,
+`dev/compliance_check.py`
+
+---
+
 ## [DEPS] starlette 1.0.1 — 4 CVEs (HIGH/MED/LOW)
 
 **Fixed by:** bump to starlette 1.3.1 (2026-06-20, feature/forward-auth-proxy)

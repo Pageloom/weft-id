@@ -2,6 +2,14 @@
 
 This document contains resolved issues for historical reference.
 
+---
+
+## [COMPLIANCE] Migration 0034 numbering gap and stale 0035 comment
+
+**Fixed:** 2026-06-22 (security/ssrf-and-more branch).
+
+Documentation clarified in migration 0035, explaining the absence of a 0034
+migration (its changes were folded into 0033 in commit 119d1eb)
 
 ---
 

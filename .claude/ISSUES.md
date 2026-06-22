@@ -44,18 +44,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 
 ---
 
-## [COMPLIANCE] Migration 0034 numbering gap and stale 0035 comment
-
-**Found in:** `db-init/migrations/` (sequence skips 0033 → 0035); `0035_user_attributes_mirror_default_true.sql` header
-**Severity:** Warning (documentation)
-**Principle Violated:** Migration consistency
-**Description:** There is no `0034` file on disk; the sequence jumps from `0033_user_attributes.sql` to `0035`. The `0035` header references "the column added in 0034," but the `mirror_from_idp` column it alters actually lives in `0033`. No runtime impact (the runner tracks applied versions via `schema_migration_log`), but the numbering gap and stale comment are confusing.
-**Impact:** Documentation drift; potential confusion if any environment recorded a `0034` in `schema_migration_log`.
-**Suggested fix:** Confirm 0034 was intentionally collapsed into 0033; correct the `0035` header comment to reference `0033`; verify no environment has a `0034` row in `schema_migration_log`.
-**Files Affected:** `db-init/migrations/0035_user_attributes_mirror_default_true.sql`
-
----
-
 ## [REFACTOR] File Structure: groups/idp.py split candidate at 710 lines
 
 **Found in:** `app/services/groups/idp.py`

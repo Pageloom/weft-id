@@ -318,13 +318,14 @@ divergence risk without touching the per-tab context logic.
 
 ---
 
-## [TEST] Regression anchors for user_attributes feature (5 of 6 landed)
+## [TEST] Regression anchors for user_attributes feature (all 6 landed)
 
-**Fixed by:** unit/integration anchors added (2026-06-16, feature/forward-auth-proxy)
+**Fixed by:** unit/integration anchors added (2026-06-16, feature/forward-auth-proxy);
+final cross-iteration E2E added (2026-06-23, security/ssrf-and-more)
 
 **Discovered:** 2026-05-14 (test agent final-pass review)
 **Severity:** Low (deferred regression coverage)
-Five of the six deferred regression anchors were added:
+Five of the six deferred regression anchors were added first:
 - `apply_idp_attributes` "overwrites user-set canonical value when mirror=on"
   (`test_mirror_on_overwrites_user_set_canonical_value`)
 - `apply_idp_attributes` "preserves unrelated canonical rows"
@@ -336,11 +337,17 @@ Five of the six deferred regression anchors were added:
 - Admin user-detail route integration test for `user_profile_updated` emission
   (`test_admin_update_attributes_emits_user_profile_updated_event`)
 
-**Still open:** the full cross-iteration E2E (admin fills attribute -> user
-login -> SP receives it) remains in `.claude/ISSUES.md` as it needs Playwright
-+ Docker, a larger separate lift.
+**Final anchor (E2E, 2026-06-23):** the full cross-iteration journey through
+real UIs: an admin enables the attribute and toggles "Allow user-edited to SPs"
+in the settings grid, a **member** (non-admin) fills the value via the profile
+form (provenance `source='self'`), and the value crosses the real SAML emitter.
+A negative variant proves the default-deny provenance gate withholds a
+self-sourced value when the admin opt-in is off. This deliberately differs from
+`TestStandardAttributesInAssertion` (which DB-seeds an admin-sourced value and
+never crosses the self-sourced gate).
 **Files:** `tests/services/test_saml_attribute_ingestion.py`,
-`tests/routers/test_auth.py`, `tests/routers/test_user_detail_profile.py`
+`tests/routers/test_auth.py`, `tests/routers/test_user_detail_profile.py`,
+`tests/e2e/test_user_attributes_journey.py`
 
 ---
 

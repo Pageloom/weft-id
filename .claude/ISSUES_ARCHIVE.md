@@ -4,6 +4,36 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [COMPLIANCE] Latent UNSCOPED WITH CHECK permits cross-tenant writes (hardening)
+
+**Fixed:** 2026-06-23 (security/ssrf-and-more branch).
+
+The widened RLS policies on `scim_push_queue`, `scim_sync_log`,
+`sp_scim_credentials` (0037), `scim_inbound_tokens` (0045),
+`protected_domains` (0047), and `forward_auth_nonces` (0048) carried the
+permissive `CASE WHEN tenant unset THEN true` branch in **both** USING and
+WITH CHECK. Reads must stay permissive (the lookup resolves the row before a
+tenant scope exists), but the permissive WITH CHECK meant an UNSCOPED
+INSERT/UPDATE could silently write an arbitrary `tenant_id` instead of
+failing closed. Safe in practice (every UNSCOPED path was read- or
+DELETE-only), but a latent defense-in-depth gap.
+
+**Fix:** migration `0050_unscoped_rls_with_check_failclosed.sql` ALTERs the
+six policies' WITH CHECK to the strict `tenant_id = NULLIF(...)::uuid` form,
+leaving USING permissive. Verified against the live DB: UNSCOPED INSERT now
+raises "new row violates row-level security policy"; scoped INSERT succeeds.
+`service_providers` was already strict (0040 reverted 0037's widening and
+routed the cleanup scan through a SECURITY DEFINER function); `event_logs`
+keeps its permissive WITH CHECK because the PII-redaction job UPDATEs rows
+UNSCOPED.
+
+A new compliance principle `unscoped-write-failclosed` keeps watch: it
+tracks the effective per-policy USING/WITH CHECK across migrations and flags
+any policy that carries the `THEN true` escape hatch in both clauses
+(`event_logs` exempted). Covered by `tests/test_compliance_unscoped_write.py`.
+
+---
+
 ## [COMPLIANCE] Migration 0034 numbering gap and stale 0035 comment
 
 **Fixed:** 2026-06-22 (security/ssrf-and-more branch).

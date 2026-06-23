@@ -12,7 +12,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 2 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked) |
-| Compliance | 2 | Latent UNSCOPED WITH CHECK (hardening); migration 0034 numbering/comment |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
@@ -29,18 +28,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [COMPLIANCE] Latent UNSCOPED WITH CHECK permits cross-tenant writes (hardening)
-
-**Found in:** migrations `0037_scim_unscoped_rls.sql`, `0045_scim_inbound_tokens_unscoped_rls.sql`, `0047_protected_domains_unscoped_rls.sql`, `0048_forward_auth_nonces.sql`
-**Severity:** Warning (latent — safe today)
-**Principle Violated:** RLS Policy Consistency / Tenant Isolation (defense-in-depth)
-**Description:** All four UNSCOPED policies use the same `CASE WHEN tenant unset THEN true` in **both** USING and WITH CHECK. Reads are correctly permissive (lookup happens before tenant scope exists, keyed on globally-unique columns / 256-bit secrets, then re-scoped). But because WITH CHECK is equally permissive, any INSERT/UPDATE run under `UNSCOPED` could silently write an arbitrary `tenant_id` rather than failing closed.
-**Impact:** Safe today — all UNSCOPED write paths are DELETE-only (nonce/expiry consume) or trusted system/worker code. But a future UNSCOPED INSERT/UPDATE on any of these tables would bypass tenant isolation silently. The existing `check_scim_rls_widening_violations` scanner restricts UNSCOPED SCIM call sites but does not cover `protected_domains` or `forward_auth_nonces`.
-**Suggested fix:** Make WITH CHECK stricter than USING — keep UNSCOPED reads permissive but drop the `WHEN unset THEN true` branch from WITH CHECK only, so an accidental UNSCOPED write fails closed. Apply via a new forward migration (do not rewrite applied migrations).
-**Files Affected:** new migration; `dev/compliance_check.py` (optional scanner coverage for the two non-SCIM tables)
 
 ---
 

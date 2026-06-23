@@ -42,6 +42,9 @@ Principles checked:
                         must use escapeHtml() to prevent XSS
    16. scim-rls-widening - UNSCOPED calls into RLS-widened SCIM tables
                         must originate from app/jobs/ or app/services/scim/
+   17. unscoped-write-failclosed - RLS policies with a permissive UNSCOPED
+                        read escape hatch must keep WITH CHECK strict so
+                        UNSCOPED writes fail closed
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -3264,6 +3267,167 @@ def check_scim_rls_widening_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# Principle 17: UNSCOPED Write Fail-Closed (permissive WITH CHECK)
+# =============================================================================
+#
+# The widened RLS policies (0037/0045/0047/0048) use a CASE whose first branch
+# returns `true` when `app.tenant_id` is unset, so a pre-auth or background
+# path can READ a row before the request tenant scope exists. That permissive
+# branch belongs in USING only. When the same `THEN true` branch is copied into
+# WITH CHECK, an UNSCOPED INSERT/UPDATE can stamp an ARBITRARY tenant_id and RLS
+# allows it instead of failing closed -- a silent tenant-isolation bypass.
+#
+# This check parses every CREATE/ALTER POLICY across the migrations in filename
+# order, tracks the EFFECTIVE per-policy USING and WITH CHECK clauses (a later
+# `ALTER POLICY ... WITH CHECK` overrides an earlier definition), and flags any
+# policy whose effective USING is permissive (carries the `THEN true` unscoped
+# escape hatch) AND whose effective WITH CHECK is also permissive.
+#
+# Migration 0050 tightened the six read/DELETE-only tables. event_logs is the
+# one intentional exception: its PII-redaction job UPDATEs assertion events
+# UNSCOPED (cross-tenant, 0029), so its writes legitimately run un-scoped.
+_PERMISSIVE_WITH_CHECK_EXEMPT_TABLES: frozenset[str] = frozenset(
+    {
+        # The redaction worker UPDATEs assertion events cross-tenant (0029).
+        "event_logs",
+    }
+)
+
+# The unscoped-read escape hatch is the literal `... THEN true` CASE branch.
+_RLS_UNSCOPED_ESCAPE_RE = re.compile(r"\bTHEN\s+true\b", re.IGNORECASE)
+
+_POLICY_STMT_RE = re.compile(
+    r"(?P<verb>CREATE|ALTER)\s+POLICY\s+(?P<name>\w+)\s+ON\s+"
+    r"(?:public\.)?(?P<table>\w+)\s*(?P<body>.*?);",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _split_policy_clauses(body: str) -> tuple[str | None, str | None]:
+    """Split a policy body into its USING text and its WITH CHECK text.
+
+    USING always precedes WITH CHECK in Postgres policy syntax, so the first
+    `WITH CHECK` keyword is the boundary. Either clause may be absent (an
+    `ALTER POLICY ... WITH CHECK (...)` carries no USING; a `CREATE POLICY`
+    may omit WITH CHECK, in which case Postgres copies USING into it).
+    Returns (using_text | None, with_check_text | None).
+    """
+    wc_match = re.search(r"\bWITH\s+CHECK\b", body, re.IGNORECASE)
+    using_match = re.search(r"\bUSING\b", body, re.IGNORECASE)
+    if wc_match:
+        using_text = (
+            body[: wc_match.start()]
+            if using_match and using_match.start() < wc_match.start()
+            else None
+        )
+        return using_text, body[wc_match.start() :]
+    return (body if using_match else None), None
+
+
+def _effective_migration_policies(
+    migrations_dir: Path,
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Return effective RLS policy state keyed by (table, policy_name).
+
+    Processes every CREATE/ALTER POLICY across migration files in filename
+    order. CREATE (re)defines a policy; ALTER overrides only the clauses it
+    names. For each clause we record whether it carries the permissive
+    `THEN true` unscoped escape hatch, plus the file/line of the most recent
+    statement that defined the policy.
+    """
+    policies: dict[tuple[str, str], dict[str, Any]] = {}
+    if not migrations_dir.exists():
+        return policies
+
+    project_root = get_project_root()
+    for sql_file in sorted(migrations_dir.glob("*.sql")):
+        sql = sql_file.read_text()
+        rel = str(sql_file.relative_to(project_root))
+        for m in _POLICY_STMT_RE.finditer(sql):
+            verb = m.group("verb").upper()
+            key = (m.group("table"), m.group("name"))
+            # Strip SQL line comments so commentary can't trip the detector.
+            body = re.sub(r"--[^\n]*", "", m.group("body"))
+            line = sql[: m.start()].count("\n") + 1
+            using_text, with_check_text = _split_policy_clauses(body)
+
+            entry = policies.get(key)
+            if verb == "CREATE" or entry is None:
+                entry = {"using_permissive": False, "with_check_permissive": False}
+                policies[key] = entry
+            entry["file"] = rel
+            entry["line"] = line
+
+            if verb == "CREATE":
+                using_perm = bool(_RLS_UNSCOPED_ESCAPE_RE.search(using_text or ""))
+                entry["using_permissive"] = using_perm
+                # Postgres copies USING into WITH CHECK when the latter is omitted.
+                entry["with_check_permissive"] = (
+                    bool(_RLS_UNSCOPED_ESCAPE_RE.search(with_check_text))
+                    if with_check_text is not None
+                    else using_perm
+                )
+            else:  # ALTER overrides only the clauses it names.
+                if using_text is not None:
+                    entry["using_permissive"] = bool(
+                        _RLS_UNSCOPED_ESCAPE_RE.search(using_text)
+                    )
+                if with_check_text is not None:
+                    entry["with_check_permissive"] = bool(
+                        _RLS_UNSCOPED_ESCAPE_RE.search(with_check_text)
+                    )
+
+    return policies
+
+
+def check_unscoped_write_failclosed_violations(report: ComplianceReport) -> None:
+    """Flag RLS policies whose WITH CHECK keeps the permissive UNSCOPED branch.
+
+    A widened tenant-isolation policy must keep its `THEN true` escape hatch in
+    USING only (so pre-auth/background reads resolve the row), and use a strict
+    WITH CHECK so an UNSCOPED write fails closed. A policy that carries the
+    escape hatch in BOTH clauses lets an UNSCOPED INSERT/UPDATE write an
+    arbitrary tenant_id, silently bypassing tenant isolation.
+    """
+    migrations_dir = get_project_root() / "db-init" / "migrations"
+    if not migrations_dir.exists():
+        return
+
+    report.files_scanned += 1
+
+    for (table, name), state in sorted(_effective_migration_policies(migrations_dir).items()):
+        if not (state["using_permissive"] and state["with_check_permissive"]):
+            continue
+        if table in _PERMISSIVE_WITH_CHECK_EXEMPT_TABLES:
+            continue
+        report.add(
+            Violation(
+                principle="UNSCOPED Write Fail-Closed",
+                severity="high",
+                file_path=state["file"],
+                line_number=state["line"],
+                function_name=None,
+                description=(
+                    f"RLS policy '{name}' on '{table}' carries the permissive "
+                    f"UNSCOPED escape hatch (`THEN true`) in BOTH USING and WITH "
+                    f"CHECK. Reads may resolve a row before a tenant scope exists, "
+                    f"but the permissive WITH CHECK lets an UNSCOPED INSERT/UPDATE "
+                    f"write an arbitrary tenant_id instead of failing closed."
+                ),
+                evidence="WITH CHECK returns true when app.tenant_id is unset",
+                suggested_fix=(
+                    "Add a forward migration that ALTERs the policy's WITH CHECK to "
+                    "the strict form `tenant_id = (NULLIF(current_setting("
+                    "'app.tenant_id', true), ''))::uuid`, leaving USING permissive. "
+                    "If UNSCOPED writes are intentional (like event_logs redaction), "
+                    "add the table to _PERMISSIVE_WITH_CHECK_EXEMPT_TABLES with a "
+                    "comment explaining why."
+                ),
+            )
+        )
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -3303,6 +3467,7 @@ def run_compliance_check(
         "form-input-length",
         "template-xss",
         "scim-rls-widening",
+        "unscoped-write-failclosed",
     ]
     if principles is None:
         principles = all_principles
@@ -3358,6 +3523,9 @@ def run_compliance_check(
 
     if "scim-rls-widening" in principles:
         check_scim_rls_widening_violations(report)
+
+    if "unscoped-write-failclosed" in principles:
+        check_unscoped_write_failclosed_violations(report)
 
     return report
 
@@ -3429,6 +3597,7 @@ def main() -> int:
             "form-input-length",
             "template-xss",
             "scim-rls-widening",
+            "unscoped-write-failclosed",
             "all",
         ],
         default="all",

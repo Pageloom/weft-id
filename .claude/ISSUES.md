@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 2 | Test coverage (E2E anchor, deferred); Upload-auth temp-file leak (warning-ignored, tracked) |
+| Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
@@ -45,21 +45,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
 
 ---
-
----
-
-## [TEST] Regression anchor for user_attributes feature (E2E, deferred)
-
-**Discovered:** 2026-05-14 (test agent final-pass review)
-**Severity:** Low (deferred regression coverage)
-**Source:** Test review (M-test1 + L bundle)
-
-Five of the six original anchors landed on feature/forward-auth-proxy (2026-06-16);
-see ISSUES_ARCHIVE.md. One remains, deferred because it needs Playwright + Docker:
-
-- E2E for admin → user fills → SP receives (full cross-iteration journey)
-
-**Files Affected:** `tests/e2e/`
 
 ---
 

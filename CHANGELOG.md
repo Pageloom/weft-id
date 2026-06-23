@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-06-23
+
+### Added
+
+- **Forward-auth reverse-proxy SSO.** WeftID can now protect arbitrary HTTP
+  applications that have no native SAML/OIDC support, by acting as a forward-auth
+  provider for a reverse proxy (Traefik, nginx, Caddy). Tenants register a domain,
+  prove control via a DNS-TXT challenge, then register proxy apps under that domain
+  and grant access by group (reusing the existing group-based access model, DAG-aware).
+  The proxy delegates each request to WeftID's `/check` endpoint; unauthenticated
+  users are sent through a single-use-token handshake that sets a signed, per-domain,
+  1-hour HttpOnly cookie, and authenticated identity is forwarded to the app via
+  `X-Forwarded-*` headers. Proxy apps appear in the My Apps dashboard and `/my-apps`
+  API alongside SAML apps. Ships with an admin-guide page (proxy configs, on-demand
+  TLS, cookie stripping, troubleshooting) and a Caddyfile catch-all for protected-domain
+  portal hosts.
+
+### Changed
+
+- Self-edited user attributes are no longer emitted in signed SAML assertions by
+  default. Attributes now carry a provenance source (`idp`, `admin`, or `self`);
+  `self`-sourced values are withheld from downstream SPs unless the tenant opts the
+  attribute in via a new per-attribute toggle. This prevents a non-admin from
+  self-asserting values (department, employee_id, and others) that an SP would otherwise
+  trust as IdP/admin-grade. An upgrade backfill classifies existing rows as `idp` or
+  `admin`, so values currently flowing are unchanged. Note for SP operators: future
+  self-edits will not propagate to SPs unless you enable the per-attribute toggle.
+- IdP-mirrored attributes are scrubbed by default when a user is disconnected from an
+  identity provider. Reassigning a user to password auth or a different IdP now clears
+  canonical attribute values that still match the old IdP's mirror snapshot (admin and
+  user-edited values are kept), instead of emitting stale departed-IdP values in signed
+  assertions indefinitely. The scrub is default-on with an opt-out at every boundary
+  (disconnect form, IdP-delete tab, API). Existing assignments are not affected.
+
+### Security
+
+- Closed an SSRF (DNS-rebinding) window on admin-supplied outbound URLs (SCIM target
+  URL, SP SLO URL). These were validated for private/reserved IPs only at save time,
+  then re-resolved and dialed later with no re-check. Outbound HTTP now resolves each
+  target once and dials that exact IP, eliminating the resolve-then-connect gap.
+- Fixed Row-Level Security policies so UNSCOPED writes to tenant-isolation-widened
+  tables fail closed. A permissive "tenant unset implies allow" branch remained in the
+  WITH CHECK clause, which could in principle let an UNSCOPED INSERT/UPDATE write an
+  arbitrary tenant_id (latent: all UNSCOPED paths were read/DELETE-only).
+- Hardened defense-in-depth across inbound SCIM (bearer-length cap before pre-auth hash,
+  bounded members array), forward-auth (reject bare public suffixes as protected domains,
+  assert token/cookie format version), and fixed several audit-log gaps (SCIM
+  reactivation events, WebAuthn admin token-revoke attribution, domain verification
+  failures, no-op settings PATCH no longer logging).
+- Updated cryptography, python-multipart, pip, msgpack, and starlette to clear known CVEs.
+
 ## [1.9.0] - 2026-06-13
 
 ### Added

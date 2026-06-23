@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "weft-id"
-version = "1.9.0"
-description = "Multi-tenant FastAPI application"
+version = "1.10.0"
+description = "Multi-tenant IDP and IDP Federation"
 authors = ["Jon Nylander <pellepim@gmail.com>"]
 readme = "README.md"
 packages = [{include = "app"}]

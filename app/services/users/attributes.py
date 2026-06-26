@@ -393,7 +393,7 @@ def apply_attribute_form_updates(
             # to ``error_code`` so the loop still completes the rest of the
             # keys (idempotent ops won't re-fail).
             error_code = error_code or "user_not_found"
-        except (ValidationError, ValueError):
+        except ValidationError, ValueError:
             # ValueError covers ``AttributeValueError`` raised by the registry
             # serializer (e.g. bad ISO country code, value over max_length).
             # Both are per-key input failures from the user's perspective.
@@ -462,7 +462,7 @@ def apply_idp_attributes(
             continue
         try:
             serialized_attributes[key] = serialize(key, raw)
-        except (ValueError, ValidationError):
+        except ValueError, ValidationError:
             # Skip malformed values silently -- the IdP login flow must not
             # fail because one attribute is wrong. The mirror table simply
             # won't carry it. Future iterations may surface a warning.

@@ -111,8 +111,8 @@ check: ## Run code quality checks (lint, format, types, compliance)
 	@echo "=== Lint ===" && poetry run ruff check app/ tests/ \
 	&& echo "" && echo "=== Formatting ===" && poetry run ruff format --check app/ tests/ \
 	&& echo "" && echo "=== Type Check ===" && poetry run python -m mypy app/ \
-	&& echo "" && echo "=== Compliance Check ===" && python dev/compliance_check.py \
-	&& echo "" && echo "=== Dependency Security ===" && python dev/deps_check.py
+	&& echo "" && echo "=== Compliance Check ===" && poetry run python -m dev.compliance_check \
+	&& echo "" && echo "=== Dependency Security ===" && poetry run python -m dev.deps_check
 
 fix: ## Auto-fix lint/format, then check types and compliance
 	@echo "=== Lint ===" && poetry run ruff check --fix app/ tests/ \

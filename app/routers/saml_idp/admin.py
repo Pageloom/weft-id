@@ -296,7 +296,7 @@ def sp_tab_attributes(
 
             parsed_meta = parse_sp_metadata_xml(sp_config.metadata_xml)
             encryption_methods = parsed_meta.get("encryption_methods")
-        except (ValueError, Exception):
+        except ValueError, Exception:
             pass  # Non-critical: just skip displaying advertised methods
 
     # Iteration 6: split standard attributes into "mapped" (already in

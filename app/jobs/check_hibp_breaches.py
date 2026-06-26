@@ -40,7 +40,7 @@ def _fetch_hibp_suffixes(prefix: str) -> list[str]:
             headers={"User-Agent": "WeftID-BreachMonitor"},
         )
         response.raise_for_status()
-    except (httpx.HTTPError, httpx.TimeoutException):
+    except httpx.HTTPError, httpx.TimeoutException:
         logger.warning("HIBP API unreachable for prefix %s, skipping", prefix)
         return []
 

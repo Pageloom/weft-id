@@ -120,7 +120,7 @@ def _unpack(key: bytes, token: str) -> dict[str, Any] | None:
 
     try:
         payload = json.loads(_b64url_decode(payload_b64).decode())
-    except (ValueError, UnicodeDecodeError):
+    except ValueError, UnicodeDecodeError:
         return None
     if not isinstance(payload, dict):
         return None

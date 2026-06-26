@@ -58,7 +58,7 @@ def _detect_mime_type(data: bytes, filename: str | None = None) -> str | None:
         text = data[:1024].decode("utf-8", errors="strict")
         if _SVG_PATTERN.match(text):
             return "image/svg+xml"
-    except (UnicodeDecodeError, ValueError):
+    except UnicodeDecodeError, ValueError:
         pass
 
     # Fallback to extension
@@ -147,7 +147,7 @@ def _validate_svg_content(data: bytes) -> None:
     """
     try:
         text = data.decode("utf-8", errors="strict")
-    except (UnicodeDecodeError, ValueError):
+    except UnicodeDecodeError, ValueError:
         raise ValidationError(
             message="SVG file contains invalid characters",
             code="invalid_svg",
@@ -227,7 +227,7 @@ def _validate_svg_square(data: bytes) -> None:
     try:
         vb_width = float(match.group(3))
         vb_height = float(match.group(4))
-    except (ValueError, IndexError):
+    except ValueError, IndexError:
         return  # Malformed viewBox, let the browser handle it
 
     if abs(vb_width - vb_height) > 0.01:

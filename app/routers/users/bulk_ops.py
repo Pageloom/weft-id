@@ -37,7 +37,7 @@ def _parse_filter_criteria(criteria_json: str) -> dict:
     """
     try:
         raw = json.loads(criteria_json)
-    except (json.JSONDecodeError, TypeError):
+    except json.JSONDecodeError, TypeError:
         return {}
 
     result: dict = {}
@@ -318,7 +318,7 @@ def apply_bulk_primary_emails(
 
     try:
         raw_items = json.loads(items_json)
-    except (json.JSONDecodeError, TypeError):
+    except json.JSONDecodeError, TypeError:
         return JSONResponse({"error": "Invalid items data"}, status_code=400)
 
     if not raw_items:

@@ -87,7 +87,7 @@ def validate_verification_cookie(
     try:
         decrypted = _cipher.decrypt(cookie_value.encode())
         payload = json.loads(decrypted.decode())
-    except (InvalidToken, json.JSONDecodeError, UnicodeDecodeError):
+    except InvalidToken, json.JSONDecodeError, UnicodeDecodeError:
         return False, None, None
 
     # Check expiration
@@ -128,7 +128,7 @@ def get_verification_cookie_email(cookie_value: str) -> str | None:
     try:
         decrypted = _cipher.decrypt(cookie_value.encode())
         payload = json.loads(decrypted.decode())
-    except (InvalidToken, json.JSONDecodeError, UnicodeDecodeError):
+    except InvalidToken, json.JSONDecodeError, UnicodeDecodeError:
         return None
 
     # Check expiration
@@ -187,7 +187,7 @@ def validate_trust_cookie(cookie_value: str, email: str, tenant_id: str) -> bool
     try:
         decrypted = _cipher.decrypt(cookie_value.encode())
         payload = json.loads(decrypted.decode())
-    except (InvalidToken, json.JSONDecodeError, UnicodeDecodeError):
+    except InvalidToken, json.JSONDecodeError, UnicodeDecodeError:
         return False
 
     # Check if cookie belongs to this email and tenant

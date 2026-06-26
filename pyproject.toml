@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "app"}]
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.14"
 fastapi = ">=0.138.0,<0.139.0"  # pre-1.0: pin to current minor, gate the next (minors carry behavior changes, e.g. 0.137 refactored router internals)
 uvicorn = {extras = ["standard"], version = "^0.47.0"}
 psycopg = {extras = ["binary"], version = "^3.3.3"}
@@ -70,14 +70,14 @@ httpx2 = "^2.4.0"
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "DTZ"]
 ignore = []
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

@@ -38,7 +38,7 @@ and Caddy handles HTTPS automatically. See the
 ### Prerequisites
 
 * Docker and Docker Compose
-* Python 3.12+ and [Poetry](https://python-poetry.org/)
+* Python 3.14+ and [Poetry](https://python-poetry.org/)
 * [mkcert](https://github.com/FiloSottile/mkcert) for local TLS certificates (`brew install mkcert`)
 
 ### Setup

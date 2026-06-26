@@ -100,7 +100,7 @@ def _extract_scim_type(response: httpx.Response) -> str | None:
     """Return the `scimType` from a SCIM error body, if present."""
     try:
         body = response.json()
-    except (ValueError, json.JSONDecodeError):
+    except ValueError, json.JSONDecodeError:
         return None
     if isinstance(body, dict):
         scim_type = body.get("scimType")

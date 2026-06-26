@@ -224,7 +224,7 @@ def _decode_url_token(token: str) -> tuple[str, int, str] | None:
         user_id, ts_str, mac = parts
         timestamp = int(ts_str)
         return user_id, timestamp, mac
-    except (ValueError, UnicodeDecodeError):
+    except ValueError, UnicodeDecodeError:
         return None
 
 

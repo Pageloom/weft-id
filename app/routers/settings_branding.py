@@ -170,7 +170,7 @@ def update_branding_settings(
             show_title_in_nav=show_title_in_nav == "true",
             group_avatar_style=current.group_avatar_style,
         )
-    except (ValueError, PydanticValidationError):
+    except ValueError, PydanticValidationError:
         return render_error_page(
             request,
             tenant_id,

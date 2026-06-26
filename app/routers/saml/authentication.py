@@ -163,7 +163,7 @@ def public_trust_page(
     metadata_xml = None
     try:
         metadata_xml = saml_service.get_idp_sp_metadata_xml(tenant_id, idp_id, base_url)
-    except (NotFoundError, ServiceError):
+    except NotFoundError, ServiceError:
         pass
 
     branding = get_branding_for_template(tenant_id)

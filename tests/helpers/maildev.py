@@ -22,7 +22,7 @@ def is_available() -> bool:
     try:
         response = requests.get(f"{MAILDEV_API}/email", timeout=1)
         return response.status_code == 200
-    except (requests.ConnectionError, requests.Timeout):
+    except requests.ConnectionError, requests.Timeout:
         return False
 
 

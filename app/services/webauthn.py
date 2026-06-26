@@ -167,7 +167,7 @@ def complete_registration(
 
     try:
         age = int(time.time()) - int(challenge_at)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         age = _REGISTRATION_CHALLENGE_TTL_S + 1
 
     if age > _REGISTRATION_CHALLENGE_TTL_S:
@@ -582,7 +582,7 @@ def complete_authentication(
     # TTL check
     try:
         age = int(time.time()) - int(challenge_at)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         age = _LOGIN_CHALLENGE_TTL_S + 1
     if age > _LOGIN_CHALLENGE_TTL_S:
         _clear_login_session(session)

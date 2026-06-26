@@ -175,7 +175,7 @@ async def create_new_user(
         return RedirectResponse(url="/users/new?error=insufficient_permissions", status_code=303)
     except ConflictError:
         return RedirectResponse(url="/users/new?error=email_exists", status_code=303)
-    except (ValidationError, ServiceError):
+    except ValidationError, ServiceError:
         return RedirectResponse(url="/users/new?error=creation_failed", status_code=303)
 
     # Optional: standard attribute values submitted with creation form.
@@ -199,7 +199,7 @@ async def create_new_user(
             continue
         try:
             users_service.set_user_attribute(requesting_user, str(user_id), key, raw)
-        except (ValidationError, ServiceError):
+        except ValidationError, ServiceError:
             # Don't fail user creation for an attribute hiccup.
             continue
 

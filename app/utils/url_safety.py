@@ -219,7 +219,12 @@ def fetch_metadata_xml(url: str, timeout: int = 10) -> str:
             return content
 
     except HTTPError as e:
-        raise ValueError(f"HTTP error fetching metadata: {e.code} {e.reason}") from e
+        # HTTPError is a file-like object wrapping a response body; close it so
+        # its underlying temp file is released promptly instead of at GC, where
+        # the finalizer would emit a stray ResourceWarning.
+        code, reason = e.code, e.reason
+        e.close()
+        raise ValueError(f"HTTP error fetching metadata: {code} {reason}") from e
     except URLError as e:
         raise ValueError(f"Failed to fetch metadata: {e.reason}") from e
     except TimeoutError:

@@ -456,7 +456,7 @@ class TestRasterizeToPng:
         """SVG data is converted via cairosvg."""
         try:
             import cairosvg  # noqa: F401
-        except (ImportError, OSError):
+        except ImportError, OSError:
             pytest.skip("libcairo not available on this host")
 
         from services.branding import _rasterize_to_png

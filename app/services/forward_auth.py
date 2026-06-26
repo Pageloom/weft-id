@@ -430,7 +430,7 @@ def recheck_cookie_access(
     # would raise. Fail closed instead of erroring on this pre-auth hot path.
     try:
         UUID(user_id)
-    except (ValueError, AttributeError, TypeError):
+    except ValueError, AttributeError, TypeError:
         return False
 
     allowed = database.sp_group_assignments.user_can_access_proxy_app(

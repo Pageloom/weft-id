@@ -140,7 +140,7 @@ def _extract_scim_id(response: httpx.Response) -> str | None:
     """Best-effort parse of the SCIM `id` from a JSON response body."""
     try:
         body = response.json()
-    except (ValueError, json.JSONDecodeError):
+    except ValueError, json.JSONDecodeError:
         return None
     if isinstance(body, dict):
         scim_id = body.get("id")

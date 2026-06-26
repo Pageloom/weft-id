@@ -27,7 +27,7 @@ class Page:
     icon: str | None = None
     show_in_nav: bool = True
     creates_nav_level: bool = True
-    children: list["Page"] | None = None
+    children: list[Page] | None = None
     docs_path: str | None = None
 
     def get_all_paths(self) -> list[str]:

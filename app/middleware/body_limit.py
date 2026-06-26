@@ -27,7 +27,7 @@ class BodyLimitMiddleware:
         if cl is not None:
             try:
                 length = int(cl)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 length = 0
             if length > self.max_bytes:
                 response_body = b"Request body too large"

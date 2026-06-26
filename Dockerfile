@@ -2,7 +2,7 @@
 # Dev Dockerfile: app/Dockerfile (used by dev/docker-compose.yml)
 
 # --- Stage 1: Docs builder ---
-FROM python:3.12-slim AS docs-builder
+FROM python:3.14-slim AS docs-builder
 WORKDIR /build
 RUN pip install --no-cache-dir 'zensical>=0.0.28' 'pygments>=2.16,<2.20'
 COPY mkdocs.yml .
@@ -10,7 +10,7 @@ COPY docs/ docs/
 RUN zensical build
 
 # --- Stage 2: Asset builder ---
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
 
@@ -42,7 +42,7 @@ RUN mkdir -p /build/static/css \
  && tailwindcss -i /build/static/css/input.css -o /build/static/css/output.css --minify
 
 # --- Stage 3: Runtime ---
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ARG VERSION=dev
 ARG BUILD_DATE
@@ -61,7 +61,7 @@ RUN apt-get update \
  && adduser --system --uid 1000 --ingroup weftid weftid
 
 # Copy installed Python packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
+COPY --from=builder /usr/local/lib/python3.14/site-packages/ /usr/local/lib/python3.14/site-packages/
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 WORKDIR /app

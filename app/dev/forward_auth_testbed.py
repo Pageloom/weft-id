@@ -183,7 +183,7 @@ def teardown():
     log.info("Deleted tenant '%s'", SUBDOMAIN)
 
 
-def main(json_output: "bool" = False, teardown_flag: "bool" = False):
+def main(json_output: bool = False, teardown_flag: bool = False):
     """Entry point.
 
     Args:

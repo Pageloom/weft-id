@@ -112,7 +112,7 @@ def create_idp_base_group(
 def get_idp_base_group(
     tenant_id: str,
     idp_id: str,
-) -> "GroupDetail | None":
+) -> GroupDetail | None:
     """
     Fetch the base (umbrella) group for an IdP.
 

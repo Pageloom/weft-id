@@ -68,7 +68,7 @@ def _extract_detail(response: httpx.Response) -> str | None:
     """Return the `detail` field from a GitLab error body, if present."""
     try:
         body = response.json()
-    except (ValueError, json.JSONDecodeError):
+    except ValueError, json.JSONDecodeError:
         return None
     if isinstance(body, dict):
         detail = body.get("detail")

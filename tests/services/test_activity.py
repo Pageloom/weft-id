@@ -527,7 +527,7 @@ def test_all_service_functions_have_activity_or_logging():
                 if param.name == "requesting_user":
                     return True
             return False
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return False
 
     def check_function_has_tracking(func) -> tuple[bool, bool, bool]:
@@ -541,7 +541,7 @@ def test_all_service_functions_have_activity_or_logging():
             finder = ActivityCallFinder()
             finder.visit(tree)
             return finder.has_log_event, finder.has_track_activity, True
-        except (OSError, TypeError, SyntaxError):
+        except OSError, TypeError, SyntaxError:
             return False, False, False
 
     # Collect all service modules to check

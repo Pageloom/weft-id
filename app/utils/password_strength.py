@@ -66,7 +66,7 @@ def check_hibp(password: str) -> int:
             headers={"User-Agent": "WeftID-PasswordCheck"},
         )
         response.raise_for_status()
-    except (httpx.HTTPError, httpx.TimeoutException):
+    except httpx.HTTPError, httpx.TimeoutException:
         log.warning("HIBP API unreachable, skipping breach check")
         return 0
 

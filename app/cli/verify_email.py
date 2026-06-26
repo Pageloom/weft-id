@@ -38,7 +38,7 @@ def _resolve_txt(name: str, timeout: float = 5.0) -> list[str]:
         resolver.lifetime = timeout
         answers = resolver.resolve(name, "TXT")
         return [b"".join(rdata.strings).decode() for rdata in answers]
-    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers):
+    except dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers:
         return []
     except dns.exception.Timeout:
         return []

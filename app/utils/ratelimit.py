@@ -187,7 +187,7 @@ class RateLimiter:
 
         try:
             count = int(value)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return (0, False)
 
         return (count, count > limit)

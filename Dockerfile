@@ -93,6 +93,13 @@ COPY --from=docs-builder /build/site/ /site/
 # Copy migration runner
 COPY db-init/ /db-init/
 
+# Normalize permissions so the non-root runtime user can always read and
+# traverse the app tree, regardless of directory modes in the build context.
+# COPY preserves source perms, so a stray restrictive mode on a build host
+# (e.g. a directory left at 0700) would otherwise make modules unreadable to
+# the weftid user and crash startup with a ModuleNotFoundError.
+RUN chmod -R u=rwX,go=rX /app /site /db-init
+
 # Ensure the non-root user can write to storage (volume mount point)
 RUN mkdir -p /app/storage && chown weftid:weftid /app/storage
 

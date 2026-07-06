@@ -153,7 +153,7 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
         """
         select id, tenant_id, client_id, client_secret_hash, client_type,
                name, description, redirect_uris, service_user_id, is_active,
-               oidc_enabled, created_at
+               oidc_enabled, available_to_all, created_at
         from oauth2_clients
         where client_id = :client_id
         """,
@@ -176,7 +176,8 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
         tenant_id,
         """
         select id, tenant_id, client_id, client_type, name, description,
-               redirect_uris, service_user_id, is_active, oidc_enabled, created_at
+               redirect_uris, service_user_id, is_active, oidc_enabled,
+               available_to_all, created_at
         from oauth2_clients
         where id = :id
         """,
@@ -334,7 +335,51 @@ def update_client(
         set {", ".join(updates)}
         where client_id = :client_id
         returning id, tenant_id, client_id, client_type, name, description,
-                  redirect_uris, service_user_id, is_active, created_at
+                  redirect_uris, service_user_id, is_active, oidc_enabled,
+                  available_to_all, created_at
+    """
+
+    return fetchone(tenant_id, query, params)
+
+
+def update_client_oidc_settings(
+    tenant_id: TenantArg,
+    client_id: str,
+    oidc_enabled: bool | None = None,
+    available_to_all: bool | None = None,
+) -> dict | None:
+    """Update an OAuth2 client's OIDC settings (oidc_enabled, available_to_all).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        client_id: Client ID (the TEXT identifier, e.g., "weft-id_client_abc123")
+        oidc_enabled: Whether the client is an OIDC-enabled provider (optional)
+        available_to_all: Whether every active user may access the client (optional)
+
+    Returns:
+        Updated client record, or None if not found / nothing to update
+    """
+    updates = []
+    params: dict = {"client_id": client_id}
+
+    if oidc_enabled is not None:
+        updates.append("oidc_enabled = :oidc_enabled")
+        params["oidc_enabled"] = oidc_enabled
+
+    if available_to_all is not None:
+        updates.append("available_to_all = :available_to_all")
+        params["available_to_all"] = available_to_all
+
+    if not updates:
+        return get_client_by_client_id(tenant_id, client_id)
+
+    query = f"""
+        update oauth2_clients
+        set {", ".join(updates)}
+        where client_id = :client_id
+        returning id, tenant_id, client_id, client_type, name, description,
+                  redirect_uris, service_user_id, is_active, oidc_enabled,
+                  available_to_all, created_at
     """
 
     return fetchone(tenant_id, query, params)
@@ -397,7 +442,8 @@ def deactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
         set is_active = false
         where client_id = :client_id
         returning id, tenant_id, client_id, client_type, name, description,
-                  redirect_uris, service_user_id, is_active, created_at
+                  redirect_uris, service_user_id, is_active, oidc_enabled,
+                  available_to_all, created_at
         """,
         {"client_id": client_id},
     )
@@ -421,7 +467,8 @@ def reactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
         set is_active = true
         where client_id = :client_id
         returning id, tenant_id, client_id, client_type, name, description,
-                  redirect_uris, service_user_id, is_active, created_at
+                  redirect_uris, service_user_id, is_active, oidc_enabled,
+                  available_to_all, created_at
         """,
         {"client_id": client_id},
     )

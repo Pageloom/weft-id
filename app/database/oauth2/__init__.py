@@ -24,6 +24,7 @@ from database.oauth2.clients import (
     regenerate_client_secret,
     update_b2b_client_role,
     update_client,
+    update_client_oidc_settings,
 )
 from database.oauth2.tokens import (
     cleanup_expired_tokens,
@@ -47,6 +48,7 @@ __all__ = [
     "regenerate_client_secret",
     "get_b2b_client_by_service_user",
     "update_client",
+    "update_client_oidc_settings",
     "update_b2b_client_role",
     "deactivate_client",
     "reactivate_client",

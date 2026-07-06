@@ -4,6 +4,7 @@ import logging
 from typing import Annotated
 
 from dependencies import (
+    build_requesting_user,
     get_current_user,
     get_tenant_id_from_request,
     require_admin,
@@ -13,8 +14,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child, has_page_access
 from services import oauth2 as oauth2_service
 from services.exceptions import ServiceError
+from services.oidc import clients as oidc_client_service
 from utils.template_context import get_template_context
 from utils.templates import templates
+from utils.urls import tenant_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -205,10 +208,25 @@ def app_detail(
     # Check for pending credentials in session (one-time read after regenerate)
     pending_credentials = request.session.pop("pending_credentials", None)
 
+    # OIDC management context: discovery URLs and group access assignments.
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    oidc_urls = oidc_client_service.get_client_discovery_info(
+        requesting_user, client_id, tenant_base_url(request)
+    )
+    assigned_groups = oidc_client_service.list_client_group_assignments(
+        requesting_user, client_id
+    ).items
+    available_groups = oidc_client_service.list_available_groups_for_client(
+        requesting_user, client_id
+    )
+
     context = get_template_context(
         request,
         tenant_id,
         client=client,
+        oidc_urls=oidc_urls,
+        assigned_groups=assigned_groups,
+        available_groups=available_groups,
         pending_credentials=pending_credentials,
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
@@ -327,6 +345,111 @@ def app_reactivate(
         return RedirectResponse(url="/admin/integrations/apps?error=not_found", status_code=303)
 
     return RedirectResponse(url=f"{redirect_url}?success=reactivated", status_code=303)
+
+
+# =============================================================================
+# App OIDC settings and group access control
+# =============================================================================
+
+
+@router.post("/apps/{client_id}/oidc/toggle", response_class=HTMLResponse)
+def app_toggle_oidc(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    oidc_enabled: str = Form("false"),
+):
+    """Enable or disable OIDC (OpenID Provider) for an App."""
+    if not has_page_access("/admin/integrations/apps", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    redirect_url = f"/admin/integrations/apps/{client_id}"
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        oidc_client_service.set_oidc_settings(
+            requesting_user, client_id, oidc_enabled=oidc_enabled == "true"
+        )
+        return RedirectResponse(url=f"{redirect_url}?success=oidc_updated", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to toggle OIDC: %s", exc)
+        return RedirectResponse(url=f"{redirect_url}?error=oidc_update_failed", status_code=303)
+
+
+@router.post("/apps/{client_id}/oidc/toggle-available-to-all", response_class=HTMLResponse)
+def app_toggle_available_to_all(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    available_to_all: str = Form("false"),
+):
+    """Toggle the 'available to all users' access mode for an OIDC App."""
+    if not has_page_access("/admin/integrations/apps", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    redirect_url = f"/admin/integrations/apps/{client_id}"
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        oidc_client_service.set_oidc_settings(
+            requesting_user, client_id, available_to_all=available_to_all == "true"
+        )
+        return RedirectResponse(url=f"{redirect_url}?success=oidc_updated", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to toggle available_to_all: %s", exc)
+        return RedirectResponse(url=f"{redirect_url}?error=oidc_update_failed", status_code=303)
+
+
+@router.post("/apps/{client_id}/oidc/groups/add", response_class=HTMLResponse)
+def app_add_group(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    group_id: str = Form(""),
+):
+    """Assign a group to an OIDC App."""
+    if not has_page_access("/admin/integrations/apps", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    redirect_url = f"/admin/integrations/apps/{client_id}"
+
+    if not group_id.strip():
+        return RedirectResponse(url=f"{redirect_url}?error=group_required", status_code=303)
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        oidc_client_service.assign_client_to_group(requesting_user, client_id, group_id.strip())
+        return RedirectResponse(url=f"{redirect_url}?success=group_assigned", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to assign group to App: %s", exc)
+        return RedirectResponse(url=f"{redirect_url}?error=group_assign_failed", status_code=303)
+
+
+@router.post("/apps/{client_id}/oidc/groups/{group_id}/remove", response_class=HTMLResponse)
+def app_remove_group(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    group_id: str,
+):
+    """Remove a group assignment from an OIDC App."""
+    if not has_page_access("/admin/integrations/apps", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    redirect_url = f"/admin/integrations/apps/{client_id}"
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        oidc_client_service.remove_client_group_assignment(requesting_user, client_id, group_id)
+        return RedirectResponse(url=f"{redirect_url}?success=group_removed", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to remove group from App: %s", exc)
+        return RedirectResponse(url=f"{redirect_url}?error=group_remove_failed", status_code=303)
 
 
 # =============================================================================

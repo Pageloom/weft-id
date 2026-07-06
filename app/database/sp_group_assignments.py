@@ -213,6 +213,131 @@ def count_assignments_for_proxy_app(tenant_id: TenantArg, proxy_app_id: str) -> 
     return row["cnt"] if row else 0
 
 
+def create_oauth2_client_assignment(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    oauth2_client_id: str,
+    group_id: str,
+    assigned_by: str,
+) -> dict | None:
+    """Create a single OIDC-client-group assignment.
+
+    Returns:
+        Created assignment dict, or None on failure.
+    """
+    return fetchone(
+        tenant_id,
+        """
+        insert into sp_group_assignments (tenant_id, oauth2_client_id, group_id, assigned_by)
+        values (:tenant_id, :oauth2_client_id, :group_id, :assigned_by)
+        on conflict (oauth2_client_id, group_id) where oauth2_client_id is not null do nothing
+        returning id, tenant_id, oauth2_client_id, group_id, assigned_by, assigned_at
+        """,
+        {
+            "tenant_id": tenant_id_value,
+            "oauth2_client_id": oauth2_client_id,
+            "group_id": group_id,
+            "assigned_by": assigned_by,
+        },
+    )
+
+
+def delete_oauth2_client_assignment(
+    tenant_id: TenantArg, oauth2_client_id: str, group_id: str
+) -> int:
+    """Delete an OIDC-client-group assignment.
+
+    Returns:
+        Number of rows deleted.
+    """
+    return execute(
+        tenant_id,
+        """
+        delete from sp_group_assignments
+        where oauth2_client_id = :oauth2_client_id and group_id = :group_id
+        """,
+        {"oauth2_client_id": oauth2_client_id, "group_id": group_id},
+    )
+
+
+def bulk_create_oauth2_client_assignments(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    oauth2_client_id: str,
+    group_ids: list[str],
+    assigned_by: str,
+) -> int:
+    """Bulk-create OIDC-client-group assignments, skipping duplicates.
+
+    Returns:
+        Number of new assignments created.
+    """
+    if not group_ids:
+        return 0
+
+    values_parts = []
+    params: dict = {
+        "tenant_id": tenant_id_value,
+        "oauth2_client_id": oauth2_client_id,
+        "assigned_by": assigned_by,
+    }
+    for i, gid in enumerate(group_ids):
+        param_name = f"gid_{i}"
+        values_parts.append(f"(:tenant_id, :oauth2_client_id, :{param_name}, :assigned_by)")
+        params[param_name] = gid
+
+    values_clause = ", ".join(values_parts)
+
+    return execute(
+        tenant_id,
+        f"""
+        insert into sp_group_assignments (tenant_id, oauth2_client_id, group_id, assigned_by)
+        values {values_clause}
+        on conflict (oauth2_client_id, group_id) where oauth2_client_id is not null do nothing
+        """,
+        params,
+    )
+
+
+def list_assignments_for_oauth2_client(tenant_id: TenantArg, oauth2_client_id: str) -> list[dict]:
+    """List group assignments for an OIDC-enabled OAuth2 client.
+
+    Returns:
+        List of assignment dicts joined with group info, ordered by group name.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select sga.id, sga.oauth2_client_id, sga.group_id, sga.assigned_by,
+               sga.assigned_at, g.name as group_name,
+               g.description as group_description, g.group_type
+        from sp_group_assignments sga
+        join groups g on g.id = sga.group_id
+        where sga.oauth2_client_id = :oauth2_client_id
+        order by g.name
+        """,
+        {"oauth2_client_id": oauth2_client_id},
+    )
+
+
+def count_assignments_for_oauth2_client(tenant_id: TenantArg, oauth2_client_id: str) -> int:
+    """Count group assignments for an OIDC-enabled OAuth2 client.
+
+    Returns:
+        Number of group assignments.
+    """
+    row = fetchone(
+        tenant_id,
+        """
+        select count(*) as cnt
+        from sp_group_assignments
+        where oauth2_client_id = :oauth2_client_id
+        """,
+        {"oauth2_client_id": oauth2_client_id},
+    )
+    return row["cnt"] if row else 0
+
+
 # Map of supported app kinds to the parent table that owns the available_to_all
 # flag and the grant FK column on sp_group_assignments. Keeping this in one
 # place lets a single resolver serve SAML SPs, proxy apps, and OIDC clients.

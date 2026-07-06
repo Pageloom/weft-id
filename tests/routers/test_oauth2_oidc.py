@@ -108,6 +108,36 @@ class TestIdTokenIssuance:
         assert decoded["sub"] == str(test_user["id"])
         assert decoded["sub"] != test_user["email"]
 
+    def test_groups_claim_gated_on_groups_scope_in_id_token(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        """The `groups` claim rides the ID token only when the `groups` scope is
+        granted, and carries effective (DAG-aware) membership."""
+        parent = database.groups.create_group(
+            tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name="Division"
+        )
+        child = database.groups.create_group(
+            tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name="Squad"
+        )
+        database.groups.add_group_relationship(
+            test_tenant["id"], test_tenant["id"], parent["id"], child["id"]
+        )
+        database.groups.add_group_member(
+            test_tenant["id"], test_tenant["id"], child["id"], test_user["id"]
+        )
+
+        # With the groups scope: claim present, effective membership included.
+        code = _make_code(test_tenant, oidc_client, test_user, scope="openid groups")
+        resp = _exchange(client, test_tenant_host, oidc_client, code)
+        decoded = jwt.decode(resp.json()["id_token"], options={"verify_signature": False})
+        assert set(decoded["groups"]) == {"Division", "Squad"}
+
+        # Without the groups scope: claim absent.
+        code2 = _make_code(test_tenant, oidc_client, test_user, scope="openid profile")
+        resp2 = _exchange(client, test_tenant_host, oidc_client, code2)
+        decoded2 = jwt.decode(resp2.json()["id_token"], options={"verify_signature": False})
+        assert "groups" not in decoded2
+
     def test_no_id_token_for_non_oidc_client(
         self, client, test_tenant, test_tenant_host, normal_oauth2_client, test_user
     ):
@@ -349,6 +379,27 @@ class TestAuthorizeStoresScopeAndNonce:
         import re
 
         override_auth(test_user)
+
+        # OIDC-enabled clients are access-gated at authorize; grant the user.
+        group = database.groups.create_group(
+            tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name="Authz Scope Group"
+        )
+        database.execute(
+            test_tenant["id"],
+            """
+            insert into sp_group_assignments (tenant_id, oauth2_client_id, group_id, assigned_by)
+            values (:tid, :cid, :gid, :by)
+            """,
+            {
+                "tid": test_tenant["id"],
+                "cid": oidc_client["id"],
+                "gid": group["id"],
+                "by": test_user["id"],
+            },
+        )
+        database.groups.add_group_member(
+            test_tenant["id"], test_tenant["id"], group["id"], test_user["id"]
+        )
 
         get_resp = client.get(
             "/oauth2/authorize",

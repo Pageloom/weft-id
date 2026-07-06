@@ -102,6 +102,42 @@ class TestUserInfoClaims:
         assert body["sub"] == str(test_user["id"])
         assert body["sub"] != test_user["email"]
 
+    def test_groups_scope_releases_groups_claim(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        """The `groups` claim appears in userinfo only when the token carries the
+        `groups` scope, and reflects effective (DAG-aware) membership."""
+        parent = database.groups.create_group(
+            tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name="Org"
+        )
+        child = database.groups.create_group(
+            tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name="Team"
+        )
+        database.groups.add_group_relationship(
+            test_tenant["id"], test_tenant["id"], parent["id"], child["id"]
+        )
+        database.groups.add_group_member(
+            test_tenant["id"], test_tenant["id"], child["id"], test_user["id"]
+        )
+
+        token = _access_token(test_tenant, oidc_client, test_user, scope="openid groups")
+        body = _userinfo(client, test_tenant_host, token).json()
+        assert set(body["groups"]) == {"Org", "Team"}
+
+    def test_groups_claim_absent_without_groups_scope(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        group = database.groups.create_group(
+            tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name="Unseen"
+        )
+        database.groups.add_group_member(
+            test_tenant["id"], test_tenant["id"], group["id"], test_user["id"]
+        )
+
+        token = _access_token(test_tenant, oidc_client, test_user, scope="openid profile email")
+        body = _userinfo(client, test_tenant_host, token).json()
+        assert "groups" not in body
+
     def test_userinfo_matches_id_token_for_same_scopes(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user
     ):
@@ -179,6 +215,34 @@ class TestUserInfoAuth:
     ):
         token = _access_token(test_tenant, oidc_client, test_user, scope="openid email")
         database.oauth2.revoke_all_client_tokens(test_tenant["id"], oidc_client["id"])
+        resp = _userinfo(client, test_tenant_host, token)
+        assert resp.status_code == 401
+        assert 'error="invalid_token"' in resp.headers["WWW-Authenticate"]
+
+    def test_non_oidc_client_token_rejected(
+        self, client, test_tenant, test_tenant_host, test_admin_user, test_user
+    ):
+        """A plain (non-oidc_enabled) client's token is not valid at /userinfo.
+
+        userinfo is an OIDC endpoint: only tokens issued to an oidc_enabled client
+        may read identity claims here, even if the token carries identity scopes.
+        The token remains valid at other OAuth2-protected APIs.
+        """
+        plain_client = database.oauth2.create_normal_client(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            name="Plain OAuth2 Client",
+            redirect_uris=["http://localhost:3000/callback"],
+            created_by=test_admin_user["id"],
+        )
+        # oidc_enabled stays false (the default) -- do not enable it.
+        token = database.oauth2.create_access_token(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            client_id=plain_client["id"],
+            user_id=test_user["id"],
+            scope="openid profile email groups",
+        )
         resp = _userinfo(client, test_tenant_host, token)
         assert resp.status_code == 401
         assert 'error="invalid_token"' in resp.headers["WWW-Authenticate"]

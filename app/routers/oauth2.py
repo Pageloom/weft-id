@@ -110,6 +110,41 @@ def authorize_page(
             },
         )
 
+    # Group-based access control for OIDC-enabled clients ONLY. Plain OAuth2
+    # clients are never gated (unchanged behavior). Enforced here, before any
+    # authorization code can be issued, so a denied user never sees the consent
+    # page and never receives a code/token. The denial is user-visible (error
+    # page) and audited (oidc_access_denied).
+    if client.get("oidc_enabled") and not oidc_service.user_can_access_client(
+        tenant_id=tenant_id,
+        user_id=user["id"],
+        client_uuid=str(client["id"]),
+        client_id=client["client_id"],
+        client_name=client.get("name"),
+    ):
+        return templates.TemplateResponse(
+            request,
+            "oauth2_error.html",
+            {
+                "error": "Access denied",
+                "error_description": (
+                    "You do not have access to this application. "
+                    "Contact your administrator to request access."
+                ),
+                "nav": {},
+                "csp_nonce": get_csp_nonce(request),
+            },
+            status_code=403,
+        )
+
+    # Requested scopes to display on the consent page for OIDC requests, paired
+    # with a human-readable description. Unknown scopes fall back to their raw
+    # name so nothing requested is hidden from the user.
+    requested_scopes = [
+        {"name": s, "description": oidc_service.SCOPE_DESCRIPTIONS.get(s, s)}
+        for s in sorted(parse_scope(scope))
+    ]
+
     # Generate unique auth request ID and store parameters in session
     auth_request_id = secrets.token_urlsafe(32)
 
@@ -138,6 +173,7 @@ def authorize_page(
             "user": user,
             "auth_request_id": auth_request_id,
             "redirect_uri": redirect_uri,
+            "requested_scopes": requested_scopes,
             "nav": {},
             "csrf_token": make_csrf_token_func(request),
             "csp_nonce": get_csp_nonce(request),
@@ -243,6 +279,23 @@ def authorize_grant(
 
     # Handle approval - create authorization code
     if action == "allow":
+        # Defense in depth: re-check group-based access for OIDC-enabled clients
+        # at grant time (the GET check gated the consent page, but membership
+        # could have changed since). Plain OAuth2 clients are never gated. A
+        # denial here redirects with the standard OAuth2 access_denied error so
+        # no code is issued.
+        if client.get("oidc_enabled") and not oidc_service.user_can_access_client(
+            tenant_id=tenant_id,
+            user_id=user["id"],
+            client_uuid=str(client["id"]),
+            client_id=client["client_id"],
+            client_name=client.get("name"),
+        ):
+            return RedirectResponse(
+                url=f"{redirect_uri}?error=access_denied" + (f"&state={state}" if state else ""),
+                status_code=303,
+            )
+
         # Record the user's authentication time for the OIDC `auth_time` claim.
         # Prefer the session login timestamp (when they actually authenticated);
         # fall back to the code-issuance time when it is unavailable.

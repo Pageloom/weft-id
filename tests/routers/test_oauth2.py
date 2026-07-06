@@ -1045,3 +1045,199 @@ class TestCrossTenantIsolation:
                 "DELETE FROM tenants WHERE id = :id",
                 {"id": other_tenant["id"]},
             )
+
+
+# ============================================================================
+# OIDC-enabled client access control at the authorize step (Iteration 4)
+# ============================================================================
+
+
+def _make_oidc_client(test_tenant, test_admin_user, *, available_to_all=False):
+    """Create an OIDC-enabled OAuth2 client for authorize-time access tests."""
+    import database
+
+    client = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        name="OIDC Authz Client",
+        redirect_uris=["http://localhost:3000/callback"],
+        created_by=test_admin_user["id"],
+    )
+    database.execute(
+        test_tenant["id"],
+        "update oauth2_clients set oidc_enabled = true, available_to_all = :ata where id = :id",
+        {"id": client["id"], "ata": available_to_all},
+    )
+    return client
+
+
+def _grant_user_to_oidc_client(test_tenant, test_user, client_id, group_name="Authz Group"):
+    """Assign a group to the OIDC client and make the user a direct member."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name=group_name
+    )
+    database.execute(
+        test_tenant["id"],
+        """
+        insert into sp_group_assignments (tenant_id, oauth2_client_id, group_id, assigned_by)
+        values (:tid, :cid, :gid, :by)
+        """,
+        {
+            "tid": test_tenant["id"],
+            "cid": client_id,
+            "gid": group["id"],
+            "by": test_user["id"],
+        },
+    )
+    database.groups.add_group_member(
+        test_tenant["id"], test_tenant["id"], group["id"], test_user["id"]
+    )
+    return group
+
+
+class TestOidcAuthorizeAccessControl:
+    """Group-based access control gates OIDC-enabled clients at authorize."""
+
+    def test_denied_without_grant_shows_error_and_no_code(
+        self, authenticated_client_with_host, test_tenant, test_admin_user
+    ):
+        """An oidc_enabled client with no grant denies at GET: 403 error page,
+        no consent form, no authorization code, and an audited denial."""
+        from unittest.mock import patch
+
+        oidc = _make_oidc_client(test_tenant, test_admin_user)
+
+        with patch("services.oidc.access.log_event") as mock_log:
+            response = authenticated_client_with_host.get(
+                "/oauth2/authorize",
+                params={
+                    "client_id": oidc["client_id"],
+                    "redirect_uri": "http://localhost:3000/callback",
+                    "scope": "openid profile",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 403
+        assert "Access denied" in response.text
+        # No consent form was rendered -> no auth_request_id the user could POST.
+        assert 'name="auth_request_id"' not in response.text
+        # The denial is audited.
+        mock_log.assert_called_once()
+        assert mock_log.call_args.kwargs["event_type"] == "oidc_access_denied"
+
+    def test_granted_via_group_shows_consent(
+        self, authenticated_client_with_host, test_tenant, test_user, test_admin_user
+    ):
+        """A user in an assigned group reaches the consent page."""
+        oidc = _make_oidc_client(test_tenant, test_admin_user)
+        _grant_user_to_oidc_client(test_tenant, test_user, oidc["id"])
+
+        response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": oidc["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+                "scope": "openid",
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 200
+        assert 'name="auth_request_id"' in response.text
+
+    def test_available_to_all_grants_access(
+        self, authenticated_client_with_host, test_tenant, test_admin_user
+    ):
+        """An available_to_all OIDC client is reachable without any grant."""
+        oidc = _make_oidc_client(test_tenant, test_admin_user, available_to_all=True)
+
+        response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": oidc["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+                "scope": "openid",
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 200
+        assert 'name="auth_request_id"' in response.text
+
+    def test_plain_oauth2_client_unaffected(
+        self, authenticated_client_with_host, normal_oauth2_client
+    ):
+        """A plain (non-OIDC) client is NOT access-gated even with no grant."""
+        response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 200
+        assert 'name="auth_request_id"' in response.text
+
+    def test_consent_page_lists_requested_scopes(
+        self, authenticated_client_with_host, test_tenant, test_user, test_admin_user
+    ):
+        """The consent page lists each requested scope with its description."""
+        oidc = _make_oidc_client(test_tenant, test_admin_user)
+        _grant_user_to_oidc_client(test_tenant, test_user, oidc["id"])
+
+        response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": oidc["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+                "scope": "openid profile email groups",
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 200
+        assert "This application is requesting" in response.text
+        assert "Your group memberships" in response.text
+        assert "Your email address" in response.text
+        assert "Confirm your identity" in response.text
+
+    def test_post_allow_denied_defense_in_depth(
+        self, authenticated_client_with_host, test_tenant, test_user, test_admin_user
+    ):
+        """If the grant is removed between GET and POST, POST allow denies with
+        error=access_denied and issues no code."""
+        import database
+
+        oidc = _make_oidc_client(test_tenant, test_admin_user)
+        group = _grant_user_to_oidc_client(test_tenant, test_user, oidc["id"])
+
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": oidc["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+                "scope": "openid",
+            },
+            follow_redirects=False,
+        )
+        assert get_response.status_code == 200
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # Revoke access: remove the user's membership in the granting group.
+        database.groups.remove_group_member(test_tenant["id"], group["id"], test_user["id"])
+
+        response = authenticated_client_with_host.post(
+            "/oauth2/authorize",
+            data={"auth_request_id": auth_request_id, "action": "allow"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        location = response.headers["location"]
+        assert "error=access_denied" in location
+        assert "code=" not in location

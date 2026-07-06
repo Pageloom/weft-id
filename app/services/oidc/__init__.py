@@ -8,7 +8,12 @@ Functions follow the service-layer pattern: authorization lives here, writes
 emit event logs, and private key material never leaves this layer.
 """
 
-from services.oidc.claims import build_claims, parse_scope
+from services.oidc.access import user_can_access_client
+from services.oidc.claims import (
+    SCOPE_DESCRIPTIONS,
+    build_claims,
+    parse_scope,
+)
 from services.oidc.discovery import build_discovery_metadata
 from services.oidc.keys import (
     ActiveSigningKey,
@@ -28,6 +33,8 @@ __all__ = [
     "cleanup_previous_signing_key",
     "build_claims",
     "parse_scope",
+    "SCOPE_DESCRIPTIONS",
+    "user_can_access_client",
     "issue_id_token",
     "ID_TOKEN_EXPIRY",
     "build_discovery_metadata",

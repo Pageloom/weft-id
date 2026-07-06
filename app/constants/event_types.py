@@ -112,6 +112,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oidc_signing_key_rotated": "OIDC signing key rotated",
     "oidc_id_token_issued": "OIDC ID token issued to a downstream application",
     "oidc_userinfo_accessed": "OIDC userinfo claims released to a downstream application",
+    "oidc_access_denied": "OIDC client login denied (no group grant)",
     # Settings & Configuration
     "privileged_domain_added": "Privileged email domain added",
     "privileged_domain_deleted": "Privileged email domain removed",
@@ -373,6 +374,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oidc_signing_key_rotated": "admin",
     "oidc_id_token_issued": "operational",
     "oidc_userinfo_accessed": "operational",
+    "oidc_access_denied": "security",
     "privileged_domain_added": "admin",
     "privileged_domain_deleted": "admin",
     "tenant_certificate_lifetime_updated": "admin",

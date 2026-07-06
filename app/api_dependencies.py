@@ -151,6 +151,10 @@ def get_oidc_userinfo_token(
     Reuses `database.oauth2.validate_token`, the same bearer-validation path the
     rest of the API uses, so token expiry/revocation are honoured identically.
 
+    The token's client must be `oidc_enabled`: userinfo is an OIDC endpoint, so a
+    plain (non-OIDC) OAuth2 client's token is rejected here with `invalid_token`
+    (that token remains valid at other OAuth2-protected APIs).
+
     Returns:
         The validated token data (`user_id`, `client_id`, `scope`, ...), with the
         client's public metadata attached under `client` for the caller.
@@ -179,13 +183,22 @@ def get_oidc_userinfo_token(
     # Resolve the client so the caller can record which application accessed the
     # identity, and set the API client context for event-log attribution.
     client = database.oauth2.get_client_by_id(tenant_id, str(token_data["client_id"]))
-    if client:
-        set_api_client_context(
-            client_id=client["client_id"],
-            client_name=client["name"],
-            client_type=client["client_type"],
-        )
-        token_data["client"] = client
+
+    # /userinfo is an OIDC endpoint. Only a token issued to an `oidc_enabled`
+    # client may read identity claims here; a plain OAuth2 client's token is not
+    # valid for userinfo (it still works at other OAuth2-protected APIs). This
+    # keeps the OIDC identity surface (profile/email/groups claims) confined to
+    # clients that explicitly opted into OIDC. An orphaned token whose client is
+    # gone is likewise rejected.
+    if not client or not client.get("oidc_enabled"):
+        raise _invalid_token_error()
+
+    set_api_client_context(
+        client_id=client["client_id"],
+        client_name=client["name"],
+        client_type=client["client_type"],
+    )
+    token_data["client"] = client
 
     return token_data
 

@@ -12,14 +12,19 @@ What it does NOT do:
     `nonce`. Those are token-envelope claims added by the ID-token minter (and
     `sub` is added by the userinfo endpoint in Iteration 3). `sub` is always the
     stable WeftID user id, never derived here from a scope.
-  * It does not add the `groups` claim or perform any access-control decision
-    (deferred to Iteration 4).
+  * It does not perform the access-control decision that gates OIDC-client
+    login (that lives in :mod:`services.oidc.access`, enforced at authorize).
 
 Scope semantics (OpenID Connect Core 1.0, section 5.4):
   * ``profile`` -> name, given_name, family_name, locale, updated_at
   * ``email``   -> email, email_verified
+  * ``groups``  -> groups (WeftID extension: the user's effective group names,
+                   DAG-aware via the group_lineage closure table)
 Unknown scopes are ignored. Absent user data is simply omitted (claims are only
-included when a value is present), matching the spec's "MAY" language.
+included when a value is present), matching the spec's "MAY" language. The
+``groups`` claim is the one exception: when the ``groups`` scope is granted it is
+always released, as an empty list when the user is in no group (an empty list is
+a meaningful "no groups" answer, not missing data).
 """
 
 from __future__ import annotations
@@ -30,10 +35,21 @@ import database
 SCOPE_OPENID = "openid"
 SCOPE_PROFILE = "profile"
 SCOPE_EMAIL = "email"
+# WeftID extension scope: releases the user's effective group memberships.
+SCOPE_GROUPS = "groups"
 
 # Scopes this provider recognises and advertises. `openid` gates ID-token
 # issuance itself and carries no profile data of its own.
-SUPPORTED_SCOPES = (SCOPE_OPENID, SCOPE_PROFILE, SCOPE_EMAIL)
+SUPPORTED_SCOPES = (SCOPE_OPENID, SCOPE_PROFILE, SCOPE_EMAIL, SCOPE_GROUPS)
+
+# Human-readable descriptions shown on the authorize/consent page so the user
+# can see what each requested scope grants. Keyed by scope name.
+SCOPE_DESCRIPTIONS = {
+    SCOPE_OPENID: "Confirm your identity",
+    SCOPE_PROFILE: "Your name and profile information",
+    SCOPE_EMAIL: "Your email address",
+    SCOPE_GROUPS: "Your group memberships",
+}
 
 
 def parse_scope(scope: str | None) -> set[str]:
@@ -52,25 +68,26 @@ def build_claims(tenant_id: str, user_id: str, scopes: set[str]) -> dict:
         scopes: The granted scope names (already parsed).
 
     Returns:
-        A dict of released claims. Empty if no recognised profile/email scope is
+        A dict of released claims. Empty if no recognised claim-bearing scope is
         granted or the user cannot be resolved. Never includes `sub` or any
         token-envelope claim.
     """
-    # Nothing to release unless a claim-bearing scope was granted.
-    if not scopes & {SCOPE_PROFILE, SCOPE_EMAIL}:
-        return {}
-
-    row = database.oidc.get_user_claim_data(tenant_id, user_id)
-    if row is None:
-        return {}
-
     claims: dict = {}
 
-    if SCOPE_PROFILE in scopes:
-        _add_profile_claims(claims, row)
+    # profile/email claims require a single user-data read, gated by scope.
+    if scopes & {SCOPE_PROFILE, SCOPE_EMAIL}:
+        row = database.oidc.get_user_claim_data(tenant_id, user_id)
+        if row is not None:
+            if SCOPE_PROFILE in scopes:
+                _add_profile_claims(claims, row)
+            if SCOPE_EMAIL in scopes:
+                _add_email_claims(claims, row)
 
-    if SCOPE_EMAIL in scopes:
-        _add_email_claims(claims, row)
+    # The `groups` claim is sourced from the effective (DAG-aware) membership
+    # closure so a user in a child group receives all ancestor group names.
+    # Released whenever the `groups` scope is granted, even as an empty list.
+    if SCOPE_GROUPS in scopes:
+        claims["groups"] = database.groups.get_effective_group_names(tenant_id, user_id)
 
     return claims
 

@@ -29,6 +29,7 @@ from routers import forward_auth as forward_auth_router  # noqa: E402
 from routers import groups as groups_router  # noqa: E402
 from routers import health as health_router  # noqa: E402
 from routers import integrations as integrations_router  # noqa: E402
+from routers import oidc as oidc_router  # noqa: E402
 from routers import protected_domains as protected_domains_router  # noqa: E402
 from routers import proxy_apps as proxy_apps_router  # noqa: E402
 from routers import saml_idp as saml_idp_router  # noqa: E402
@@ -157,6 +158,9 @@ app.include_router(users.router)
 # Include OAuth2 and SAML routers
 app.include_router(oauth2.router)
 app.include_router(saml.router)
+
+# Include OIDC provider router (root-path .well-known endpoints)
+app.include_router(oidc_router.router)
 
 # Include API routers (JSON)
 app.include_router(account_passkeys_api.router)

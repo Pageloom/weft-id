@@ -711,6 +711,17 @@ PAGES = [
         show_in_nav=False,
         creates_nav_level=False,
     ),
+    # OIDC provider public endpoints. Tenant-resolved by request host and
+    # RLS-scoped; unauthenticated because relying parties fetch the JWKS to
+    # verify WeftID-issued ID tokens. PUBLIC at the page-access layer, like
+    # the SAML IdP metadata endpoint.
+    Page(
+        path="/.well-known/jwks.json",
+        title="OIDC JWKS",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
     # Forward-auth handshake endpoints (machine/proxy + browser redirects).
     # These run on protected-domain portal hosts and the canonical tenant host;
     # they enforce their own crypto/grant checks (not page-role gating), so they

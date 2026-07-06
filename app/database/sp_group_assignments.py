@@ -215,10 +215,11 @@ def count_assignments_for_proxy_app(tenant_id: TenantArg, proxy_app_id: str) -> 
 
 # Map of supported app kinds to the parent table that owns the available_to_all
 # flag and the grant FK column on sp_group_assignments. Keeping this in one
-# place lets a single resolver serve SAML SPs and proxy apps.
+# place lets a single resolver serve SAML SPs, proxy apps, and OIDC clients.
 _APP_KINDS = {
     "sp_id": "service_providers",
     "proxy_app_id": "proxy_apps",
+    "oauth2_client_id": "oauth2_clients",
 }
 
 
@@ -229,12 +230,14 @@ def user_can_access_app(
     *,
     sp_id: bool = False,
     proxy_app_id: bool = False,
+    oauth2_client_id: bool = False,
 ) -> bool:
     """Check if a user can access a protected app via group assignments.
 
-    Generic grant resolver shared by SAML service providers and proxy apps.
-    Exactly one of ``sp_id`` / ``proxy_app_id`` must be True to select the app
-    kind; ``app_id`` is the id of that app.
+    Generic grant resolver shared by SAML service providers, proxy apps, and
+    OIDC-enabled OAuth2 clients. Exactly one of ``sp_id`` / ``proxy_app_id`` /
+    ``oauth2_client_id`` must be True to select the app kind; ``app_id`` is the
+    id of that app.
 
     A user has access if the app is available_to_all, OR they belong to any
     group that is a descendant of (or equal to) an assigned group. The
@@ -243,10 +246,19 @@ def user_can_access_app(
     Returns:
         True if the user has access, False otherwise.
     """
-    if sp_id == proxy_app_id:
-        raise ValueError("exactly one of sp_id / proxy_app_id must be True")
+    selected = [
+        col
+        for col, flag in (
+            ("sp_id", sp_id),
+            ("proxy_app_id", proxy_app_id),
+            ("oauth2_client_id", oauth2_client_id),
+        )
+        if flag
+    ]
+    if len(selected) != 1:
+        raise ValueError("exactly one of sp_id / proxy_app_id / oauth2_client_id must be True")
 
-    column = "sp_id" if sp_id else "proxy_app_id"
+    column = selected[0]
     parent_table = _APP_KINDS[column]
 
     row = fetchone(
@@ -289,6 +301,19 @@ def user_can_access_proxy_app(tenant_id: TenantArg, user_id: str, proxy_app_id: 
         True if user has access, False otherwise.
     """
     return user_can_access_app(tenant_id, user_id, proxy_app_id, proxy_app_id=True)
+
+
+def user_can_access_oauth2_client(tenant_id: TenantArg, user_id: str, client_uuid: str) -> bool:
+    """Check if a user can access an OIDC-enabled OAuth2 client via group assignments.
+
+    Thin wrapper over user_can_access_app() for the OIDC-client kind. Access
+    control applies only to OIDC-enabled clients; plain OAuth2 clients never
+    consult this resolver.
+
+    Returns:
+        True if user has access, False otherwise.
+    """
+    return user_can_access_app(tenant_id, user_id, client_uuid, oauth2_client_id=True)
 
 
 def get_accessible_sps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict]:

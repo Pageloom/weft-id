@@ -58,10 +58,9 @@ class TestDiscoveryDocument:
         }
 
     def test_scopes_supported_reflects_implemented_scopes(self, client, test_tenant_host):
-        """Advertises openid/profile/email; `groups` is deferred to Iteration 4."""
+        """Advertises openid/profile/email/groups (all implemented scopes)."""
         body = _discovery(client, test_tenant_host).json()
-        assert set(body["scopes_supported"]) == {"openid", "profile", "email"}
-        assert "groups" not in body["scopes_supported"]
+        assert set(body["scopes_supported"]) == {"openid", "profile", "email", "groups"}
 
     def test_claims_supported_covers_envelope_and_scope_claims(self, client, test_tenant_host):
         body = _discovery(client, test_tenant_host).json()
@@ -78,8 +77,8 @@ class TestDiscoveryDocument:
             "email",
             "email_verified",
         } <= claims
-        # groups claim is deferred to Iteration 4.
-        assert "groups" not in claims
+        # groups claim (WeftID extension) is advertised in Iteration 4.
+        assert "groups" in claims
 
     def test_does_not_advertise_unimplemented_capabilities(self, client, test_tenant_host):
         """Logout, introspection, revocation, device grant, DCR are out of scope."""

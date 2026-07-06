@@ -88,3 +88,76 @@ def test_no_claim_bearing_scope_skips_db(scope, test_tenant, test_user):
         str(test_tenant["id"]), str(test_user["id"]), claims_service.parse_scope(scope)
     )
     assert result == {}
+
+
+class TestGroupsClaim:
+    """The `groups` claim is released only when the `groups` scope is granted and
+    is sourced from the DAG-aware effective-membership closure."""
+
+    def test_groups_scope_releases_group_names(self, test_tenant, test_user):
+        tid = test_tenant["id"]
+        uid = test_user["id"]
+        group = database.groups.create_group(
+            tenant_id=tid, tenant_id_value=str(tid), name="Engineering"
+        )
+        database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+        result = claims_service.build_claims(str(tid), str(uid), {"groups"})
+
+        assert result["groups"] == ["Engineering"]
+
+    def test_groups_absent_without_groups_scope(self, test_tenant, test_user):
+        tid = test_tenant["id"]
+        uid = test_user["id"]
+        group = database.groups.create_group(tenant_id=tid, tenant_id_value=str(tid), name="Hidden")
+        database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+        # profile + email granted, but NOT groups: no `groups` claim.
+        result = claims_service.build_claims(str(tid), str(uid), {"profile", "email"})
+
+        assert "groups" not in result
+
+    def test_groups_claim_is_dag_aware(self, test_tenant, test_user):
+        """A user in a child group receives all effective (ancestor) group names."""
+        tid = test_tenant["id"]
+        uid = test_user["id"]
+        parent = database.groups.create_group(
+            tenant_id=tid, tenant_id_value=str(tid), name="All Staff"
+        )
+        child = database.groups.create_group(
+            tenant_id=tid, tenant_id_value=str(tid), name="Backend Team"
+        )
+        database.groups.add_group_relationship(tid, str(tid), parent["id"], child["id"])
+        # User is only a DIRECT member of the child group.
+        database.groups.add_group_member(tid, str(tid), child["id"], str(uid))
+
+        result = claims_service.build_claims(str(tid), str(uid), {"groups"})
+
+        # Effective membership includes the ancestor group via the closure table.
+        assert set(result["groups"]) == {"All Staff", "Backend Team"}
+
+    def test_groups_scope_with_no_memberships_is_empty_list(self, test_tenant, test_user):
+        tid = test_tenant["id"]
+        uid = test_user["id"]
+
+        result = claims_service.build_claims(str(tid), str(uid), {"groups"})
+
+        # Present (scope granted) but empty: a meaningful "no groups" answer.
+        assert result["groups"] == []
+
+    def test_groups_combined_with_profile_and_email(self, test_tenant, test_user):
+        tid = test_tenant["id"]
+        uid = test_user["id"]
+        group = database.groups.create_group(
+            tenant_id=tid, tenant_id_value=str(tid), name="Combined"
+        )
+        database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+        result = claims_service.build_claims(
+            str(tid), str(uid), {"openid", "profile", "email", "groups"}
+        )
+
+        assert result["groups"] == ["Combined"]
+        assert result["name"] == "Test User"
+        assert result["email"] == test_user["email"]
+        assert "sub" not in result

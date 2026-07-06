@@ -27,14 +27,14 @@ class TestBuildDiscoveryMetadata:
 
     def test_scopes_track_shared_assembler(self):
         """scopes_supported is sourced from the shared assembler so the two
-        can never drift; `groups` is deferred until it joins SUPPORTED_SCOPES."""
+        can never drift; `groups` joined SUPPORTED_SCOPES in Iteration 4."""
         meta = discovery_service.build_discovery_metadata("https://t.example.com")
         assert meta.scopes_supported == list(claims_service.SUPPORTED_SCOPES)
-        assert "groups" not in meta.scopes_supported
+        assert "groups" in meta.scopes_supported
 
     def test_claims_supported_include_envelope_and_scope_claims(self):
         meta = discovery_service.build_discovery_metadata("https://t.example.com")
         claims = set(meta.claims_supported)
         assert {"sub", "iss", "aud", "exp", "iat", "auth_time", "nonce"} <= claims
         assert {"name", "email", "email_verified"} <= claims
-        assert "groups" not in claims
+        assert "groups" in claims

@@ -19,6 +19,20 @@
                 <p class="text-sm text-gray-600 dark:text-gray-400">{{ user.email }}</p>
             </div>
 
+            {% if requested_scopes %}
+            <div class="mb-6">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">This application is requesting:</p>
+                <ul class="border border-gray-200 dark:border-gray-700 rounded divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for scope in requested_scopes %}
+                    <li class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                        <span class="font-medium">{{ scope.description }}</span>
+                        <span class="text-gray-500 dark:text-gray-400">({{ scope.name }})</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
             <form method="post" action="/oauth2/authorize">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="auth_request_id" value="{{ auth_request_id }}">

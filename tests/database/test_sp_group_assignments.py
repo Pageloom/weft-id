@@ -1090,3 +1090,239 @@ def test_proxy_app_grants_tenant_isolated(test_tenant, test_user):
         database.execute(
             database.UNSCOPED, "DELETE FROM tenants WHERE id = :id", {"id": other["id"]}
         )
+
+
+# -- user_can_access_oauth2_client (OIDC clients) ------------------------------
+
+
+def _create_oidc_client(tid, uid, name="OIDC Client", available_to_all=False):
+    """Create an OIDC-enabled OAuth2 client, optionally available_to_all."""
+    client = database.oauth2.create_normal_client(
+        tenant_id=tid,
+        tenant_id_value=str(tid),
+        name=name,
+        redirect_uris=["http://localhost:3000/callback"],
+        created_by=str(uid),
+    )
+    database.execute(
+        tid,
+        "update oauth2_clients set oidc_enabled = true, available_to_all = :ata where id = :id",
+        {"id": client["id"], "ata": available_to_all},
+    )
+    return client
+
+
+def _grant_oidc_client(tid, uid, client_id, group_id):
+    """Insert an OIDC-client group grant (no DB helper until Iteration 5)."""
+    return database.fetchone(
+        tid,
+        """
+        insert into sp_group_assignments (tenant_id, oauth2_client_id, group_id, assigned_by)
+        values (:tid, :cid, :gid, :by)
+        returning id, oauth2_client_id, group_id
+        """,
+        {"tid": str(tid), "cid": client_id, "gid": group_id, "by": str(uid)},
+    )
+
+
+def test_user_can_access_oauth2_client_direct(test_tenant, test_user):
+    """User has access when directly a member of an assigned group."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    group = _create_group(tid, name="OIDC Direct Group")
+
+    _grant_oidc_client(tid, uid, oidc["id"], group["id"])
+    database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+    assert (
+        database.sp_group_assignments.user_can_access_oauth2_client(tid, str(uid), oidc["id"])
+        is True
+    )
+
+
+def test_user_can_access_oauth2_client_inherited_dag(test_tenant, test_user):
+    """OIDC-client access via a descendant group (DAG closure table).
+
+    Assign the parent group, put the user in the child. The lineage table must
+    grant access transitively.
+    """
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    parent = _create_group(tid, name="OIDC Parent")
+    child = _create_group(tid, name="OIDC Child")
+
+    database.groups.add_group_relationship(tid, str(tid), parent["id"], child["id"])
+    _grant_oidc_client(tid, uid, oidc["id"], parent["id"])
+    database.groups.add_group_member(tid, str(tid), child["id"], str(uid))
+
+    assert (
+        database.sp_group_assignments.user_can_access_oauth2_client(tid, str(uid), oidc["id"])
+        is True
+    )
+
+
+def test_user_can_access_oauth2_client_no_access(test_tenant, test_user):
+    """User has no access when not in any assigned group."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    group = _create_group(tid, name="OIDC Exclusive Group")
+
+    _grant_oidc_client(tid, uid, oidc["id"], group["id"])  # user not a member
+
+    assert (
+        database.sp_group_assignments.user_can_access_oauth2_client(tid, str(uid), oidc["id"])
+        is False
+    )
+
+
+def test_user_can_access_oauth2_client_available_to_all(test_tenant, test_user):
+    """A user with no group membership can access an available_to_all client."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid, available_to_all=True)
+
+    assert (
+        database.sp_group_assignments.user_can_access_oauth2_client(tid, str(uid), oidc["id"])
+        is True
+    )
+
+
+def test_oauth2_client_grants_independent_of_sp_and_proxy(test_tenant, test_user):
+    """A group granted to an OIDC client does not grant an SP or proxy app."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    sp = _create_sp(tid, uid, name="Independent-from-OIDC SP")
+    app = _create_proxy_app(tid, uid)
+    group = _create_group(tid, name="OIDC-only Group")
+
+    _grant_oidc_client(tid, uid, oidc["id"], group["id"])
+    database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+    assert (
+        database.sp_group_assignments.user_can_access_oauth2_client(tid, str(uid), oidc["id"])
+        is True
+    )
+    assert database.sp_group_assignments.user_can_access_sp(tid, str(uid), sp["id"]) is False
+    assert (
+        database.sp_group_assignments.user_can_access_proxy_app(tid, str(uid), app["id"]) is False
+    )
+
+
+def test_user_can_access_app_rejects_three_kinds(test_tenant, test_user):
+    """The resolver still requires exactly one app kind with three options."""
+    import pytest
+
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+
+    with pytest.raises(ValueError):
+        database.sp_group_assignments.user_can_access_app(
+            tid, str(uid), str(uuid4()), sp_id=True, oauth2_client_id=True
+        )
+
+
+def test_oauth2_client_grant_one_parent_check(test_tenant, test_user):
+    """The one-of CHECK rejects a row with both sp_id and oauth2_client_id set."""
+    import psycopg.errors
+
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    sp = _create_sp(tid, uid, name="Both SP+OIDC")
+    oidc = _create_oidc_client(tid, uid)
+    group = _create_group(tid, name="Both SP+OIDC Group")
+
+    try:
+        database.execute(
+            tid,
+            """
+            insert into sp_group_assignments
+                (tenant_id, sp_id, oauth2_client_id, group_id, assigned_by)
+            values (:tid, :sp, :cid, :grp, :by)
+            """,
+            {
+                "tid": str(tid),
+                "sp": sp["id"],
+                "cid": oidc["id"],
+                "grp": group["id"],
+                "by": str(uid),
+            },
+        )
+        assert False, "Expected CHECK violation for two FK columns populated"
+    except psycopg.errors.CheckViolation:
+        pass
+
+
+def test_duplicate_oauth2_client_grant_raises(test_tenant, test_user):
+    """The OIDC-client partial unique index rejects a duplicate (client, group)."""
+    import psycopg.errors
+
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    group = _create_group(tid, name="Dup OIDC Grant Group")
+
+    _grant_oidc_client(tid, uid, oidc["id"], group["id"])
+    try:
+        _grant_oidc_client(tid, uid, oidc["id"], group["id"])
+        assert False, "Expected UniqueViolation for duplicate OIDC-client grant"
+    except psycopg.errors.UniqueViolation:
+        pass
+
+
+def test_deleting_oauth2_client_cascades_its_grants(test_tenant, test_user):
+    """Deleting an OIDC client cascades and removes its grant rows."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    group = _create_group(tid, name="OIDC Cascade Group")
+    grant = _grant_oidc_client(tid, uid, oidc["id"], group["id"])
+
+    database.execute(tid, "delete from oauth2_clients where id = :id", {"id": oidc["id"]})
+
+    remaining = database.fetchone(
+        tid,
+        "select id from sp_group_assignments where id = :id",
+        {"id": grant["id"]},
+    )
+    assert remaining is None
+    assert database.groups.get_group_by_id(tid, group["id"]) is not None
+
+
+def test_oauth2_client_grant_tenant_isolated(test_tenant, test_user):
+    """An OIDC-client grant in tenant A never authorizes the same query on
+    tenant B: the resolver is RLS-scoped, so tenant B sees neither the grant row
+    nor the client, and access resolves False.
+    """
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    group = _create_group(tid, name="Isolated OIDC Grant Group")
+    _grant_oidc_client(tid, uid, oidc["id"], group["id"])
+    database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+    # Sanity: access resolves True within the owning tenant.
+    assert (
+        database.sp_group_assignments.user_can_access_oauth2_client(tid, str(uid), oidc["id"])
+        is True
+    )
+
+    other = database.fetchone(
+        database.UNSCOPED,
+        "INSERT INTO tenants (subdomain, name) VALUES (:s, :n) RETURNING id",
+        {"s": f"other-{uuid4().hex[:8]}", "n": "Other OIDC Tenant"},
+    )
+    try:
+        oid = other["id"]
+        # The grant belongs to tenant A; querying as tenant B must not authorize.
+        assert (
+            database.sp_group_assignments.user_can_access_oauth2_client(oid, str(uid), oidc["id"])
+            is False
+        )
+    finally:
+        database.execute(
+            database.UNSCOPED, "DELETE FROM tenants WHERE id = :id", {"id": other["id"]}
+        )

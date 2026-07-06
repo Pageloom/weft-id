@@ -37,8 +37,7 @@ GRANT_TYPES_SUPPORTED = ["authorization_code", "refresh_token", "client_credenti
 # union of the token-envelope claims added by the ID-token minter
 # (services.oidc.tokens) and the scope-gated identity claims produced by the
 # shared assembler (services.oidc.claims). Kept in step with those two modules
-# so discovery never advertises a claim the provider cannot emit. The `groups`
-# claim is deferred to Iteration 4 alongside the `groups` scope.
+# so discovery never advertises a claim the provider cannot emit.
 CLAIMS_SUPPORTED = [
     # Envelope claims (from the ID-token minter / userinfo endpoint).
     "sub",
@@ -57,6 +56,8 @@ CLAIMS_SUPPORTED = [
     # email-scope claims.
     "email",
     "email_verified",
+    # groups-scope claim (WeftID extension: effective, DAG-aware memberships).
+    "groups",
 ]
 
 

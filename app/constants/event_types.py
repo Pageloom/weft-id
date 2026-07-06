@@ -108,6 +108,8 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oauth2_client_role_changed": "OAuth2 B2B client service role changed",
     "oauth2_client_deactivated": "OAuth2 client application deactivated",
     "oauth2_client_reactivated": "OAuth2 client application reactivated",
+    # OIDC Provider
+    "oidc_signing_key_rotated": "OIDC signing key rotated",
     # Settings & Configuration
     "privileged_domain_added": "Privileged email domain added",
     "privileged_domain_deleted": "Privileged email domain removed",
@@ -366,6 +368,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oauth2_client_role_changed": "admin",
     "oauth2_client_deactivated": "admin",
     "oauth2_client_reactivated": "admin",
+    "oidc_signing_key_rotated": "admin",
     "privileged_domain_added": "admin",
     "privileged_domain_deleted": "admin",
     "tenant_certificate_lifetime_updated": "admin",

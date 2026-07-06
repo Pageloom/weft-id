@@ -217,6 +217,129 @@ class TestIdTokenIssuance:
         assert decoded["email_verified"] is False
 
 
+class TestRefreshTokenCarriesScope:
+    """The refresh_token grant must carry the originally-granted scope forward.
+
+    Regression: previously the refresh token stored `scope = NULL` and the
+    refreshed access token was minted without a scope, so `GET /userinfo`
+    returned only `sub` after a refresh, dropping every profile/email claim.
+    """
+
+    def test_userinfo_consistent_after_refresh(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        # 1. authorization_code grant for an oidc_enabled client with full scope.
+        code = _make_code(test_tenant, oidc_client, test_user, scope="openid profile email")
+        first = _exchange(client, test_tenant_host, oidc_client, code)
+        assert first.status_code == 200
+        refresh_token = first.json()["refresh_token"]
+        assert refresh_token
+
+        # 2. Use the refresh token to mint a new access token.
+        refresh_resp = client.post(
+            "/oauth2/token",
+            headers={"Host": test_tenant_host},
+            data={
+                "grant_type": "refresh_token",
+                "client_id": oidc_client["client_id"],
+                "client_secret": oidc_client["client_secret"],
+                "refresh_token": refresh_token,
+            },
+        )
+        assert refresh_resp.status_code == 200
+        refreshed_access = refresh_resp.json()["access_token"]
+        # This grant does not rotate the refresh token.
+        assert refresh_resp.json().get("refresh_token") is None
+
+        # 3. userinfo with the REFRESHED access token returns the full claim set.
+        userinfo = client.get(
+            "/userinfo",
+            headers={"Host": test_tenant_host, "Authorization": f"Bearer {refreshed_access}"},
+        )
+        assert userinfo.status_code == 200
+        body = userinfo.json()
+        assert body["sub"] == str(test_user["id"])
+        assert body["name"] == "Test User"
+        assert body["email"] == test_user["email"]
+        assert body["email_verified"] is True
+
+        # 4. The refreshed access token persists the original granted scope.
+        row = database.fetchone(
+            test_tenant["id"],
+            """
+            select scope from oauth2_tokens
+            where token_type = 'access' and client_id = :cid
+            order by created_at desc
+            limit 1
+            """,
+            {"cid": oidc_client["id"]},
+        )
+        assert row is not None
+        assert row["scope"] == "openid profile email"
+
+    def test_refresh_token_row_records_scope(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        """The refresh token row itself persists the granted scope at issuance."""
+        code = _make_code(test_tenant, oidc_client, test_user, scope="openid profile email")
+        resp = _exchange(client, test_tenant_host, oidc_client, code)
+        assert resp.status_code == 200
+
+        row = database.fetchone(
+            test_tenant["id"],
+            """
+            select scope from oauth2_tokens
+            where token_type = 'refresh' and client_id = :cid
+            order by created_at desc
+            limit 1
+            """,
+            {"cid": oidc_client["id"]},
+        )
+        assert row is not None
+        assert row["scope"] == "openid profile email"
+
+    def test_non_oidc_refresh_scope_stays_null(
+        self, client, test_tenant, test_tenant_host, normal_oauth2_client, test_user
+    ):
+        """Plain OAuth2 (no scope) is unaffected: refreshed token scope stays NULL."""
+        code = database.oauth2.create_authorization_code(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            client_id=normal_oauth2_client["id"],
+            user_id=test_user["id"],
+            redirect_uri="http://localhost:3000/callback",
+            scope=None,
+        )
+        first = _exchange(client, test_tenant_host, normal_oauth2_client, code)
+        assert first.status_code == 200
+        refresh_token = first.json()["refresh_token"]
+
+        refresh_resp = client.post(
+            "/oauth2/token",
+            headers={"Host": test_tenant_host},
+            data={
+                "grant_type": "refresh_token",
+                "client_id": normal_oauth2_client["client_id"],
+                "client_secret": normal_oauth2_client["client_secret"],
+                "refresh_token": refresh_token,
+            },
+        )
+        assert refresh_resp.status_code == 200
+
+        row = database.fetchone(
+            test_tenant["id"],
+            """
+            select scope from oauth2_tokens
+            where token_type = 'access' and client_id = :cid
+            order by created_at desc
+            limit 1
+            """,
+            {"cid": normal_oauth2_client["id"]},
+        )
+        assert row is not None
+        assert row["scope"] is None
+
+
 class TestAuthorizeStoresScopeAndNonce:
     """The authorize flow captures scope + nonce and persists them onto the code."""
 

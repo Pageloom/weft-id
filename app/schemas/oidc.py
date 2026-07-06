@@ -30,6 +30,40 @@ class JWKS(BaseModel):
     keys: list[JWK] = Field(default_factory=list, description="Public verification keys.")
 
 
+class OIDCProviderMetadata(BaseModel):
+    """OpenID Provider metadata (the discovery document), per OpenID Connect
+    Discovery 1.0, section 3.
+
+    Every endpoint URL is derived from the request host so the advertised
+    `issuer` and endpoints match the exact tenant host the relying party used.
+    Only capabilities actually implemented today are advertised; logout,
+    introspection, revocation, device grant, and dynamic registration are
+    deliberately omitted (they belong to the separate OIDC Hardening item).
+    """
+
+    issuer: str = Field(..., description="The tenant issuer (its https host).")
+    authorization_endpoint: str = Field(..., description="OAuth2 authorization endpoint URL.")
+    token_endpoint: str = Field(..., description="OAuth2 token endpoint URL.")
+    userinfo_endpoint: str = Field(..., description="OIDC userinfo endpoint URL.")
+    jwks_uri: str = Field(..., description="JWKS endpoint URL (public verification keys).")
+    scopes_supported: list[str] = Field(..., description="Scopes this provider recognises.")
+    response_types_supported: list[str] = Field(
+        ..., description="OAuth2 response types supported at the authorization endpoint."
+    )
+    grant_types_supported: list[str] = Field(
+        ..., description="OAuth2 grant types supported at the token endpoint."
+    )
+    subject_types_supported: list[str] = Field(
+        ..., description="Subject identifier types. Always ['public']."
+    )
+    id_token_signing_alg_values_supported: list[str] = Field(
+        ..., description="ID-token signing algorithms. Always ['RS256']."
+    )
+    claims_supported: list[str] = Field(
+        ..., description="Claims that may appear in ID tokens or userinfo responses."
+    )
+
+
 class OIDCSigningKeyRotationResult(BaseModel):
     """Result of an OIDC signing-key rotation.
 

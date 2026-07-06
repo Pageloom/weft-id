@@ -722,6 +722,26 @@ PAGES = [
         show_in_nav=False,
         creates_nav_level=False,
     ),
+    # OIDC discovery document. Public and tenant-resolved by request host; the
+    # issuer and endpoints are built from the host so they match the exact
+    # tenant surface the relying party used.
+    Page(
+        path="/.well-known/openid-configuration",
+        title="OIDC Discovery",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    # OIDC userinfo endpoint. PUBLIC at the page-access layer (like the SAML
+    # ACS endpoints); it enforces its own OAuth2 Bearer access-token check in
+    # the endpoint dependency rather than via page-role gating.
+    Page(
+        path="/userinfo",
+        title="OIDC UserInfo",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
     # Forward-auth handshake endpoints (machine/proxy + browser redirects).
     # These run on protected-domain portal hosts and the canonical tenant host;
     # they enforce their own crypto/grant checks (not page-role gating), so they

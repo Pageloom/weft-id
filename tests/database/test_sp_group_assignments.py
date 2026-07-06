@@ -1326,3 +1326,96 @@ def test_oauth2_client_grant_tenant_isolated(test_tenant, test_user):
         database.execute(
             database.UNSCOPED, "DELETE FROM tenants WHERE id = :id", {"id": other["id"]}
         )
+
+
+# -- OIDC client group-assignment CRUD helpers (Iteration 5) -------------------
+
+
+def test_create_oauth2_client_assignment(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    group = _create_group(tid, name="CRUD Create Group")
+
+    row = database.sp_group_assignments.create_oauth2_client_assignment(
+        tenant_id=tid,
+        tenant_id_value=str(tid),
+        oauth2_client_id=oidc["id"],
+        group_id=group["id"],
+        assigned_by=str(uid),
+    )
+    assert row is not None
+    assert str(row["oauth2_client_id"]) == str(oidc["id"])
+    assert str(row["group_id"]) == str(group["id"])
+
+
+def test_list_and_count_assignments_for_oauth2_client(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    g1 = _create_group(tid, name="AAA List Group")
+    g2 = _create_group(tid, name="BBB List Group")
+
+    database.sp_group_assignments.create_oauth2_client_assignment(
+        tid, str(tid), oidc["id"], g1["id"], str(uid)
+    )
+    database.sp_group_assignments.create_oauth2_client_assignment(
+        tid, str(tid), oidc["id"], g2["id"], str(uid)
+    )
+
+    rows = database.sp_group_assignments.list_assignments_for_oauth2_client(tid, oidc["id"])
+    assert [r["group_name"] for r in rows] == ["AAA List Group", "BBB List Group"]
+    assert rows[0]["group_type"] == "weftid"
+    assert database.sp_group_assignments.count_assignments_for_oauth2_client(tid, oidc["id"]) == 2
+
+
+def test_delete_oauth2_client_assignment(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    group = _create_group(tid, name="CRUD Delete Group")
+    database.sp_group_assignments.create_oauth2_client_assignment(
+        tid, str(tid), oidc["id"], group["id"], str(uid)
+    )
+
+    deleted = database.sp_group_assignments.delete_oauth2_client_assignment(
+        tid, oidc["id"], group["id"]
+    )
+    assert deleted == 1
+    assert database.sp_group_assignments.count_assignments_for_oauth2_client(tid, oidc["id"]) == 0
+    # Deleting again is a no-op.
+    assert (
+        database.sp_group_assignments.delete_oauth2_client_assignment(tid, oidc["id"], group["id"])
+        == 0
+    )
+
+
+def test_bulk_create_oauth2_client_assignments_skips_duplicates(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    g1 = _create_group(tid, name="Bulk G1")
+    g2 = _create_group(tid, name="Bulk G2")
+
+    # Pre-assign g1 so the bulk call must skip it.
+    database.sp_group_assignments.create_oauth2_client_assignment(
+        tid, str(tid), oidc["id"], g1["id"], str(uid)
+    )
+
+    created = database.sp_group_assignments.bulk_create_oauth2_client_assignments(
+        tid, str(tid), oidc["id"], [g1["id"], g2["id"]], str(uid)
+    )
+    assert created == 1
+    assert database.sp_group_assignments.count_assignments_for_oauth2_client(tid, oidc["id"]) == 2
+
+
+def test_bulk_create_oauth2_client_assignments_empty(test_tenant, test_user):
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    oidc = _create_oidc_client(tid, uid)
+    assert (
+        database.sp_group_assignments.bulk_create_oauth2_client_assignments(
+            tid, str(tid), oidc["id"], [], str(uid)
+        )
+        == 0
+    )

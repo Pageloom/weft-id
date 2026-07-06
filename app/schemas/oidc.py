@@ -5,6 +5,7 @@ iterations add discovery, ID-token, userinfo, and client-management schemas.
 """
 
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
@@ -61,6 +62,88 @@ class OIDCProviderMetadata(BaseModel):
     )
     claims_supported: list[str] = Field(
         ..., description="Claims that may appear in ID tokens or userinfo responses."
+    )
+
+
+# ============================================================================
+# OIDC client management schemas
+# ============================================================================
+
+
+class OIDCClientSettingsUpdate(BaseModel):
+    """Request to change a client's OIDC settings.
+
+    Both fields are optional; supply at least one. Sending only one field
+    leaves the other unchanged.
+    """
+
+    oidc_enabled: bool | None = Field(
+        None,
+        description=(
+            "Turn the client into an OpenID Provider relying party. When true, "
+            "the token endpoint issues signed ID tokens (with the openid scope) "
+            "and group-based access control is enforced at authorize time."
+        ),
+    )
+    available_to_all: bool | None = Field(
+        None,
+        description=(
+            "When true, every active tenant user may sign in to this OIDC client "
+            "and group assignments become organisational only. When false, only "
+            "members of assigned groups (and their descendants) may sign in."
+        ),
+    )
+
+
+class OIDCClientDiscoveryInfo(BaseModel):
+    """Read-only OIDC endpoint URLs for a tenant, for copying into a downstream app.
+
+    All URLs are derived from the request host so they match the exact tenant
+    surface the relying party will use.
+    """
+
+    issuer: str = Field(..., description="The tenant issuer (its https host).")
+    discovery_url: str = Field(
+        ...,
+        description="OpenID Connect discovery document URL (/.well-known/openid-configuration).",
+    )
+    jwks_uri: str = Field(..., description="JWKS endpoint URL (public verification keys).")
+    authorization_endpoint: str = Field(..., description="OAuth2 authorization endpoint URL.")
+    token_endpoint: str = Field(..., description="OAuth2 token endpoint URL.")
+    userinfo_endpoint: str = Field(..., description="OIDC userinfo endpoint URL.")
+
+
+class OIDCClientGroupAssignment(BaseModel):
+    """A single OIDC-client-to-group assignment."""
+
+    id: str
+    oauth2_client_id: str
+    group_id: str
+    group_name: str
+    group_description: str | None = None
+    group_type: str
+    assigned_by: str
+    assigned_at: datetime
+
+
+class OIDCClientGroupAssignmentList(BaseModel):
+    """List of group assignments for an OIDC client."""
+
+    items: list[OIDCClientGroupAssignment]
+    total: int
+
+
+class OIDCClientGroupAssignAdd(BaseModel):
+    """Request to assign a group to an OIDC client."""
+
+    group_id: str = Field(..., min_length=1, max_length=36)
+
+
+class OIDCClientGroupBulkAssign(BaseModel):
+    """Request to bulk-assign groups to an OIDC client."""
+
+    group_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(
+        ..., min_length=1, max_length=5000
     )
 
 

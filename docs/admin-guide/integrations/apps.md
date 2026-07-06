@@ -67,11 +67,16 @@ POST /oauth2/token
 grant_type=refresh_token&refresh_token=...&client_id=...&client_secret=...
 ```
 
+## Sign in with WeftID (OIDC)
+
+Apps can act as OpenID Connect relying parties, receiving a signed ID token and identity claims in addition to OAuth2 tokens. Enable OIDC from the app's detail page to get a discovery URL, scope-gated claims, and group-based access control. See [Sign in with WeftID (OIDC)](oidc-provider-setup.md).
+
 ## Managing an app
 
 Click the app name in the list to open its detail page. From there you can:
 
 - **Edit** the name, description, and redirect URIs
+- **Enable OIDC** -- Turn the app into an OpenID Connect provider (see [Sign in with WeftID (OIDC)](oidc-provider-setup.md)).
 - **Regenerate the client secret** -- Immediately invalidates the old secret. A new secret is shown once.
 - **Deactivate** -- Disables the client and revokes all active tokens. The app can be reactivated later.
 - **Reactivate** -- Re-enables a deactivated app. Users will need to re-authorize.

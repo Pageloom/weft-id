@@ -624,6 +624,11 @@ def test_app_detail_renders(test_admin_user, override_auth, mocker):
     mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
     mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
     mock_tmpl = mocker.patch(f"{ROUTERS_INTEGRATIONS}.templates.TemplateResponse")
+    # app_detail now also loads OIDC management context via the OIDC client service.
+    mock_oidc = mocker.patch(f"{ROUTERS_INTEGRATIONS}.oidc_client_service")
+    mock_oidc.get_client_discovery_info.return_value = MagicMock()
+    mock_oidc.list_client_group_assignments.return_value = MagicMock(items=[])
+    mock_oidc.list_available_groups_for_client.return_value = []
 
     mock_get.return_value = mock_client
     mock_ctx.return_value = {"request": MagicMock()}

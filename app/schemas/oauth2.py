@@ -71,6 +71,8 @@ class ClientResponse(BaseModel):
     redirect_uris: list[str] | None
     service_user_id: str | None
     is_active: bool = True
+    oidc_enabled: bool = False
+    available_to_all: bool = False
     created_at: datetime
 
 

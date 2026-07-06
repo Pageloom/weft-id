@@ -76,6 +76,7 @@ nav:
     - Integrations:
       - admin-guide/integrations/index.md
       - Apps: admin-guide/integrations/apps.md
+      - Sign in with WeftID (OIDC): admin-guide/integrations/oidc-provider-setup.md
       - B2B Service Accounts: admin-guide/integrations/b2b.md
     - Security:
       - admin-guide/security/index.md

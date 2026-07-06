@@ -4,8 +4,8 @@ from typing import Annotated
 
 import services.oauth2 as oauth2_service
 from api_dependencies import require_admin_api, require_super_admin_api
-from dependencies import get_tenant_id_from_request
-from fastapi import APIRouter, Depends, HTTPException
+from dependencies import build_requesting_user, get_tenant_id_from_request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from schemas.oauth2 import (
     B2BClientCreate,
     ClientResponse,
@@ -14,8 +14,17 @@ from schemas.oauth2 import (
     ClientWithSecret,
     NormalClientCreate,
 )
+from schemas.oidc import (
+    OIDCClientDiscoveryInfo,
+    OIDCClientGroupAssignAdd,
+    OIDCClientGroupAssignmentList,
+    OIDCClientGroupBulkAssign,
+    OIDCClientSettingsUpdate,
+)
 from services.exceptions import ServiceError
+from services.oidc import clients as oidc_client_service
 from utils.service_errors import translate_to_http_exception
+from utils.urls import tenant_base_url
 
 router = APIRouter(prefix="/api/v1/oauth2/clients", tags=["OAuth2 Clients"])
 
@@ -35,6 +44,8 @@ def _client_to_response(
             str(client["service_user_id"]) if client.get("service_user_id") else None
         ),
         "is_active": client.get("is_active", True),
+        "oidc_enabled": client.get("oidc_enabled", False),
+        "available_to_all": client.get("available_to_all", False),
         "created_at": client["created_at"],
     }
     if include_secret:
@@ -385,3 +396,187 @@ def reactivate_client(
         raise HTTPException(status_code=404, detail="Client not found")
 
     return _client_to_response(client)
+
+
+# =============================================================================
+# OIDC settings and group-based access control (normal / App clients only)
+# =============================================================================
+
+
+@router.patch("/{client_id}/oidc", response_model=ClientResponse)
+def update_oidc_settings(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    data: OIDCClientSettingsUpdate,
+):
+    """Update an App's OIDC settings.
+
+    Requires admin role. Applies only to normal (authorization-code) clients;
+    B2B service accounts return 400.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+
+    Request Body (both optional, supply at least one):
+        oidc_enabled: Turn the client into an OpenID Provider relying party.
+            When true, the token endpoint issues a signed RS256 ID token (when
+            the openid scope is requested) and group-based access control is
+            enforced at authorize time.
+        available_to_all: When true, every active tenant user may sign in and
+            group assignments become organisational only. When false, only
+            members of assigned groups (and their descendants) may sign in.
+
+    Note:
+        WeftID does not model a per-client allowed-scope allowlist. Released
+        claims are gated by the scopes the relying party REQUESTS at authorize
+        time; there is no per-client scope field to manage here.
+
+    Returns:
+        Updated client details.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        client = oidc_client_service.set_oidc_settings(
+            requesting_user,
+            client_id,
+            oidc_enabled=data.oidc_enabled,
+            available_to_all=data.available_to_all,
+        )
+        return _client_to_response(client)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/{client_id}/oidc/urls", response_model=OIDCClientDiscoveryInfo)
+def get_oidc_urls(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+):
+    """Get the tenant's OIDC endpoint URLs to configure in the downstream app.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+
+    Returns:
+        Read-only URLs derived from the request host: issuer, discovery_url
+        (/.well-known/openid-configuration), jwks_uri, authorization_endpoint,
+        token_endpoint, userinfo_endpoint.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        return oidc_client_service.get_client_discovery_info(
+            requesting_user, client_id, tenant_base_url(request)
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/{client_id}/groups", response_model=OIDCClientGroupAssignmentList)
+def list_oidc_client_groups(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+):
+    """List groups assigned to an OIDC client.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+
+    Returns:
+        items (each with id, oauth2_client_id, group_id, group_name,
+        group_description, group_type, assigned_by, assigned_at) and total.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        return oidc_client_service.list_client_group_assignments(requesting_user, client_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{client_id}/groups", status_code=status.HTTP_201_CREATED)
+def assign_oidc_client_group(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    data: OIDCClientGroupAssignAdd,
+):
+    """Assign a group to an OIDC client.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+
+    Request Body:
+        group_id: UUID of the group to grant access.
+
+    Returns:
+        The created assignment.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        return oidc_client_service.assign_client_to_group(requesting_user, client_id, data.group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{client_id}/groups/bulk", status_code=status.HTTP_201_CREATED)
+def bulk_assign_oidc_client_groups(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    data: OIDCClientGroupBulkAssign,
+):
+    """Bulk-assign groups to an OIDC client.
+
+    Requires admin role. Duplicate assignments are silently skipped.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+
+    Request Body:
+        group_ids: List of group UUIDs to grant access.
+
+    Returns:
+        {"status": "ok", "assigned": <count of new assignments>}
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        count = oidc_client_service.bulk_assign_client_to_groups(
+            requesting_user, client_id, data.group_ids
+        )
+        return {"status": "ok", "assigned": count}
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.delete("/{client_id}/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_oidc_client_group(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    group_id: str,
+):
+    """Remove a group assignment from an OIDC client.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+        group_id: UUID of the group to revoke.
+
+    Returns:
+        204 No Content on success.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        oidc_client_service.remove_client_group_assignment(requesting_user, client_id, group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)

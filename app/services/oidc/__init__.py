@@ -9,6 +9,7 @@ emit event logs, and private key material never leaves this layer.
 """
 
 from services.oidc.claims import build_claims, parse_scope
+from services.oidc.discovery import build_discovery_metadata
 from services.oidc.keys import (
     ActiveSigningKey,
     cleanup_previous_signing_key,
@@ -17,6 +18,7 @@ from services.oidc.keys import (
     rotate_signing_key,
 )
 from services.oidc.tokens import ID_TOKEN_EXPIRY, issue_id_token
+from services.oidc.userinfo import get_userinfo
 
 __all__ = [
     "ActiveSigningKey",
@@ -28,4 +30,6 @@ __all__ = [
     "parse_scope",
     "issue_id_token",
     "ID_TOKEN_EXPIRY",
+    "build_discovery_metadata",
+    "get_userinfo",
 ]

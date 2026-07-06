@@ -72,6 +72,7 @@ def create_refresh_token(
     tenant_id_value: str,
     client_id: str,
     user_id: str,
+    scope: str | None = None,
 ) -> tuple[str, str]:
     """
     Create an OAuth2 refresh token.
@@ -81,6 +82,9 @@ def create_refresh_token(
         tenant_id_value: The actual tenant ID value to store
         client_id: OAuth2 client UUID (not client_id string!)
         user_id: User ID this token acts as
+        scope: Granted space-delimited scope string (optional; persisted so
+            the scope can be carried forward onto access tokens minted by the
+            refresh_token grant, keeping userinfo claims consistent)
 
     Returns:
         Tuple of (plain text refresh token, refresh token ID)
@@ -97,10 +101,10 @@ def create_refresh_token(
         tenant_id,
         """
         insert into oauth2_tokens (
-            tenant_id, token_hash, token_type, client_id, user_id, expires_at
+            tenant_id, token_hash, token_type, client_id, user_id, expires_at, scope
         )
         values (
-            :tenant_id, :token_hash, 'refresh', :client_id, :user_id, :expires_at
+            :tenant_id, :token_hash, 'refresh', :client_id, :user_id, :expires_at, :scope
         )
         returning id
         """,
@@ -110,6 +114,7 @@ def create_refresh_token(
             "client_id": client_id,
             "user_id": user_id,
             "expires_at": expires_at,
+            "scope": scope,
         },
     )
 
@@ -128,7 +133,10 @@ def validate_token(token: str, tenant_id: TenantArg | None = None) -> dict | Non
         tenant_id: Tenant ID to scope the search (required for RLS compliance)
 
     Returns:
-        Dict with user_id, tenant_id, client_id, expires_at if valid, None otherwise
+        Dict with user_id, tenant_id, client_id, expires_at, scope if valid,
+        None otherwise. `scope` is the space-delimited granted-scope string
+        persisted at issuance (may be None for pre-OIDC / non-scoped tokens);
+        the userinfo endpoint uses it to gate which claims are released.
     """
     if tenant_id is None:
         # Tenant ID is required due to RLS policies
@@ -138,7 +146,7 @@ def validate_token(token: str, tenant_id: TenantArg | None = None) -> dict | Non
     tokens = fetchall(
         tenant_id,
         """
-        select id, token_hash, user_id, tenant_id, client_id, expires_at
+        select id, token_hash, user_id, tenant_id, client_id, expires_at, scope
         from oauth2_tokens
         where token_type = 'access'
           and expires_at > now()
@@ -154,6 +162,7 @@ def validate_token(token: str, tenant_id: TenantArg | None = None) -> dict | Non
                 "tenant_id": token_record["tenant_id"],
                 "client_id": token_record["client_id"],
                 "expires_at": token_record["expires_at"],
+                "scope": token_record["scope"],
             }
 
     return None
@@ -169,13 +178,16 @@ def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> 
         client_id: OAuth2 client UUID (must match token's client_id)
 
     Returns:
-        Dict with id, user_id, tenant_id if valid, None otherwise
+        Dict with id, user_id, tenant_id, scope if valid, None otherwise.
+        `scope` is the space-delimited granted-scope string persisted at
+        issuance (may be None for pre-OIDC / non-scoped tokens); the
+        refresh_token grant carries it onto the refreshed access token.
     """
     # Find all refresh tokens for this client
     tokens = fetchall(
         tenant_id,
         """
-        select id, token_hash, user_id, tenant_id
+        select id, token_hash, user_id, tenant_id, scope
         from oauth2_tokens
         where token_type = 'refresh'
           and client_id = :client_id
@@ -191,6 +203,7 @@ def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> 
                 "id": token_record["id"],
                 "user_id": token_record["user_id"],
                 "tenant_id": token_record["tenant_id"],
+                "scope": token_record["scope"],
             }
 
     return None

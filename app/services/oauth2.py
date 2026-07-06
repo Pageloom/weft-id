@@ -123,6 +123,7 @@ def create_refresh_token(
     tenant_id: str,
     client_id: str,
     user_id: str,
+    scope: str | None = None,
 ) -> tuple[str, str]:
     """
     Create a refresh token.
@@ -131,6 +132,8 @@ def create_refresh_token(
         tenant_id: Tenant ID
         client_id: Internal client UUID
         user_id: User UUID
+        scope: Optional granted space-delimited scope string (persisted so the
+            refresh_token grant can carry it onto refreshed access tokens)
 
     Returns:
         Tuple of (refresh_token_string, refresh_token_id)
@@ -140,6 +143,7 @@ def create_refresh_token(
         tenant_id_value=tenant_id,
         client_id=client_id,
         user_id=user_id,
+        scope=scope,
     )
 
 
@@ -191,7 +195,8 @@ def validate_refresh_token(
         client_id: Internal client UUID
 
     Returns:
-        Token data dict with user_id and id, or None if invalid
+        Token data dict with id, user_id, tenant_id and the persisted granted
+        scope, or None if invalid
     """
     return database.oauth2.validate_refresh_token(
         tenant_id=tenant_id,

@@ -386,11 +386,13 @@ def token_endpoint(
 
         granted_scope = code_data.get("scope")
 
-        # Create refresh token
+        # Create refresh token (carrying the granted scope so the refresh_token
+        # grant can mint access tokens with the same scope)
         refresh_token_str, refresh_token_id = oauth2_service.create_refresh_token(
             tenant_id=tenant_id,
             client_id=client["id"],
             user_id=code_data["user_id"],
+            scope=granted_scope,
         )
 
         # Create access token (carrying the granted scope for downstream userinfo)
@@ -456,12 +458,16 @@ def token_endpoint(
                 },
             )
 
-        # Create new access token (linked to refresh token)
+        # Create new access token (linked to refresh token). Carry forward the
+        # scope granted at authorization so downstream userinfo keeps returning
+        # the same claims across refreshes. This grant does not rotate the
+        # refresh token, so there is no rotated token to re-persist scope onto.
         access_token_str = oauth2_service.create_access_token(
             tenant_id=tenant_id,
             client_id=client["id"],
             user_id=token_data["user_id"],
             parent_token_id=token_data["id"],
+            scope=token_data.get("scope"),
         )
 
         return TokenResponse(

@@ -59,6 +59,7 @@ oauth2_client_updated
 oauth2_user_tokens_revoked
 oidc_id_token_issued
 oidc_signing_key_rotated
+oidc_userinfo_accessed
 passkey_auth_failure
 passkey_auth_success
 passkey_deleted

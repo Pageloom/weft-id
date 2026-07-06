@@ -135,6 +135,70 @@ def get_current_user_api(
     )
 
 
+def get_oidc_userinfo_token(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict:
+    """Authenticate an OIDC userinfo request via its OAuth2 Bearer access token.
+
+    Unlike `get_current_user_api`, this accepts ONLY a Bearer access token
+    (never a session cookie) and signals failures the way the OIDC/OAuth2 spec
+    requires for a protected resource (RFC 6750): a missing credential yields a
+    bare `WWW-Authenticate: Bearer` challenge, while a malformed / expired /
+    revoked / unknown token yields `WWW-Authenticate: Bearer error="invalid_token"`.
+
+    Reuses `database.oauth2.validate_token`, the same bearer-validation path the
+    rest of the API uses, so token expiry/revocation are honoured identically.
+
+    Returns:
+        The validated token data (`user_id`, `client_id`, `scope`, ...), with the
+        client's public metadata attached under `client` for the caller.
+
+    Raises:
+        HTTPException: 401 with the appropriate `WWW-Authenticate` challenge.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        # No credentials presented: challenge without an error code (RFC 6750 3.1).
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = authorization.split(" ", 1)[1].strip()
+
+    # Bound the token length before any hashing work (pre-auth input).
+    if not token or len(token) > _MAX_BEARER_TOKEN_LEN:
+        raise _invalid_token_error()
+
+    token_data = database.oauth2.validate_token(token, tenant_id)
+    if not token_data:
+        raise _invalid_token_error()
+
+    # Resolve the client so the caller can record which application accessed the
+    # identity, and set the API client context for event-log attribution.
+    client = database.oauth2.get_client_by_id(tenant_id, str(token_data["client_id"]))
+    if client:
+        set_api_client_context(
+            client_id=client["client_id"],
+            client_name=client["name"],
+            client_type=client["client_type"],
+        )
+        token_data["client"] = client
+
+    return token_data
+
+
+def _invalid_token_error() -> HTTPException:
+    """Build the RFC 6750 `invalid_token` 401 for a bad bearer credential."""
+    return HTTPException(
+        status_code=401,
+        detail="Invalid or expired token",
+        headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
+    )
+
+
 def require_admin_api(
     user: Annotated[dict, Depends(get_current_user_api)],
 ) -> dict:

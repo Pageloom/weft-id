@@ -645,6 +645,24 @@ def test_validate_access_token_success(test_tenant, normal_oauth2_client, test_u
     assert str(result["tenant_id"]) == str(test_tenant["id"])
     assert str(result["client_id"]) == str(normal_oauth2_client["id"])
     assert "expires_at" in result
+    # No scope was granted at issuance.
+    assert result["scope"] is None
+
+
+def test_validate_access_token_returns_granted_scope(test_tenant, normal_oauth2_client, test_user):
+    """validate_token surfaces the persisted granted scope for userinfo gating."""
+    token = database.oauth2.create_access_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        scope="openid profile email",
+    )
+
+    result = database.oauth2.validate_token(token, test_tenant["id"])
+
+    assert result is not None
+    assert result["scope"] == "openid profile email"
 
 
 def test_validate_access_token_invalid(test_tenant):

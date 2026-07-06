@@ -12,6 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 2 | SP/proxy bulk cross-tenant group injection (OIDC path fixed); Upload-auth temp-file leak (warning-ignored, tracked) |
+| Enhancement | 3 | OIDC signing-key rotation surface; OIDC "Deactivated" badge copy; OIDC provider browser e2e (all deferred from OIDC final review) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
@@ -119,6 +120,59 @@ this needs a coordinated change. When fixed, remove the `filterwarnings` ignore.
 
 **Files Affected:** `app/routers/saml_idp/admin.py` (and the other 5 `UploadFile`
 routes share the latent pattern), `app/middleware/csrf.py`, `pyproject.toml`
+
+---
+
+## [ENHANCEMENT] OIDC signing-key rotation has no operator-facing surface
+
+**Found in:** `app/services/oidc/keys.py` (`rotate_signing_key`, `cleanup_previous_signing_key`)
+**Discovered:** 2026-07-06 (OIDC feature final review)
+**Category:** API-first / operability
+**Decision:** Deferred to the "OIDC Hardening & Certification" backlog item (user call, 2026-07-06).
+
+**Description:** Per-tenant OIDC signing-key rotation is fully implemented at the
+service + DB layer (super-admin authorization, overlap grace window, emits
+`oidc_signing_key_rotated`) but nothing invokes it — no `/api/v1` endpoint, CLI
+command, or background job. Keys still work (lazy provisioning), but an operator
+cannot manually rotate a tenant's key or trigger retired-key cleanup. This is an
+API-first coverage gap for an implemented capability.
+
+**Suggested fix:** Expose rotation (and `cleanup_previous_signing_key`) via a
+super-admin `/api/v1` endpoint and/or a `python -m app.cli` command, and wire a
+background sweep for expired retired keys. Bundle with the OIDC Hardening item.
+
+---
+
+## [ENHANCEMENT] OAuth2 App status badge reads "Inactive" for a deactivated app
+
+**Found in:** `app/templates/integrations_app_detail.html` (and the apps list view)
+**Discovered:** 2026-07-06 (OIDC feature final review, tech-writer)
+**Category:** Copy consistency
+**Decision:** Deferred to a separate cross-cutting copy pass (user call, 2026-07-06).
+
+**Description:** A deactivated App shows a status badge labelled "Inactive" while
+every action verb around it says "Deactivate/Reactivate". Per the project's
+"deactivated" terminology preference, the badge for a deactivated app should read
+"Deactivated"; "inactive" should be reserved for the idle condition. Pre-existing
+and shared across the apps list + detail views (not introduced by the OIDC
+feature), so a correct fix touches shared client-status copy in both places.
+
+---
+
+## [ENHANCEMENT] No browser-level e2e for the OIDC provider flow
+
+**Found in:** `tests/e2e/` (coverage gap)
+**Discovered:** 2026-07-06 (OIDC feature final review, test)
+**Category:** Test coverage
+**Decision:** Deferred (user call, 2026-07-06). The full flow is covered at the
+TestClient integration level; this is defense-in-depth.
+
+**Description:** The e2e suite has no Playwright test driving a real browser
+through `/oauth2/authorize` (session-cookie boundary) → token exchange →
+`/userinfo` (bearer boundary) for an `oidc_enabled` client. Worth a single
+happy-path e2e if the OIDC surface grows. Note: refresh tokens intentionally do
+NOT re-evaluate group access (standard OAuth2 semantics, documented in
+`app/services/oidc/access.py`) — that is by design, not a gap.
 
 ---
 

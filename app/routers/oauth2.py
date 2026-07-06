@@ -9,7 +9,7 @@ import oauth2
 import services.oauth2 as oauth2_service
 import services.oidc as oidc_service
 from dependencies import get_tenant_id_from_request, require_current_user
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from middleware.csrf import make_csrf_token_func
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
@@ -39,8 +39,8 @@ def authorize_page(
     state: str | None = None,
     code_challenge: str | None = None,
     code_challenge_method: str | None = None,
-    scope: str | None = None,
-    nonce: str | None = None,
+    scope: Annotated[str | None, Query(max_length=500)] = None,
+    nonce: Annotated[str | None, Query(max_length=512)] = None,
 ):
     """
     OAuth2 authorization endpoint - show authorization page.

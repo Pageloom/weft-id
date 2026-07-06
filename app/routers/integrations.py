@@ -358,7 +358,7 @@ def app_toggle_oidc(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     client_id: str,
-    oidc_enabled: str = Form("false"),
+    oidc_enabled: Annotated[str, Form(max_length=50)] = "false",
 ):
     """Enable or disable OIDC (OpenID Provider) for an App."""
     if not has_page_access("/admin/integrations/apps", user.get("role")):
@@ -383,7 +383,7 @@ def app_toggle_available_to_all(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     client_id: str,
-    available_to_all: str = Form("false"),
+    available_to_all: Annotated[str, Form(max_length=50)] = "false",
 ):
     """Toggle the 'available to all users' access mode for an OIDC App."""
     if not has_page_access("/admin/integrations/apps", user.get("role")):
@@ -408,7 +408,7 @@ def app_add_group(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     client_id: str,
-    group_id: str = Form(""),
+    group_id: Annotated[str, Form(max_length=50)] = "",
 ):
     """Assign a group to an OIDC App."""
     if not has_page_access("/admin/integrations/apps", user.get("role")):

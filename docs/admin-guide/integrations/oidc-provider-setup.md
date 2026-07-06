@@ -57,7 +57,7 @@ OIDC-enabled apps enforce access control at login, mirroring the [SAML service p
 * **Group-based access** (default) -- Only members of assigned groups, and members of their descendant groups, can sign in. Assign groups in the **Assigned Groups** panel on the app detail page.
 * **Available to all users** -- Every active tenant user can sign in. Toggle this in the **Access Mode** panel. Group assignments remain visible but are organizational only.
 
-A user denied access sees an error at the consent step and is never issued a code or token. Denials are recorded in the audit log.
+A denied user sees an access-denied error instead of the consent screen and is never issued a code or token. Denials are recorded in the audit log.
 
 ## Managing OIDC via the API
 

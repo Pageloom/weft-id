@@ -307,6 +307,58 @@ class TestRefreshTokenCarriesScope:
         assert row is not None
         assert row["scope"] == "openid profile email"
 
+    def test_groups_claim_survives_refresh(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        """SEAM: the DAG-aware `groups` claim (Iteration 4) must survive the
+        refresh-token scope carry-forward (Iteration 2) and reappear at userinfo.
+
+        A refresh with the `groups` scope carried forward must yield an access
+        token whose userinfo still releases effective (ancestor-inclusive) group
+        names, not just profile/email. This locks the interaction the per-scope
+        refresh test (profile/email only) does not cover.
+        """
+        parent = database.groups.create_group(
+            tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name="RefreshDivision"
+        )
+        child = database.groups.create_group(
+            tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name="RefreshSquad"
+        )
+        database.groups.add_group_relationship(
+            test_tenant["id"], test_tenant["id"], parent["id"], child["id"]
+        )
+        database.groups.add_group_member(
+            test_tenant["id"], test_tenant["id"], child["id"], test_user["id"]
+        )
+
+        code = _make_code(test_tenant, oidc_client, test_user, scope="openid groups")
+        first = _exchange(client, test_tenant_host, oidc_client, code)
+        assert first.status_code == 200
+        refresh_token = first.json()["refresh_token"]
+
+        refresh_resp = client.post(
+            "/oauth2/token",
+            headers={"Host": test_tenant_host},
+            data={
+                "grant_type": "refresh_token",
+                "client_id": oidc_client["client_id"],
+                "client_secret": oidc_client["client_secret"],
+                "refresh_token": refresh_token,
+            },
+        )
+        assert refresh_resp.status_code == 200
+        refreshed_access = refresh_resp.json()["access_token"]
+
+        userinfo = client.get(
+            "/userinfo",
+            headers={"Host": test_tenant_host, "Authorization": f"Bearer {refreshed_access}"},
+        )
+        assert userinfo.status_code == 200
+        body = userinfo.json()
+        assert body["sub"] == str(test_user["id"])
+        # Effective, DAG-aware membership survives the refresh carry-forward.
+        assert set(body["groups"]) == {"RefreshDivision", "RefreshSquad"}
+
     def test_refresh_token_row_records_scope(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user
     ):
@@ -433,3 +485,30 @@ class TestAuthorizeStoresScopeAndNonce:
         decoded = jwt.decode(resp.json()["id_token"], options={"verify_signature": False})
         assert decoded["nonce"] == "capture-me"
         assert decoded["name"] == "Test User"  # profile scope was captured
+
+    def test_authorize_rejects_oversized_scope_and_nonce(
+        self, client, test_tenant_host, test_user, oidc_client, override_auth
+    ):
+        # scope/nonce are length-bounded on the GET handler (max 500/512) so an
+        # oversized value is rejected up front rather than stored in the session
+        # and only caught by the DB CHECK at POST time.
+        override_auth(test_user)
+        base = {
+            "client_id": oidc_client["client_id"],
+            "redirect_uri": "http://localhost:3000/callback",
+        }
+        oversized_scope = client.get(
+            "/oauth2/authorize",
+            headers={"Host": test_tenant_host},
+            params={**base, "scope": "openid " + "x" * 600},
+            follow_redirects=False,
+        )
+        assert oversized_scope.status_code == 422
+
+        oversized_nonce = client.get(
+            "/oauth2/authorize",
+            headers={"Host": test_tenant_host},
+            params={**base, "nonce": "n" * 600},
+            follow_redirects=False,
+        )
+        assert oversized_nonce.status_code == 422

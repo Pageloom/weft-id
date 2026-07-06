@@ -140,7 +140,12 @@ def _provision(tenant_id: str, actor_user_id: str | None) -> dict:
         created_by=actor_user_id,
         algorithm=_ALGORITHM,
     )
-    if row is None:  # pragma: no cover - insert failure is not expected
+    if row is None:
+        # A concurrent first-fetch won the `on conflict (tenant_id) do nothing`
+        # race; our insert was a no-op. Re-select the winner's key rather than
+        # failing -- provisioning is idempotent from the caller's view.
+        row = database.oidc.get_signing_key(tenant_id)
+    if row is None:  # pragma: no cover - neither insert nor re-select yielded a key
         raise ValidationError(
             message="Failed to provision OIDC signing key",
             code="oidc_signing_key_provision_failed",

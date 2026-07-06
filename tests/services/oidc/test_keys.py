@@ -10,6 +10,7 @@ RLS scoping is exercised.
 import json
 from datetime import UTC, datetime, timedelta
 from typing import cast
+from uuid import uuid4
 
 import database
 import jwt
@@ -17,6 +18,7 @@ import pytest
 from jwt.algorithms import RSAAlgorithm
 from services import oidc as oidc_service
 from services.exceptions import ForbiddenError, ValidationError
+from services.oidc import tokens as tokens_service
 from services.types import RequestingUser
 from utils.saml import decrypt_private_key
 
@@ -50,6 +52,20 @@ class TestLazyProvisioning:
         assert active.algorithm == "RS256"
         assert "BEGIN PRIVATE KEY" in active.private_key_pem
         assert "BEGIN PUBLIC KEY" in active.public_key_pem
+
+    def test_provision_reselects_the_winner_on_conflict_race(self, test_tenant, monkeypatch):
+        # Two concurrent first-fetches: the winner inserts the key; the loser's
+        # `on conflict do nothing` insert returns None. Simulate the loser by
+        # forcing create_signing_key to return None, and assert _provision
+        # re-selects the existing key rather than raising.
+        from services.oidc import keys as keys_mod
+
+        winner = oidc_service.get_active_signing_key(str(test_tenant["id"]))
+        monkeypatch.setattr(database.oidc, "create_signing_key", lambda **kwargs: None)
+
+        row = keys_mod._provision(str(test_tenant["id"]), None)
+
+        assert row["kid"] == winner.kid
 
 
 class TestEncryptionAtRest:
@@ -123,6 +139,46 @@ class TestRotation:
         new_active = oidc_service.get_active_signing_key(str(test_tenant["id"]))
         assert new_active.kid != original.kid
         assert new_active.private_key_pem != original.private_key_pem
+
+    def test_inflight_id_token_still_verifies_after_rotation(self, test_tenant, test_user):
+        """SEAM: an ID token minted just before a rotation must still verify
+        against the post-rotation JWKS via the retained previous key.
+
+        Guards the interaction between Iteration 1 (key rotation with overlap)
+        and Iteration 2 (ID-token minting): rotation must not strand tokens that
+        relying parties are still holding. This exercises the real crypto path
+        (sign with the active key, rotate, re-fetch JWKS, verify) so a bug that
+        mis-stored the retired public key would surface as a verification
+        failure rather than being masked by a kid-presence assertion.
+        """
+        tid = str(test_tenant["id"])
+        issuer = "https://rp.example.com"
+
+        # Mint a token with the currently-active key (the in-flight token).
+        token = tokens_service.issue_id_token(
+            tenant_id=tid,
+            issuer=issuer,
+            client_uuid=str(uuid4()),
+            client_id="rp-client",
+            user_id=str(test_user["id"]),
+            scopes={"openid"},
+        )
+        signed_kid = jwt.get_unverified_header(token)["kid"]
+
+        # Rotate: the active signing key changes, previous key stays in JWKS.
+        ru = _super_admin(test_tenant, test_user)
+        result = oidc_service.rotate_signing_key(ru, grace_period_hours=24)
+        assert result.previous_kid == signed_kid
+        assert result.kid != signed_kid
+
+        # The RP re-fetches the JWKS after rotation and still resolves the kid.
+        jwks = oidc_service.get_jwks(tid)
+        entry = next(k for k in jwks.keys if k.kid == signed_kid)
+        public_key = RSAAlgorithm.from_jwk(json.dumps(entry.model_dump()))
+        decoded = jwt.decode(
+            token, public_key, algorithms=["RS256"], audience="rp-client", issuer=issuer
+        )
+        assert decoded["sub"] == str(test_user["id"])
 
     def test_expired_previous_key_dropped_from_jwks(self, test_tenant, test_user):
         ru = _super_admin(test_tenant, test_user)

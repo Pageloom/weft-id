@@ -41,6 +41,11 @@ def create_signing_key(
 
     ``created_by`` is optional because the key may be lazily provisioned by
     an unauthenticated public JWKS fetch (no actor user).
+
+    Uses ``on conflict (tenant_id) do nothing`` so two concurrent first-fetches
+    can't both raise on the ``unique(tenant_id)`` constraint: the winner inserts
+    and returns its row, the loser gets ``None`` (and the caller re-selects the
+    winner's key).
     """
     return fetchone(
         tenant_id,
@@ -52,6 +57,7 @@ def create_signing_key(
             :tenant_id_value, :kid, :algorithm, :public_key_pem,
             :private_key_pem_enc, :created_by
         )
+        on conflict (tenant_id) do nothing
         returning {_COLUMNS}
         """,
         {

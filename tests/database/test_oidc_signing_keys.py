@@ -1,15 +1,13 @@
 """Integration tests for database.oidc.signing_keys.
 
 Covers CRUD, rotation, previous-key cleanup, RLS tenant isolation, and the
-UNIQUE-per-tenant constraint against the real Postgres schema.
+UNIQUE-per-tenant conflict handling against the real Postgres schema.
 """
 
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import database
-import psycopg
-import pytest
 
 
 def _create(tenant, kid="kid-a", created_by=None):
@@ -49,10 +47,17 @@ class TestCreateAndGet:
         assert row["kid"] == "kid-a"
         assert row["private_key_pem_enc"] == "enc-private-material"
 
-    def test_one_row_per_tenant(self, test_tenant):
-        _create(test_tenant, kid="kid-a")
-        with pytest.raises(psycopg.errors.UniqueViolation):
-            _create(test_tenant, kid="kid-b")
+    def test_one_row_per_tenant_conflict_is_noop(self, test_tenant):
+        # `on conflict (tenant_id) do nothing`: a second create for a tenant that
+        # already has a key does not raise (so concurrent first-fetches can't both
+        # 500) -- it returns None and leaves the existing key untouched.
+        first = _create(test_tenant, kid="kid-a")
+        assert first is not None
+        second = _create(test_tenant, kid="kid-b")
+        assert second is None
+        # The original key is preserved; the conflicting insert was a no-op.
+        row = database.oidc.get_signing_key(test_tenant["id"])
+        assert row["kid"] == "kid-a"
 
 
 class TestRotation:

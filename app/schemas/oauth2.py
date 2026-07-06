@@ -94,6 +94,14 @@ class TokenResponse(BaseModel):
     refresh_token: str | None = Field(
         None, description="Refresh token (not included for client credentials flow)"
     )
+    id_token: str | None = Field(
+        None,
+        description=(
+            "Signed RS256 OIDC ID token. Only present when the client is "
+            "oidc_enabled and the request included the openid scope; omitted "
+            "for plain OAuth2 clients."
+        ),
+    )
 
 
 class TokenErrorResponse(BaseModel):
@@ -122,6 +130,12 @@ class AuthorizeParams(BaseModel):
     code_challenge_method: str | None = Field(
         None, max_length=10, pattern="^(S256|plain)$", description="PKCE challenge method"
     )
+    scope: str | None = Field(
+        None, max_length=500, description="Space-delimited OAuth2/OIDC scopes"
+    )
+    nonce: str | None = Field(
+        None, max_length=512, description="OIDC nonce bound to the resulting ID token"
+    )
 
 
 class AuthorizeForm(BaseModel):
@@ -132,4 +146,6 @@ class AuthorizeForm(BaseModel):
     state: str | None = Field(None, max_length=2048)
     code_challenge: str | None = Field(None, max_length=128)
     code_challenge_method: str | None = Field(None, max_length=10)
+    scope: str | None = Field(None, max_length=500)
+    nonce: str | None = Field(None, max_length=512)
     action: str = Field(..., max_length=10, pattern="^(allow|deny)$")

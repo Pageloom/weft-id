@@ -11,6 +11,7 @@ def create_access_token(
     user_id: str,
     parent_token_id: str | None = None,
     is_client_credentials: bool = False,
+    scope: str | None = None,
 ) -> str:
     """
     Create an OAuth2 access token.
@@ -22,6 +23,8 @@ def create_access_token(
         user_id: User ID this token acts as
         parent_token_id: Refresh token ID (for access tokens from refresh flow)
         is_client_credentials: Whether this is a client credentials token (24h expiry)
+        scope: Granted space-delimited scope string (optional; persisted so
+            downstream userinfo can gate released claims by the token's scopes)
 
     Returns:
         Plain text access token (shown once)
@@ -42,11 +45,11 @@ def create_access_token(
         """
         insert into oauth2_tokens (
             tenant_id, token_hash, token_type, client_id, user_id,
-            expires_at, parent_token_id
+            expires_at, parent_token_id, scope
         )
         values (
             :tenant_id, :token_hash, 'access', :client_id, :user_id,
-            :expires_at, :parent_token_id
+            :expires_at, :parent_token_id, :scope
         )
         returning id
         """,
@@ -57,6 +60,7 @@ def create_access_token(
             "user_id": user_id,
             "expires_at": expires_at,
             "parent_token_id": parent_token_id,
+            "scope": scope,
         },
     )
 

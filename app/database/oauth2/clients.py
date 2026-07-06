@@ -152,7 +152,8 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
         tenant_id,
         """
         select id, tenant_id, client_id, client_secret_hash, client_type,
-               name, description, redirect_uris, service_user_id, is_active, created_at
+               name, description, redirect_uris, service_user_id, is_active,
+               oidc_enabled, created_at
         from oauth2_clients
         where client_id = :client_id
         """,
@@ -175,7 +176,7 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
         tenant_id,
         """
         select id, tenant_id, client_id, client_type, name, description,
-               redirect_uris, service_user_id, is_active, created_at
+               redirect_uris, service_user_id, is_active, oidc_enabled, created_at
         from oauth2_clients
         where id = :id
         """,

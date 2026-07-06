@@ -11,6 +11,8 @@ All functions:
 - Have no knowledge of HTTP concepts
 """
 
+from datetime import datetime
+
 import database
 from services.event_log import log_event
 from services.exceptions import ValidationError
@@ -46,6 +48,9 @@ def create_authorization_code(
     redirect_uri: str,
     code_challenge: str | None = None,
     code_challenge_method: str | None = None,
+    scope: str | None = None,
+    nonce: str | None = None,
+    auth_time: datetime | None = None,
 ) -> str:
     """
     Create an authorization code for OAuth2 authorization code flow.
@@ -57,6 +62,9 @@ def create_authorization_code(
         redirect_uri: Registered redirect URI
         code_challenge: Optional PKCE code challenge
         code_challenge_method: Optional PKCE method (S256 or plain)
+        scope: Optional OIDC/OAuth2 space-delimited scope string
+        nonce: Optional OIDC nonce to bind to the resulting ID token
+        auth_time: Optional user authentication time to record in the ID token
 
     Returns:
         Authorization code string
@@ -69,6 +77,9 @@ def create_authorization_code(
         redirect_uri=redirect_uri,
         code_challenge=code_challenge,
         code_challenge_method=code_challenge_method,
+        scope=scope,
+        nonce=nonce,
+        auth_time=auth_time,
     )
 
 
@@ -138,6 +149,7 @@ def create_access_token(
     user_id: str,
     parent_token_id: str | None = None,
     is_client_credentials: bool = False,
+    scope: str | None = None,
 ) -> str:
     """
     Create an access token.
@@ -148,6 +160,8 @@ def create_access_token(
         user_id: User UUID
         parent_token_id: Optional refresh token ID (for linked tokens)
         is_client_credentials: True if this is a client_credentials grant
+        scope: Optional granted space-delimited scope string (persisted so
+            downstream userinfo can gate released claims)
 
     Returns:
         Access token string
@@ -159,6 +173,7 @@ def create_access_token(
         user_id=user_id,
         parent_token_id=parent_token_id,
         is_client_credentials=is_client_credentials,
+        scope=scope,
     )
 
 

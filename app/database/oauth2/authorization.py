@@ -1,5 +1,7 @@
 """OAuth2 authorization code database operations."""
 
+from datetime import datetime
+
 import oauth2
 from database._core import TenantArg, execute, fetchall, fetchone
 
@@ -12,6 +14,9 @@ def create_authorization_code(
     redirect_uri: str,
     code_challenge: str | None = None,
     code_challenge_method: str | None = None,
+    scope: str | None = None,
+    nonce: str | None = None,
+    auth_time: datetime | None = None,
 ) -> str:
     """
     Create an authorization code for the authorization code flow.
@@ -24,6 +29,10 @@ def create_authorization_code(
         redirect_uri: Redirect URI for this authorization
         code_challenge: PKCE code challenge (optional)
         code_challenge_method: PKCE challenge method (optional)
+        scope: OIDC/OAuth2 space-delimited scope string (optional)
+        nonce: OIDC nonce to bind to the resulting ID token (optional)
+        auth_time: The user's authentication time to record in the ID token
+            (optional; the session login timestamp, else the code-issuance time)
 
     Returns:
         Plain text authorization code (shown once)
@@ -41,11 +50,13 @@ def create_authorization_code(
         """
         insert into oauth2_authorization_codes (
             tenant_id, code_hash, client_id, user_id, redirect_uri,
-            code_challenge, code_challenge_method, expires_at
+            code_challenge, code_challenge_method, expires_at,
+            scope, nonce, auth_time
         )
         values (
             :tenant_id, :code_hash, :client_id, :user_id, :redirect_uri,
-            :code_challenge, :code_challenge_method, :expires_at
+            :code_challenge, :code_challenge_method, :expires_at,
+            :scope, :nonce, :auth_time
         )
         returning id
         """,
@@ -58,6 +69,9 @@ def create_authorization_code(
             "code_challenge": code_challenge,
             "code_challenge_method": code_challenge_method,
             "expires_at": expires_at,
+            "scope": scope,
+            "nonce": nonce,
+            "auth_time": auth_time,
         },
     )
 
@@ -91,7 +105,8 @@ def validate_and_consume_code(
     codes = fetchall(
         tenant_id,
         """
-        select id, code_hash, user_id, tenant_id, code_challenge, code_challenge_method, expires_at
+        select id, code_hash, user_id, tenant_id, code_challenge, code_challenge_method,
+               expires_at, scope, nonce, auth_time
         from oauth2_authorization_codes
         where client_id = :client_id
           and redirect_uri = :redirect_uri
@@ -131,6 +146,9 @@ def validate_and_consume_code(
     return {
         "user_id": matching_code["user_id"],
         "tenant_id": matching_code["tenant_id"],
+        "scope": matching_code["scope"],
+        "nonce": matching_code["nonce"],
+        "auth_time": matching_code["auth_time"],
     }
 
 

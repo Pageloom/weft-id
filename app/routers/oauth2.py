@@ -2,17 +2,21 @@
 
 import secrets
 import time
+from datetime import UTC, datetime
 from typing import Annotated
 
 import oauth2
 import services.oauth2 as oauth2_service
+import services.oidc as oidc_service
 from dependencies import get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from middleware.csrf import make_csrf_token_func
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
+from services.oidc.claims import SCOPE_OPENID, parse_scope
 from utils.csp_nonce import get_csp_nonce
 from utils.templates import templates
+from utils.urls import tenant_base_url
 
 # Maximum age for authorization requests (10 minutes)
 AUTH_REQUEST_MAX_AGE_SECONDS = 600
@@ -35,6 +39,8 @@ def authorize_page(
     state: str | None = None,
     code_challenge: str | None = None,
     code_challenge_method: str | None = None,
+    scope: str | None = None,
+    nonce: str | None = None,
 ):
     """
     OAuth2 authorization endpoint - show authorization page.
@@ -47,6 +53,8 @@ def authorize_page(
         state: Optional state parameter
         code_challenge: Optional PKCE code challenge
         code_challenge_method: Optional PKCE challenge method (S256 or plain)
+        scope: Optional space-delimited OAuth2/OIDC scopes (e.g. "openid profile")
+        nonce: Optional OIDC nonce, bound to the resulting ID token
     """
     # Get client
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
@@ -115,6 +123,8 @@ def authorize_page(
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": code_challenge_method,
+        "scope": scope,
+        "nonce": nonce,
         "created_at": time.time(),
     }
     request.session["oauth2_auth_requests"] = auth_requests
@@ -179,6 +189,8 @@ def authorize_grant(
     state = stored_request["state"]
     code_challenge = stored_request["code_challenge"]
     code_challenge_method = stored_request["code_challenge_method"]
+    scope = stored_request.get("scope")
+    nonce = stored_request.get("nonce")
     created_at = stored_request["created_at"]
 
     # Delete from session immediately (one-time use). Reassign so the
@@ -231,6 +243,14 @@ def authorize_grant(
 
     # Handle approval - create authorization code
     if action == "allow":
+        # Record the user's authentication time for the OIDC `auth_time` claim.
+        # Prefer the session login timestamp (when they actually authenticated);
+        # fall back to the code-issuance time when it is unavailable.
+        session_start = request.session.get("session_start")
+        auth_time = (
+            datetime.fromtimestamp(session_start, UTC) if session_start else datetime.now(UTC)
+        )
+
         code = oauth2_service.create_authorization_code(
             tenant_id=tenant_id,
             client_id=client["id"],
@@ -238,6 +258,9 @@ def authorize_grant(
             redirect_uri=redirect_uri,
             code_challenge=code_challenge,
             code_challenge_method=code_challenge_method,
+            scope=scope,
+            nonce=nonce,
+            auth_time=auth_time,
         )
 
         # Redirect with authorization code
@@ -361,6 +384,8 @@ def token_endpoint(
                 },
             )
 
+        granted_scope = code_data.get("scope")
+
         # Create refresh token
         refresh_token_str, refresh_token_id = oauth2_service.create_refresh_token(
             tenant_id=tenant_id,
@@ -368,19 +393,37 @@ def token_endpoint(
             user_id=code_data["user_id"],
         )
 
-        # Create access token
+        # Create access token (carrying the granted scope for downstream userinfo)
         access_token_str = oauth2_service.create_access_token(
             tenant_id=tenant_id,
             client_id=client["id"],
             user_id=code_data["user_id"],
             parent_token_id=refresh_token_id,
+            scope=granted_scope,
         )
+
+        # Issue an OIDC ID token only when the client has opted into OIDC AND the
+        # request carried the `openid` scope. Plain OAuth2 clients are unaffected.
+        id_token_str: str | None = None
+        scopes = parse_scope(granted_scope)
+        if client.get("oidc_enabled") and SCOPE_OPENID in scopes:
+            id_token_str = oidc_service.issue_id_token(
+                tenant_id=tenant_id,
+                issuer=tenant_base_url(request),
+                client_uuid=str(client["id"]),
+                client_id=client["client_id"],
+                user_id=code_data["user_id"],
+                scopes=scopes,
+                nonce=code_data.get("nonce"),
+                auth_time=code_data.get("auth_time"),
+            )
 
         return TokenResponse(
             access_token=access_token_str,
             token_type="Bearer",
             expires_in=int(oauth2.ACCESS_TOKEN_EXPIRY.total_seconds()),
             refresh_token=refresh_token_str,
+            id_token=id_token_str,
         )
 
     # ========================================================================

@@ -5,6 +5,7 @@ sp_signing_certificates). Future iterations add authorization-code scope,
 client, and token queries here.
 """
 
+from database.oidc.claims import get_user_claim_data
 from database.oidc.signing_keys import (
     clear_previous_signing_key,
     create_signing_key,
@@ -17,4 +18,5 @@ __all__ = [
     "create_signing_key",
     "rotate_signing_key",
     "clear_previous_signing_key",
+    "get_user_claim_data",
 ]

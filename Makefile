@@ -118,8 +118,8 @@ fix: ## Auto-fix lint/format, then check types and compliance
 	@echo "=== Lint ===" && poetry run ruff check --fix app/ tests/ \
 	&& echo "" && echo "=== Formatting ===" && poetry run ruff format app/ tests/ \
 	&& echo "" && echo "=== Type Check ===" && poetry run python -m mypy app/ \
-	&& echo "" && echo "=== Compliance Check ===" && python dev/compliance_check.py \
-	&& echo "" && echo "=== Dependency Security ===" && python dev/deps_check.py
+	&& echo "" && echo "=== Compliance Check ===" && poetry run python -m dev.compliance_check \
+	&& echo "" && echo "=== Dependency Security ===" && poetry run python -m dev.deps_check
 
 quality-all: ## Run all QA: code quality + unit tests + E2E tests
 	$(MAKE) check && $(MAKE) test && $(MAKE) e2e

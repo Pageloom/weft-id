@@ -4,6 +4,47 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [BUG] Four periodic worker sweeps were silent no-ops: UNSCOPED queries against strict-RLS tables saw zero rows
+
+**Fixed:** 2026-07-09 (oidc-provider branch, migration
+`0055_worker_sweep_unscoped_accessors.sql`).
+**Discovered:** 2026-07-09 (while building the OIDC signing-key cleanup sweep).
+**Severity:** High — certificate auto-rotation/cleanup (SP signing + per-IdP
+SP), SAML metadata refresh, and idle-user auto-inactivation had never run in
+any `appuser` deployment.
+
+**Root cause:** the `UNSCOPED` sentinel only skips `SET LOCAL app.tenant_id`;
+it does not bypass RLS. Tables with the strict tenant-isolation policy fail
+closed when the setting is unset, so the worker's plain UNSCOPED listing
+queries (`appuser`, `NOBYPASSRLS`) silently returned zero rows. The jobs
+logged "No X need rotation/cleanup" daily, unit tests mocked the DB functions,
+and no database integration test covered the real query path, so nothing
+caught it. Verified empirically before the fix: as unscoped `appuser` all four
+tables returned 0 rows while ground truth showed 5 certs, 3 IdPs, 490 users.
+
+**Fix:** migration 0055 adds four SECURITY DEFINER accessors (0040/0054
+pattern: owned by `appowner`, pinned `search_path`, minimal columns,
+`GRANT EXECUTE TO appuser`):
+
+- `list_sp_signing_certificates_for_rotation_unscoped()`
+- `list_idp_sp_certificates_for_rotation_unscoped()`
+- `list_saml_idps_with_metadata_url_unscoped()`
+- `list_tenants_with_inactivity_threshold_unscoped()`
+
+The four database functions (`sp_signing_certificates.get_certificates_needing_rotation_or_cleanup`,
+`saml.get_idp_sp_certificates_needing_rotation_or_cleanup`,
+`saml.get_idps_with_metadata_url`,
+`security.get_all_tenants_with_inactivity_threshold`) now select from them;
+the strict table policies are unchanged. New
+`tests/database/test_worker_sweep_accessors.py` (13 tests) exercises the real
+query path as `appuser`, including cross-tenant visibility — the exact
+regression that was invisible to mocked tests. The misleading
+"UNSCOPED gives cross-tenant visibility" entry in `.claude/THOUGHT_ERRORS.md`
+was rewritten to document the strict-vs-permissive policy split and require a
+database integration test for any new sweep.
+
+---
+
 ## [ENHANCEMENT] OIDC signing-key rotation has no operator-facing surface
 
 **Fixed:** 2026-07-09 (oidc-provider branch).

@@ -251,12 +251,32 @@ inside a `<script nonce="...">` body.
 
 ---
 
-## Cross-Tenant Queries: Use UNSCOPED, Not Raw Pool
+## Cross-Tenant Queries: UNSCOPED Does NOT Bypass RLS
 
-**Wrong:** `get_pool()` then `pool.connection()` to bypass RLS for background worker queries
-**Right:** `fetchall(UNSCOPED, query)` or `execute(UNSCOPED, query, params)`
+**Wrong:** Assuming `fetchall(UNSCOPED, "select ... from <rls_table>")` gives a worker cross-tenant visibility
+**Right:** Route cross-tenant sweeps through a SECURITY DEFINER accessor function (migrations 0040/0054/0055 pattern); use plain UNSCOPED only on tables whose policy explicitly permits unscoped reads
 
-The `UNSCOPED` sentinel skips the `SET LOCAL app.tenant_id` call, giving the query cross-tenant visibility. This is cleaner and uses the standard database helpers instead of duplicating connection management. Use it for background worker queries that need to scan across all tenants.
+The `UNSCOPED` sentinel only skips the `SET LOCAL app.tenant_id` call. The app
+connects as `appuser` (`NOBYPASSRLS`), and tables with the strict
+tenant-isolation policy (`tenant_id = NULLIF(current_setting(...), '')::uuid`)
+fail **closed** when the setting is unset — the query silently returns zero
+rows, no error. Four worker sweeps were silent no-ops for this reason until
+migration 0055.
+
+- **Permissive-when-unscoped tables** (CASE policy allowing unset scope):
+  `event_logs`, `export_files`, `forward_auth_nonces`, `scim_push_queue`,
+  `scim_sync_log`, `scim_inbound_tokens`, `sp_scim_credentials`,
+  `protected_domains` — plain UNSCOPED works. Also tables without RLS
+  (`tenants`, `bg_tasks`, `saml_debug_entries`).
+- **Everything else is strict.** A cross-tenant sweep needs a SECURITY
+  DEFINER function owned by `appowner` (table owners are exempt from RLS),
+  with pinned `search_path`, exposing only the columns the sweep needs, and
+  `GRANT EXECUTE ... TO appuser`.
+- A new sweep must have a **database integration test** that exercises the
+  real query path (tests connect as `appuser`, so a fail-closed query shows
+  up as an empty result). Mock-only job tests cannot catch this.
+
+Do still prefer the database helpers over `get_pool()` — that part is unchanged.
 
 ---
 

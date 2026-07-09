@@ -575,7 +575,7 @@ def set_user_idp(tenant_id: TenantArg, user_id: str, idp_id: str) -> int:
 
 
 # ============================================================================
-# Background Job Functions (No RLS)
+# Background Job Functions (cross-tenant, via SECURITY DEFINER accessor)
 # ============================================================================
 
 
@@ -584,7 +584,12 @@ def get_idps_with_metadata_url() -> list[dict]:
     Get all IdPs that have a metadata URL configured (across all tenants).
 
     Used by the background refresh job.
-    Uses UNSCOPED to bypass RLS (system task).
+
+    Routes through the `list_saml_idps_with_metadata_url_unscoped()` SECURITY
+    DEFINER function (migration 0055). The `saml_identity_providers` RLS
+    policy is strict and rejects unscoped reads, so a plain UNSCOPED select
+    here would silently return zero rows (the pre-0055 bug that made the
+    metadata refresh sweep a no-op).
 
     Returns:
         List of IdP dicts with tenant_id for scoping
@@ -593,7 +598,6 @@ def get_idps_with_metadata_url() -> list[dict]:
         UNSCOPED,
         """
         select id, tenant_id, name, metadata_url
-        from saml_identity_providers
-        where metadata_url is not null
+        from list_saml_idps_with_metadata_url_unscoped()
         """,
     )

@@ -258,7 +258,12 @@ def get_all_tenants_with_inactivity_threshold() -> list[dict]:
     Get all tenants that have inactivity threshold configured.
 
     This is a cross-tenant query used by the worker for auto-inactivation.
-    Uses UNSCOPED to bypass RLS (system task).
+
+    Routes through the `list_tenants_with_inactivity_threshold_unscoped()`
+    SECURITY DEFINER function (migration 0055). The `tenant_security_settings`
+    RLS policy is strict and rejects unscoped reads, so a plain UNSCOPED
+    select here would silently return zero rows (the pre-0055 bug that made
+    the idle-user inactivation sweep a no-op).
 
     Returns:
         List of dicts with tenant_id and inactivity_threshold_days
@@ -267,8 +272,7 @@ def get_all_tenants_with_inactivity_threshold() -> list[dict]:
         UNSCOPED,
         """
         select tenant_id, inactivity_threshold_days
-        from tenant_security_settings
-        where inactivity_threshold_days is not null
+        from list_tenants_with_inactivity_threshold_unscoped()
         """,
     )
 

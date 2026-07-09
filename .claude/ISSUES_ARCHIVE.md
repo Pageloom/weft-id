@@ -4,6 +4,39 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [BUG] SAML SP bulk group assign did not validate group tenant ownership (cross-tenant grant injection)
+
+**Fixed:** 2026-07-07 (oidc-provider branch).
+
+**Discovered:** 2026-07-06 (OIDC Iteration 5 review). The OIDC bulk path was
+fixed as part of that feature; this closes the pre-existing identical gap in the
+SAML SP bulk-assign path.
+
+**Severity:** Low (data-integrity / defense-in-depth; not an access-escalation).
+
+The single-assign paths validate that the target group belongs to the caller's
+tenant via `database.groups.get_group_by_id(tenant_id, group_id)` (RLS-scoped)
+and raise `NotFoundError` for a foreign group. `bulk_assign_sp_to_groups` passed
+`group_ids` straight to a bulk `INSERT`. The FK to `groups(id)` is satisfied by a
+row in *another* tenant (FK checks bypass RLS), so a grant row could be created
+with the caller's `tenant_id` but a foreign `group_id` — an invisible orphaned
+row plus a misleading audit entry. No access escalation (the resolver and
+listing joins are RLS-scoped, so the foreign group has no visible members and the
+row is invisible).
+
+**Fix:** `app/services/service_providers/group_assignments.py::bulk_assign_sp_to_groups`
+now validates every group under the caller's RLS scope before the bulk insert and
+fails the whole batch closed (`NotFoundError`) if any group is foreign/unknown,
+mirroring the single-assign path and the OIDC bulk fix
+(`services.oidc.clients.bulk_assign_client_to_groups`). Regression test:
+`tests/services/test_sp_group_assignments.py::TestBulkAssignSPToGroups::test_foreign_group_rejected_and_fails_closed`.
+
+**Not a gap:** the proxy-app path has no bulk variant; its single-assign path
+(`services.proxy_apps.add_proxy_app_grant`) already validates group ownership. The
+original issue named a "proxy-app bulk path" that does not exist.
+
+---
+
 ## [COMPLIANCE] Latent UNSCOPED WITH CHECK permits cross-tenant writes (hardening)
 
 **Fixed:** 2026-06-23 (security/ssrf-and-more branch).

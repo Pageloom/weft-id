@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 2 | SP/proxy bulk cross-tenant group injection (OIDC path fixed); Upload-auth temp-file leak (warning-ignored, tracked) |
+| Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
 | Enhancement | 3 | OIDC signing-key rotation surface; OIDC "Deactivated" badge copy; OIDC provider browser e2e (all deferred from OIDC final review) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
@@ -46,46 +46,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
 
 ---
-
----
-
-## [BUG] SAML SP / proxy-app bulk group assign does not validate group tenant ownership (cross-tenant grant injection)
-
-**Found in:** `app/database/sp_group_assignments.py` (`bulk_create_assignments` for SPs, and the proxy-app bulk path)
-**Discovered:** 2026-07-06 (OIDC Iteration 5 review)
-**Severity:** Low (data-integrity / defense-in-depth; not an access-escalation)
-**Category:** Tenant Isolation
-
-**Status update (2026-07-06):** The **OIDC** bulk path
-(`app/services/oidc/clients.py::bulk_assign_client_to_groups`) — where this was
-first observed during Iteration 5 review — has been **FIXED**: it now validates
-every `group_id` under the caller's RLS scope before the bulk insert and fails
-the whole batch closed (`NotFoundError`) if any group is foreign, mirroring the
-single-assign path. Regression test:
-`tests/services/oidc/test_clients.py::TestCrossTenantManagementIsolation::test_bulk_cannot_assign_foreign_group_and_fails_closed`.
-What remains open is the **pre-existing** identical gap in the SAML SP and
-proxy-app bulk-assign paths, which this feature did not touch (out of scope).
-
-**Description:** The single-assignment paths validate that the target group
-belongs to the caller's tenant via `database.groups.get_group_by_id(tenant_id,
-group_id)` (RLS-scoped) and raise `NotFoundError` for a foreign group. The
-**bulk** SP/proxy paths perform no such per-group validation: they pass
-`group_ids` straight to a bulk `INSERT`. The FK to `groups(id)` is satisfied by
-a row in *another* tenant (FK checks bypass RLS), so a grant row is created with
-the caller's `tenant_id` but a `group_id` owned by a different tenant.
-
-**Impact:** No access escalation — the resolver `user_can_access_app` joins
-`group_memberships` (RLS-scoped to the caller's tenant), so a foreign group has
-no visible members and grants access to no one, and the listing JOIN to `groups`
-is RLS-scoped so the row is invisible. The observable defects are (1) a silent
-"success" that produces an invisible, orphaned grant row, (2) an audit event
-referencing a foreign `group_id`, and (3) inconsistency with the single-assign
-path.
-
-**Suggested fix:** Apply the same fix already landed for OIDC to the SP and
-proxy-app bulk paths: validate group ownership before the bulk insert (or
-constrain the `INSERT ... SELECT` to `group_ids` visible under the tenant's RLS
-scope), failing the batch closed on any foreign group.
 
 ---
 

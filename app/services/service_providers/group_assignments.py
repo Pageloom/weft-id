@@ -201,6 +201,15 @@ def bulk_assign_sp_to_groups(
     if sp_row is None:
         raise NotFoundError(message="Service provider not found", code="sp_not_found")
 
+    # Validate every group is owned by this tenant before inserting, mirroring the
+    # single-assign path. The FK to groups(id) is satisfied by a row in any tenant
+    # (FK checks bypass RLS), so without this an admin could inject a grant row
+    # referencing a foreign group -- an invisible orphaned row plus a misleading
+    # audit entry. Fail the whole batch closed if any group is foreign/unknown.
+    for group_id in group_ids:
+        if database.groups.get_group_by_id(tenant_id, group_id) is None:
+            raise NotFoundError(message="Group not found", code="group_not_found")
+
     count = database.sp_group_assignments.bulk_create_assignments(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,

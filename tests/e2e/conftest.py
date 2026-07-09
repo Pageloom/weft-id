@@ -242,6 +242,36 @@ def forward_auth_config():
 
 
 # ---------------------------------------------------------------------------
+# Session-scoped OIDC provider testbed
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def oidc_config():
+    """Provision a tenant with an OIDC-enabled OAuth2 client and a member user.
+
+    Yields the JSON config dict (base_url, user_email, password, client_id,
+    client_secret, redirect_uri). Tears down before provisioning to clear
+    stale data from prior interrupted sessions, then tears down after.
+    """
+    _flush_memcached()
+
+    try:
+        _run_script("./dev/oidc_testbed.py", "--teardown-flag")
+    except Exception:
+        pass
+
+    stdout = _run_script("./dev/oidc_testbed.py", "--json-output")
+    config = json.loads(stdout)
+    yield config
+
+    try:
+        _run_script("./dev/oidc_testbed.py", "--teardown-flag")
+    except Exception as exc:
+        print(f"Warning: OIDC testbed teardown failed: {exc}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
 # Browser configuration
 # ---------------------------------------------------------------------------
 

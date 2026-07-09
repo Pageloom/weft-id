@@ -556,6 +556,48 @@ class TestBulkAssignSPToGroups:
         with pytest.raises(ForbiddenError):
             sp_service.bulk_assign_sp_to_groups(requesting_user, str(uuid4()), [str(uuid4())])
 
+    def test_foreign_group_rejected_and_fails_closed(self, make_requesting_user):
+        """A batch mixing an owned group with a foreign group is rejected wholesale.
+
+        The FK to groups(id) bypasses RLS, so without per-group validation an admin
+        could inject a grant row referencing a group owned by another tenant. The
+        service must validate every group under the caller's scope and fail the whole
+        batch closed (no bulk insert) if any group is foreign/unknown, mirroring the
+        single-assign path and the OIDC bulk fix.
+        """
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        owned_group_id = str(uuid4())
+        foreign_group_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+        sp_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        def resolve_group(_tenant_id, gid):
+            # The owned group resolves; the foreign group is invisible under RLS
+            # and returns None (as a real RLS-scoped query would).
+            if gid == owned_group_id:
+                return _make_group_row(tenant_id=tenant_id, group_id=owned_group_id)
+            return None
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = sp_row
+            mock_db.groups.get_group_by_id.side_effect = resolve_group
+
+            with pytest.raises(NotFoundError, match="Group not found"):
+                sp_service.bulk_assign_sp_to_groups(
+                    requesting_user, sp_id, [owned_group_id, foreign_group_id]
+                )
+
+            # Fail-closed: no bulk insert ran and no event was logged, so the
+            # valid group in the batch was not inserted either.
+            mock_db.sp_group_assignments.bulk_create_assignments.assert_not_called()
+            mock_log.assert_not_called()
+
 
 # =============================================================================
 # list_group_sp_assignments

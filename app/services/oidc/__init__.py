@@ -18,8 +18,11 @@ from services.oidc.discovery import build_discovery_metadata
 from services.oidc.keys import (
     ActiveSigningKey,
     cleanup_previous_signing_key,
+    force_cleanup_previous_signing_key,
     get_active_signing_key,
     get_jwks,
+    get_signing_key_status,
+    list_signing_keys_needing_cleanup,
     rotate_signing_key,
 )
 from services.oidc.tokens import ID_TOKEN_EXPIRY, issue_id_token
@@ -30,7 +33,10 @@ __all__ = [
     "get_active_signing_key",
     "get_jwks",
     "rotate_signing_key",
+    "get_signing_key_status",
     "cleanup_previous_signing_key",
+    "force_cleanup_previous_signing_key",
+    "list_signing_keys_needing_cleanup",
     "build_claims",
     "parse_scope",
     "SCOPE_DESCRIPTIONS",

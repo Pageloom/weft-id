@@ -110,6 +110,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oauth2_client_reactivated": "OAuth2 client application reactivated",
     # OIDC Provider
     "oidc_signing_key_rotated": "OIDC signing key rotated",
+    "oidc_signing_key_cleanup_completed": "OIDC retired signing key removed after grace period",
     "oidc_id_token_issued": "OIDC ID token issued to a downstream application",
     "oidc_userinfo_accessed": "OIDC userinfo claims released to a downstream application",
     "oidc_access_denied": "OIDC client login denied (no group grant)",
@@ -378,6 +379,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oauth2_client_deactivated": "admin",
     "oauth2_client_reactivated": "admin",
     "oidc_signing_key_rotated": "admin",
+    "oidc_signing_key_cleanup_completed": "admin",
     "oidc_id_token_issued": "operational",
     "oidc_userinfo_accessed": "operational",
     "oidc_access_denied": "security",

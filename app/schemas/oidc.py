@@ -159,3 +159,53 @@ class OIDCSigningKeyRotationResult(BaseModel):
     grace_period_ends_at: datetime = Field(
         ..., description="When the retired key stops being published in JWKS."
     )
+
+
+class OIDCSigningKeyStatus(BaseModel):
+    """Public metadata about the tenant's OIDC signing key.
+
+    Carries only non-sensitive metadata; no key material is returned. The kid
+    values are already public via the tenant's JWKS endpoint.
+    """
+
+    kid: str = Field(..., description="Active key id.")
+    algorithm: str = Field(..., description="Signing algorithm. Always 'RS256'.")
+    created_at: datetime = Field(..., description="When the active key was created.")
+    previous_kid: str | None = Field(
+        None, description="Retired key id still served in JWKS, if a rotation is in grace."
+    )
+    previous_created_at: datetime | None = Field(
+        None, description="When the retired key was originally created."
+    )
+    rotation_grace_period_ends_at: datetime | None = Field(
+        None, description="When the retired key stops being published in JWKS."
+    )
+    rotation_in_progress: bool = Field(
+        ..., description="True while a retired key is still within its grace period."
+    )
+
+
+class OIDCSigningKeyRotateRequest(BaseModel):
+    """Request body for a manual OIDC signing-key rotation."""
+
+    grace_period_hours: int = Field(
+        24,
+        ge=1,
+        le=720,
+        description=(
+            "How long the retired key stays published in JWKS (1 hour to 30 days). "
+            "Defaults to 24 hours."
+        ),
+    )
+
+
+class OIDCSigningKeyCleanupResult(BaseModel):
+    """Result of a manual retired-key cleanup request."""
+
+    cleaned_up: bool = Field(
+        ...,
+        description=(
+            "True if an expired retired key was removed; False if there was "
+            "no retired key or its grace period has not ended yet."
+        ),
+    )

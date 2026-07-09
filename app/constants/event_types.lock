@@ -65,6 +65,7 @@ oidc_client_group_assigned
 oidc_client_group_unassigned
 oidc_client_groups_bulk_assigned
 oidc_id_token_issued
+oidc_signing_key_cleanup_completed
 oidc_signing_key_rotated
 oidc_userinfo_accessed
 passkey_auth_failure

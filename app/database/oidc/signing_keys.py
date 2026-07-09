@@ -10,7 +10,7 @@ explicit tenant predicate. Private-key material is stored encrypted
 
 from typing import Any
 
-from database._core import TenantArg, fetchone
+from database._core import UNSCOPED, TenantArg, fetchall, fetchone
 
 _COLUMNS = """
     id, tenant_id, kid, algorithm, is_active,
@@ -113,6 +113,32 @@ def rotate_signing_key(
             "previous_created_at": previous_created_at,
             "rotation_grace_period_ends_at": rotation_grace_period_ends_at,
         },
+    )
+
+
+def get_signing_keys_needing_cleanup() -> list[dict]:
+    """Get all OIDC signing keys whose rotation grace period has expired.
+
+    This is a cross-tenant query used by the worker's periodic cleanup sweep.
+
+    Routes through the `list_oidc_signing_keys_needing_cleanup_unscoped()`
+    SECURITY DEFINER function (migration 0054). The function is owned by
+    `appowner` (the table owner, which is exempt from RLS) and exposes only
+    non-sensitive columns -- never key material. The `oidc_signing_keys`
+    table's RLS policy is strict and rejects unscoped reads, so this is the
+    only sanctioned cross-tenant accessor (same pattern as the SCIM cleanup
+    accessor from migration 0040).
+
+    Returns:
+        List of dicts with id, tenant_id, previous_kid, and
+        rotation_grace_period_ends_at.
+    """
+    return fetchall(
+        UNSCOPED,
+        """
+        select id, tenant_id, previous_kid, rotation_grace_period_ends_at
+        from list_oidc_signing_keys_needing_cleanup_unscoped()
+        """,
     )
 
 

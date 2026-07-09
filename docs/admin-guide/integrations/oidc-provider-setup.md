@@ -72,9 +72,19 @@ Everything above is available through the REST API under `/api/v1/oauth2/clients
 
 Redirect URIs are managed through the existing `PATCH /{client_id}` endpoint.
 
+## Signing key rotation
+
+WeftID signs ID tokens with a per-tenant RSA key, published at the JWKS URI. The key is provisioned automatically the first time it is needed; no setup is required. Operators can inspect and rotate it under `/api/v1/oidc/signing-key`:
+
+* `GET /api/v1/oidc/signing-key` -- current key metadata: `kid`, `algorithm`, `created_at`, plus the retired key's `previous_kid` and `rotation_grace_period_ends_at` while a rotation is in its grace window. Admin role required. No key material is ever returned.
+* `POST /api/v1/oidc/signing-key/rotate` -- generate a new signing key. Optional body `{"grace_period_hours": 24}` (1 to 720) controls how long the retired key stays published in the JWKS so relying parties can still verify in-flight ID tokens. Rotation is refused while a prior rotation is still within its grace period. Super admin role required.
+* `POST /api/v1/oidc/signing-key/cleanup` -- remove the retired key immediately after its grace period has ended, without waiting for the automatic sweep. A key still within its grace window is never removed. Super admin role required.
+
+New tokens are signed with the new key as soon as the rotation completes. Relying parties that fetch keys from the JWKS URI (the normal case) pick up the change automatically. A background sweep removes retired keys once their grace period lapses; rotations and cleanups are recorded in the audit log.
+
 ## Access requirements
 
-Admin or super admin role required to manage OIDC settings and group assignments.
+Admin or super admin role required to manage OIDC settings and group assignments. Signing-key rotation and cleanup require the super admin role.
 
 ## What is not supported
 

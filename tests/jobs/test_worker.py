@@ -48,7 +48,7 @@ def test_worker_init_defaults():
 
     assert worker.poll_interval == 10
     assert worker.running is True
-    assert len(worker._periodic_jobs) == 9
+    assert len(worker._periodic_jobs) == 10
 
     cleanup = worker._periodic_jobs[0]
     assert cleanup.name == "cleanup"
@@ -74,6 +74,11 @@ def test_worker_init_defaults():
     assert hibp_check.name == "HIBP breach check"
     assert hibp_check.interval == timedelta(hours=168)
     assert hibp_check.last_run is None
+
+    oidc_key_cleanup = worker._periodic_jobs[9]
+    assert oidc_key_cleanup.name == "OIDC signing-key cleanup"
+    assert oidc_key_cleanup.interval == timedelta(hours=1)
+    assert oidc_key_cleanup.last_run is None
 
 
 def test_worker_init_custom_values():
@@ -135,7 +140,7 @@ def test_check_periodic_jobs_first_run(mock_datetime):
 
     worker._check_periodic_jobs()
 
-    assert worker._run_job.call_count == 9
+    assert worker._run_job.call_count == 10
     for job in worker._periodic_jobs:
         assert job.last_run == now
 

@@ -10,10 +10,14 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
+| High | 1 | Silently-broken UNSCOPED worker sweeps (strict RLS returns 0 rows) |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
-| Enhancement | 3 | OIDC signing-key rotation surface; OIDC "Deactivated" badge copy; OIDC provider browser e2e (all deferred from OIDC final review) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
+
+Note: the three OIDC final-review enhancements (signing-key rotation surface,
+"Deactivated" badge copy, OIDC provider browser e2e) were resolved on the
+oidc-provider branch (2026-07-09); see ISSUES_ARCHIVE.md.
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
 consistency, private-helper import boundary, `list_active_tokens` dead code, canonical-email
@@ -29,6 +33,55 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
+
+---
+
+## [BUG] Four periodic worker sweeps are silent no-ops: UNSCOPED queries against strict-RLS tables see zero rows
+
+**Discovered:** 2026-07-09 (while building the OIDC signing-key cleanup sweep)
+**Severity:** High (certificate auto-rotation, certificate cleanup, SAML metadata refresh, and idle-user auto-inactivation have never run in any `appuser` deployment)
+**Verified:** empirically on the dev DB — as `appuser` with no `app.tenant_id` set, `sp_signing_certificates` / `saml_idp_sp_certificates` / `saml_identity_providers` / `tenant_security_settings` all return 0 rows while ground truth (as `postgres`) shows 5 certs, 3 IdPs, 143 SPs.
+
+The `UNSCOPED` sentinel only skips `SET LOCAL app.tenant_id`; it does not bypass
+RLS. Tables with the strict tenant-isolation policy
+(`tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid`) fail
+**closed** when the setting is unset, so any UNSCOPED select from the worker
+(which connects as `appuser`, `NOBYPASSRLS` — both dev and `deploy/docker-compose.yml`)
+returns nothing. Only tables with the permissive-when-unscoped CASE policy
+(`event_logs`, `export_files`, `forward_auth_nonces`, `scim_push_queue`,
+`scim_sync_log`, `scim_inbound_tokens`, `sp_scim_credentials`, `protected_domains`)
+or no RLS (`tenants`, `bg_tasks`, `saml_debug_entries`) are legitimately
+readable UNSCOPED.
+
+**Broken call sites (each makes its worker job a silent no-op):**
+
+1. `database/sp_signing_certificates.py` `get_certificates_needing_rotation_or_cleanup()` → `jobs/rotate_certificates.py` never auto-rotates or cleans up SP signing certificates
+2. `database/saml/idp_sp_certificates.py` `get_idp_sp_certificates_needing_rotation_or_cleanup()` → same job, per-IdP SP certificates
+3. `database/saml/providers.py` `get_idps_with_metadata_url()` → `jobs/refresh_saml_metadata.py` never refreshes any IdP metadata
+4. `database/security.py` `get_all_tenants_with_inactivity_threshold()` → `jobs/inactivate_idle_users.py` never inactivates idle users
+
+The jobs log "No X need rotation/cleanup" daily, which masks the failure. Unit
+tests mock these DB functions, and the database integration tests never covered
+them, so nothing caught it.
+
+**Sanctioned fix pattern (established by migration 0040):** route each
+cross-tenant sweep through a `SECURITY DEFINER` function owned by `appowner`
+(table owners are exempt from RLS), pinned `search_path`, exposing only the
+columns the sweep needs, `GRANT EXECUTE ... TO appuser`. Migration 0040 did
+exactly this for the SCIM sync-log cleanup after reverting the too-wide policy
+from 0037. Migration 0054 (OIDC signing-key cleanup) follows the same pattern.
+Fix is one migration adding four functions plus updating the four database
+functions to select from them, plus database-layer integration tests that
+exercise the real (non-mocked) query path as `appuser`.
+
+**Also fix while there:** the "Cross-Tenant Queries: Use UNSCOPED" entry in
+`.claude/THOUGHT_ERRORS.md` claims UNSCOPED "gives the query cross-tenant
+visibility" — true only for permissive-policy tables; it should point to the
+SECURITY DEFINER pattern for strict tables.
+
+**Files Affected:** `db-init/migrations/` (new), `app/database/sp_signing_certificates.py`,
+`app/database/saml/idp_sp_certificates.py`, `app/database/saml/providers.py`,
+`app/database/security.py`, `.claude/THOUGHT_ERRORS.md`, `tests/database/`
 
 ---
 
@@ -80,59 +133,6 @@ this needs a coordinated change. When fixed, remove the `filterwarnings` ignore.
 
 **Files Affected:** `app/routers/saml_idp/admin.py` (and the other 5 `UploadFile`
 routes share the latent pattern), `app/middleware/csrf.py`, `pyproject.toml`
-
----
-
-## [ENHANCEMENT] OIDC signing-key rotation has no operator-facing surface
-
-**Found in:** `app/services/oidc/keys.py` (`rotate_signing_key`, `cleanup_previous_signing_key`)
-**Discovered:** 2026-07-06 (OIDC feature final review)
-**Category:** API-first / operability
-**Decision:** Deferred to the "OIDC Hardening & Certification" backlog item (user call, 2026-07-06).
-
-**Description:** Per-tenant OIDC signing-key rotation is fully implemented at the
-service + DB layer (super-admin authorization, overlap grace window, emits
-`oidc_signing_key_rotated`) but nothing invokes it — no `/api/v1` endpoint, CLI
-command, or background job. Keys still work (lazy provisioning), but an operator
-cannot manually rotate a tenant's key or trigger retired-key cleanup. This is an
-API-first coverage gap for an implemented capability.
-
-**Suggested fix:** Expose rotation (and `cleanup_previous_signing_key`) via a
-super-admin `/api/v1` endpoint and/or a `python -m app.cli` command, and wire a
-background sweep for expired retired keys. Bundle with the OIDC Hardening item.
-
----
-
-## [ENHANCEMENT] OAuth2 App status badge reads "Inactive" for a deactivated app
-
-**Found in:** `app/templates/integrations_app_detail.html` (and the apps list view)
-**Discovered:** 2026-07-06 (OIDC feature final review, tech-writer)
-**Category:** Copy consistency
-**Decision:** Deferred to a separate cross-cutting copy pass (user call, 2026-07-06).
-
-**Description:** A deactivated App shows a status badge labelled "Inactive" while
-every action verb around it says "Deactivate/Reactivate". Per the project's
-"deactivated" terminology preference, the badge for a deactivated app should read
-"Deactivated"; "inactive" should be reserved for the idle condition. Pre-existing
-and shared across the apps list + detail views (not introduced by the OIDC
-feature), so a correct fix touches shared client-status copy in both places.
-
----
-
-## [ENHANCEMENT] No browser-level e2e for the OIDC provider flow
-
-**Found in:** `tests/e2e/` (coverage gap)
-**Discovered:** 2026-07-06 (OIDC feature final review, test)
-**Category:** Test coverage
-**Decision:** Deferred (user call, 2026-07-06). The full flow is covered at the
-TestClient integration level; this is defense-in-depth.
-
-**Description:** The e2e suite has no Playwright test driving a real browser
-through `/oauth2/authorize` (session-cookie boundary) → token exchange →
-`/userinfo` (bearer boundary) for an `oidc_enabled` client. Worth a single
-happy-path e2e if the OIDC surface grows. Note: refresh tokens intentionally do
-NOT re-evaluate group access (standard OAuth2 semantics, documented in
-`app/services/oidc/access.py`) — that is by design, not a gap.
 
 ---
 

@@ -4,6 +4,67 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [ENHANCEMENT] OIDC signing-key rotation has no operator-facing surface
+
+**Fixed:** 2026-07-09 (oidc-provider branch).
+**Discovered:** 2026-07-06 (OIDC feature final review). Originally deferred to
+the "OIDC Hardening & Certification" backlog item; pulled forward and
+implemented instead.
+
+The service/DB rotation machinery existed but nothing invoked it. Now exposed
+as a full operator surface:
+
+- **API:** `GET /api/v1/oidc/signing-key` (status, admin),
+  `POST /api/v1/oidc/signing-key/rotate` (super_admin, optional
+  `grace_period_hours` 1-720), `POST /api/v1/oidc/signing-key/cleanup`
+  (super_admin, grace-window-respecting) in
+  `app/routers/api/v1/oidc_signing_keys.py`.
+- **Background sweep:** hourly worker job
+  (`app/jobs/cleanup_oidc_signing_keys.py`) clears retired keys whose grace
+  period lapsed. Cross-tenant listing routes through a new SECURITY DEFINER
+  accessor (migration `0054_oidc_signing_key_cleanup_fn.sql`, following the
+  0040 precedent) because the table's strict RLS rejects unscoped reads —
+  discovering, in the process, that four pre-existing worker sweeps are
+  silently broken by the same mechanism (logged as a HIGH bug in ISSUES.md).
+- **Events:** cleanup now emits `oidc_signing_key_cleanup_completed`
+  (new event type + lockfile entry).
+- **Docs:** "Signing key rotation" section in
+  `docs/admin-guide/integrations/oidc-provider-setup.md`.
+- **Tests:** all four layers (database accessor incl. cross-tenant sweep
+  visibility as appuser, service status/force-cleanup/events, router
+  auth/shapes/bounds, job orchestration) plus worker registration.
+
+---
+
+## [ENHANCEMENT] OAuth2 App status badge reads "Inactive" for a deactivated app
+
+**Fixed:** 2026-07-09 (oidc-provider branch).
+**Discovered:** 2026-07-06 (OIDC feature final review, tech-writer).
+
+The deactivated-client status badge now reads "Deactivated" (was "Inactive"),
+matching the Deactivate/Reactivate action verbs and the project's terminology
+rule ("inactive" is reserved for the idle condition). Fixed in all four views
+sharing the copy: `integrations_apps.html`, `integrations_app_detail.html`,
+`integrations_b2b.html`, `integrations_b2b_detail.html`.
+
+---
+
+## [ENHANCEMENT] No browser-level e2e for the OIDC provider flow
+
+**Fixed:** 2026-07-09 (oidc-provider branch).
+**Discovered:** 2026-07-06 (OIDC feature final review, test).
+
+Added `tests/e2e/test_oidc_provider_e2e.py`: a Playwright happy path driving a
+real browser through `/oauth2/authorize` + consent (session-cookie boundary),
+exchanging the code at `/oauth2/token` over HTTPS, verifying the ID token
+against the published JWKS (kid-selected, issuer/audience/nonce checked), and
+calling `/userinfo` with the bearer token. Backed by a new self-contained
+testbed (`app/dev/oidc_testbed.py`: tenant + member user + OIDC-enabled
+client) wired as the session-scoped `oidc_config` fixture in
+`tests/e2e/conftest.py`.
+
+---
+
 ## [BUG] SAML SP bulk group assign did not validate group tenant ownership (cross-tenant grant injection)
 
 **Fixed:** 2026-07-07 (oidc-provider branch).

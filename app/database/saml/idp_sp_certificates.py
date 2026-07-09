@@ -13,7 +13,12 @@ def get_idp_sp_certificates_needing_rotation_or_cleanup() -> list[dict]:
     """Get all per-IdP SP certificates that need rotation or cleanup.
 
     This is a cross-tenant query used by the worker for auto-rotation.
-    Uses UNSCOPED to bypass RLS (system task).
+
+    Routes through the `list_idp_sp_certificates_for_rotation_unscoped()`
+    SECURITY DEFINER function (migration 0055). The `saml_idp_sp_certificates`
+    RLS policy is strict and rejects unscoped reads, so a plain UNSCOPED
+    select here would silently return zero rows (the pre-0055 bug that made
+    the rotation sweep a no-op).
 
     Returns two categories:
     - Needs rotation: expires within the tenant's configured window, no active rotation in progress
@@ -26,23 +31,8 @@ def get_idp_sp_certificates_needing_rotation_or_cleanup() -> list[dict]:
     return fetchall(
         UNSCOPED,
         """
-        select sc.id, sc.idp_id, sc.tenant_id, sc.expires_at,
-               sc.rotation_grace_period_ends_at,
-               'rotate' as action
-        from saml_idp_sp_certificates sc
-        left join tenant_security_settings tss
-            on tss.tenant_id = sc.tenant_id
-        where sc.expires_at < now() + make_interval(
-            days => coalesce(tss.certificate_rotation_window_days, 90)
-        )
-          and sc.rotation_grace_period_ends_at is null
-        union all
-        select sc.id, sc.idp_id, sc.tenant_id, sc.expires_at,
-               sc.rotation_grace_period_ends_at,
-               'cleanup' as action
-        from saml_idp_sp_certificates sc
-        where sc.rotation_grace_period_ends_at is not null
-          and sc.rotation_grace_period_ends_at < now()
+        select id, idp_id, tenant_id, expires_at, rotation_grace_period_ends_at, action
+        from list_idp_sp_certificates_for_rotation_unscoped()
         """,
     )
 

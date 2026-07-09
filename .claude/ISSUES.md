@@ -10,14 +10,14 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | Silently-broken UNSCOPED worker sweeps (strict RLS returns 0 rows) |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
 | Deps | 1 | pygments (LOW, blocked by upstream) |
 
 Note: the three OIDC final-review enhancements (signing-key rotation surface,
-"Deactivated" badge copy, OIDC provider browser e2e) were resolved on the
-oidc-provider branch (2026-07-09); see ISSUES_ARCHIVE.md.
+"Deactivated" badge copy, OIDC provider browser e2e) and the HIGH
+silently-broken-UNSCOPED-worker-sweeps bug were resolved on the oidc-provider
+branch (2026-07-09); see ISSUES_ARCHIVE.md.
 
 Note: the six inbound-SCIM final-review items (cross-IdP rebind audit event, actor
 consistency, private-helper import boundary, `list_active_tokens` dead code, canonical-email
@@ -33,55 +33,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [BUG] Four periodic worker sweeps are silent no-ops: UNSCOPED queries against strict-RLS tables see zero rows
-
-**Discovered:** 2026-07-09 (while building the OIDC signing-key cleanup sweep)
-**Severity:** High (certificate auto-rotation, certificate cleanup, SAML metadata refresh, and idle-user auto-inactivation have never run in any `appuser` deployment)
-**Verified:** empirically on the dev DB — as `appuser` with no `app.tenant_id` set, `sp_signing_certificates` / `saml_idp_sp_certificates` / `saml_identity_providers` / `tenant_security_settings` all return 0 rows while ground truth (as `postgres`) shows 5 certs, 3 IdPs, 143 SPs.
-
-The `UNSCOPED` sentinel only skips `SET LOCAL app.tenant_id`; it does not bypass
-RLS. Tables with the strict tenant-isolation policy
-(`tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid`) fail
-**closed** when the setting is unset, so any UNSCOPED select from the worker
-(which connects as `appuser`, `NOBYPASSRLS` — both dev and `deploy/docker-compose.yml`)
-returns nothing. Only tables with the permissive-when-unscoped CASE policy
-(`event_logs`, `export_files`, `forward_auth_nonces`, `scim_push_queue`,
-`scim_sync_log`, `scim_inbound_tokens`, `sp_scim_credentials`, `protected_domains`)
-or no RLS (`tenants`, `bg_tasks`, `saml_debug_entries`) are legitimately
-readable UNSCOPED.
-
-**Broken call sites (each makes its worker job a silent no-op):**
-
-1. `database/sp_signing_certificates.py` `get_certificates_needing_rotation_or_cleanup()` → `jobs/rotate_certificates.py` never auto-rotates or cleans up SP signing certificates
-2. `database/saml/idp_sp_certificates.py` `get_idp_sp_certificates_needing_rotation_or_cleanup()` → same job, per-IdP SP certificates
-3. `database/saml/providers.py` `get_idps_with_metadata_url()` → `jobs/refresh_saml_metadata.py` never refreshes any IdP metadata
-4. `database/security.py` `get_all_tenants_with_inactivity_threshold()` → `jobs/inactivate_idle_users.py` never inactivates idle users
-
-The jobs log "No X need rotation/cleanup" daily, which masks the failure. Unit
-tests mock these DB functions, and the database integration tests never covered
-them, so nothing caught it.
-
-**Sanctioned fix pattern (established by migration 0040):** route each
-cross-tenant sweep through a `SECURITY DEFINER` function owned by `appowner`
-(table owners are exempt from RLS), pinned `search_path`, exposing only the
-columns the sweep needs, `GRANT EXECUTE ... TO appuser`. Migration 0040 did
-exactly this for the SCIM sync-log cleanup after reverting the too-wide policy
-from 0037. Migration 0054 (OIDC signing-key cleanup) follows the same pattern.
-Fix is one migration adding four functions plus updating the four database
-functions to select from them, plus database-layer integration tests that
-exercise the real (non-mocked) query path as `appuser`.
-
-**Also fix while there:** the "Cross-Tenant Queries: Use UNSCOPED" entry in
-`.claude/THOUGHT_ERRORS.md` claims UNSCOPED "gives the query cross-tenant
-visibility" — true only for permissive-policy tables; it should point to the
-SECURITY DEFINER pattern for strict tables.
-
-**Files Affected:** `db-init/migrations/` (new), `app/database/sp_signing_certificates.py`,
-`app/database/saml/idp_sp_certificates.py`, `app/database/saml/providers.py`,
-`app/database/security.py`, `.claude/THOUGHT_ERRORS.md`, `tests/database/`
 
 ---
 

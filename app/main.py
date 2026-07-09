@@ -42,6 +42,7 @@ from routers.api.v1 import exports as exports_api  # noqa: E402
 from routers.api.v1 import groups as groups_api  # noqa: E402
 from routers.api.v1 import jobs as jobs_api  # noqa: E402
 from routers.api.v1 import oauth2_clients  # noqa: E402
+from routers.api.v1 import oidc_signing_keys as oidc_signing_keys_api  # noqa: E402
 from routers.api.v1 import protected_domains as protected_domains_api  # noqa: E402
 from routers.api.v1 import proxy_apps as proxy_apps_api  # noqa: E402
 from routers.api.v1 import reactivation as reactivation_api  # noqa: E402
@@ -170,6 +171,7 @@ app.include_router(exports_api.router)
 app.include_router(groups_api.router)
 app.include_router(jobs_api.router)
 app.include_router(oauth2_clients.router)
+app.include_router(oidc_signing_keys_api.router)
 app.include_router(protected_domains_api.router)
 app.include_router(proxy_apps_api.router)
 app.include_router(reactivation_api.router)

@@ -10,6 +10,7 @@ from database.oidc.signing_keys import (
     clear_previous_signing_key,
     create_signing_key,
     get_signing_key,
+    get_signing_keys_needing_cleanup,
     rotate_signing_key,
 )
 
@@ -18,5 +19,6 @@ __all__ = [
     "create_signing_key",
     "rotate_signing_key",
     "clear_previous_signing_key",
+    "get_signing_keys_needing_cleanup",
     "get_user_claim_data",
 ]

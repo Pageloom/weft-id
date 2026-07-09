@@ -92,6 +92,13 @@ def _load_scim_sync_log_cleanup() -> Any:
     return cleanup_scim_sync_log()
 
 
+def _load_oidc_signing_key_cleanup() -> Any:
+    """Import and run the retired OIDC signing-key cleanup job."""
+    from jobs.cleanup_oidc_signing_keys import cleanup_oidc_signing_keys
+
+    return cleanup_oidc_signing_keys()
+
+
 class PeriodicJob:
     """A periodic background job with interval-based scheduling."""
 
@@ -117,6 +124,7 @@ class Worker:
         hibp_check_interval_hours: int = 168,
         scim_push_interval_seconds: int = 60,
         scim_sync_log_cleanup_interval_hours: int = 24,
+        oidc_key_cleanup_interval_hours: int = 1,
     ) -> None:
         """Initialize the worker.
 
@@ -129,6 +137,7 @@ class Worker:
             hibp_check_interval_hours: Hours between HIBP breach checks (default: weekly)
             scim_push_interval_seconds: Seconds between outbound SCIM push drains
             scim_sync_log_cleanup_interval_hours: Hours between SCIM sync-log retention sweeps
+            oidc_key_cleanup_interval_hours: Hours between retired OIDC signing-key sweeps
         """
         self.poll_interval = poll_interval
         self.running = True
@@ -177,6 +186,11 @@ class Worker:
                 "SCIM sync-log retention cleanup",
                 _load_scim_sync_log_cleanup,
                 timedelta(hours=scim_sync_log_cleanup_interval_hours),
+            ),
+            PeriodicJob(
+                "OIDC signing-key cleanup",
+                _load_oidc_signing_key_cleanup,
+                timedelta(hours=oidc_key_cleanup_interval_hours),
             ),
         ]
 

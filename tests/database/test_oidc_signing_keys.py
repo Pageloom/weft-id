@@ -121,6 +121,79 @@ class TestRotation:
         assert row["previous_kid"] == "kid-old"
 
 
+class TestCleanupSweepQuery:
+    """get_signing_keys_needing_cleanup routes through the SECURITY DEFINER
+    accessor (migration 0054), so it must see expired-grace rows across
+    tenants even though the table's strict RLS policy rejects plain
+    unscoped reads (tests connect as appuser, proving the real worker
+    code path).
+    """
+
+    def _rotate(self, tenant, grace_ends_at):
+        database.oidc.rotate_signing_key(
+            tenant_id=tenant["id"],
+            new_kid="kid-new",
+            new_public_key_pem="new-pub",
+            new_private_key_pem_enc="new-enc",
+            previous_kid="kid-old",
+            previous_public_key_pem="old-pub",
+            previous_private_key_pem_enc="old-enc",
+            previous_created_at=datetime.now(UTC),
+            rotation_grace_period_ends_at=grace_ends_at,
+        )
+
+    def test_expired_grace_row_is_returned(self, test_tenant):
+        _create(test_tenant, kid="kid-old")
+        self._rotate(test_tenant, datetime.now(UTC) - timedelta(hours=1))
+
+        rows = database.oidc.get_signing_keys_needing_cleanup()
+        mine = [r for r in rows if str(r["tenant_id"]) == str(test_tenant["id"])]
+        assert len(mine) == 1
+        assert mine[0]["previous_kid"] == "kid-old"
+        # Only non-sensitive columns are exposed; no key material.
+        assert set(mine[0].keys()) == {
+            "id",
+            "tenant_id",
+            "previous_kid",
+            "rotation_grace_period_ends_at",
+        }
+
+    def test_active_grace_and_unrotated_rows_are_excluded(self, test_tenant):
+        _create(test_tenant, kid="kid-old")
+        rows = database.oidc.get_signing_keys_needing_cleanup()
+        assert [r for r in rows if str(r["tenant_id"]) == str(test_tenant["id"])] == []
+
+        self._rotate(test_tenant, datetime.now(UTC) + timedelta(hours=24))
+        rows = database.oidc.get_signing_keys_needing_cleanup()
+        assert [r for r in rows if str(r["tenant_id"]) == str(test_tenant["id"])] == []
+
+    def test_sees_expired_rows_across_tenants(self, test_tenant):
+        """The sweep must see every tenant's expired row in one query."""
+        _create(test_tenant, kid="kid-old")
+        self._rotate(test_tenant, datetime.now(UTC) - timedelta(hours=1))
+
+        other_subdomain = f"other-{uuid4().hex[:8]}"
+        other = database.fetchone(
+            database.UNSCOPED,
+            "INSERT INTO tenants (subdomain, name) VALUES (:s, :n) RETURNING id",
+            {"s": other_subdomain, "n": "Other Tenant"},
+        )
+        try:
+            _create({"id": other["id"]}, kid="kid-old")
+            self._rotate({"id": other["id"]}, datetime.now(UTC) - timedelta(hours=1))
+
+            rows = database.oidc.get_signing_keys_needing_cleanup()
+            tenant_ids = {str(r["tenant_id"]) for r in rows}
+            assert str(test_tenant["id"]) in tenant_ids
+            assert str(other["id"]) in tenant_ids
+        finally:
+            database.execute(
+                database.UNSCOPED,
+                "DELETE FROM tenants WHERE id = :id",
+                {"id": other["id"]},
+            )
+
+
 class TestTenantIsolation:
     def test_key_not_visible_under_other_tenant(self, test_tenant):
         """A tenant's key row must never resolve when scoped to another tenant."""

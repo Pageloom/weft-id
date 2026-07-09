@@ -262,6 +262,136 @@ class TestCleanup:
         assert row["created_by"] is None
 
 
+class TestSigningKeyStatus:
+    def test_status_provisions_and_reports_active_key(self, test_tenant, test_user):
+        ru = _super_admin(test_tenant, test_user)
+        ru["role"] = "admin"  # admin is sufficient for the read
+        status = oidc_service.get_signing_key_status(ru)
+        assert status.algorithm == "RS256"
+        assert status.kid
+        assert status.previous_kid is None
+        assert status.rotation_grace_period_ends_at is None
+        assert status.rotation_in_progress is False
+        # The read provisioned the key lazily with the requesting actor.
+        row = database.oidc.get_signing_key(test_tenant["id"])
+        assert str(row["created_by"]) == str(test_user["id"])
+
+    def test_status_reflects_rotation_in_progress(self, test_tenant, test_user):
+        ru = _super_admin(test_tenant, test_user)
+        original = oidc_service.get_active_signing_key(str(test_tenant["id"]))
+        result = oidc_service.rotate_signing_key(ru, grace_period_hours=24)
+
+        status = oidc_service.get_signing_key_status(ru)
+        assert status.kid == result.kid
+        assert status.previous_kid == original.kid
+        assert status.previous_created_at is not None
+        assert status.rotation_grace_period_ends_at is not None
+        assert status.rotation_in_progress is True
+
+    def test_status_shows_lapsed_grace_as_not_in_progress(self, test_tenant, test_user):
+        ru = _super_admin(test_tenant, test_user)
+        oidc_service.rotate_signing_key(ru, grace_period_hours=24)
+        database.execute(
+            test_tenant["id"],
+            "UPDATE oidc_signing_keys SET rotation_grace_period_ends_at = :past",
+            {"past": datetime.now(UTC) - timedelta(hours=1)},
+        )
+        status = oidc_service.get_signing_key_status(ru)
+        assert status.previous_kid is not None  # not yet swept
+        assert status.rotation_in_progress is False
+
+    def test_status_requires_admin(self, test_tenant, test_user):
+        ru = _super_admin(test_tenant, test_user)
+        ru["role"] = "user"
+        with pytest.raises(ForbiddenError):
+            oidc_service.get_signing_key_status(ru)
+
+    def test_status_tracks_activity(self, test_tenant, test_user, mocker):
+        spy = mocker.patch("services.oidc.keys.track_activity")
+        ru = _super_admin(test_tenant, test_user)
+        oidc_service.get_signing_key_status(ru)
+        spy.assert_called_once_with(str(test_tenant["id"]), str(test_user["id"]))
+
+    def test_status_never_exposes_key_material(self, test_tenant, test_user):
+        ru = _super_admin(test_tenant, test_user)
+        oidc_service.rotate_signing_key(ru, grace_period_hours=24)
+        serialized = oidc_service.get_signing_key_status(ru).model_dump_json()
+        assert "PRIVATE" not in serialized
+        assert "BEGIN PUBLIC KEY" not in serialized
+
+
+class TestForceCleanup:
+    def _expire_grace(self, test_tenant):
+        database.execute(
+            test_tenant["id"],
+            "UPDATE oidc_signing_keys SET rotation_grace_period_ends_at = :past",
+            {"past": datetime.now(UTC) - timedelta(hours=1)},
+        )
+
+    def test_force_cleanup_requires_super_admin(self, test_tenant, test_user):
+        ru = _super_admin(test_tenant, test_user)
+        ru["role"] = "admin"
+        with pytest.raises(ForbiddenError):
+            oidc_service.force_cleanup_previous_signing_key(ru)
+
+    def test_force_cleanup_clears_expired_retired_key(self, test_tenant, test_user):
+        ru = _super_admin(test_tenant, test_user)
+        oidc_service.rotate_signing_key(ru, grace_period_hours=24)
+        self._expire_grace(test_tenant)
+
+        assert oidc_service.force_cleanup_previous_signing_key(ru) is True
+        row = database.oidc.get_signing_key(test_tenant["id"])
+        assert row["previous_kid"] is None
+
+    def test_force_cleanup_respects_grace_window(self, test_tenant, test_user):
+        """A retired key still within grace is never force-cleared."""
+        ru = _super_admin(test_tenant, test_user)
+        original = oidc_service.get_active_signing_key(str(test_tenant["id"]))
+        oidc_service.rotate_signing_key(ru, grace_period_hours=24)
+
+        assert oidc_service.force_cleanup_previous_signing_key(ru) is False
+        row = database.oidc.get_signing_key(test_tenant["id"])
+        assert row["previous_kid"] == original.kid
+
+    def test_force_cleanup_returns_false_when_never_rotated(self, test_tenant, test_user):
+        ru = _super_admin(test_tenant, test_user)
+        oidc_service.get_active_signing_key(str(test_tenant["id"]))
+        assert oidc_service.force_cleanup_previous_signing_key(ru) is False
+
+    def test_force_cleanup_emits_event_with_actor(self, test_tenant, test_user, mocker):
+        ru = _super_admin(test_tenant, test_user)
+        original = oidc_service.get_active_signing_key(str(test_tenant["id"]))
+        oidc_service.rotate_signing_key(ru, grace_period_hours=24)
+        self._expire_grace(test_tenant)
+
+        spy = mocker.patch("services.oidc.keys.log_event")
+        oidc_service.force_cleanup_previous_signing_key(ru)
+        spy.assert_called_once()
+        kwargs = spy.call_args.kwargs
+        assert kwargs["event_type"] == "oidc_signing_key_cleanup_completed"
+        assert kwargs["artifact_type"] == "oidc_signing_key"
+        assert kwargs["actor_user_id"] == str(test_user["id"])
+        assert kwargs["metadata"]["previous_kid"] == original.kid
+
+    def test_sweep_cleanup_emits_event_with_system_actor(self, test_tenant, test_user, mocker):
+        from services.event_log import SYSTEM_ACTOR_ID
+
+        ru = _super_admin(test_tenant, test_user)
+        oidc_service.rotate_signing_key(ru, grace_period_hours=24)
+        self._expire_grace(test_tenant)
+
+        spy = mocker.patch("services.oidc.keys.log_event")
+        oidc_service.cleanup_previous_signing_key(str(test_tenant["id"]))
+        spy.assert_called_once()
+        assert spy.call_args.kwargs["actor_user_id"] == SYSTEM_ACTOR_ID
+
+    def test_cleanup_noop_emits_no_event(self, test_tenant, mocker):
+        oidc_service.get_active_signing_key(str(test_tenant["id"]))
+        spy = mocker.patch("services.oidc.keys.log_event")
+        assert oidc_service.cleanup_previous_signing_key(str(test_tenant["id"])) is False
+        spy.assert_not_called()
+
+
 class TestTenantIsolation:
     def test_each_tenant_gets_distinct_keys(self, test_tenant, second_test_tenant):
         jwks_a = oidc_service.get_jwks(str(test_tenant["id"]))

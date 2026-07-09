@@ -42,9 +42,10 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from jwt.algorithms import RSAAlgorithm
-from schemas.oidc import JWK, JWKS, OIDCSigningKeyRotationResult
-from services.auth import require_super_admin
-from services.event_log import log_event
+from schemas.oidc import JWK, JWKS, OIDCSigningKeyRotationResult, OIDCSigningKeyStatus
+from services.activity import track_activity
+from services.auth import require_admin, require_super_admin
+from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import ValidationError
 from services.types import RequestingUser
 from utils.saml import decrypt_private_key, encrypt_private_key
@@ -284,10 +285,89 @@ def rotate_signing_key(
     )
 
 
-def cleanup_previous_signing_key(tenant_id: str) -> bool:
+def get_signing_key_status(requesting_user: RequestingUser) -> OIDCSigningKeyStatus:
+    """Return public metadata about the tenant's OIDC signing key.
+
+    Authorization: Requires admin role.
+
+    Provisions the key lazily if the tenant never fetched its JWKS. Only
+    non-sensitive metadata is returned; the kid values are already public via
+    the JWKS endpoint and no key material leaves the service layer.
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    row = _get_or_provision(requesting_user["tenant_id"], requesting_user["id"])
+    grace_end = row.get("rotation_grace_period_ends_at")
+    return OIDCSigningKeyStatus(
+        kid=row["kid"],
+        algorithm=row["algorithm"],
+        created_at=row["created_at"],
+        previous_kid=row.get("previous_kid"),
+        previous_created_at=row.get("previous_created_at"),
+        rotation_grace_period_ends_at=grace_end,
+        rotation_in_progress=grace_end is not None and grace_end > datetime.now(UTC),
+    )
+
+
+def list_signing_keys_needing_cleanup() -> list[dict]:
+    """Return every tenant's signing-key row whose rotation grace period has ended.
+
+    System path for the worker's periodic sweep (no requesting user): rows
+    carry only non-sensitive metadata (id, tenant_id, previous_kid,
+    rotation_grace_period_ends_at), never key material. Not exposed through
+    any router.
+    """
+    return database.oidc.get_signing_keys_needing_cleanup()
+
+
+def cleanup_previous_signing_key(tenant_id: str, actor_user_id: str = SYSTEM_ACTOR_ID) -> bool:
     """Drop the previous key once its rotation grace period has ended.
 
+    Logs: ``oidc_signing_key_cleanup_completed`` (only when a key was cleared).
+
     Returns True if a stale previous key was cleared, False otherwise. Safe to
-    call repeatedly (idempotent). Intended for a future background sweep.
+    call repeatedly (idempotent). Called by the worker's periodic sweep (with
+    the default system actor) and by :func:`force_cleanup_previous_signing_key`
+    for the operator API path. A retired key still within its grace period is
+    never cleared.
     """
-    return database.oidc.clear_previous_signing_key(tenant_id) is not None
+    current = database.oidc.get_signing_key(tenant_id)
+    result = database.oidc.clear_previous_signing_key(tenant_id)
+    if result is None:
+        return False
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=actor_user_id,
+        artifact_type="oidc_signing_key",
+        artifact_id=str(result["id"]),
+        event_type="oidc_signing_key_cleanup_completed",
+        metadata={
+            "previous_kid": current.get("previous_kid") if current else None,
+            "grace_period_ended_at": (
+                str(current["rotation_grace_period_ends_at"])
+                if current and current.get("rotation_grace_period_ends_at")
+                else None
+            ),
+        },
+    )
+    return True
+
+
+def force_cleanup_previous_signing_key(requesting_user: RequestingUser) -> bool:
+    """Manually trigger retired-key cleanup for the tenant.
+
+    Authorization: Requires super_admin role.
+    Logs: ``oidc_signing_key_cleanup_completed`` (via
+    :func:`cleanup_previous_signing_key`, only when a key was cleared).
+
+    Returns True if an expired retired key was removed, False if there was no
+    retired key or its grace period has not ended yet (the grace window is
+    respected: cleanup never removes a key that relying parties may still need
+    for verification).
+    """
+    require_super_admin(requesting_user)
+    return cleanup_previous_signing_key(
+        requesting_user["tenant_id"], actor_user_id=requesting_user["id"]
+    )

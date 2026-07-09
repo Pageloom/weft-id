@@ -24,8 +24,8 @@ consistency, private-helper import boundary, `list_active_tokens` dead code, can
 validation, Pydantic `max_length`) plus the project-wide proxy-headers / forwarded-host trust
 boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHIVE.md.
 
-**Last security scan:** 2026-06-21 (targeted 60-day sweep of forward-auth proxy, inbound/outbound SCIM, WebAuthn, and user-attributes→SAML flow; forward-auth, inbound SCIM, and WebAuthn verified well-defended; 1 HIGH SSRF + 2 MEDIUM attribute-provenance + Low DiD bundle logged below)
-**Last compliance scan:** 2026-06-21 (automated checker clean, 0 violations across 1612 files; targeted 60-day manual sweep of SCIM, WebAuthn, attributes/auth-policy/settings, forward-auth proxy, and migrations 0031-0048; 6 warning-level judgment findings logged below, no blockers)
+**Last security scan:** 2026-06-21 (targeted 60-day sweep of forward-auth proxy, inbound/outbound SCIM, WebAuthn, and user-attributes→SAML flow; forward-auth, inbound SCIM, and WebAuthn verified well-defended; the 1 HIGH SSRF + 2 MEDIUM attribute-provenance + Low DiD bundle it found have since been resolved, see ISSUES_ARCHIVE.md)
+**Last compliance scan:** 2026-06-21 (automated checker clean, 0 violations across 1612 files; targeted 60-day manual sweep of SCIM, WebAuthn, attributes/auth-policy/settings, forward-auth proxy, and migrations 0031-0048; the 6 warning-level judgment findings have since been resolved, see ISSUES_ARCHIVE.md)
 **Last API coverage audit:** 2026-04-23 (3 gaps resolved: group clear relationships, IdP reimport XML, SAML debug entries)
 **Last dependency audit:** 2026-06-20 (cryptography 48.0.0→48.0.1, python-multipart 0.0.29→0.0.31, pip 26.1.1→26.1.2, msgpack 1.1.2→1.2.1, starlette 1.0.1→1.3.1 bumped, clearing all 6 HIGH/MED CVEs; full suite green; pygments still pinned `<2.20`, see [DEPS] entry below)
 **Last refactor scan:** 2026-03-21 (standard: new code since 2026-02-27, all categories; 5 new issues)
@@ -48,8 +48,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 - `idp_lifecycle.py` (~350 lines): group lifecycle and discovery
 - `idp_membership.py` (~350 lines): sync, base group membership, cross-IdP moves
 **Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
-
----
 
 ---
 

@@ -9,8 +9,7 @@ env:
   IMAGE_NAME: pageloom/weft-id
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   validate:

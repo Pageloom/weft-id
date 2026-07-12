@@ -58,8 +58,8 @@ pytest-playwright = "^0.8.0"
 pytest-testmon = "^2.2.0"
 pip = ">=26.0"
 zensical = "^0.0.28"
-pygments = ">=2.16,<2.20"  # 2.20.0 breaks pymdownx.superfences (filename=None crash)
-pymdown-extensions = ">=10.21.3"  # CVE-2026-46338, transitive via zensical
+pygments = ">=2.20.0"  # 2.20.0 carries the upstream fix for the Pygments advisory
+pymdown-extensions = ">=11.0.1"  # CVE-2026-46338; 11.x is what tolerates pygments 2.20
 httpx2 = "^2.4.0"
 
 [tool.poetry.scripts]

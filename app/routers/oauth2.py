@@ -71,8 +71,13 @@ def authorize_page(
             },
         )
 
-    # Verify client type is 'normal' (authorization code flow only)
-    if client["client_type"] != "normal":
+    # Verify client type is 'normal' (authorization code flow only) and that the
+    # client is active. A deactivated client must not render a WeftID-branded
+    # consent page or receive an authorization code, even though the token
+    # endpoint would later reject the exchange. The error text is identical to
+    # the client_type rejection so the page does not disclose whether a client_id
+    # exists-but-is-deactivated versus is-the-wrong-type.
+    if client["client_type"] != "normal" or not client.get("is_active", True):
         return templates.TemplateResponse(
             request,
             "oauth2_error.html",
@@ -250,8 +255,9 @@ def authorize_grant(
     # Get client
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
 
-    if not client or client["client_type"] != "normal":
-        # Invalid client, redirect with error
+    if not client or client["client_type"] != "normal" or not client.get("is_active", True):
+        # Invalid, wrong-type, or deactivated client: redirect with error and
+        # issue no authorization code (defense in depth alongside the GET check).
         return RedirectResponse(
             url=f"{redirect_uri}?error=unauthorized_client" + (f"&state={state}" if state else ""),
             status_code=303,
@@ -508,6 +514,28 @@ def token_endpoint(
                 detail={
                     "error": "invalid_grant",
                     "error_description": "Invalid or expired refresh token",
+                },
+            )
+
+        # Re-check group-based access before minting a fresh access token. Access
+        # is enforced only at authorize time, so without this a user whose grant
+        # was revoked (removed from the assigned group, or the client switched off
+        # available_to_all) could keep exchanging their refresh token for new
+        # access tokens for the full 30-day refresh window. Plain OAuth2 clients
+        # are never gated. Bounds exposure to the 1-hour access-token lifetime;
+        # revocation on grant withdrawal (services.oidc.clients) closes the gap.
+        if client.get("oidc_enabled") and not oidc_service.user_can_access_client(
+            tenant_id=tenant_id,
+            user_id=str(token_data["user_id"]),
+            client_uuid=str(client["id"]),
+            client_id=client["client_id"],
+            client_name=client.get("name"),
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "invalid_grant",
+                    "error_description": "Access has been revoked",
                 },
             )
 

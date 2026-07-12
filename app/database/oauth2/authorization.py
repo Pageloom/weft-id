@@ -3,7 +3,7 @@
 from datetime import datetime
 
 import oauth2
-from database._core import TenantArg, execute, fetchall, fetchone
+from database._core import TenantArg, execute, fetchone
 
 
 def create_authorization_code(
@@ -40,6 +40,7 @@ def create_authorization_code(
     # Generate authorization code
     code = oauth2.generate_opaque_token("auth")
     code_hash = oauth2.hash_token(code)
+    code_lookup = oauth2.token_lookup(code)
 
     # Calculate expiry
     expires_at = oauth2.calculate_expires_at(oauth2.AUTHORIZATION_CODE_EXPIRY)
@@ -49,12 +50,12 @@ def create_authorization_code(
         tenant_id,
         """
         insert into oauth2_authorization_codes (
-            tenant_id, code_hash, client_id, user_id, redirect_uri,
+            tenant_id, code_hash, code_lookup, client_id, user_id, redirect_uri,
             code_challenge, code_challenge_method, expires_at,
             scope, nonce, auth_time
         )
         values (
-            :tenant_id, :code_hash, :client_id, :user_id, :redirect_uri,
+            :tenant_id, :code_hash, :code_lookup, :client_id, :user_id, :redirect_uri,
             :code_challenge, :code_challenge_method, :expires_at,
             :scope, :nonce, :auth_time
         )
@@ -63,6 +64,7 @@ def create_authorization_code(
         {
             "tenant_id": tenant_id_value,
             "code_hash": code_hash,
+            "code_lookup": code_lookup,
             "client_id": client_id,
             "user_id": user_id,
             "redirect_uri": redirect_uri,
@@ -101,8 +103,10 @@ def validate_and_consume_code(
     Note:
         Authorization codes are deleted after use (one-time use).
     """
-    # Find all matching authorization codes for this client and redirect_uri
-    codes = fetchall(
+    # Resolve exactly one candidate row by the indexed lookup digest, then run
+    # Argon2 once on it (see oauth2.token_lookup). The client_id and redirect_uri
+    # filters keep the code bound to the client and callback it was issued for.
+    matching_code = fetchone(
         tenant_id,
         """
         select id, code_hash, user_id, tenant_id, code_challenge, code_challenge_method,
@@ -110,19 +114,17 @@ def validate_and_consume_code(
         from oauth2_authorization_codes
         where client_id = :client_id
           and redirect_uri = :redirect_uri
+          and code_lookup = :lookup
           and expires_at > now()
         """,
-        {"client_id": client_id, "redirect_uri": redirect_uri},
+        {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "lookup": oauth2.token_lookup(code),
+        },
     )
 
-    # Find the matching code by verifying hash
-    matching_code = None
-    for code_record in codes:
-        if oauth2.verify_token_hash(code, code_record["code_hash"]):
-            matching_code = code_record
-            break
-
-    if not matching_code:
+    if not matching_code or not oauth2.verify_token_hash(code, matching_code["code_hash"]):
         return None
 
     # Verify PKCE if code_challenge was provided during authorization

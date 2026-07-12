@@ -45,6 +45,42 @@ def _group(test_tenant, name="Svc Group"):
     )
 
 
+def _oidc_client(test_tenant, test_admin_user, *, available_to_all=False, name="Svc OIDC App"):
+    """A normal client flipped to oidc_enabled (and optionally available_to_all)."""
+    client = _client(test_tenant, test_admin_user, name=name)
+    database.execute(
+        test_tenant["id"],
+        "update oauth2_clients set oidc_enabled = true, available_to_all = :ata where id = :id",
+        {"id": client["id"], "ata": available_to_all},
+    )
+    return database.oauth2.get_client_by_client_id(test_tenant["id"], client["client_id"])
+
+
+def _seed_tokens(test_tenant, client, test_user):
+    """Create one access + one refresh token for a client (to observe revocation)."""
+    database.oauth2.create_access_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        client_id=str(client["id"]),
+        user_id=str(test_user["id"]),
+    )
+    database.oauth2.create_refresh_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        client_id=str(client["id"]),
+        user_id=str(test_user["id"]),
+    )
+
+
+def _token_count(test_tenant, client):
+    row = database.fetchone(
+        test_tenant["id"],
+        "select count(*) as n from oauth2_tokens where client_id = :cid",
+        {"cid": str(client["id"])},
+    )
+    return row["n"]
+
+
 class TestSetOidcSettings:
     def test_enable_oidc_persists_and_logs(self, test_tenant, test_admin_user):
         client = _client(test_tenant, test_admin_user)
@@ -248,6 +284,94 @@ class TestGroupAssignments:
             svc.assign_client_to_group(
                 _member(test_tenant, test_user), client["client_id"], group["id"]
             )
+
+
+class TestGrantWithdrawalRevokesTokens:
+    """Withdrawing an OIDC grant must revoke the tokens that grant produced, so a
+    revoked user cannot keep refreshing for the 30-day refresh window."""
+
+    def test_remove_group_assignment_revokes_tokens(self, test_tenant, test_admin_user, test_user):
+        client = _oidc_client(test_tenant, test_admin_user)
+        group = _group(test_tenant, name="Revoke On Remove")
+        admin = _admin(test_tenant, test_admin_user)
+        svc.assign_client_to_group(admin, client["client_id"], group["id"])
+        _seed_tokens(test_tenant, client, test_user)
+        assert _token_count(test_tenant, client) == 2
+
+        svc.remove_client_group_assignment(admin, client["client_id"], group["id"])
+
+        assert _token_count(test_tenant, client) == 0
+
+    def test_remove_assignment_on_available_to_all_keeps_tokens(
+        self, test_tenant, test_admin_user, test_user
+    ):
+        """available_to_all clients don't derive access from group assignments, so
+        removing one revokes nobody and must not force everyone to re-authorize."""
+        client = _oidc_client(test_tenant, test_admin_user, available_to_all=True)
+        group = _group(test_tenant, name="ATA Assign")
+        admin = _admin(test_tenant, test_admin_user)
+        svc.assign_client_to_group(admin, client["client_id"], group["id"])
+        _seed_tokens(test_tenant, client, test_user)
+
+        svc.remove_client_group_assignment(admin, client["client_id"], group["id"])
+
+        assert _token_count(test_tenant, client) == 2
+
+    def test_remove_assignment_on_non_oidc_client_keeps_tokens(
+        self, test_tenant, test_admin_user, test_user
+    ):
+        """A plain OAuth2 client is never group-gated, so removing an assignment
+        does not restrict access and must not revoke tokens."""
+        client = _client(test_tenant, test_admin_user, name="Plain With Group")
+        client = database.oauth2.get_client_by_client_id(test_tenant["id"], client["client_id"])
+        group = _group(test_tenant, name="Plain Assign")
+        admin = _admin(test_tenant, test_admin_user)
+        svc.assign_client_to_group(admin, client["client_id"], group["id"])
+        _seed_tokens(test_tenant, client, test_user)
+
+        svc.remove_client_group_assignment(admin, client["client_id"], group["id"])
+
+        assert _token_count(test_tenant, client) == 2
+
+    def test_narrowing_available_to_all_revokes_tokens(
+        self, test_tenant, test_admin_user, test_user
+    ):
+        client = _oidc_client(test_tenant, test_admin_user, available_to_all=True)
+        admin = _admin(test_tenant, test_admin_user)
+        _seed_tokens(test_tenant, client, test_user)
+        assert _token_count(test_tenant, client) == 2
+
+        svc.set_oidc_settings(admin, client["client_id"], available_to_all=False)
+
+        assert _token_count(test_tenant, client) == 0
+
+    def test_broadening_to_available_to_all_keeps_tokens(
+        self, test_tenant, test_admin_user, test_user
+    ):
+        """Broadening access (group-gated -> available_to_all) revokes no one."""
+        client = _oidc_client(test_tenant, test_admin_user, available_to_all=False)
+        admin = _admin(test_tenant, test_admin_user)
+        _seed_tokens(test_tenant, client, test_user)
+
+        svc.set_oidc_settings(admin, client["client_id"], available_to_all=True)
+
+        assert _token_count(test_tenant, client) == 2
+
+    def test_disabling_oidc_while_narrowing_keeps_tokens(
+        self, test_tenant, test_admin_user, test_user
+    ):
+        """Turning a client into a plain OAuth2 client removes group gating
+        entirely (access broadens), so no revocation even as available_to_all
+        flips to False in the same call."""
+        client = _oidc_client(test_tenant, test_admin_user, available_to_all=True)
+        admin = _admin(test_tenant, test_admin_user)
+        _seed_tokens(test_tenant, client, test_user)
+
+        svc.set_oidc_settings(
+            admin, client["client_id"], oidc_enabled=False, available_to_all=False
+        )
+
+        assert _token_count(test_tenant, client) == 2
 
 
 @pytest.fixture

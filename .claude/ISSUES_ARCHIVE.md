@@ -4,6 +4,104 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] Auth Failures: bearer validation Argon2-verifies every live token in the tenant
+
+**Fixed:** 2026-07-12 (oidc-provider branch, migration `0056_oauth2_token_lookup.sql`).
+**Severity:** Medium
+**OWASP Category:** A07:2021 - Identification and Authentication Failures (resource exhaustion)
+
+**Root cause:** Tokens and authorization codes were stored only as Argon2 hashes
+with no lookup key, so validation could not index: `validate_token`,
+`validate_refresh_token`, and `validate_and_consume_code` selected every live
+row and Argon2-verified in a Python loop until one matched. A garbage
+`Authorization: Bearer` (or code/refresh_token) forced one ~tens-of-ms, ~64 MiB
+Argon2 verification per live token in the tenant — a pre-auth DoS amplifier on
+`/userinfo` and `/oauth2/token`, cheaper the more tokens a tenant accrues.
+
+**Fix:** Added an indexed, non-secret SHA-256 lookup digest of the opaque value.
+- Migration 0056 adds `oauth2_tokens.token_lookup char(64)` and
+  `oauth2_authorization_codes.code_lookup char(64)`, each with a unique index on
+  `(tenant_id, <lookup>)`.
+- `oauth2.token_lookup()` computes the digest. Each opaque value already carries
+  256 bits of `secrets` entropy, so the fast unkeyed digest is not
+  brute-forceable; Argon2 is retained on the single resolved candidate so a DB
+  dump still cannot be replayed.
+- Create paths persist the digest; validate paths resolve exactly one row by the
+  index, then Argon2-verify once. Pre-existing rows keep a NULL lookup and fall
+  out of the indexed query; they are short-lived (codes <=10 min, access <=1 h,
+  refresh <=30 d) and expire on their own, so no live token is deleted.
+
+**Tests:** `tests/database/test_oauth2.py` gains DoS-regression tests asserting
+Argon2 runs exactly once for a real token and zero times for a garbage
+token/code, plus a lookup-digest correctness check.
+
+**Files:** `db-init/migrations/0056_oauth2_token_lookup.sql`, `app/oauth2.py`,
+`app/database/oauth2/tokens.py`, `app/database/oauth2/authorization.py`.
+
+---
+
+## [SECURITY] Broken Access Control: revoking OIDC app access leaves tokens live for up to 30 days
+
+**Fixed:** 2026-07-12 (oidc-provider branch).
+**Severity:** Medium
+**OWASP Category:** A01:2021 - Broken Access Control
+
+**Root cause:** Group-based access for OIDC clients was enforced only in the
+authorize flow. Nothing re-checked afterward: the `refresh_token` grant minted
+fresh access tokens without consulting the user's grant, and
+`remove_client_group_assignment()` / `set_oidc_settings(available_to_all=False)`
+withdrew access without revoking outstanding tokens. A user removed from a
+client's group kept refreshing (and passing `/userinfo`) for the 30-day refresh
+window.
+
+**Fix:** Two changes, mirroring `deactivate_client()`.
+1. The `refresh_token` grant now re-checks `oidc_service.user_can_access_client`
+   for `oidc_enabled` clients and rejects a revoked user with
+   `invalid_grant` ("Access has been revoked"), bounding exposure to the 1-hour
+   access-token lifetime. Plain OAuth2 clients are unaffected.
+2. `remove_client_group_assignment()` and `set_oidc_settings()` now call
+   `revoke_all_client_tokens()` when access is actually narrowed — a group
+   unassignment on a group-gated (`oidc_enabled`, not `available_to_all`) client,
+   or `available_to_all` flipping True→False on an OIDC-enabled client — forcing
+   affected users to re-authorize immediately. Broadening changes and non-OIDC
+   clients revoke nothing.
+
+**Tests:** `tests/routers/test_oauth2_oidc.py` (refresh denied after grant
+revoked; available-to-all unaffected) and `tests/services/oidc/test_clients.py`
+(`TestGrantWithdrawalRevokesTokens`: revoke on unassignment / narrowing, and
+no-revoke on available_to_all / non-OIDC / broadening / oidc-disable).
+
+**Files:** `app/routers/oauth2.py`, `app/services/oidc/clients.py`, tests.
+
+---
+
+## [SECURITY] Broken Access Control: authorize flow issues codes for deactivated clients
+
+**Fixed:** 2026-07-12 (oidc-provider branch).
+**Severity:** Low
+**OWASP Category:** A01:2021 - Broken Access Control
+
+**Root cause:** `authorize_page` and `authorize_grant` validated client
+existence, `client_type`, and `redirect_uri` but never `is_active`. A
+deactivated client still rendered a WeftID-branded consent page and, on approval,
+delivered a real authorization code to its (now-untrusted) redirect URI — a
+consent-phishing surface and code leak, even though the token endpoint would
+reject the exchange.
+
+**Fix:** `authorize_page` now checks `is_active` alongside the `client_type`
+check and returns the identical "Unauthorized client" error (so the page does
+not disclose deactivated-vs-wrong-type). `authorize_grant` rejects a
+deactivated client in its client-validation branch, redirecting with
+`error=unauthorized_client` and issuing no code (defense in depth).
+
+**Tests:** `tests/routers/test_oauth2.py` — GET renders no consent form for a
+deactivated client; POST after deactivation redirects with `unauthorized_client`
+and no `code=`.
+
+**Files:** `app/routers/oauth2.py`, tests.
+
+---
+
 ## [BUG] Four periodic worker sweeps were silent no-ops: UNSCOPED queries against strict-RLS tables saw zero rows
 
 **Fixed:** 2026-07-09 (oidc-provider branch, migration

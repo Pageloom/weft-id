@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-07-12
+
+### Added
+
+- **Sign in with WeftID (OIDC provider).** WeftID is now a spec-correct
+  downstream OpenID Provider, layered additively on the existing OAuth2
+  authorization-code flow. An OIDC-enabled app receives a signed RS256 ID token
+  (gated on the `openid` scope) alongside the usual access/refresh tokens, plus a
+  per-tenant discovery document (`/.well-known/openid-configuration`), published
+  signing keys (`/.well-known/jwks.json`), and a `/userinfo` endpoint. Released
+  claims are gated by the scopes the app requests (`openid`, `profile`, `email`,
+  `groups`), with DAG-aware effective group memberships in the `groups` claim.
+  Access uses the same group-based model as SAML service providers and
+  forward-auth apps: users without a grant are denied at the authorize step
+  before any code is issued. Managed from the admin UI and under
+  `/api/v1/oauth2/clients/{client_id}` (enable OIDC, access mode, group
+  assignments) and `/api/v1/oidc/signing-key` (inspect, rotate, and clean up the
+  per-tenant RSA key, with a configurable JWKS overlap window and an automatic
+  sweep of retired keys). See the new "Sign in with WeftID (OIDC)" admin guide.
+
+### Changed
+
+- Upgraded the application runtime to Python 3.14.
+- Normalized file permissions across the app tree in the production Docker image.
+- Renamed the deactivated-client status badge from "Inactive" to "Deactivated"
+  to match the rest of the lifecycle terminology.
+
+### Fixed
+
+- Fixed four periodic worker sweeps (service-provider and per-IdP certificate
+  rotation/cleanup, SAML metadata refresh, and idle-user auto-inactivation) that
+  silently returned no rows and never ran in deployments using the RLS-enforcing
+  `appuser` connection. These background jobs now run as intended.
+
+### Security
+
+- Fixed a pre-authentication denial-of-service on the OAuth2/OIDC token, refresh,
+  and `/userinfo` endpoints, where a presented bearer token or authorization code
+  was verified against every live credential in the tenant (one Argon2 hash per
+  credential). Validation now resolves a single row via an indexed lookup and
+  verifies exactly once. (A07:2021)
+- Fixed OIDC access-revocation lag: removing a user's group access (or narrowing
+  an app from available-to-all) now immediately revokes their outstanding tokens,
+  and the refresh-token grant re-checks access, so a revoked user can no longer
+  mint new access tokens for the remaining lifetime of the refresh token.
+  (A01:2021)
+- Stopped the OAuth2/OIDC authorize flow from rendering a consent page or issuing
+  an authorization code for a deactivated client. (A01:2021)
+- Fixed a cross-tenant injection in SAML service-provider bulk group assignment,
+  where an unvalidated group id could create a grant referencing another tenant's
+  group. (A01:2021)
+
 ## [1.10.0] - 2026-06-23
 
 ### Added

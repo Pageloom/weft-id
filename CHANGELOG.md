@@ -60,6 +60,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Fixed a cross-tenant injection in SAML service-provider bulk group assignment,
   where an unvalidated group id could create a grant referencing another tenant's
   group. (A01:2021)
+- Stopped the passkey registration endpoint from returning raw exception text to
+  the caller. A rejected payload was answered with the exception's message in a
+  `details` field, and the surrounding `except` was broad enough that an
+  unexpected internal error would have its message disclosed too. Present since
+  1.5.0. (A05:2021)
 
 ## [1.10.0] - 2026-06-23
 

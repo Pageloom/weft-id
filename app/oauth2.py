@@ -52,6 +52,26 @@ def hash_token(token: str) -> str:
     return _hasher.hash(token)
 
 
+def token_lookup(token: str) -> str:
+    """Compute the indexed lookup digest for an opaque token or authorization code.
+
+    Args:
+        token: Plain text opaque token/code (as produced by generate_opaque_token).
+
+    Returns:
+        Hex SHA-256 digest, stored in the token_lookup / code_lookup column.
+
+    Note:
+        This is a lookup key, NOT a credential store. Each opaque value already
+        carries 256 bits of `secrets` entropy, so a fast unkeyed digest is not
+        brute-forceable and lets validation resolve exactly one row instead of
+        Argon2-verifying every live token in the tenant. The slow Argon2 hash
+        (hash_token / verify_token_hash) is still applied to that single
+        candidate row, so a database dump cannot be replayed.
+    """
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def verify_token_hash(token: str, token_hash: str) -> bool:
     """
     Verify a token against its stored hash.

@@ -20,7 +20,12 @@ from jwt.algorithms import RSAAlgorithm
 
 @pytest.fixture
 def oidc_client(test_tenant, test_admin_user):
-    """A normal OAuth2 client with OIDC enabled (opted into ID tokens)."""
+    """A normal OAuth2 client with OIDC enabled (opted into ID tokens).
+
+    Marked available_to_all so any user passes the group-access check that gates
+    the authorize and refresh_token flows; these tests mint codes/tokens directly
+    and assert token/claim behaviour, not access control.
+    """
     client = database.oauth2.create_normal_client(
         tenant_id=test_tenant["id"],
         tenant_id_value=test_tenant["id"],
@@ -30,7 +35,7 @@ def oidc_client(test_tenant, test_admin_user):
     )
     database.execute(
         test_tenant["id"],
-        "update oauth2_clients set oidc_enabled = true where id = :id",
+        "update oauth2_clients set oidc_enabled = true, available_to_all = true where id = :id",
         {"id": client["id"]},
     )
     return client
@@ -512,3 +517,95 @@ class TestAuthorizeStoresScopeAndNonce:
             follow_redirects=False,
         )
         assert oversized_nonce.status_code == 422
+
+
+class TestRefreshTokenRechecksAccess:
+    """The refresh_token grant re-checks OIDC group access, so a user whose grant
+    was revoked cannot keep minting access tokens for the 30-day refresh window."""
+
+    @staticmethod
+    def _gated_client(test_tenant, test_admin_user):
+        """An oidc_enabled client that is NOT available_to_all (group-gated)."""
+        c = database.oauth2.create_normal_client(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            name="Gated OIDC Client",
+            redirect_uris=["http://localhost:3000/callback"],
+            created_by=test_admin_user["id"],
+        )
+        database.execute(
+            test_tenant["id"],
+            "update oauth2_clients set oidc_enabled = true where id = :id",
+            {"id": c["id"]},
+        )
+        return c
+
+    @staticmethod
+    def _grant(test_tenant, client, test_user, name):
+        group = database.groups.create_group(
+            tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name=name
+        )
+        database.execute(
+            test_tenant["id"],
+            """
+            insert into sp_group_assignments (tenant_id, oauth2_client_id, group_id, assigned_by)
+            values (:tid, :cid, :gid, :by)
+            """,
+            {
+                "tid": test_tenant["id"],
+                "cid": client["id"],
+                "gid": group["id"],
+                "by": test_user["id"],
+            },
+        )
+        database.groups.add_group_member(
+            test_tenant["id"], test_tenant["id"], group["id"], test_user["id"]
+        )
+        return group
+
+    def _refresh(self, client, host, oauth_client, refresh_token):
+        return client.post(
+            "/oauth2/token",
+            headers={"Host": host},
+            data={
+                "grant_type": "refresh_token",
+                "client_id": oauth_client["client_id"],
+                "client_secret": oauth_client["client_secret"],
+                "refresh_token": refresh_token,
+            },
+        )
+
+    def test_refresh_denied_after_grant_revoked(
+        self, client, test_tenant, test_tenant_host, test_admin_user, test_user
+    ):
+        oauth_client = self._gated_client(test_tenant, test_admin_user)
+        group = self._grant(test_tenant, oauth_client, test_user, "Refresh Recheck Group")
+
+        code = _make_code(test_tenant, oauth_client, test_user, scope="openid profile")
+        first = _exchange(client, test_tenant_host, oauth_client, code)
+        assert first.status_code == 200
+        refresh_token = first.json()["refresh_token"]
+
+        # While still granted, refresh succeeds.
+        ok = self._refresh(client, test_tenant_host, oauth_client, refresh_token)
+        assert ok.status_code == 200
+
+        # Revoke access: remove the user from the assigned group.
+        database.groups.remove_group_member(test_tenant["id"], group["id"], test_user["id"])
+
+        revoked = self._refresh(client, test_tenant_host, oauth_client, refresh_token)
+        assert revoked.status_code == 400
+        assert revoked.json()["detail"]["error"] == "invalid_grant"
+        assert revoked.json()["detail"]["error_description"] == "Access has been revoked"
+
+    def test_refresh_unaffected_for_available_to_all(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        """The available_to_all fixture client refreshes freely (no grant needed)."""
+        code = _make_code(test_tenant, oidc_client, test_user, scope="openid profile")
+        first = _exchange(client, test_tenant_host, oidc_client, code)
+        assert first.status_code == 200
+        refresh_token = first.json()["refresh_token"]
+
+        ok = self._refresh(client, test_tenant_host, oidc_client, refresh_token)
+        assert ok.status_code == 200

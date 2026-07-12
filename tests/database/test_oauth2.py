@@ -485,6 +485,33 @@ def test_validate_and_consume_code_invalid_code(test_tenant, normal_oauth2_clien
     assert result is None
 
 
+def test_validate_and_consume_code_garbage_runs_no_argon2(
+    test_tenant, normal_oauth2_client, test_user
+):
+    """DoS regression: a garbage code matches no lookup row, so Argon2 never runs
+    (previously it ran once per live code for the client/redirect_uri)."""
+    from unittest.mock import patch
+
+    for _ in range(5):
+        database.oauth2.create_authorization_code(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            client_id=normal_oauth2_client["id"],
+            user_id=test_user["id"],
+            redirect_uri=normal_oauth2_client["redirect_uris"][0],
+        )
+
+    with patch("oauth2.verify_token_hash", wraps=oauth2.verify_token_hash) as spy:
+        result = database.oauth2.validate_and_consume_code(
+            tenant_id=test_tenant["id"],
+            code="weft-id_auth_" + "0" * 64,
+            client_id=normal_oauth2_client["id"],
+            redirect_uri=normal_oauth2_client["redirect_uris"][0],
+        )
+    assert result is None
+    assert spy.call_count == 0
+
+
 def test_validate_and_consume_code_wrong_client(
     test_tenant, normal_oauth2_client, test_admin_user, test_user
 ):
@@ -677,6 +704,65 @@ def test_validate_access_token_requires_tenant_id():
     result = database.oauth2.validate_token("any_token", tenant_id=None)
 
     assert result is None
+
+
+def test_validate_access_token_runs_argon2_once(test_tenant, normal_oauth2_client, test_user):
+    """DoS regression: validation must resolve one row via the indexed lookup
+    digest and run Argon2 exactly once, not once per live token in the tenant."""
+    from unittest.mock import patch
+
+    tokens = [
+        database.oauth2.create_access_token(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            client_id=normal_oauth2_client["id"],
+            user_id=test_user["id"],
+        )
+        for _ in range(5)
+    ]
+
+    with patch("oauth2.verify_token_hash", wraps=oauth2.verify_token_hash) as spy:
+        result = database.oauth2.validate_token(tokens[2], test_tenant["id"])
+    assert result is not None
+    assert str(result["user_id"]) == str(test_user["id"])
+    # One candidate row -> one Argon2 verification, regardless of live-token count.
+    assert spy.call_count == 1
+
+
+def test_validate_access_token_garbage_runs_no_argon2(test_tenant, normal_oauth2_client, test_user):
+    """DoS regression: a garbage bearer matches no lookup row, so Argon2 never
+    runs (previously it ran once per live token in the tenant)."""
+    from unittest.mock import patch
+
+    for _ in range(5):
+        database.oauth2.create_access_token(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            client_id=normal_oauth2_client["id"],
+            user_id=test_user["id"],
+        )
+
+    with patch("oauth2.verify_token_hash", wraps=oauth2.verify_token_hash) as spy:
+        result = database.oauth2.validate_token("weft-id_access_" + "0" * 64, test_tenant["id"])
+    assert result is None
+    assert spy.call_count == 0
+
+
+def test_access_token_lookup_column_is_sha256(test_tenant, normal_oauth2_client, test_user):
+    """The stored token_lookup is the SHA-256 of the plaintext token."""
+    token = database.oauth2.create_access_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+    )
+    row = database.fetchone(
+        test_tenant["id"],
+        "select token_lookup from oauth2_tokens where token_lookup = :lookup",
+        {"lookup": oauth2.token_lookup(token)},
+    )
+    assert row is not None
+    assert row["token_lookup"] == oauth2.token_lookup(token)
 
 
 def test_validate_refresh_token_success(test_tenant, normal_oauth2_client, test_user):

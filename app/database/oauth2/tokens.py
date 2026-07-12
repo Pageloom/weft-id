@@ -1,7 +1,7 @@
 """OAuth2 token database operations."""
 
 import oauth2
-from database._core import TenantArg, execute, fetchall, fetchone
+from database._core import TenantArg, execute, fetchone
 
 
 def create_access_token(
@@ -32,6 +32,7 @@ def create_access_token(
     # Generate token
     token = oauth2.generate_opaque_token("access")
     token_hash = oauth2.hash_token(token)
+    token_lookup = oauth2.token_lookup(token)
 
     # Calculate expiry (24h for client credentials, 1h for others)
     if is_client_credentials:
@@ -44,11 +45,11 @@ def create_access_token(
         tenant_id,
         """
         insert into oauth2_tokens (
-            tenant_id, token_hash, token_type, client_id, user_id,
+            tenant_id, token_hash, token_lookup, token_type, client_id, user_id,
             expires_at, parent_token_id, scope
         )
         values (
-            :tenant_id, :token_hash, 'access', :client_id, :user_id,
+            :tenant_id, :token_hash, :token_lookup, 'access', :client_id, :user_id,
             :expires_at, :parent_token_id, :scope
         )
         returning id
@@ -56,6 +57,7 @@ def create_access_token(
         {
             "tenant_id": tenant_id_value,
             "token_hash": token_hash,
+            "token_lookup": token_lookup,
             "client_id": client_id,
             "user_id": user_id,
             "expires_at": expires_at,
@@ -92,6 +94,7 @@ def create_refresh_token(
     # Generate token
     token = oauth2.generate_opaque_token("refresh")
     token_hash = oauth2.hash_token(token)
+    token_lookup = oauth2.token_lookup(token)
 
     # Calculate expiry (30 days)
     expires_at = oauth2.calculate_expires_at(oauth2.REFRESH_TOKEN_EXPIRY)
@@ -101,16 +104,19 @@ def create_refresh_token(
         tenant_id,
         """
         insert into oauth2_tokens (
-            tenant_id, token_hash, token_type, client_id, user_id, expires_at, scope
+            tenant_id, token_hash, token_lookup, token_type,
+            client_id, user_id, expires_at, scope
         )
         values (
-            :tenant_id, :token_hash, 'refresh', :client_id, :user_id, :expires_at, :scope
+            :tenant_id, :token_hash, :token_lookup, 'refresh',
+            :client_id, :user_id, :expires_at, :scope
         )
         returning id
         """,
         {
             "tenant_id": tenant_id_value,
             "token_hash": token_hash,
+            "token_lookup": token_lookup,
             "client_id": client_id,
             "user_id": user_id,
             "expires_at": expires_at,
@@ -142,28 +148,29 @@ def validate_token(token: str, tenant_id: TenantArg | None = None) -> dict | Non
         # Tenant ID is required due to RLS policies
         return None
 
-    # Find all access tokens for this tenant
-    tokens = fetchall(
+    # Resolve exactly one candidate row by the indexed lookup digest, then run
+    # Argon2 once on it. Selecting every live token and Argon2-verifying in a
+    # loop was a pre-auth resource-exhaustion amplifier (see oauth2.token_lookup).
+    token_record = fetchone(
         tenant_id,
         """
         select id, token_hash, user_id, tenant_id, client_id, expires_at, scope
         from oauth2_tokens
         where token_type = 'access'
+          and token_lookup = :lookup
           and expires_at > now()
         """,
-        {},
+        {"lookup": oauth2.token_lookup(token)},
     )
 
-    # Find the matching token by verifying hash
-    for token_record in tokens:
-        if oauth2.verify_token_hash(token, token_record["token_hash"]):
-            return {
-                "user_id": token_record["user_id"],
-                "tenant_id": token_record["tenant_id"],
-                "client_id": token_record["client_id"],
-                "expires_at": token_record["expires_at"],
-                "scope": token_record["scope"],
-            }
+    if token_record and oauth2.verify_token_hash(token, token_record["token_hash"]):
+        return {
+            "user_id": token_record["user_id"],
+            "tenant_id": token_record["tenant_id"],
+            "client_id": token_record["client_id"],
+            "expires_at": token_record["expires_at"],
+            "scope": token_record["scope"],
+        }
 
     return None
 
@@ -183,28 +190,29 @@ def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> 
         issuance (may be None for pre-OIDC / non-scoped tokens); the
         refresh_token grant carries it onto the refreshed access token.
     """
-    # Find all refresh tokens for this client
-    tokens = fetchall(
+    # Resolve exactly one candidate row by the indexed lookup digest, then run
+    # Argon2 once on it (see oauth2.token_lookup). The client_id filter keeps a
+    # refresh token bound to the client it was issued to.
+    token_record = fetchone(
         tenant_id,
         """
         select id, token_hash, user_id, tenant_id, scope
         from oauth2_tokens
         where token_type = 'refresh'
           and client_id = :client_id
+          and token_lookup = :lookup
           and expires_at > now()
         """,
-        {"client_id": client_id},
+        {"client_id": client_id, "lookup": oauth2.token_lookup(token)},
     )
 
-    # Find the matching token by verifying hash
-    for token_record in tokens:
-        if oauth2.verify_token_hash(token, token_record["token_hash"]):
-            return {
-                "id": token_record["id"],
-                "user_id": token_record["user_id"],
-                "tenant_id": token_record["tenant_id"],
-                "scope": token_record["scope"],
-            }
+    if token_record and oauth2.verify_token_hash(token, token_record["token_hash"]):
+        return {
+            "id": token_record["id"],
+            "user_id": token_record["user_id"],
+            "tenant_id": token_record["tenant_id"],
+            "scope": token_record["scope"],
+        }
 
     return None
 

@@ -1,5 +1,6 @@
 """Tests for OAuth2 authorization and token endpoints (routers/oauth2.py)."""
 
+import database
 import pytest
 
 # ============================================================================
@@ -128,6 +129,30 @@ class TestAuthorizePage:
         assert response.status_code == 200
         # B2B clients should be rejected for authorization code flow
         assert "Unauthorized client" in response.text or "not authorized" in response.text.lower()
+
+    def test_authorize_page_deactivated_client_rejected(
+        self, authenticated_client_with_host, test_tenant, normal_oauth2_client
+    ):
+        """A deactivated client must not render a consent page or issue a code.
+
+        The error text is identical to the client_type rejection so the page does
+        not disclose whether a client_id is deactivated versus the wrong type.
+        """
+        database.oauth2.deactivate_client(test_tenant["id"], normal_oauth2_client["client_id"])
+
+        response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 200
+        assert "Unauthorized client" in response.text
+        # No consent form was rendered -> no auth_request_id the user could POST.
+        assert 'name="auth_request_id"' not in response.text
 
     def test_authorize_page_invalid_redirect_uri(
         self, authenticated_client_with_host, normal_oauth2_client
@@ -396,6 +421,34 @@ class TestAuthorizeGrant:
         assert response.status_code == 303
         location = response.headers["location"]
         assert "error=invalid_request" in location
+
+    def test_authorize_grant_deactivated_between_get_and_post(
+        self, authenticated_client_with_host, test_tenant, normal_oauth2_client
+    ):
+        """If a client is deactivated after the consent page is served, POST allow
+        must redirect with unauthorized_client and issue no authorization code."""
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+            },
+            follow_redirects=False,
+        )
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        database.oauth2.deactivate_client(test_tenant["id"], normal_oauth2_client["client_id"])
+
+        response = authenticated_client_with_host.post(
+            "/oauth2/authorize",
+            data={"auth_request_id": auth_request_id, "action": "allow"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        location = response.headers["location"]
+        assert "error=unauthorized_client" in location
+        assert "code=" not in location
 
 
 # ============================================================================

@@ -113,6 +113,19 @@ def set_oidc_settings(
             },
         )
 
+    # Narrowing access from available-to-all to group-gated must revoke the
+    # credentials issued under the broader policy: users now outside every
+    # assigned group would otherwise keep their access tokens (up to 1h) and keep
+    # refreshing (up to 30d). Revoke this client's outstanding tokens, forcing a
+    # re-authorize that now runs the group check. Only when the client stays
+    # OIDC-enabled (a plain OAuth2 client does not gate on groups at all).
+    effective_oidc_enabled = (
+        oidc_enabled if oidc_enabled is not None else updated.get("oidc_enabled")
+    )
+    narrowed_to_group_gated = available_to_all is False and old.get("available_to_all")
+    if effective_oidc_enabled and narrowed_to_group_gated:
+        database.oauth2.revoke_all_client_tokens(tenant_id, str(updated["id"]))
+
     return updated
 
 
@@ -263,6 +276,16 @@ def remove_client_group_assignment(
             message="Group assignment not found",
             code="oidc_client_group_assignment_not_found",
         )
+
+    # Revoking a grant must also revoke the credentials that grant already
+    # produced. Access is only enforced at authorize time, so users who lose
+    # access here would otherwise keep their live access tokens (up to 1h) and
+    # keep refreshing (up to 30d). Force everyone on this client to re-authorize
+    # by revoking its outstanding tokens, mirroring deactivate_client(). Only
+    # relevant when the client is group-gated: an available_to_all or non-OIDC
+    # client does not derive access from group assignments, so nobody lost it.
+    if client.get("oidc_enabled") and not client.get("available_to_all"):
+        database.oauth2.revoke_all_client_tokens(tenant_id, str(client["id"]))
 
     log_event(
         tenant_id=tenant_id,

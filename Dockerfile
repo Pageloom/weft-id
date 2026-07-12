@@ -4,7 +4,7 @@
 # --- Stage 1: Docs builder ---
 FROM python:3.14-slim AS docs-builder
 WORKDIR /build
-RUN pip install --no-cache-dir 'zensical>=0.0.28' 'pygments>=2.16,<2.20'
+RUN pip install --no-cache-dir 'zensical>=0.0.28' 'pygments>=2.20.0' 'pymdown-extensions>=11.0.1'
 COPY mkdocs.yml .
 COPY docs/ docs/
 RUN zensical build

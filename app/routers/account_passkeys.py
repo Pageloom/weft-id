@@ -99,9 +99,9 @@ async def complete_registration(
 
     try:
         payload = CompleteRegistrationRequest.model_validate(body)
-    except Exception as exc:
+    except Exception:
         return JSONResponse(
-            {"error": "Invalid request payload", "code": "invalid_payload", "details": str(exc)},
+            {"error": "Invalid request payload", "code": "invalid_payload"},
             status_code=400,
         )
 

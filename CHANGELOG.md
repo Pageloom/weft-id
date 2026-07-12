@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Normalized file permissions across the app tree in the production Docker image.
 - Renamed the deactivated-client status badge from "Inactive" to "Deactivated"
   to match the rest of the lifecycle terminology.
+- Updated bundled runtime dependencies (pydantic 2.13.4, anyio 4.14.1) and the
+  documentation-site build toolchain (pygments 2.20.0, pymdown-extensions 11.0.1).
 
 ### Fixed
 

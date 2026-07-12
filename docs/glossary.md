@@ -59,16 +59,16 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 
 ## OAuth2 & API Access
 
-**OAuth2**
+**OAuth2** {#oauth2}
 :   An authorization framework for granting limited access to APIs without sharing credentials. WeftID uses OAuth2 for API integrations, supporting two flows: authorization code (for interactive applications) and client credentials (for service-to-service communication). See [Integrations](admin-guide/integrations/index.md).
 
-**Authorization code flow**
+**Authorization code flow** {#authorization-code-flow}
 :   An OAuth2 flow for interactive applications. The user authorizes the application in a browser, receives a short-lived authorization code, and the application exchanges that code for access and refresh tokens. Supports PKCE for added security. See [Apps](admin-guide/integrations/apps.md).
 
 **Client credentials flow**
 :   An OAuth2 flow for service-to-service communication with no user interaction. The client authenticates directly with its ID and secret to obtain an access token. Used by B2B service accounts. See [B2B Service Accounts](admin-guide/integrations/b2b.md).
 
-**PKCE (Proof Key for Code Exchange)**
+**PKCE (Proof Key for Code Exchange)** {#pkce-proof-key-for-code-exchange}
 :   An OAuth2 extension (pronounced "pixy") that protects the [authorization code flow](#authorization-code-flow) against interception attacks. The client generates a random verifier, sends a hash of it with the authorization request, and proves possession of the original verifier when exchanging the code. Recommended for all interactive applications. Defined in [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636).
 
 **OIDC (OpenID Connect)**
@@ -80,7 +80,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 **Relying party (RP)**
 :   An application that delegates authentication to an OpenID Provider. In WeftID's OIDC surface, the downstream App is the relying party and WeftID is the provider.
 
-**Access token**
+**Access token** {#access-token}
 :   A short-lived credential (bearer token) that authorizes API requests. Issued by WeftID after a successful OAuth2 flow. Include it in the `Authorization` header as `Bearer <token>`.
 
 **Refresh token**

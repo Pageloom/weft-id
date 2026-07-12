@@ -4,6 +4,34 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [DEPS] pygments 2.19.2 — CVE-2026-4539 (LOW, was blocked by upstream)
+
+**Fixed:** 2026-07-12 (released in 1.11.0).
+**Severity:** Low
+**Source:** `python dev/deps_check.py`
+
+**CVE-2026-4539** (GHSA-5239-wwwm-4pmq): ReDoS in `AdlLexer`
+(`pygments/lexers/archetype.py`). Never exploitable here — pygments only
+syntax-highlights docs-site code blocks at image build time, and no
+Adl/archetype files are rendered.
+
+**Root cause of the block:** pinned `<2.20` because `pymdownx.superfences`
+crashed on pygments 2.20.0 (`filename=None` regression).
+
+**Resolution:** pymdown-extensions 11.0.1 tolerates the new pygments API, so
+both moved together and the pin was dropped (Dependabot alert #6 cleared). The
+production `Dockerfile` docs-builder stage still hard-pinned `pygments>=2.16,<2.20`
+independently of `pyproject.toml`, so the bump had to be applied there too or it
+would never have reached the image build. Unpinning also let `zensical` resolve
+forward (0.0.31 → 0.0.50), whose new anchor validation surfaced four dead in-page
+links in `docs/glossary.md` (definition-list terms generate no anchors); those
+terms now carry explicit `attr_list` ids. Docs build verified clean and syntax
+highlighting confirmed still rendering.
+
+**Files Affected:** `pyproject.toml`, `poetry.lock`, `Dockerfile`, `docs/glossary.md`
+
+---
+
 ## [SECURITY] Auth Failures: bearer validation Argon2-verifies every live token in the tenant
 
 **Fixed:** 2026-07-12 (oidc-provider branch, migration `0056_oauth2_token_lookup.sql`).

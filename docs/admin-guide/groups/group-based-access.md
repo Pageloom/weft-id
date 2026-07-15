@@ -4,7 +4,7 @@ Groups control which users can access which service providers.
 
 ## How it works
 
-Each service provider can be restricted to specific groups. During SSO, WeftID checks whether the user belongs to any of the groups assigned to the service provider. If the user is not in any assigned group, access is denied.
+Each service provider can be restricted to specific groups. During SSO, WeftID checks whether the user belongs to any assigned group, or to a descendant of one. If not, access is denied.
 
 If a service provider is set to **Available to all**, group assignments are bypassed and all active users can access it.
 
@@ -24,7 +24,9 @@ From a group's detail page, you can see which service providers are assigned to 
 
 ## Access and the hierarchy
 
-Access assignments apply to the group itself. If a service provider is assigned to a parent group, users who are direct members of that parent group can access it.
+Access assignments apply to the assigned group and every group beneath it. When a service provider is assigned to a group, its members can access the SP, and so can the members of any descendant group, resolved through the [group hierarchy](group-hierarchy.md). Assigning an SP to a parent group is the way to grant a whole branch at once.
+
+Membership itself does not flow downward: a user in a child group is not automatically a member of the parent. It is the access grant that flows down the hierarchy, not the membership.
 
 ## Groups in assertions
 

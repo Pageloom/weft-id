@@ -239,8 +239,8 @@ GROUP_DEFS = [
     ("Medical Records", "Health information management and records compliance"),
     # Cross-cutting
     (
-        "HIPAA Covered Entities",
-        "Staff with access to protected health information across departments",
+        "Clinical Research Coordinators",
+        "Staff who run clinical trials across both clinical operations and research",
     ),
     ("Leadership", "Cross-functional leadership and management team"),
     ("Remote Workers", "Employees working remotely or in hybrid arrangements"),
@@ -286,9 +286,8 @@ HIERARCHY = [
     ("Patient Services", "Patient Experience"),
     ("Patient Services", "Medical Records"),
     # DAG cross-cutting edges
-    ("Clinical Operations", "HIPAA Covered Entities"),
-    ("Research & Innovation", "HIPAA Covered Entities"),
-    ("Patient Services", "HIPAA Covered Entities"),
+    ("Clinical Operations", "Clinical Research Coordinators"),
+    ("Research & Innovation", "Clinical Research Coordinators"),
     ("Executive Leadership", "Leadership"),
 ]
 
@@ -614,9 +613,8 @@ def step_6_group_memberships(
 
     # Relevant admins → cross-cutting groups
     for dept_key, group_name in [
-        ("Clinical Operations", "HIPAA Covered Entities"),
-        ("Research & Innovation", "HIPAA Covered Entities"),
-        ("Patient Services", "HIPAA Covered Entities"),
+        ("Clinical Operations", "Clinical Research Coordinators"),
+        ("Research & Innovation", "Clinical Research Coordinators"),
         ("Executive Leadership", "Leadership"),
     ]:
         if dept_key in admin_ids and group_name in groups:

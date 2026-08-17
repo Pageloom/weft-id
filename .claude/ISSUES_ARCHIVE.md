@@ -4,6 +4,62 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] No shared redirect-target validation; 39 open CodeQL alerts
+
+**Fixed:** 2026-08-18 (PR #146).
+**Discovered:** 2026-07-12 (surfaced on re-enabling CodeQL default setup)
+**Severity:** Medium
+**OWASP Category:** A01:2021 - Broken Access Control (open redirect)
+**Source:** CodeQL `py/url-redirection` (39 open alerts)
+
+Router code built redirect targets from request-derived values ad hoc, with no
+single validation point, so redirect policy was spread across a dozen routers and
+CodeQL flagged 39 flows. The volume was the reason code scanning had been switched
+off in March 2026, leaving the repo unscanned for four months.
+
+**Triage.** The 39 split into two classes. Roughly 37 were false positives: a fixed
+literal prefix with a tainted path segment interpolated (`f"/users/{user_id}/profile?..."`,
+`f"{LIST_URL}/detail/{proxy_app_id}?..."`), which always start with a literal `/` and
+cannot be made absolute by any path-parameter value. The remaining two, both in the
+forward-auth handshake, interpolated the **host** (`f"https://{portal_host_n}/..."`)
+and were genuinely cross-origin — already defended by `get_tenant_verified_domain()`
+failing closed, but defended locally rather than by shared policy.
+
+**Resolution.** Added `app/utils/redirects.py` as one policy point:
+
+- `is_safe_path` / `safe_path` reject targets that are not rooted at `/`, are
+  protocol-relative, carry a scheme, contain a backslash (browsers fold `/\` into `//`),
+  contain control characters (`Location` header splitting), or exceed 2048 chars.
+- `safe_redirect` builds same-origin responses with a safe fallback.
+- `safe_external_redirect` gates cross-origin hops on an allowlist and fails closed
+  with `None` rather than substituting a default, since an unverifiable cross-origin
+  hop has no safe substitute.
+
+188 dynamically built redirects across 12 routers now route through it — deliberately
+wider than the 39 flagged, since a policy point only some redirects use is not a policy
+point. Literal-string redirects were left unchanged. Every converted target was audited
+to be a rooted path (`IDP_LIST_URL`, `SP_LIST_URL`, `LIST_URL`, and `redirect_url`, which
+is always `f"/admin/integrations/apps/{client_id}"`); no external redirect was swept up.
+
+Kept separate from `app/utils/url_safety.py`, which guards *outbound* fetches against
+SSRF — different policy, different rules, and conflating them would obscure both.
+
+**One behavior change:** the forward-auth callback host is now read off the verified
+protected-domain row rather than the normalized `portal_host` query parameter it was
+compared against. The values are equal by construction, so this removes a dependency on
+that comparison staying exhaustive as the code evolves.
+
+**Outcome:** all 39 alerts cleared on the PR-scoped CodeQL scan. No alert was dismissed
+and `py/url-redirection` remains in the query suite, per the issue's constraint. Verified
+with `make check` clean, `make test` 6859 passed, `make e2e` 62 passed.
+
+**Files Affected:** `app/utils/redirects.py` (new), `tests/utils/test_redirects.py` (new,
+42 tests), plus redirect call sites in `app/routers/` (`users/`, `integrations.py`,
+`saml/admin/`, `saml_idp/`, `auth/`, `proxy_apps.py`, `protected_domains.py`,
+`forward_auth/runtime.py`)
+
+---
+
 ## [DEPS] pygments 2.19.2 — CVE-2026-4539 (LOW, was blocked by upstream)
 
 **Fixed:** 2026-07-12 (released in 1.11.0).

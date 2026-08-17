@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 2 | Open-redirect validation (safe_redirect helper); File Structure (pre-existing) |
+| Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
 
 Note: the `[DEPS] pygments` entry was resolved in 1.11.0 (2026-07-12) — pymdown-extensions
@@ -36,54 +36,12 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last compliance scan:** 2026-06-21 (automated checker clean, 0 violations across 1612 files; targeted 60-day manual sweep of SCIM, WebAuthn, attributes/auth-policy/settings, forward-auth proxy, and migrations 0031-0048; the 6 warning-level judgment findings have since been resolved, see ISSUES_ARCHIVE.md)
 **Last API coverage audit:** 2026-04-23 (3 gaps resolved: group clear relationships, IdP reimport XML, SAML debug entries)
 **Last dependency audit:** 2026-06-20 (cryptography 48.0.0→48.0.1, python-multipart 0.0.29→0.0.31, pip 26.1.1→26.1.2, msgpack 1.1.2→1.2.1, starlette 1.0.1→1.3.1 bumped, clearing all 6 HIGH/MED CVEs; full suite green; the pygments `<2.20` pin has since been dropped in 1.11.0, see ISSUES_ARCHIVE.md)
-**Code scanning (CodeQL):** re-enabled 2026-07-12 after being disabled 2026-03-24 (four months unscanned, covering the OIDC provider and forward-auth releases). Default setup, weekly, languages python/javascript-typescript/actions. The 2026-07-12 audit of the historical backlog found ~200 alerts, all verified false positives except one real info leak in passkey registration (fixed, released in 1.11.0) and a workflow `GITHUB_TOKEN` over-grant (fixed). The remaining 39 open `py/url-redirection` alerts are tracked as the [SECURITY] entry below.
+**Code scanning (CodeQL):** re-enabled 2026-07-12 after being disabled 2026-03-24 (four months unscanned, covering the OIDC provider and forward-auth releases). Default setup, weekly, languages python/javascript-typescript/actions. The 2026-07-12 audit of the historical backlog found ~200 alerts, all verified false positives except one real info leak in passkey registration (fixed, released in 1.11.0) and a workflow `GITHUB_TOKEN` over-grant (fixed). The 39 open `py/url-redirection` alerts were resolved on 2026-08-18 by the `safe_redirect` helper (PR #146) — the alert class collapsed at the source, with no dismissals and the rule still in the suite; see ISSUES_ARCHIVE.md.
 **Last refactor scan:** 2026-03-21 (standard: new code since 2026-02-27, all categories; 5 new issues)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [SECURITY] No shared redirect-target validation; 39 open CodeQL alerts
-
-**Discovered:** 2026-07-12 (surfaced on re-enabling CodeQL default setup)
-**Severity:** Medium
-**OWASP Category:** A01:2021 - Broken Access Control (open redirect)
-**Source:** CodeQL `py/url-redirection` (39 open alerts)
-
-Router code builds redirect targets from request-derived values ad hoc, with no
-single validation point. CodeQL flags every one as a potential open redirect,
-concentrated in the redirect-heavy routers: `saml_idp` (47 historical), `users`
-(38), `saml/admin` (33), `groups` (26), `auth` (13).
-
-**Why it matters (two reasons, and the second is the real one):**
-
-1. *Signal loss.* This rule has produced ~200 alerts historically, and every one
-   examined was a false positive. The volume is why code scanning was switched
-   off in March 2026, leaving the repo unscanned for four months (the OIDC
-   provider and forward-auth releases shipped without it). A true open redirect
-   would be invisible in that flood. The alerts regenerate on every router
-   refactor, because rebased/moved code gets new fingerprints and prior
-   dismissals no longer apply — so dismissing them one by one never converges.
-2. *Actual risk.* This is an identity platform. Redirect targets cross tenant and
-   service-provider boundaries (SAML SSO/SLO, OAuth2/OIDC authorize, forward-auth
-   handshake, `next=` on login). An unvalidated redirect here is a credential-
-   phishing vector, not a cosmetic bug.
-
-**Suggested fix:** Introduce a single `safe_redirect()` helper (e.g. in
-`app/utils/`) that validates a target against an allowlist — same-origin paths,
-plus the tenant's registered SP/proxy domains where a cross-origin hop is
-legitimate — and route every redirect construction through it. This gives CodeQL
-one sanitizer to recognize (collapsing the alert class at the source rather than
-suppressing it) and gives the codebase one place to reason about redirect policy.
-
-**Note:** Do **not** resolve this by excluding `py/url-redirection` from the query
-suite. Muzzling the rule hides the one class of finding this product can least
-afford to miss.
-
-**Files Affected:** new helper in `app/utils/`, plus redirect call sites across
-`app/routers/` (`saml_idp/`, `users/`, `saml/admin/`, `groups/`, `auth/`)
 
 ---
 

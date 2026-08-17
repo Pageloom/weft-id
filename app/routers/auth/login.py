@@ -42,6 +42,7 @@ from utils.email_verification import (
 )
 from utils.mfa import create_email_otp
 from utils.ratelimit import HOUR, MINUTE, ratelimit
+from utils.redirects import safe_redirect
 from utils.request_metadata import extract_request_metadata
 from utils.templates import templates
 
@@ -117,10 +118,7 @@ def send_verification_code(
 
     # Basic email format validation
     if not email or "@" not in email:
-        return RedirectResponse(
-            url=f"/login?error=invalid_email&prefill_email={quote(email)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/login?error=invalid_email&prefill_email={quote(email)}")
 
     client_ip = _get_client_ip(request)
 
@@ -136,10 +134,7 @@ def send_verification_code(
                 tenant=str(tenant_id),
             )
         except RateLimitError:
-            return RedirectResponse(
-                url=f"/login?error=too_many_requests&prefill_email={quote(email)}",
-                status_code=303,
-            )
+            return safe_redirect(f"/login?error=too_many_requests&prefill_email={quote(email)}")
         return _route_without_verification(request, tenant_id, email)
 
     # Email verification flow: rate limit and send code
@@ -148,10 +143,7 @@ def send_verification_code(
         ratelimit.prevent("email_send:ip:{ip}", limit=10, timespan=HOUR, ip=client_ip)
         ratelimit.prevent("email_send:email:{email}", limit=5, timespan=MINUTE * 10, email=email)
     except RateLimitError:
-        return RedirectResponse(
-            url=f"/login?error=too_many_requests&prefill_email={quote(email)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/login?error=too_many_requests&prefill_email={quote(email)}")
 
     # Check if user has a valid trust cookie for this email
     trust_cookie_name = get_trust_cookie_name(email)
@@ -531,7 +523,7 @@ def forced_password_reset(
     try:
         users_service.complete_forced_password_reset(tenant_id, pending_user_id, new_password)
     except ServiceError as exc:
-        return RedirectResponse(url=f"/login/reset-password?error={exc.code}", status_code=303)
+        return safe_redirect(f"/login/reset-password?error={exc.code}")
 
     # Clear forced reset session and proceed to MFA
     request.session.pop("pending_password_reset_user_id", None)

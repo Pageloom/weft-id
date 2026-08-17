@@ -22,6 +22,7 @@ from services import service_providers as sp_service
 from services.exceptions import ServiceError
 from services.scim import admin as scim_admin_service
 from services.types import RequestingUser
+from utils.redirects import safe_redirect
 from utils.template_context import get_template_context
 from utils.templates import templates
 
@@ -62,7 +63,7 @@ def sp_tab_scim(
         group_count = sp_service.count_sp_group_assignments(requesting_user, sp_id)
     except ServiceError as exc:
         logger.warning("Failed to load SP for SCIM tab: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}?error={exc.message}")
 
     try:
         scim_config = scim_admin_service.get_scim_config(requesting_user, sp_id)
@@ -71,7 +72,7 @@ def sp_tab_scim(
         sync_log = scim_admin_service.list_sync_log(requesting_user, sp_id, page=1, page_size=50)
     except ServiceError as exc:
         logger.warning("Failed to load SCIM data: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}/details", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details")
 
     context = get_template_context(
         request,

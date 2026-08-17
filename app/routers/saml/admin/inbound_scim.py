@@ -23,6 +23,7 @@ from pages import has_page_access
 from services import saml as saml_service
 from services.exceptions import NotFoundError, ServiceError
 from services.scim import inbound_credentials as inbound_creds_service
+from utils.redirects import safe_redirect
 from utils.template_context import get_template_context
 from utils.templates import templates
 from utils.urls import tenant_base_url
@@ -73,16 +74,16 @@ def idp_tab_scim_inbound(
     try:
         idp = saml_service.get_identity_provider(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as exc:
         logger.warning("Failed to load IdP for inbound SCIM tab: %s", exc)
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error={exc.message}")
 
     try:
         tokens = inbound_creds_service.list_tokens(requesting_user, idp_id)
     except ServiceError as exc:
         logger.warning("Failed to load inbound SCIM tokens: %s", exc)
-        return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details")
 
     # The SCIM base URL displayed for copy/paste into Okta/Entra. The
     # actual endpoints stand up in iteration 2; the path is fixed now so

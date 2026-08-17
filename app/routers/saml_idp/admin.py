@@ -15,6 +15,7 @@ from services import branding as branding_service
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
 from services.types import RequestingUser
+from utils.redirects import safe_redirect
 from utils.saml_assertion import SAML_ATTRIBUTE_URIS
 from utils.saml_idp import make_idp_entity_id
 from utils.template_context import get_template_context
@@ -66,7 +67,7 @@ def _load_sp_tab(
         group_count = sp_service.count_sp_group_assignments(requesting_user, sp_id)
     except ServiceError as exc:
         logger.warning("Failed to get SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}?error={exc.message}")
 
     return sp_config, group_count, requesting_user
 
@@ -135,7 +136,7 @@ def sp_create_manual(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
-        return RedirectResponse(url=f"{SP_LIST_URL}/new?error=Name is required", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}/new?error=Name is required")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
@@ -144,12 +145,10 @@ def sp_create_manual(
 
         data = SPCreate(name=name.strip())
         sp = sp_service.create_service_provider(requesting_user, data)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp.id}/details?success=created", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp.id}/details?success=created")
     except ServiceError as exc:
         logger.warning("Failed to create SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/new?error={exc.message}", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}/new?error={exc.message}")
 
 
 @router.post("/import-metadata-xml", response_class=HTMLResponse)
@@ -165,11 +164,9 @@ def sp_import_xml(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
-        return RedirectResponse(url=f"{SP_LIST_URL}/new?error=Name is required", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}/new?error=Name is required")
     if not metadata_xml.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/new?error=Metadata XML is required", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/new?error=Metadata XML is required")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
@@ -177,10 +174,10 @@ def sp_import_xml(
         sp_service.import_sp_from_metadata_xml(
             requesting_user, name=name.strip(), metadata_xml=metadata_xml.strip()
         )
-        return RedirectResponse(url=f"{SP_LIST_URL}?success=created", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}?success=created")
     except ServiceError as exc:
         logger.warning("Failed to import SP from XML: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/new?error={exc.message}", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}/new?error={exc.message}")
 
 
 @router.post("/import-metadata-url", response_class=HTMLResponse)
@@ -196,11 +193,9 @@ def sp_import_url(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
-        return RedirectResponse(url=f"{SP_LIST_URL}/new?error=Name is required", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}/new?error=Name is required")
     if not metadata_url.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/new?error=Metadata URL is required", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/new?error=Metadata URL is required")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
@@ -208,10 +203,10 @@ def sp_import_url(
         sp_service.import_sp_from_metadata_url(
             requesting_user, name=name.strip(), metadata_url=metadata_url.strip()
         )
-        return RedirectResponse(url=f"{SP_LIST_URL}?success=created", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}?success=created")
     except ServiceError as exc:
         logger.warning("Failed to import SP from URL: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/new?error={exc.message}", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}/new?error={exc.message}")
 
 
 # =============================================================================
@@ -230,7 +225,7 @@ def sp_detail_redirect(
     if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}/details", status_code=303)
+    return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details")
 
 
 @router.get("/{sp_id}/details", response_class=HTMLResponse)
@@ -508,21 +503,15 @@ def sp_edit(
         update_fields["slo_url"] = slo_url.strip()
 
     if not update_fields:
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error=No changes provided", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error=No changes provided")
 
     try:
         data = SPUpdate(**update_fields)
         sp_service.update_service_provider(requesting_user, sp_id, data)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?success=updated", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?success=updated")
     except ServiceError as exc:
         logger.warning("Failed to update SP: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}")
 
 
 @router.post("/{sp_id}/edit-slo-url", response_class=HTMLResponse)
@@ -544,14 +533,10 @@ def sp_edit_slo_url(
     try:
         data = SPUpdate(slo_url=slo_url.strip())
         sp_service.update_service_provider(requesting_user, sp_id, data)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?success=updated", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?success=updated")
     except ServiceError as exc:
         logger.warning("Failed to update SLO URL: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}")
 
 
 @router.post("/{sp_id}/edit-nameid-format", response_class=HTMLResponse)
@@ -568,9 +553,7 @@ def sp_edit_nameid_format(
 
     valid_formats = {"emailAddress", "persistent", "transient", "unspecified"}
     if nameid_format not in valid_formats:
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error=Invalid NameID format", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error=Invalid NameID format")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
@@ -579,14 +562,10 @@ def sp_edit_nameid_format(
     try:
         data = SPUpdate(nameid_format=nameid_format)  # type: ignore[arg-type]
         sp_service.update_service_provider(requesting_user, sp_id, data)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?success=nameid_format_updated", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?success=nameid_format_updated")
     except ServiceError as exc:
         logger.warning("Failed to update NameID format: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}")
 
 
 @router.post("/{sp_id}/edit-attributes", response_class=HTMLResponse)
@@ -672,14 +651,10 @@ async def sp_edit_attributes(
     try:
         data = SPUpdate(**update_fields)
         sp_service.update_service_provider(requesting_user, sp_id, data)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/attributes?success=attributes_updated", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/attributes?success=attributes_updated")
     except ServiceError as exc:
         logger.warning("Failed to update SP attributes: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/attributes?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/attributes?error={exc.message}")
 
 
 @router.post("/{sp_id}/refresh-metadata-preview", response_class=HTMLResponse)
@@ -699,9 +674,7 @@ def sp_refresh_metadata_preview(
         preview = sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)
     except ServiceError as exc:
         logger.warning("Failed to preview metadata refresh: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}")
 
     context = get_template_context(
         request,
@@ -727,14 +700,10 @@ def sp_refresh_metadata_apply(
 
     try:
         sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/metadata?success=metadata_refreshed", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/metadata?success=metadata_refreshed")
     except ServiceError as exc:
         logger.warning("Failed to apply metadata refresh: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}")
 
 
 @router.post("/{sp_id}/reimport-metadata-preview", response_class=HTMLResponse)
@@ -750,9 +719,7 @@ def sp_reimport_metadata_preview(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not metadata_xml.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/metadata?error=Metadata XML is required", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/metadata?error=Metadata XML is required")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
@@ -762,9 +729,7 @@ def sp_reimport_metadata_preview(
         )
     except ServiceError as exc:
         logger.warning("Failed to preview metadata reimport: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}")
 
     context = get_template_context(
         request,
@@ -788,22 +753,16 @@ def sp_reimport_metadata_apply(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not metadata_xml.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/metadata?error=Metadata XML is required", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/metadata?error=Metadata XML is required")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
     try:
         sp_service.apply_sp_metadata_reimport(requesting_user, sp_id, metadata_xml.strip())
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/metadata?success=metadata_reimported", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/metadata?success=metadata_reimported")
     except ServiceError as exc:
         logger.warning("Failed to apply metadata reimport: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}")
 
 
 # =============================================================================
@@ -824,22 +783,16 @@ def sp_establish_trust_url(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not metadata_url.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error=Metadata URL is required", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error=Metadata URL is required")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
     try:
         sp_service.establish_trust_from_metadata_url(requesting_user, sp_id, metadata_url.strip())
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?success=trust_established", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?success=trust_established")
     except ServiceError as exc:
         logger.warning("Failed to establish trust via URL: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}")
 
 
 @router.post("/{sp_id}/establish-trust-xml", response_class=HTMLResponse)
@@ -855,22 +808,16 @@ def sp_establish_trust_xml(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not metadata_xml.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error=Metadata XML is required", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error=Metadata XML is required")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
     try:
         sp_service.establish_trust_from_metadata_xml(requesting_user, sp_id, metadata_xml.strip())
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?success=trust_established", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?success=trust_established")
     except ServiceError as exc:
         logger.warning("Failed to establish trust via XML: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}")
 
 
 @router.post("/{sp_id}/establish-trust-manual", response_class=HTMLResponse)
@@ -888,13 +835,9 @@ def sp_establish_trust_manual(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not entity_id.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error=Entity ID is required", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error=Entity ID is required")
     if not acs_url.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error=ACS URL is required", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error=ACS URL is required")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
@@ -906,14 +849,10 @@ def sp_establish_trust_manual(
             acs_url=acs_url.strip(),
             slo_url=slo_url.strip() or None,
         )
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?success=trust_established", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?success=trust_established")
     except ServiceError as exc:
         logger.warning("Failed to establish trust manually: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}")
 
 
 @router.post("/{sp_id}/rotate-certificate", response_class=HTMLResponse)
@@ -931,14 +870,10 @@ def sp_rotate_certificate(
 
     try:
         sp_service.rotate_sp_signing_certificate(requesting_user, sp_id)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/certificates?success=certificate_rotated", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/certificates?success=certificate_rotated")
     except ServiceError as exc:
         logger.warning("Failed to rotate SP certificate: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/certificates?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/certificates?error={exc.message}")
 
 
 @router.post("/{sp_id}/toggle-available-to-all", response_class=HTMLResponse)
@@ -960,14 +895,10 @@ def sp_toggle_available_to_all(
     try:
         data = SPUpdate(available_to_all=available_to_all == "true")
         sp_service.update_service_provider(requesting_user, sp_id, data)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?success=updated", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?success=updated")
     except ServiceError as exc:
         logger.warning("Failed to toggle available_to_all: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}")
 
 
 @router.post("/{sp_id}/groups/add", response_class=HTMLResponse)
@@ -983,22 +914,16 @@ def sp_add_group(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not group_id.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?error=Please select a group", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?error=Please select a group")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
     try:
         sp_service.assign_sp_to_group(requesting_user, sp_id, group_id.strip())
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?success=group_assigned", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?success=group_assigned")
     except ServiceError as exc:
         logger.warning("Failed to assign group to SP: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}")
 
 
 @router.post("/{sp_id}/groups/bulk", response_class=HTMLResponse)
@@ -1014,22 +939,16 @@ def sp_bulk_add_groups(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not group_ids:
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?error=Please select groups", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?error=Please select groups")
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
     try:
         sp_service.bulk_assign_sp_to_groups(requesting_user, sp_id, group_ids)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?success=groups_assigned", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?success=groups_assigned")
     except ServiceError as exc:
         logger.warning("Failed to bulk assign groups to SP: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}")
 
 
 @router.post("/{sp_id}/groups/{group_id}/remove", response_class=HTMLResponse)
@@ -1048,14 +967,10 @@ def sp_remove_group(
 
     try:
         sp_service.remove_sp_group_assignment(requesting_user, sp_id, group_id)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?success=group_removed", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?success=group_removed")
     except ServiceError as exc:
         logger.warning("Failed to remove group from SP: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}")
 
 
 @router.post("/{sp_id}/enable", response_class=HTMLResponse)
@@ -1073,14 +988,10 @@ def sp_enable(
 
     try:
         sp_service.enable_service_provider(requesting_user, sp_id)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/danger?success=enabled", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/danger?success=enabled")
     except ServiceError as exc:
         logger.warning("Failed to enable SP: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/danger?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/danger?error={exc.message}")
 
 
 @router.post("/{sp_id}/disable", response_class=HTMLResponse)
@@ -1098,14 +1009,10 @@ def sp_disable(
 
     try:
         sp_service.disable_service_provider(requesting_user, sp_id)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/danger?success=disabled", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/danger?success=disabled")
     except ServiceError as exc:
         logger.warning("Failed to disable SP: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/danger?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/danger?error={exc.message}")
 
 
 @router.post("/{sp_id}/delete", response_class=HTMLResponse)
@@ -1123,10 +1030,10 @@ def sp_delete(
 
     try:
         sp_service.delete_service_provider(requesting_user, sp_id)
-        return RedirectResponse(url=f"{SP_LIST_URL}?success=deleted", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}?success=deleted")
     except ServiceError as exc:
         logger.warning("Failed to delete SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+        return safe_redirect(f"{SP_LIST_URL}?error={exc.message}")
 
 
 # =============================================================================
@@ -1156,14 +1063,10 @@ async def sp_upload_logo(
             data=data,
             filename=file.filename,
         )
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?success=logo_uploaded", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?success=logo_uploaded")
     except ServiceError as exc:
         logger.warning("Failed to upload SP logo: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}")
 
 
 @router.post("/{sp_id}/logo/delete", response_class=HTMLResponse)
@@ -1181,11 +1084,7 @@ def sp_delete_logo(
 
     try:
         branding_service.delete_sp_logo(requesting_user, sp_id=sp_id)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?success=logo_deleted", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?success=logo_deleted")
     except ServiceError as exc:
         logger.warning("Failed to delete SP logo: %s", exc)
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
-        )
+        return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}")

@@ -20,6 +20,7 @@ from pages import has_page_access
 from schemas.protected_domains import ProtectedDomainCreate
 from services import protected_domains as protected_domains_service
 from services.exceptions import ServiceError
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -105,9 +106,7 @@ def add_protected_domain(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"{LIST_URL}/detail/{created.id}?success=registered", status_code=303
-    )
+    return safe_redirect(f"{LIST_URL}/detail/{created.id}?success=registered")
 
 
 @router.post("/detail/{domain_id}/verify")
@@ -125,7 +124,7 @@ def verify_protected_domain(
         return render_error_page(request, tenant_id, exc)
 
     flag = "verified" if result.verified else "verify_failed"
-    return RedirectResponse(url=f"{LIST_URL}/detail/{domain_id}?success={flag}", status_code=303)
+    return safe_redirect(f"{LIST_URL}/detail/{domain_id}?success={flag}")
 
 
 @router.post("/delete/{domain_id}")
@@ -142,4 +141,4 @@ def delete_protected_domain(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"{LIST_URL}?success=deleted", status_code=303)
+    return safe_redirect(f"{LIST_URL}?success=deleted")

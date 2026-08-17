@@ -28,6 +28,7 @@ from services.users.attribute_views import (
 )
 from starlette.responses import Response
 from utils.email import send_new_user_invitation, send_new_user_privileged_domain_notification
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -107,7 +108,7 @@ def _load_user_common(
 @router.get("/{user_id}", response_class=HTMLResponse)
 def user_detail_redirect(user_id: str):
     """Redirect bare user detail URL to profile tab."""
-    return RedirectResponse(url=f"/users/{user_id}/profile", status_code=303)
+    return safe_redirect(f"/users/{user_id}/profile")
 
 
 @router.get("/{user_id}/profile", response_class=HTMLResponse)
@@ -346,12 +347,8 @@ async def update_user_attributes(
     if result["error_code"] == "user_not_found":
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     if result["error_code"]:
-        return RedirectResponse(
-            url=f"/users/{user_id}/profile?error={result['error_code']}", status_code=303
-        )
-    return RedirectResponse(
-        url=f"/users/{user_id}/profile?success=attributes_saved", status_code=303
-    )
+        return safe_redirect(f"/users/{user_id}/profile?error={result['error_code']}")
+    return safe_redirect(f"/users/{user_id}/profile?success=attributes_saved")
 
 
 @router.post("/{user_id}/update-name")
@@ -498,9 +495,7 @@ def force_password_reset_route(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/users/{user_id}/danger?success=password_reset_forced", status_code=303
-    )
+    return safe_redirect(f"/users/{user_id}/danger?success=password_reset_forced")
 
 
 @router.post("/{user_id}/revoke-passkey/{credential_id}")
@@ -519,15 +514,13 @@ def revoke_user_passkey_route(
     try:
         webauthn_service.admin_revoke_credential(requesting_user, user_id, credential_id)
     except NotFoundError as exc:
-        return RedirectResponse(url=f"/users/{user_id}/profile?error={exc.code}", status_code=303)
+        return safe_redirect(f"/users/{user_id}/profile?error={exc.code}")
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}/profile?error={exc.code}", status_code=303)
+        return safe_redirect(f"/users/{user_id}/profile?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/users/{user_id}/profile?success=passkey_revoked", status_code=303
-    )
+    return safe_redirect(f"/users/{user_id}/profile?success=passkey_revoked")
 
 
 @router.post("/{user_id}/resend-invitation")
@@ -547,7 +540,7 @@ def resend_invitation_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}/profile?error={exc.code}", status_code=303)
+        return safe_redirect(f"/users/{user_id}/profile?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -567,6 +560,4 @@ def resend_invitation_route(
             result["email"], admin_name, org_name, verification_url, tenant_id=tenant_id
         )
 
-    return RedirectResponse(
-        url=f"/users/{user_id}/profile?success=invitation_resent", status_code=303
-    )
+    return safe_redirect(f"/users/{user_id}/profile?success=invitation_resent")

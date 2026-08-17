@@ -410,10 +410,27 @@ If a policy check exists only in the router, the API route to the same service f
 
 ## Redirect Targets From User Input Must Be Validated
 
-**Wrong:** `return RedirectResponse(url=request.query_params.get("next", "/dashboard"))`
-**Right:** Validate the target is a safe relative path before redirecting
+**Wrong:** `return RedirectResponse(url=f"/users/{user_id}/profile?error={code}")`
+**Right:** `return safe_redirect(f"/users/{user_id}/profile?error={code}")`
 
-User-controlled redirect targets (RelayState, `next` params, return URLs) can be crafted to redirect users to external phishing sites. At minimum, validate that the value starts with `/`, does not start with `//`, and does not contain `://`. See `_safe_relay_state()` in `app/routers/saml/authentication.py` for the reference pattern.
+Use `safe_redirect()` from `app/utils/redirects.py` for **every** redirect whose target is
+built from request data, not just the obviously user-controlled ones. A literal-string
+`RedirectResponse(url="/dashboard")` is fine; an f-string one is not.
+
+User-controlled redirect targets (RelayState, `next` params, return URLs) can be crafted to
+send users to external phishing sites. `safe_redirect()` rejects targets that are not rooted
+at `/`, are protocol-relative, carry a scheme, contain a backslash (browsers fold `/\` into
+`//`), or contain control characters (`Location` header splitting).
+
+For legitimate cross-origin hops (the forward-auth handshake), use
+`safe_external_redirect()`, which takes an allowlist resolved from the tenant's own
+registered domains and returns `None` rather than falling back — an unverifiable
+cross-origin hop has no safe substitute, so the caller must fail closed.
+
+Do not write a new local validator. Scattering the policy is what produced 39 CodeQL
+`py/url-redirection` alerts and, before that, the ~200-alert flood that got code scanning
+disabled for four months. The older `_safe_relay_state()` in
+`app/routers/saml/authentication.py` predates the shared helper; prefer `safe_redirect()`.
 
 ---
 

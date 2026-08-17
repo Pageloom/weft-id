@@ -57,6 +57,7 @@ Request → Router → Service → Database → PostgreSQL
 | `app/services/event_log.py` | `log_event()` function for audit logging |
 | `app/services/activity.py` | `track_activity()` for read operation tracking |
 | `app/utils/crypto.py` | HKDF key derivation from `SECRET_KEY` (session, MFA, SAML, email) |
+| `app/utils/redirects.py` | `safe_redirect()` / `safe_external_redirect()`. Single validation point for redirect targets |
 | `app/utils/email.py` | All outbound emails. Shared layout with inline styles, branded header/footer |
 | `app/utils/email_branding.py` | Fetches tenant logo PNG + name for email headers |
 | `app/dev/preview_emails.py` | Sends all 15 email types to MailDev for visual testing |
@@ -529,6 +530,7 @@ All checks must pass before committing.
 10. **All string fields must have `max_length`** - every `str` field in Pydantic input schemas (Create, Update, Import) **and every `Form()` parameter in route handlers** must specify `max_length`. Use these standard limits: names/titles 255, descriptions 2000, URLs 2048, enum-like fields 50, subdomains 63, domains 253, passwords 255, emails 320, UUIDs/IDs 50, verification codes 100, timezone 50, locale 10. Database columns should have matching `CHECK` constraints or `VARCHAR(N)` types.
 11. **Use watch mode during development** - run `make watch-tests` in a separate terminal to get immediate feedback on code changes. It intelligently reruns only affected tests, providing fast iteration cycles (seconds instead of minutes).
 12. **State-changing fetch() calls to API endpoints must use `WeftUtils.apiFetch()`** - bare `fetch()` with `credentials: 'same-origin'` on a non-GET endpoint is a CSRF vulnerability. Bearer-token clients are unaffected.
+13. **Dynamically built redirects must go through `safe_redirect()`** - any redirect whose target is an f-string or otherwise built from request data (path params, query params, session values) uses `safe_redirect()` from `app/utils/redirects.py`, never a bare `RedirectResponse`. Cross-origin hops use `safe_external_redirect()` with an allowlist resolved from the tenant's own registered domains, and fail closed. `RedirectResponse` with a literal string target is fine. This is the single point where redirect policy is enforced, and it is what keeps CodeQL's `py/url-redirection` clean - a bare dynamic `RedirectResponse` re-opens an alert class that once reached ~200 findings and got code scanning switched off for four months.
 
 ## Testing Requirements
 

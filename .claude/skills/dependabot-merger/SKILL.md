@@ -34,8 +34,18 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
    ```bash
    gh pr list --author "app/dependabot" --state open --json number,title,headRefName,labels
    ```
-2. For each PR, classify as **Include** or **Skip** using the criteria below.
-3. Present a summary table and ask the user to confirm before touching anything.
+2. **Run the scanner too — the PR list is not the work queue:**
+   ```bash
+   poetry run python dev/deps_check.py
+   ```
+   Dependabot misses things, and what it misses is often what matters most. In the
+   2026-08-17 batch it had opened PRs for a user-agent pattern-data refresh and a
+   dev-tool patch while staying **completely silent on 27 advisories** across
+   `cryptography`, `pillow` and `pyasn1` — the three highest-value bumps in the batch.
+   Treat anything the scanner flags as an Include candidate alongside the PRs, and fold
+   the fixes into the same branch (CVE fixes are always-include; see criteria below).
+3. For each PR, classify as **Include** or **Skip** using the criteria below.
+4. Present a summary table and ask the user to confirm before touching anything.
 
 ### Phase 2: Build the consolidation branch
 
@@ -205,6 +215,26 @@ poetry export --only main --without-hashes -f requirements.txt -o deploy/prod_re
 ```
 
 Commit the updated `pyproject.toml`, `poetry.lock`, and `deploy/prod_requirements.lock.txt` together.
+
+**Always verify what `poetry update` actually did.** Two outcomes look like success but aren't:
+
+- **The package didn't move, because a parent pins it exactly.** `pydantic` pins
+  `pydantic-core == 2.46.4`, so the 2.47.0 PR could not be applied at all without a
+  pydantic release permitting it — and cherry-picking the PR would have desynced the
+  exported file from `poetry.lock`. Check with `poetry show <parent>` and look at its
+  dependency list. If a parent pins it, the PR is **unactionable**: mark it Skipped with
+  that reason and leave it open. It is not a judgment call.
+- **Something else got downgraded.** A bump can tighten a constraint and drag a
+  transitive dep backwards: `webauthn` 2.8.0 pins `cbor2>=5.6.5,<6.0.0`, where 2.7.1
+  allowed 6.x, so cbor2 went **6.1.2 → 5.9.0**. Read the `poetry update` output for
+  "Downgrading", confirm the older version carries no advisories, and call it out in the
+  PR body. A silent downgrade is the kind of thing nobody notices for a year.
+
+Diff the lock to see the true blast radius before committing:
+
+```bash
+git diff poetry.lock | grep -B4 "^[-+]version = " | grep -E "^[-+ ]name|^[-+]version"
+```
 
 ---
 

@@ -485,6 +485,28 @@ class TestAuthorize:
             )
         assert resp.status_code == 403
 
+    def test_callback_host_comes_from_registered_domain(
+        self, client, names, granted_user, test_tenant
+    ):
+        # The callback host is read off the verified domain row, not echoed back
+        # from the query string. Sending a differently-cased host with a trailing
+        # dot still lands on the canonical registered form.
+        with _session(granted_user["id"]):
+            resp = client.get(
+                "/forward-auth/authorize",
+                params={
+                    "domain": names["domain"],
+                    "portal_host": names["portal_host"].upper() + ".",
+                    "rd": f"{names['app_url']}/dash",
+                },
+                headers={"host": _tenant_host(test_tenant)},
+                follow_redirects=False,
+            )
+        assert resp.status_code == 302
+        parsed = urlsplit(resp.headers["location"])
+        assert parsed.scheme == "https"
+        assert parsed.netloc == names["portal_host"]
+
     def test_portal_host_mismatch_rejected(self, client, names, granted_user, test_tenant):
         # A forged portal_host that is not the registered one must be rejected so
         # the minted token cannot be redirected to an attacker host.

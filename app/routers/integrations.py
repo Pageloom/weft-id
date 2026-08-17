@@ -15,6 +15,7 @@ from pages import get_first_accessible_child, has_page_access
 from services import oauth2 as oauth2_service
 from services.exceptions import ServiceError
 from services.oidc import clients as oidc_client_service
+from utils.redirects import safe_redirect
 from utils.template_context import get_template_context
 from utils.templates import templates
 from utils.urls import tenant_base_url
@@ -251,13 +252,13 @@ def app_edit(
     redirect_url = f"/admin/integrations/apps/{client_id}"
 
     if not name.strip():
-        return RedirectResponse(url=f"{redirect_url}?error=name_required", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=name_required")
 
     # Parse redirect URIs from textarea (one per line)
     uri_list = [uri.strip() for uri in redirect_uris.strip().splitlines() if uri.strip()]
 
     if not uri_list:
-        return RedirectResponse(url=f"{redirect_url}?error=redirect_uris_required", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=redirect_uris_required")
 
     try:
         client = oauth2_service.update_client(
@@ -272,10 +273,10 @@ def app_edit(
         if not client:
             return RedirectResponse(url="/admin/integrations/apps?error=not_found", status_code=303)
 
-        return RedirectResponse(url=f"{redirect_url}?success=updated", status_code=303)
+        return safe_redirect(f"{redirect_url}?success=updated")
     except ServiceError as exc:
         logger.warning("Failed to update OAuth2 app: %s", exc)
-        return RedirectResponse(url=f"{redirect_url}?error=update_failed", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=update_failed")
 
 
 @router.post("/apps/{client_id}/regenerate-secret", response_class=HTMLResponse)
@@ -304,7 +305,7 @@ def app_regenerate_secret(
         "name": client["name"],
     }
 
-    return RedirectResponse(url=f"{redirect_url}?success=secret_regenerated", status_code=303)
+    return safe_redirect(f"{redirect_url}?success=secret_regenerated")
 
 
 @router.post("/apps/{client_id}/deactivate", response_class=HTMLResponse)
@@ -324,7 +325,7 @@ def app_deactivate(
     if not client:
         return RedirectResponse(url="/admin/integrations/apps?error=not_found", status_code=303)
 
-    return RedirectResponse(url=f"{redirect_url}?success=deactivated", status_code=303)
+    return safe_redirect(f"{redirect_url}?success=deactivated")
 
 
 @router.post("/apps/{client_id}/reactivate", response_class=HTMLResponse)
@@ -344,7 +345,7 @@ def app_reactivate(
     if not client:
         return RedirectResponse(url="/admin/integrations/apps?error=not_found", status_code=303)
 
-    return RedirectResponse(url=f"{redirect_url}?success=reactivated", status_code=303)
+    return safe_redirect(f"{redirect_url}?success=reactivated")
 
 
 # =============================================================================
@@ -371,10 +372,10 @@ def app_toggle_oidc(
         oidc_client_service.set_oidc_settings(
             requesting_user, client_id, oidc_enabled=oidc_enabled == "true"
         )
-        return RedirectResponse(url=f"{redirect_url}?success=oidc_updated", status_code=303)
+        return safe_redirect(f"{redirect_url}?success=oidc_updated")
     except ServiceError as exc:
         logger.warning("Failed to toggle OIDC: %s", exc)
-        return RedirectResponse(url=f"{redirect_url}?error=oidc_update_failed", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=oidc_update_failed")
 
 
 @router.post("/apps/{client_id}/oidc/toggle-available-to-all", response_class=HTMLResponse)
@@ -396,10 +397,10 @@ def app_toggle_available_to_all(
         oidc_client_service.set_oidc_settings(
             requesting_user, client_id, available_to_all=available_to_all == "true"
         )
-        return RedirectResponse(url=f"{redirect_url}?success=oidc_updated", status_code=303)
+        return safe_redirect(f"{redirect_url}?success=oidc_updated")
     except ServiceError as exc:
         logger.warning("Failed to toggle available_to_all: %s", exc)
-        return RedirectResponse(url=f"{redirect_url}?error=oidc_update_failed", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=oidc_update_failed")
 
 
 @router.post("/apps/{client_id}/oidc/groups/add", response_class=HTMLResponse)
@@ -417,16 +418,16 @@ def app_add_group(
     redirect_url = f"/admin/integrations/apps/{client_id}"
 
     if not group_id.strip():
-        return RedirectResponse(url=f"{redirect_url}?error=group_required", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=group_required")
 
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
         oidc_client_service.assign_client_to_group(requesting_user, client_id, group_id.strip())
-        return RedirectResponse(url=f"{redirect_url}?success=group_assigned", status_code=303)
+        return safe_redirect(f"{redirect_url}?success=group_assigned")
     except ServiceError as exc:
         logger.warning("Failed to assign group to App: %s", exc)
-        return RedirectResponse(url=f"{redirect_url}?error=group_assign_failed", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=group_assign_failed")
 
 
 @router.post("/apps/{client_id}/oidc/groups/{group_id}/remove", response_class=HTMLResponse)
@@ -446,10 +447,10 @@ def app_remove_group(
 
     try:
         oidc_client_service.remove_client_group_assignment(requesting_user, client_id, group_id)
-        return RedirectResponse(url=f"{redirect_url}?success=group_removed", status_code=303)
+        return safe_redirect(f"{redirect_url}?success=group_removed")
     except ServiceError as exc:
         logger.warning("Failed to remove group from App: %s", exc)
-        return RedirectResponse(url=f"{redirect_url}?error=group_remove_failed", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=group_remove_failed")
 
 
 # =============================================================================
@@ -502,7 +503,7 @@ def b2b_edit(
     redirect_url = f"/admin/integrations/b2b/{client_id}"
 
     if not name.strip():
-        return RedirectResponse(url=f"{redirect_url}?error=name_required", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=name_required")
 
     try:
         client = oauth2_service.update_client(
@@ -516,10 +517,10 @@ def b2b_edit(
         if not client:
             return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
 
-        return RedirectResponse(url=f"{redirect_url}?success=updated", status_code=303)
+        return safe_redirect(f"{redirect_url}?success=updated")
     except ServiceError as exc:
         logger.warning("Failed to update B2B client: %s", exc)
-        return RedirectResponse(url=f"{redirect_url}?error=update_failed", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=update_failed")
 
 
 @router.post("/b2b/{client_id}/role", response_class=HTMLResponse)
@@ -537,7 +538,7 @@ def b2b_change_role(
     redirect_url = f"/admin/integrations/b2b/{client_id}"
 
     if role not in ("member", "admin", "super_admin"):
-        return RedirectResponse(url=f"{redirect_url}?error=invalid_role", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=invalid_role")
 
     try:
         client = oauth2_service.update_b2b_client_role(
@@ -550,10 +551,10 @@ def b2b_change_role(
         if not client:
             return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
 
-        return RedirectResponse(url=f"{redirect_url}?success=role_changed", status_code=303)
+        return safe_redirect(f"{redirect_url}?success=role_changed")
     except ServiceError as exc:
         logger.warning("Failed to change B2B client role: %s", exc)
-        return RedirectResponse(url=f"{redirect_url}?error=role_change_failed", status_code=303)
+        return safe_redirect(f"{redirect_url}?error=role_change_failed")
 
 
 @router.post("/b2b/{client_id}/regenerate-secret", response_class=HTMLResponse)
@@ -582,7 +583,7 @@ def b2b_regenerate_secret(
         "name": client["name"],
     }
 
-    return RedirectResponse(url=f"{redirect_url}?success=secret_regenerated", status_code=303)
+    return safe_redirect(f"{redirect_url}?success=secret_regenerated")
 
 
 @router.post("/b2b/{client_id}/deactivate", response_class=HTMLResponse)
@@ -602,7 +603,7 @@ def b2b_deactivate(
     if not client:
         return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
 
-    return RedirectResponse(url=f"{redirect_url}?success=deactivated", status_code=303)
+    return safe_redirect(f"{redirect_url}?success=deactivated")
 
 
 @router.post("/b2b/{client_id}/reactivate", response_class=HTMLResponse)
@@ -622,4 +623,4 @@ def b2b_reactivate(
     if not client:
         return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
 
-    return RedirectResponse(url=f"{redirect_url}?success=reactivated", status_code=303)
+    return safe_redirect(f"{redirect_url}?success=reactivated")

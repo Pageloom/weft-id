@@ -52,6 +52,7 @@ from utils.forward_auth import (
     read_forward_auth_cookie,
 )
 from utils.ratelimit import MINUTE, ratelimit
+from utils.redirects import safe_external_redirect
 from utils.request_metadata import extract_remote_address
 
 logger = logging.getLogger(__name__)
@@ -281,13 +282,19 @@ def forward_auth_start(
 
     # rd is carried opaquely to /authorize and validated against the app there.
     safe_rd = rd[:_MAX_URL_LEN] if rd else "/"
-    authorize_url = (
-        f"https://{canonical_host}/forward-auth/authorize"
+    # canonical_host comes from the tenant record, never from the request, so it
+    # is its own allowlist. Routing through safe_external_redirect keeps every
+    # cross-origin hop on one code path and validates the path component.
+    authorize_path = (
+        f"/forward-auth/authorize"
         f"?domain={quote(ctx['domain'], safe='')}"
         f"&portal_host={quote(ctx['portal_host'], safe='')}"
         f"&rd={quote(safe_rd, safe='')}"
     )
-    return RedirectResponse(url=authorize_url, status_code=302)
+    authorize = safe_external_redirect(canonical_host, authorize_path, {canonical_host})
+    if authorize is None:
+        return _deny_response("Sign-in is temporarily unavailable for this domain.")
+    return authorize
 
 
 # ---------------------------------------------------------------------------
@@ -363,8 +370,19 @@ def forward_auth_authorize(
         rd=safe_rd,
     )
 
-    callback_url = f"https://{portal_host_n}/forward-auth/callback?token={quote(token, safe='')}"
-    return RedirectResponse(url=callback_url, status_code=302)
+    # Redirect to the portal host as *registered on the verified domain row*,
+    # not to the value echoed back from the query string. get_tenant_verified_domain
+    # already compared the two, so this is belt-and-braces: the token can only ever
+    # be handed to a host this tenant registered.
+    registered_portal_host = _normalize_host(str(app_domain["portal_host"]))
+    callback = safe_external_redirect(
+        registered_portal_host,
+        f"/forward-auth/callback?token={quote(token, safe='')}",
+        {registered_portal_host},
+    )
+    if callback is None:
+        return _deny_response("This domain is not configured for your account.")
+    return callback
 
 
 # ---------------------------------------------------------------------------

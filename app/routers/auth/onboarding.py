@@ -22,6 +22,7 @@ from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp
 from utils.password import hash_password
 from utils.password_strength import compute_hibp_monitoring_data, validate_password
+from utils.redirects import safe_redirect
 from utils.request_metadata import extract_request_metadata
 from utils.templates import templates
 
@@ -57,9 +58,7 @@ def verify_email_public(
                 return RedirectResponse(url="/login?success=email_verified_idp", status_code=303)
             # User verified but no password set - redirect to set password
             sp_nonce = email["set_password_nonce"]
-            return RedirectResponse(
-                url=f"/set-password?email_id={email_id}&nonce={sp_nonce}", status_code=303
-            )
+            return safe_redirect(f"/set-password?email_id={email_id}&nonce={sp_nonce}")
         # User has password - redirect to login
         return RedirectResponse(url="/login?success=already_verified", status_code=303)
 
@@ -79,9 +78,7 @@ def verify_email_public(
             return RedirectResponse(url="/login?success=email_verified_idp", status_code=303)
         # New user without password - redirect to set password page
         sp_nonce = email["set_password_nonce"]
-        return RedirectResponse(
-            url=f"/set-password?email_id={email_id}&nonce={sp_nonce}", status_code=303
-        )
+        return safe_redirect(f"/set-password?email_id={email_id}&nonce={sp_nonce}")
 
     # Existing user adding new email - redirect to login/account
     return RedirectResponse(url="/login?success=email_verified", status_code=303)
@@ -181,9 +178,8 @@ def set_password(
 
     # Validate passwords match
     if password != password_confirm:
-        return RedirectResponse(
-            url=f"/set-password?email_id={email_id}&nonce={nonce}&error=passwords_dont_match",
-            status_code=303,
+        return safe_redirect(
+            f"/set-password?email_id={email_id}&nonce={nonce}&error=passwords_dont_match"
         )
 
     # Validate password strength
@@ -199,10 +195,7 @@ def set_password(
     )
     if not strength.is_valid:
         error_code = strength.issues[0].code
-        return RedirectResponse(
-            url=f"/set-password?email_id={email_id}&nonce={nonce}&error={error_code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/set-password?email_id={email_id}&nonce={nonce}&error={error_code}")
 
     # Set the password with HIBP monitoring and policy data
     password_hash = hash_password(password)

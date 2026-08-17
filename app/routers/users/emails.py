@@ -19,6 +19,7 @@ from utils.email import (
     send_secondary_email_added_notification,
     send_secondary_email_removed_notification,
 )
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 
 router = APIRouter(
@@ -46,16 +47,12 @@ def add_user_email_route(
     email_lower = email.strip().lower()
 
     if not email_lower or "@" not in email_lower:
-        return RedirectResponse(
-            url=f"/users/{user_id}/profile?error=invalid_email", status_code=303
-        )
+        return safe_redirect(f"/users/{user_id}/profile?error=invalid_email")
 
     # Extract domain and check if it's privileged (admin can only add privileged domains)
     domain = email_lower.split("@")[1]
     if not settings_service.is_privileged_domain(tenant_id, domain):
-        return RedirectResponse(
-            url=f"/users/{user_id}/profile?error=domain_not_privileged", status_code=303
-        )
+        return safe_redirect(f"/users/{user_id}/profile?error=domain_not_privileged")
 
     # Add the email via service layer (admin action = auto-verified)
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -64,7 +61,7 @@ def add_user_email_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ConflictError:
-        return RedirectResponse(url=f"/users/{user_id}/profile?error=email_exists", status_code=303)
+        return safe_redirect(f"/users/{user_id}/profile?error=email_exists")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -76,7 +73,7 @@ def add_user_email_route(
             primary_email, email_lower, admin_name, tenant_id=requesting_user["tenant_id"]
         )
 
-    return RedirectResponse(url=f"/users/{user_id}/profile?success=email_added", status_code=303)
+    return safe_redirect(f"/users/{user_id}/profile?success=email_added")
 
 
 @router.post("/{user_id}/remove-email/{email_id}")
@@ -100,18 +97,12 @@ def remove_user_email_route(
     try:
         emails_service.delete_user_email(requesting_user, user_id, email_id)
     except NotFoundError:
-        return RedirectResponse(
-            url=f"/users/{user_id}/profile?error=email_not_found", status_code=303
-        )
+        return safe_redirect(f"/users/{user_id}/profile?error=email_not_found")
     except ValidationError as exc:
         if exc.code == "cannot_delete_primary":
-            return RedirectResponse(
-                url=f"/users/{user_id}/profile?error=cannot_remove_primary", status_code=303
-            )
+            return safe_redirect(f"/users/{user_id}/profile?error=cannot_remove_primary")
         if exc.code == "must_keep_one_email":
-            return RedirectResponse(
-                url=f"/users/{user_id}/profile?error=must_keep_one_email", status_code=303
-            )
+            return safe_redirect(f"/users/{user_id}/profile?error=must_keep_one_email")
         return render_error_page(request, tenant_id, exc)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
@@ -125,7 +116,7 @@ def remove_user_email_route(
                 primary_email, email_address, admin_name, tenant_id=requesting_user["tenant_id"]
             )
 
-    return RedirectResponse(url=f"/users/{user_id}/profile?success=email_removed", status_code=303)
+    return safe_redirect(f"/users/{user_id}/profile?success=email_removed")
 
 
 @router.post("/{user_id}/promote-email/{email_id}")
@@ -165,18 +156,12 @@ def promote_user_email_route(
         # If already primary, the service returns the email without error
         # Check if it was already primary (email unchanged)
         if old_primary_email == new_primary_email:
-            return RedirectResponse(
-                url=f"/users/{user_id}/profile?error=already_primary", status_code=303
-            )
+            return safe_redirect(f"/users/{user_id}/profile?error=already_primary")
     except NotFoundError:
-        return RedirectResponse(
-            url=f"/users/{user_id}/profile?error=email_not_found", status_code=303
-        )
+        return safe_redirect(f"/users/{user_id}/profile?error=email_not_found")
     except ValidationError as exc:
         if exc.code == "email_not_verified":
-            return RedirectResponse(
-                url=f"/users/{user_id}/profile?error=email_not_verified", status_code=303
-            )
+            return safe_redirect(f"/users/{user_id}/profile?error=email_not_verified")
         return render_error_page(request, tenant_id, exc)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
@@ -188,4 +173,4 @@ def promote_user_email_route(
             old_primary_email, new_primary_email, admin_name, tenant_id=requesting_user["tenant_id"]
         )
 
-    return RedirectResponse(url=f"/users/{user_id}/profile?success=email_promoted", status_code=303)
+    return safe_redirect(f"/users/{user_id}/profile?success=email_promoted")

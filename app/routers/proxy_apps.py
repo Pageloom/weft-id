@@ -25,6 +25,7 @@ from schemas.proxy_apps import (
 from services import protected_domains as protected_domains_service
 from services import proxy_apps as proxy_apps_service
 from services.exceptions import ServiceError
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -157,7 +158,7 @@ async def add_proxy_app(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"{LIST_URL}/detail/{created.id}?success=created", status_code=303)
+    return safe_redirect(f"{LIST_URL}/detail/{created.id}?success=created")
 
 
 @router.post("/detail/{proxy_app_id}/edit")
@@ -190,9 +191,7 @@ async def edit_proxy_app(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"{LIST_URL}/detail/{proxy_app_id}?success=updated", status_code=303
-    )
+    return safe_redirect(f"{LIST_URL}/detail/{proxy_app_id}?success=updated")
 
 
 @router.post("/delete/{proxy_app_id}")
@@ -209,7 +208,7 @@ def delete_proxy_app(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"{LIST_URL}?success=deleted", status_code=303)
+    return safe_redirect(f"{LIST_URL}?success=deleted")
 
 
 @router.post("/detail/{proxy_app_id}/grants/add")
@@ -227,9 +226,7 @@ def add_proxy_app_grant(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"{LIST_URL}/detail/{proxy_app_id}?success=grant_added", status_code=303
-    )
+    return safe_redirect(f"{LIST_URL}/detail/{proxy_app_id}?success=grant_added")
 
 
 @router.post("/detail/{proxy_app_id}/grants/{group_id}/remove")
@@ -247,6 +244,4 @@ def remove_proxy_app_grant(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"{LIST_URL}/detail/{proxy_app_id}?success=grant_removed", status_code=303
-    )
+    return safe_redirect(f"{LIST_URL}/detail/{proxy_app_id}?success=grant_removed")

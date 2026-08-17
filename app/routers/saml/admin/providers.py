@@ -16,6 +16,7 @@ from routers.saml._helpers import get_base_url
 from schemas.saml import IdPCreate, IdPUpdate
 from services import saml as saml_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
+from utils.redirects import safe_redirect
 from utils.saml import extract_idp_advertised_attributes, make_sp_entity_id
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -122,18 +123,12 @@ def create_idp(
     try:
         idp = saml_service.create_identity_provider(requesting_user, data, base_url)
     except ValidationError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/new?error={e.message}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/new?error={e.message}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/new?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/new?error={str(e)}")
 
     # Redirect to detail page so admin can establish trust
-    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp.id}/details?success=created", status_code=303)
+    return safe_redirect(f"{IDP_LIST_URL}/{idp.id}/details?success=created")
 
 
 @router.post(
@@ -157,17 +152,11 @@ def import_from_metadata(
             requesting_user, name, provider_type, metadata_url, base_url
         )
     except ValidationError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/new?error={e.message}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/new?error={e.message}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/new?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/new?error={str(e)}")
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}?success=created", status_code=303)
+    return safe_redirect(f"{IDP_LIST_URL}?success=created")
 
 
 @router.post(
@@ -191,17 +180,11 @@ def import_from_metadata_xml(
             requesting_user, name, provider_type, metadata_xml, base_url
         )
     except ValidationError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/new?error={e.message}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/new?error={e.message}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/new?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/new?error={str(e)}")
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}?success=created", status_code=303)
+    return safe_redirect(f"{IDP_LIST_URL}?success=created")
 
 
 # NOTE: Literal routes must be defined BEFORE parameterized routes like {idp_id}
@@ -233,7 +216,7 @@ def idp_detail_redirect(
     if not has_page_access("/admin/settings/identity-providers/idp", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details", status_code=303)
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details")
 
 
 @router.get(
@@ -256,10 +239,10 @@ def idp_tab_details(
         domain_bindings = saml_service.list_domain_bindings(requesting_user, idp_id)
         unbound_domains = saml_service.get_unbound_domains(requesting_user)
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as exc:
         logger.warning("Failed to get IdP: %s", exc)
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error={exc.message}")
 
     # Get per-IdP SP certificate for display
     sp_certificate = saml_service.get_idp_sp_certificate_for_display(requesting_user, idp_id)
@@ -299,10 +282,10 @@ def idp_tab_certificates(
         idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
         idp_certificates = saml_service.list_idp_certificates(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as exc:
         logger.warning("Failed to get IdP: %s", exc)
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error={exc.message}")
 
     sp_certificate = None
     try:
@@ -346,10 +329,10 @@ def idp_tab_attributes(
     try:
         idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as exc:
         logger.warning("Failed to get IdP: %s", exc)
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error={exc.message}")
 
     advertised_attributes: list[dict[str, str]] = []
     if idp.metadata_xml:
@@ -411,10 +394,10 @@ def idp_tab_metadata(
     try:
         idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as exc:
         logger.warning("Failed to get IdP: %s", exc)
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error={exc.message}")
 
     context = get_template_context(
         request,
@@ -446,10 +429,10 @@ def idp_tab_danger(
         idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
         domain_bindings = saml_service.list_domain_bindings(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as exc:
         logger.warning("Failed to get IdP: %s", exc)
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error={exc.message}")
 
     context = get_template_context(
         request,
@@ -485,13 +468,11 @@ def edit_idp_name(
     try:
         saml_service.update_identity_provider(requesting_user, idp_id, IdPUpdate(name=name))
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}")
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details?success=updated", status_code=303)
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?success=updated")
 
 
 @router.post(
@@ -513,13 +494,11 @@ def edit_idp_slo_url(
             requesting_user, idp_id, IdPUpdate(slo_url=slo_url.strip())
         )
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}")
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details?success=updated", status_code=303)
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?success=updated")
 
 
 @router.post(
@@ -560,15 +539,11 @@ def edit_idp_settings(
             ),
         )
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/details?success=settings_updated", status_code=303
-    )
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?success=settings_updated")
 
 
 @router.post(
@@ -588,22 +563,16 @@ def toggle_verbose_logging(
     try:
         if action == "enable":
             saml_service.enable_verbose_logging(requesting_user, idp_id)
-            return RedirectResponse(
-                url=f"{IDP_LIST_URL}/{idp_id}/details?success=verbose_logging_enabled",
-                status_code=303,
-            )
+            return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?success=verbose_logging_enabled")
         else:
             saml_service.disable_verbose_logging(requesting_user, idp_id)
-            return RedirectResponse(
-                url=f"{IDP_LIST_URL}/{idp_id}/details?success=verbose_logging_disabled",
-                status_code=303,
+            return safe_redirect(
+                f"{IDP_LIST_URL}/{idp_id}/details?success=verbose_logging_disabled"
             )
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}")
 
 
 @router.post(
@@ -665,15 +634,11 @@ async def edit_idp_attributes(
             IdPUpdate(attribute_mapping=attribute_mapping),
         )
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/attributes?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/attributes?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/attributes?success=attributes_updated", status_code=303
-    )
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/attributes?success=attributes_updated")
 
 
 @router.post(
@@ -705,19 +670,13 @@ def reimport_idp_metadata(
             ),
         )
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ValidationError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/metadata?error={e.message}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/metadata?error={e.message}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/metadata?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/metadata?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/metadata?success=refreshed", status_code=303
-    )
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/metadata?success=refreshed")
 
 
 @router.post(
@@ -737,17 +696,12 @@ def toggle_idp(
         idp = saml_service.get_identity_provider(requesting_user, idp_id)
         saml_service.set_idp_enabled(requesting_user, idp_id, not idp.is_enabled)
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}?error={str(e)}")
 
     success = "enabled" if not idp.is_enabled else "disabled"
-    return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/details?success={success}", status_code=303
-    )
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?success={success}")
 
 
 @router.post(
@@ -766,14 +720,11 @@ def set_default_idp(
     try:
         saml_service.set_idp_default(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}?error={str(e)}")
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details?success=updated", status_code=303)
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?success=updated")
 
 
 @router.post(
@@ -792,21 +743,13 @@ def refresh_idp_metadata(
     try:
         saml_service.refresh_idp_from_metadata(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ValidationError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/metadata?error={e.message}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/metadata?error={e.message}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/metadata?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/metadata?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/metadata?success=refreshed", status_code=303
-    )
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/metadata?success=refreshed")
 
 
 @router.post(
@@ -829,14 +772,11 @@ def delete_idp(
             requesting_user, idp_id, scrub_mirrored_attributes=scrub
         )
     except NotFoundError:
-        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+        return safe_redirect(f"{IDP_LIST_URL}?error=not_found")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"{IDP_LIST_URL}?error={str(e)}")
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}?success=deleted", status_code=303)
+    return safe_redirect(f"{IDP_LIST_URL}?success=deleted")
 
 
 # =============================================================================
@@ -869,17 +809,11 @@ def establish_trust_url(
             idp_id=idp_id,
         )
     except ValidationError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={e.message}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={e.message}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/details?success=trust_established", status_code=303
-    )
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?success=trust_established")
 
 
 @router.post(
@@ -907,17 +841,11 @@ def establish_trust_xml(
             idp_id=idp_id,
         )
     except ValidationError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={e.message}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={e.message}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/details?success=trust_established", status_code=303
-    )
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?success=trust_established")
 
 
 @router.post(
@@ -947,17 +875,11 @@ def establish_trust_manual(
             slo_url=slo_url or None,
         )
     except ValidationError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={e.message}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={e.message}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/details?success=trust_established", status_code=303
-    )
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details?success=trust_established")
 
 
 @router.post(
@@ -976,14 +898,8 @@ def rotate_idp_sp_certificate(
     try:
         saml_service.rotate_idp_sp_certificate(requesting_user, idp_id, grace_period_days=7)
     except NotFoundError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/certificates?error={e.message}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/certificates?error={e.message}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}/{idp_id}/certificates?error={str(e)}", status_code=303
-        )
+        return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/certificates?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/certificates?success=rotated", status_code=303
-    )
+    return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/certificates?success=rotated")

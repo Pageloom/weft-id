@@ -9,7 +9,6 @@ from dependencies import (
     require_admin,
 )
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
 from services import groups as groups_service
 from services.exceptions import (
     ConflictError,
@@ -18,6 +17,7 @@ from services.exceptions import (
     ServiceError,
     ValidationError,
 )
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 
 router = APIRouter(
@@ -40,17 +40,11 @@ def clear_relationships(
     try:
         groups_service.remove_all_relationships(requesting_user, group_id)
     except NotFoundError as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/delete?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/delete?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/delete?success=relationships_cleared",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group_id}/delete?success=relationships_cleared")
 
 
 @router.post("/{group_id}/children/add")
@@ -67,17 +61,11 @@ def add_child(
     try:
         groups_service.add_child(requesting_user, group_id, child_group_id)
     except (NotFoundError, ConflictError, ValidationError) as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/relationships?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/relationships?success=child_added",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group_id}/relationships?success=child_added")
 
 
 @router.post("/{group_id}/children/{child_group_id}/remove")
@@ -94,17 +82,11 @@ def remove_child(
     try:
         groups_service.remove_child(requesting_user, group_id, child_group_id)
     except (NotFoundError, ForbiddenError) as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/relationships?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/relationships?success=child_removed",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group_id}/relationships?success=child_removed")
 
 
 @router.post("/{group_id}/parents/add")
@@ -122,17 +104,11 @@ def add_parent(
         # Adding a parent = making this group a child of that parent
         groups_service.add_child(requesting_user, parent_group_id, group_id)
     except (NotFoundError, ConflictError, ValidationError) as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/relationships?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/relationships?success=parent_added",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group_id}/relationships?success=parent_added")
 
 
 @router.post("/{group_id}/parents/{parent_group_id}/remove")
@@ -150,14 +126,8 @@ def remove_parent(
         # Removing a parent = removing this group as a child of that parent
         groups_service.remove_child(requesting_user, parent_group_id, group_id)
     except (NotFoundError, ForbiddenError) as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/relationships?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/relationships?success=parent_removed",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group_id}/relationships?success=parent_removed")

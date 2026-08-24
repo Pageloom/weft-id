@@ -9,9 +9,9 @@ from dependencies import (
     require_super_admin,
 )
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
 from services import saml as saml_service
 from services.exceptions import NotFoundError, ServiceError
+from utils.redirects import safe_redirect
 
 router = APIRouter()
 
@@ -33,19 +33,12 @@ def bind_domain(
     try:
         saml_service.bind_domain_to_idp(requesting_user, idp_id, domain_id)
     except NotFoundError as e:
-        return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"/admin/settings/identity-providers/{idp_id}/details?success=domain_bound",
-        status_code=303,
+    return safe_redirect(
+        f"/admin/settings/identity-providers/{idp_id}/details?success=domain_bound"
     )
 
 
@@ -66,17 +59,10 @@ def unbind_domain(
     try:
         saml_service.unbind_domain_from_idp(requesting_user, domain_id)
     except NotFoundError as e:
-        return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}")
     except ServiceError as e:
-        return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}")
 
-    return RedirectResponse(
-        url=f"/admin/settings/identity-providers/{idp_id}/details?success=domain_unbound",
-        status_code=303,
+    return safe_redirect(
+        f"/admin/settings/identity-providers/{idp_id}/details?success=domain_unbound"
     )

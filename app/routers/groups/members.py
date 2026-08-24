@@ -16,6 +16,7 @@ from services.exceptions import (
     NotFoundError,
     ServiceError,
 )
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -191,10 +192,7 @@ def add_members_submit(
     try:
         count = groups_service.bulk_add_members(requesting_user, group_id, user_ids)
     except (NotFoundError, ForbiddenError) as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/membership?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/membership?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -224,16 +222,12 @@ def bulk_remove_members(
     try:
         count = groups_service.bulk_remove_members(requesting_user, group_id, user_ids)
     except (NotFoundError, ForbiddenError) as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/membership?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/membership?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/membership?success=members_removed&count={count}",
-        status_code=303,
+    return safe_redirect(
+        f"/admin/groups/{group_id}/membership?success=members_removed&count={count}"
     )
 
 
@@ -251,14 +245,8 @@ def remove_member(
     try:
         groups_service.remove_member(requesting_user, group_id, user_id)
     except NotFoundError as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/membership?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/membership?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/membership?success=member_removed",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group_id}/membership?success=member_removed")

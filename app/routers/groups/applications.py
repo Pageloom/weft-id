@@ -9,13 +9,13 @@ from dependencies import (
     require_admin,
 )
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
 from services import service_providers as sp_service
 from services.exceptions import (
     ConflictError,
     NotFoundError,
     ServiceError,
 )
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 
 router = APIRouter(
@@ -39,17 +39,11 @@ def assign_sp(
     try:
         sp_service.assign_sp_to_group(requesting_user, sp_id, group_id)
     except (NotFoundError, ConflictError) as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/applications?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/applications?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/applications?success=sp_assigned",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group_id}/applications?success=sp_assigned")
 
 
 @router.post("/{group_id}/applications/{sp_id}/remove")
@@ -66,14 +60,8 @@ def remove_sp(
     try:
         sp_service.remove_sp_group_assignment(requesting_user, sp_id, group_id)
     except NotFoundError as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/applications?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/applications?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/applications?success=sp_removed",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group_id}/applications?success=sp_removed")

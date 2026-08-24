@@ -32,6 +32,7 @@ from services.users.attribute_views import build_attribute_groups_for_self
 from utils.email import send_mfa_code_email
 from utils.qr import generate_qr_code_base64
 from utils.ratelimit import HOUR, ratelimit
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -181,9 +182,7 @@ async def update_profile_attributes(
     )
 
     if result["error_code"]:
-        return RedirectResponse(
-            url=f"/account/profile?error={result['error_code']}", status_code=303
-        )
+        return safe_redirect(f"/account/profile?error={result['error_code']}")
     return RedirectResponse(url="/account/profile?success=attributes_saved", status_code=303)
 
 
@@ -326,7 +325,7 @@ def change_password(
     try:
         users_service.change_password(requesting_user, current_password, new_password)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/account/password?error={exc.code}", status_code=303)
+        return safe_redirect(f"/account/password?error={exc.code}")
 
     return RedirectResponse(url="/account/password?success=password_changed", status_code=303)
 
@@ -604,9 +603,7 @@ async def delete_background_jobs(
 
     try:
         count = bg_tasks_service.delete_jobs(requesting_user, job_ids)
-        return RedirectResponse(
-            url=f"/account/background-jobs?success=deleted_{count}", status_code=303
-        )
+        return safe_redirect(f"/account/background-jobs?success=deleted_{count}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 

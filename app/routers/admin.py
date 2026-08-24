@@ -23,6 +23,7 @@ from utils.email import (
     send_account_reactivated_notification,
     send_reactivation_denied_notification,
 )
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -332,10 +333,7 @@ def approve_reactivation_request(
             status_code=303,
         )
     except ValidationError as exc:
-        return RedirectResponse(
-            url=f"/admin/todo/reactivation?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/todo/reactivation?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -370,10 +368,7 @@ def deny_reactivation_request(
             status_code=303,
         )
     except ValidationError as exc:
-        return RedirectResponse(
-            url=f"/admin/todo/reactivation?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/todo/reactivation?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -524,4 +519,4 @@ async def todo_user_attributes_force_complete(
     skipped_complete = len(result["skipped_complete"])
     suffix = f"flagged_{flagged_count}_skipped_locked_{skipped_locked}_complete_{skipped_complete}"
 
-    return RedirectResponse(url=f"/admin/todo/user-attributes?success={suffix}", status_code=303)
+    return safe_redirect(f"/admin/todo/user-attributes?success={suffix}")

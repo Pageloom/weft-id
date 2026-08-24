@@ -13,6 +13,7 @@ from fastapi.responses import RedirectResponse
 from pages import has_page_access
 from services import groups as groups_service
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ServiceError
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 
 router = APIRouter(
@@ -40,17 +41,11 @@ def add_user_to_group(
     try:
         groups_service.add_member(requesting_user, group_id, user_id)
     except (NotFoundError, ConflictError, ForbiddenError) as exc:
-        return RedirectResponse(
-            url=f"/users/{user_id}/groups?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/users/{user_id}/groups?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/users/{user_id}/groups?success=group_added",
-        status_code=303,
-    )
+    return safe_redirect(f"/users/{user_id}/groups?success=group_added")
 
 
 @router.post("/{user_id}/groups/bulk")
@@ -70,17 +65,11 @@ def bulk_add_user_to_groups(
     try:
         count = groups_service.bulk_add_user_to_groups(requesting_user, user_id, group_ids)
     except (NotFoundError, ForbiddenError) as exc:
-        return RedirectResponse(
-            url=f"/users/{user_id}/groups?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/users/{user_id}/groups?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/users/{user_id}/groups?success=groups_bulk_added&count={count}",
-        status_code=303,
-    )
+    return safe_redirect(f"/users/{user_id}/groups?success=groups_bulk_added&count={count}")
 
 
 @router.post("/{user_id}/groups/{group_id}/remove")
@@ -100,14 +89,8 @@ def remove_user_from_group(
     try:
         groups_service.remove_member(requesting_user, group_id, user_id)
     except (NotFoundError, ForbiddenError) as exc:
-        return RedirectResponse(
-            url=f"/users/{user_id}/groups?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/users/{user_id}/groups?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/users/{user_id}/groups?success=group_removed",
-        status_code=303,
-    )
+    return safe_redirect(f"/users/{user_id}/groups?success=group_removed")

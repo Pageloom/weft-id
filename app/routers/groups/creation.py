@@ -9,7 +9,7 @@ from dependencies import (
     require_admin,
 )
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from schemas.groups import GroupCreate
 from services import groups as groups_service
 from services.exceptions import (
@@ -17,6 +17,7 @@ from services.exceptions import (
     ServiceError,
     ValidationError,
 )
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -68,14 +69,10 @@ def create_group(
         group = groups_service.create_group(requesting_user, group_data)
     except (ValidationError, ConflictError) as exc:
         # Redirect back to form with error
-        return RedirectResponse(
-            url=f"/admin/groups/new?error={exc.code}&name={name}&description={description}",
-            status_code=303,
+        return safe_redirect(
+            f"/admin/groups/new?error={exc.code}&name={name}&description={description}"
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group.id}?success=created",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group.id}?success=created")

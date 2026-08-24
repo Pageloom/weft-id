@@ -20,6 +20,7 @@ from schemas.webauthn import CompleteRegistrationRequest
 from services import webauthn as webauthn_service
 from services.exceptions import NotFoundError, RateLimitError, ServiceError, ValidationError
 from utils.ratelimit import MINUTE, ratelimit
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 
 router = APIRouter(
@@ -131,7 +132,7 @@ def rename_passkey(
     except NotFoundError:
         return RedirectResponse(url="/account/mfa?passkey_error=not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/account/mfa?passkey_error={exc.code}", status_code=303)
+        return safe_redirect(f"/account/mfa?passkey_error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 

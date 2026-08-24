@@ -17,6 +17,7 @@ from services import mfa as mfa_service
 from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.email import send_mfa_reset_notification
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 
 router = APIRouter(
@@ -45,13 +46,11 @@ def inactivate_user_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
+        return safe_redirect(f"/users/{user_id}/danger?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/users/{user_id}/danger?success=user_inactivated", status_code=303
-    )
+    return safe_redirect(f"/users/{user_id}/danger?success=user_inactivated")
 
 
 @router.post("/{user_id}/reactivate")
@@ -72,13 +71,11 @@ def reactivate_user_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
+        return safe_redirect(f"/users/{user_id}/danger?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/users/{user_id}/danger?success=user_reactivated", status_code=303
-    )
+    return safe_redirect(f"/users/{user_id}/danger?success=user_reactivated")
 
 
 @router.post("/{user_id}/anonymize")
@@ -99,11 +96,11 @@ def anonymize_user_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
+        return safe_redirect(f"/users/{user_id}/danger?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"/users/{user_id}/danger?success=user_anonymized", status_code=303)
+    return safe_redirect(f"/users/{user_id}/danger?success=user_anonymized")
 
 
 @router.post("/{user_id}/reset-mfa")
@@ -124,7 +121,7 @@ def reset_mfa_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
+        return safe_redirect(f"/users/{user_id}/danger?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -137,4 +134,4 @@ def reset_mfa_route(
             primary_email, admin_name, reset_time, tenant_id=requesting_user["tenant_id"]
         )
 
-    return RedirectResponse(url=f"/users/{user_id}/danger?success=mfa_reset", status_code=303)
+    return safe_redirect(f"/users/{user_id}/danger?success=mfa_reset")

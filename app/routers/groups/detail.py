@@ -20,6 +20,7 @@ from services.exceptions import (
     ServiceError,
     ValidationError,
 )
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -106,7 +107,7 @@ def group_detail_redirect(
     group_id: str,
 ):
     """Redirect to the details tab."""
-    return RedirectResponse(url=f"/admin/groups/{group_id}/details", status_code=303)
+    return safe_redirect(f"/admin/groups/{group_id}/details")
 
 
 @router.get("/{group_id}/details", response_class=HTMLResponse)
@@ -379,17 +380,11 @@ def update_group(
         group_data = GroupUpdate(name=name, description=description, acronym=acronym)
         groups_service.update_group(requesting_user, group_id, group_data)
     except (ValidationError, ConflictError, NotFoundError) as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/details?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/details?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/details?success=updated",
-        status_code=303,
-    )
+    return safe_redirect(f"/admin/groups/{group_id}/details?success=updated")
 
 
 @router.post("/{group_id}/delete")
@@ -410,10 +405,7 @@ def delete_group(
             status_code=303,
         )
     except ValidationError as exc:
-        return RedirectResponse(
-            url=f"/admin/groups/{group_id}/delete?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/admin/groups/{group_id}/delete?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 

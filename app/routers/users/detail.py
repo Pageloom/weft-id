@@ -368,9 +368,7 @@ def update_user_name(
     last_name = last_name.strip()
 
     if not first_name or not last_name:
-        return RedirectResponse(
-            url=f"/users/{user_id}/profile?error=name_required", status_code=303
-        )
+        return safe_redirect(f"/users/{user_id}/profile?error=name_required")
 
     requesting_user = build_requesting_user(user, tenant_id, request)
     try:
@@ -382,7 +380,7 @@ def update_user_name(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"/users/{user_id}/profile?success=name_updated", status_code=303)
+    return safe_redirect(f"/users/{user_id}/profile?success=name_updated")
 
 
 @router.post("/{user_id}/update-role")
@@ -398,12 +396,10 @@ def update_user_role_route(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if role not in ["member", "admin", "super_admin"]:
-        return RedirectResponse(url=f"/users/{user_id}/profile?error=invalid_role", status_code=303)
+        return safe_redirect(f"/users/{user_id}/profile?error=invalid_role")
 
     if str(user_id) == str(user.get("id")):
-        return RedirectResponse(
-            url=f"/users/{user_id}/profile?error=cannot_change_own_role", status_code=303
-        )
+        return safe_redirect(f"/users/{user_id}/profile?error=cannot_change_own_role")
 
     requesting_user = build_requesting_user(user, tenant_id, request)
     try:
@@ -412,15 +408,12 @@ def update_user_role_route(
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
         if exc.code == "last_super_admin":
-            return RedirectResponse(
-                url=f"/users/{user_id}/profile?error=cannot_demote_last_super_admin",
-                status_code=303,
-            )
+            return safe_redirect(f"/users/{user_id}/profile?error=cannot_demote_last_super_admin")
         return render_error_page(request, tenant_id, exc)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"/users/{user_id}/profile?success=role_updated", status_code=303)
+    return safe_redirect(f"/users/{user_id}/profile?success=role_updated")
 
 
 @router.post("/{user_id}/update-idp")
@@ -459,19 +452,13 @@ def update_user_idp_route(
             scrub_mirrored_attributes=scrub,
         )
     except NotFoundError as exc:
-        return RedirectResponse(
-            url=f"/users/{user_id}/profile?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/users/{user_id}/profile?error={exc.code}")
     except ValidationError as exc:
-        return RedirectResponse(
-            url=f"/users/{user_id}/profile?error={exc.code}",
-            status_code=303,
-        )
+        return safe_redirect(f"/users/{user_id}/profile?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"/users/{user_id}/profile?success=idp_updated", status_code=303)
+    return safe_redirect(f"/users/{user_id}/profile?success=idp_updated")
 
 
 @router.post("/{user_id}/force-password-reset")
@@ -491,7 +478,7 @@ def force_password_reset_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
+        return safe_redirect(f"/users/{user_id}/danger?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from services import saml as saml_service
 from utils.csp_nonce import get_csp_nonce
+from utils.redirects import safe_redirect
 from utils.templates import templates
 
 router = APIRouter()
@@ -30,10 +31,7 @@ def saml_select_idp(
     # If only one IdP, redirect directly
     if len(idps) == 1:
         relay_state = request.query_params.get("relay_state", "/dashboard")
-        return RedirectResponse(
-            url=f"/saml/login/{idps[0].id}?relay_state={quote(relay_state, safe='')}",
-            status_code=303,
-        )
+        return safe_redirect(f"/saml/login/{idps[0].id}?relay_state={quote(relay_state, safe='')}")
 
     relay_state = request.query_params.get("relay_state", "")
 

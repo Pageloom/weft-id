@@ -3,6 +3,7 @@
 import services.saml as saml_service
 from fastapi import Request
 from fastapi.responses import RedirectResponse
+from utils.redirects import safe_redirect
 
 
 def _get_client_ip(request: Request) -> str:
@@ -31,52 +32,28 @@ def _route_after_email_verification(
     result = saml_service.determine_auth_route(tenant_id, email)
 
     if result.route_type == "password":
-        return RedirectResponse(
-            url=f"/login?prefill_email={quote(email)}&show_password=true",
-            status_code=303,
-        )
+        return safe_redirect(f"/login?prefill_email={quote(email)}&show_password=true")
 
     if result.route_type in ("idp", "idp_jit"):
-        return RedirectResponse(
-            url=f"/saml/login/{result.idp_id}",
-            status_code=303,
-        )
+        return safe_redirect(f"/saml/login/{result.idp_id}")
 
     if result.route_type == "inactivated":
-        return RedirectResponse(
-            url=f"/login?error=account_inactivated&prefill_email={quote(email)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/login?error=account_inactivated&prefill_email={quote(email)}")
 
     if result.route_type == "not_found":
-        return RedirectResponse(
-            url=f"/login?error=user_not_found&prefill_email={quote(email)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/login?error=user_not_found&prefill_email={quote(email)}")
 
     if result.route_type == "idp_disabled":
-        return RedirectResponse(
-            url=f"/login?error=idp_disabled&prefill_email={quote(email)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/login?error=idp_disabled&prefill_email={quote(email)}")
 
     if result.route_type == "no_auth_method":
-        return RedirectResponse(
-            url=f"/login?error=no_auth_method&prefill_email={quote(email)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/login?error=no_auth_method&prefill_email={quote(email)}")
 
     if result.route_type == "invalid_email":
-        return RedirectResponse(
-            url=f"/login?error=invalid_email&prefill_email={quote(email)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/login?error=invalid_email&prefill_email={quote(email)}")
 
     # Unknown route type - fallback to password form
-    return RedirectResponse(
-        url=f"/login?prefill_email={quote(email)}&show_password=true",
-        status_code=303,
-    )
+    return safe_redirect(f"/login?prefill_email={quote(email)}&show_password=true")
 
 
 def _route_without_verification(request: Request, tenant_id: str, email: str) -> RedirectResponse:
@@ -92,20 +69,11 @@ def _route_without_verification(request: Request, tenant_id: str, email: str) ->
     result = saml_service.determine_auth_route(tenant_id, email)
 
     if result.route_type in ("idp", "idp_jit"):
-        return RedirectResponse(
-            url=f"/saml/login/{result.idp_id}",
-            status_code=303,
-        )
+        return safe_redirect(f"/saml/login/{result.idp_id}")
 
     if result.route_type == "invalid_email":
-        return RedirectResponse(
-            url=f"/login?error=invalid_email&prefill_email={quote(email)}",
-            status_code=303,
-        )
+        return safe_redirect(f"/login?error=invalid_email&prefill_email={quote(email)}")
 
     # Everything else (password, inactivated, not_found, idp_disabled,
     # no_auth_method, unknown) routes to password form with no disclosure
-    return RedirectResponse(
-        url=f"/login?prefill_email={quote(email)}&show_password=true",
-        status_code=303,
-    )
+    return safe_redirect(f"/login?prefill_email={quote(email)}&show_password=true")

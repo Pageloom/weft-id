@@ -18,6 +18,7 @@ from services import users as users_service
 from services.exceptions import ConflictError, ForbiddenError, ServiceError, ValidationError
 from services.types import RequestingUser
 from utils.email import send_new_user_invitation, send_new_user_privileged_domain_notification
+from utils.redirects import safe_redirect
 from utils.template_context import get_template_context
 from utils.templates import templates
 
@@ -241,4 +242,4 @@ async def create_new_user(
             verification_url = f"{request.base_url}verify-email/{email_id}/{verify_nonce}"
             send_new_user_invitation(email, admin_name, org_name, verification_url, tenant_id=tid)
 
-    return RedirectResponse(url=f"/users/{user_id}/profile?success=user_created", status_code=303)
+    return safe_redirect(f"/users/{user_id}/profile?success=user_created")

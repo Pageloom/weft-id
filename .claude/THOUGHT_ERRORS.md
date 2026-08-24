@@ -432,6 +432,16 @@ Do not write a new local validator. Scattering the policy is what produced 39 Co
 disabled for four months. The older `_safe_relay_state()` in
 `app/routers/saml/authentication.py` predates the shared helper; prefer `safe_redirect()`.
 
+**But do not reach for `safe_redirect()` on a deliberate off-origin redirect.** It rejects
+absolute URLs and returns the default, so wrapping one silently breaks the flow instead of
+failing loudly. The OAuth2/OIDC `redirect_uri` hops in `app/routers/oauth2.py` are absolute
+URLs checked by exact match against the client's registered `redirect_uris`; leave them as
+`RedirectResponse`. Check whether a redirect is same-origin *before* converting it.
+
+**Watch the regex when converting in bulk.** A sweep over `url=f"..."` misses the
+parenthesized form `url=(f"...")`, which is how one of the original 39 alerts survived the
+first pass. Match on the alert list afterwards, not on the diff size.
+
 ---
 
 ## Numeric Inputs to Security Logic Need Explicit Bounds

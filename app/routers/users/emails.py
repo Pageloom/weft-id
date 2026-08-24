@@ -144,9 +144,8 @@ def promote_user_email_route(
         impact = emails_service.compute_email_change_impact(tenant_id, user_id, new_primary_email)
         has_impact = impact["summary"]["affected_sp_count"] > 0 or impact["routing_change"]
         if has_impact:
-            return RedirectResponse(
-                url=(f"/users/{user_id}/profile?warning=email_impact&email_id={email_id}"),
-                status_code=303,
+            return safe_redirect(
+                f"/users/{user_id}/profile?warning=email_impact&email_id={email_id}"
             )
 
     # Set primary via service layer

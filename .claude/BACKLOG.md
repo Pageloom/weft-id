@@ -19,7 +19,7 @@ This is a standing roadmap, not a work item. It records the **recommended sequen
 
 **Recommended phase order:**
 
-- **Phase 0 — Forward-Auth Proxy (IN PROGRESS — do not disrupt).** Current branch work. Finish and ship as planned. Nothing in later phases should reprioritize or interrupt it. *(See "Forward-Auth Proxy for HTTP Apps" below.)*
+- **Phase 0 — Forward-Auth Proxy (COMPLETE).** Shipped in 1.10.0 (2026-06-23); see the archived item in BACKLOG_ARCHIVE.md. The nonce-cleanup follow-up shipped as its own backlog item.
 
 - **Phase 1 — Functional OIDC (both directions).** The foundation everything else needs.
   - *Upstream* (WeftID consumes OIDC IdPs): **OIDC Upstream IdP Support**. This is what delivers **"multiple SSO"** beyond SAML and the enterprise half of **"social sign-in"** (Google/GitHub/Entra/Okta presets). Multiple SSO *per tenant* already works for SAML today (per-IdP entity IDs); this extends it to OIDC.
@@ -37,29 +37,22 @@ This is a standing roadmap, not a work item. It records the **recommended sequen
 
 ---
 
-## Wire forward-auth nonce cleanup into the background-job registry
+## Extend admin "accessible apps" attribution view to include proxy apps
 
-**As a** WeftID operator
-**I want** abandoned forward-auth handshake nonces purged on a schedule
-**So that** the `forward_auth_nonces` table does not accumulate dead rows over time.
+**User Story:**
+As a tenant admin viewing a user's accessible apps,
+I want the admin attribution view to include forward-auth proxy apps alongside SAML apps,
+So that the admin view matches the user-facing My Apps merge.
 
 **Context:**
 
-The forward-auth handshake records a single-use nonce at `/authorize` and consumes
-it at `/callback`. A handshake the user abandons (closes the tab before `/callback`)
-leaves an unconsumed, soon-expired row behind. `database.forward_auth_nonces.delete_expired_nonces(UNSCOPED, now)`
-already exists and is tested, but nothing calls it on a schedule. `consume_nonce`
-now also refuses expired rows (defense-in-depth), so stale rows are inert, just not
-reaped.
-
-**Acceptance Criteria:**
-
-- [ ] Register a recurring job in `app/jobs/registry.py` that calls `delete_expired_nonces(UNSCOPED, now())`
-- [ ] Job runs in `system_context()` and is covered by a test
-- [ ] Reasonable cadence (e.g. hourly) and idempotent
+`get_user_accessible_apps_admin` (app/services/service_providers/group_assignments.py:343)
+surfaces SAML service providers only, while the user-facing `get_user_accessible_apps`
+merges SAML SPs and forward-auth proxy apps. This parity gap was flagged during the
+forward-auth iteration 6 review and deferred.
 
 **Effort:** S
-**Value:** Low (housekeeping; no correctness impact given the expiry-bounded consume)
+**Value:** Low (admin-view parity)
 
 ---
 

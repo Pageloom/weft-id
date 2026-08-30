@@ -138,6 +138,38 @@ host->tenant resolution. In effect a forward-auth IdP. See `.claude/ITERATION_fo
 
 ---
 
+## Wire forward-auth nonce cleanup into the background-job registry
+
+**Status:** Complete (2026-08-30)
+
+**Summary:** The forward-auth handshake records a single-use nonce at `/authorize` and consumes it at `/callback`; abandoned handshakes left expired rows in `forward_auth_nonces` indefinitely. Added `app/jobs/cleanup_forward_auth_nonces.py` (`cleanup_forward_auth_nonces()`), which sweeps expired rows via `delete_expired_nonces(UNSCOPED, now)` inside `system_context()`, and wired it into the worker as an hourly periodic job (`_load_forward_auth_nonce_cleanup` loader + `PeriodicJob` entry, with a `forward_auth_nonce_cleanup_interval_hours` constructor param). Covered by unit tests (delete path, no-op fast path, system_context) plus updated worker job-count assertions. Note: the recurring job is a worker periodic sweep, not a `registry.py` queued handler (the registry is for queue-driven tasks; timer-driven sweeps live in `worker.py`).
+
+**Original backlog item:**
+
+**As a** WeftID operator
+**I want** abandoned forward-auth handshake nonces purged on a schedule
+**So that** the `forward_auth_nonces` table does not accumulate dead rows over time.
+
+**Context:**
+
+The forward-auth handshake records a single-use nonce at `/authorize` and consumes
+it at `/callback`. A handshake the user abandons (closes the tab before `/callback`)
+leaves an unconsumed, soon-expired row behind. `database.forward_auth_nonces.delete_expired_nonces(UNSCOPED, now)`
+already exists and is tested, but nothing calls it on a schedule. `consume_nonce`
+now also refuses expired rows (defense-in-depth), so stale rows are inert, just not
+reaped.
+
+**Acceptance Criteria:**
+
+- [x] Register a recurring job in `app/jobs/registry.py` that calls `delete_expired_nonces(UNSCOPED, now())`
+- [x] Job runs in `system_context()` and is covered by a test
+- [x] Reasonable cadence (e.g. hourly) and idempotent
+
+**Effort:** S
+**Value:** Low (housekeeping; no correctness impact given the expiry-bounded consume)
+
+---
+
 ## Passkey Authentication & Tenant Auth Policy
 
 **Status:** Complete (2026-04-18, commits `97a4542` + `8edc155`)

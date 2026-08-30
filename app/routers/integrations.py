@@ -38,9 +38,7 @@ def integrations_index(
 ):
     """Redirect to the first accessible integrations sub-page."""
     first_child = get_first_accessible_child("/admin/integrations", user.get("role"))
-    if first_child:
-        return RedirectResponse(url=first_child, status_code=303)
-    return RedirectResponse(url="/dashboard", status_code=303)
+    return safe_redirect(first_child, default="/dashboard")
 
 
 @router.get("/apps", response_class=HTMLResponse)

@@ -138,6 +138,7 @@ def download_export(
         download_info = exports_service.get_download(requesting_user, export_id)
 
         if download_info["storage_type"] == "spaces":
+            # redirect-ok: signed object-storage download URL
             return RedirectResponse(
                 url=download_info["url"],
                 status_code=status.HTTP_307_TEMPORARY_REDIRECT,

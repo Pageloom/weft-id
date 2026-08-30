@@ -12,6 +12,7 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from routers.saml_idp._helpers import extract_pending_sso, get_post_auth_redirect
 from services.event_log import log_event
+from utils.redirects import safe_redirect
 from utils.session import regenerate_session
 
 
@@ -108,4 +109,4 @@ def complete_authenticated_login(
 
     # Redirect to consent page if pending SSO, otherwise dashboard
     redirect_url = get_post_auth_redirect(request.session)
-    return RedirectResponse(url=redirect_url, status_code=303)
+    return safe_redirect(redirect_url)

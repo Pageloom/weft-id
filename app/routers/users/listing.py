@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child, has_page_access
 from services import users as users_service
+from utils.redirects import safe_redirect
 from utils.template_context import get_template_context
 from utils.templates import templates
 
@@ -33,11 +34,7 @@ def users_index(
     # Get first accessible child page
     first_child = get_first_accessible_child("/users", user.get("role"))
 
-    if first_child:
-        return RedirectResponse(url=first_child, status_code=303)
-
-    # Fallback if no accessible children (shouldn't happen)
-    return RedirectResponse(url="/account", status_code=303)
+    return safe_redirect(first_child, default="/account")
 
 
 @router.get("/list", response_class=HTMLResponse)

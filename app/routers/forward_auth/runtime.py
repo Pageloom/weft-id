@@ -52,7 +52,7 @@ from utils.forward_auth import (
     read_forward_auth_cookie,
 )
 from utils.ratelimit import MINUTE, ratelimit
-from utils.redirects import safe_external_redirect
+from utils.redirects import safe_external_redirect, safe_redirect
 from utils.request_metadata import extract_remote_address
 
 logger = logging.getLogger(__name__)
@@ -232,7 +232,7 @@ def forward_auth_check(request: Request) -> Response:
             )
         rd = _original_request_uri(request)
         start_url = f"/forward-auth/start?rd={quote(rd, safe='')}"
-        return RedirectResponse(url=start_url, status_code=302)
+        return safe_redirect(start_url, status_code=302)
 
     # Valid cookie, but the cookie is identity-only and scoped to the whole
     # registrable domain. Re-check that the cookie's subject may access THIS
@@ -447,6 +447,7 @@ def forward_auth_callback(
         groups=identity["groups"],
     )
 
+    # redirect-ok: already checked by safe_external_redirect
     response = RedirectResponse(url=safe_rd, status_code=302)
     params = forward_auth_cookie_params(ctx["domain"], secure=not settings.IS_DEV)
     key = params.pop("key")

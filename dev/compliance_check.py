@@ -3428,6 +3428,110 @@ def check_unscoped_write_failclosed_violations(report: ComplianceReport) -> None
 
 
 # =============================================================================
+# 18. Same-Origin Redirect Validation
+# =============================================================================
+
+# Comment marker that waives a finding on a deliberate off-origin redirect.
+_REDIRECT_SUPPRESS = "# redirect-ok:"
+
+
+def _redirect_url_arg(node: ast.Call) -> ast.expr | None:
+    """Return the ``url`` argument of a ``RedirectResponse(...)`` call."""
+    for keyword in node.keywords:
+        if keyword.arg == "url":
+            return keyword.value
+    return node.args[0] if node.args else None
+
+
+def check_redirect_validation_violations(report: ComplianceReport) -> None:
+    """Ensure dynamically built same-origin redirects go through ``safe_redirect()``.
+
+    A ``RedirectResponse`` whose target is built from request data (path
+    params, query params, session values) is an open-redirect and
+    response-splitting vector unless the target is validated. ``utils.redirects``
+    is the single policy point for that, so the rule is structural: inside
+    ``app/routers/``, ``RedirectResponse`` may only be constructed with a
+    literal string target. Anything computed must use ``safe_redirect()``.
+
+    This is what keeps CodeQL's ``py/url-redirection`` clean. That alert class
+    once reached ~200 findings and got code scanning switched off for four
+    months, and it regenerates from any router that builds a target ad hoc.
+
+    Deliberate *off-origin* redirects are the exception, and must not be
+    wrapped -- ``safe_redirect()`` rejects absolute URLs and would silently
+    send the user to ``/dashboard`` instead. Waive those with
+    ``# redirect-ok: <reason>`` on, or directly above, the call. Legitimate
+    cases: OAuth2/OIDC ``redirect_uri`` hops validated against the client's
+    registered URIs, SAML AuthnRequest/LogoutRequest hops to the external IdP,
+    signed object-storage download URLs, and forward-auth handshake hops
+    (which use ``safe_external_redirect()`` with a tenant-resolved allowlist).
+    """
+    routers_path = get_app_path() / "routers"
+    if not routers_path.exists():
+        return
+
+    for py_file in sorted(routers_path.rglob("*.py")):
+        if "__pycache__" in py_file.parts:
+            continue
+
+        report.files_scanned += 1
+
+        try:
+            source = py_file.read_text()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        source_lines = source.splitlines()
+        rel_path = str(py_file.relative_to(get_project_root()))
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+
+            func = node.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+            if name != "RedirectResponse":
+                continue
+
+            target = _redirect_url_arg(node)
+            # A literal target cannot carry request data, so it needs no guard.
+            if isinstance(target, ast.Constant):
+                continue
+
+            # Scan the line above the call through its last line, so the waiver
+            # reads naturally on either a one-liner or a wrapped call.
+            start = max(node.lineno - 2, 0)
+            end = min(node.end_lineno or node.lineno, len(source_lines))
+            if any(_REDIRECT_SUPPRESS in line for line in source_lines[start:end]):
+                continue
+
+            report.add(
+                Violation(
+                    principle="Same-Origin Redirect Validation",
+                    severity="high",
+                    file_path=rel_path,
+                    line_number=node.lineno,
+                    function_name=None,
+                    description=(
+                        "RedirectResponse with a computed target bypasses redirect "
+                        "validation (open redirect / response splitting)"
+                    ),
+                    evidence=(
+                        source_lines[node.lineno - 1].strip()
+                        if node.lineno <= len(source_lines)
+                        else "RedirectResponse(...)"
+                    ),
+                    suggested_fix=(
+                        "Use safe_redirect(target, ...) from utils.redirects for a "
+                        "same-origin path. If the redirect is deliberately off-origin "
+                        "and validated another way, add '# redirect-ok: <reason>' on or "
+                        "directly above the call."
+                    ),
+                )
+            )
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -3468,6 +3572,7 @@ def run_compliance_check(
         "template-xss",
         "scim-rls-widening",
         "unscoped-write-failclosed",
+        "redirect-validation",
     ]
     if principles is None:
         principles = all_principles
@@ -3526,6 +3631,9 @@ def run_compliance_check(
 
     if "unscoped-write-failclosed" in principles:
         check_unscoped_write_failclosed_violations(report)
+
+    if "redirect-validation" in principles:
+        check_redirect_validation_violations(report)
 
     return report
 
@@ -3598,6 +3706,7 @@ def main() -> int:
             "template-xss",
             "scim-rls-widening",
             "unscoped-write-failclosed",
+            "redirect-validation",
             "all",
         ],
         default="all",

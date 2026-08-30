@@ -45,10 +45,7 @@ def admin_index(
     """Redirect to the first accessible admin page."""
     first_child = get_first_accessible_child("/admin", user.get("role"))
 
-    if first_child:
-        return RedirectResponse(url=first_child, status_code=303)
-
-    return RedirectResponse(url="/dashboard", status_code=303)
+    return safe_redirect(first_child, default="/dashboard")
 
 
 @router.get("/audit/", response_class=HTMLResponse)
@@ -61,10 +58,7 @@ def audit_index(
     """Redirect to the first accessible audit page."""
     first_child = get_first_accessible_child("/admin/audit", user.get("role"))
 
-    if first_child:
-        return RedirectResponse(url=first_child, status_code=303)
-
-    return RedirectResponse(url="/dashboard", status_code=303)
+    return safe_redirect(first_child, default="/dashboard")
 
 
 @router.get("/todo/", response_class=HTMLResponse)
@@ -77,10 +71,7 @@ def todo_index(
     """Redirect to the first accessible todo page."""
     first_child = get_first_accessible_child("/admin/todo", user.get("role"))
 
-    if first_child:
-        return RedirectResponse(url=first_child, status_code=303)
-
-    return RedirectResponse(url="/dashboard", status_code=303)
+    return safe_redirect(first_child, default="/dashboard")
 
 
 @router.get("/audit/events", response_class=HTMLResponse)

@@ -532,9 +532,13 @@ All checks must pass before committing.
 12. **State-changing fetch() calls to API endpoints must use `WeftUtils.apiFetch()`** - bare `fetch()` with `credentials: 'same-origin'` on a non-GET endpoint is a CSRF vulnerability. Bearer-token clients are unaffected.
 13. **Dynamically built *same-origin* redirects go through `safe_redirect()`** - a redirect to a path on our own origin whose target is built from request data (path params, query params, session values) uses `safe_redirect()` from `app/utils/redirects.py`, never a bare `RedirectResponse`. `RedirectResponse` with a literal string target is fine. This is the single point where same-origin redirect policy is enforced, and it is what keeps CodeQL's `py/url-redirection` clean - a bare dynamic `RedirectResponse` re-opens an alert class that once reached ~200 findings and got code scanning switched off for four months.
 
-    **Do not apply `safe_redirect()` to a deliberate off-origin redirect** - it rejects absolute URLs and would silently send the user to `/dashboard` instead. Two legitimate off-origin cases exist, each with its own validation:
+    This is enforced by the `redirect-validation` compliance check (`make check`): inside `app/routers/`, `RedirectResponse` may only be constructed with a literal string target. Anything computed is a high-severity violation.
+
+    **Do not apply `safe_redirect()` to a deliberate off-origin redirect** - it rejects absolute URLs and would silently send the user to `/dashboard` instead. Waive those with `# redirect-ok: <reason>` on, or directly above, the call. Four legitimate off-origin cases exist, each with its own validation:
     - **OAuth2 / OIDC `redirect_uri`** (`app/routers/oauth2.py`): an absolute URL, validated by exact match against the client's registered `redirect_uris` before use. Leave these as `RedirectResponse`.
     - **Forward-auth handshake hops** (`app/routers/forward_auth/runtime.py`): use `safe_external_redirect()` with an allowlist resolved from the tenant's own registered domains. It returns `None` rather than falling back, so the caller must fail closed.
+    - **SAML hops to the external IdP** (`app/routers/saml/`, `app/routers/auth/logout.py`): the AuthnRequest and LogoutRequest destinations come from the IdP's own registered metadata, not from request data.
+    - **Signed object-storage download URLs** (`app/routers/account.py`, `app/routers/api/v1/exports.py`): a time-limited signed URL minted by the exports service.
 
 ## Testing Requirements
 

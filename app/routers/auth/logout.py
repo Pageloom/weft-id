@@ -93,6 +93,7 @@ def logout(
                 base_url=base_url,
             )
             if slo_redirect:
+                # redirect-ok: external IdP SLO endpoint
                 return RedirectResponse(url=slo_redirect, status_code=303)
         except Exception:
             logger.warning("SLO failed for user %s, continuing with local logout", user_id)

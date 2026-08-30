@@ -42,6 +42,7 @@ def saml_slo_get(
         )
 
         if redirect_url:
+            # redirect-ok: external IdP SLO endpoint
             return RedirectResponse(url=redirect_url, status_code=303)
 
         # If processing failed, just redirect to login
@@ -83,6 +84,7 @@ def saml_slo_post(
         )
 
         if redirect_url:
+            # redirect-ok: external IdP SLO endpoint
             return RedirectResponse(url=redirect_url, status_code=303)
 
     elif saml_response:

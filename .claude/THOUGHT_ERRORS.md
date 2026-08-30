@@ -434,13 +434,23 @@ disabled for four months. The older `_safe_relay_state()` in
 
 **But do not reach for `safe_redirect()` on a deliberate off-origin redirect.** It rejects
 absolute URLs and returns the default, so wrapping one silently breaks the flow instead of
-failing loudly. The OAuth2/OIDC `redirect_uri` hops in `app/routers/oauth2.py` are absolute
-URLs checked by exact match against the client's registered `redirect_uris`; leave them as
-`RedirectResponse`. Check whether a redirect is same-origin *before* converting it.
+failing loudly. Check whether a redirect is same-origin *before* converting it. Four
+off-origin cases are legitimate: OAuth2/OIDC `redirect_uri` hops (`app/routers/oauth2.py`),
+forward-auth handshake hops, SAML AuthnRequest/LogoutRequest hops to the external IdP, and
+signed object-storage download URLs. Waive each with `# redirect-ok: <reason>`.
+
+**The rule is enforced, so do not hand-audit it.** `dev/compliance_check.py` has a
+`redirect-validation` check: inside `app/routers/`, `RedirectResponse` may only be built with
+a literal string target, and anything computed is a high-severity violation unless waived.
+Run `python dev/compliance_check.py --check redirect-validation`; it is also part of
+`make check`.
 
 **Watch the regex when converting in bulk.** A sweep over `url=f"..."` misses the
 parenthesized form `url=(f"...")`, which is how one of the original 39 alerts survived the
-first pass. Match on the alert list afterwards, not on the diff size.
+first pass. It also misses every non-f-string dynamic shape - a bare variable
+(`url=redirect_url`), a subscript (`url=info["url"]`), and concatenation - which is how 27
+unguarded sites survived two passes that both looked complete. Match on an AST scan of the
+call sites, not on the alert list or the diff size.
 
 ---
 

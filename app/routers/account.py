@@ -55,11 +55,7 @@ def account_index(
     # Get first accessible child page
     first_child = get_first_accessible_child("/account", user.get("role"))
 
-    if first_child:
-        return RedirectResponse(url=first_child, status_code=303)
-
-    # Fallback if no accessible children (shouldn't happen)
-    return RedirectResponse(url="/dashboard", status_code=303)
+    return safe_redirect(first_child, default="/dashboard")
 
 
 @router.get("/profile", response_class=HTMLResponse)
@@ -653,6 +649,7 @@ def download_background_job_file(
 
     if download_info["storage_type"] == "spaces":
         # Redirect to signed S3 URL
+        # redirect-ok: signed object-storage download URL
         return RedirectResponse(url=download_info["url"], status_code=302)
     else:
         # Serve local file

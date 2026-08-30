@@ -258,6 +258,7 @@ def authorize_grant(
     if not client or client["client_type"] != "normal" or not client.get("is_active", True):
         # Invalid, wrong-type, or deactivated client: redirect with error and
         # issue no authorization code (defense in depth alongside the GET check).
+        # redirect-ok: registered OAuth2 redirect_uri
         return RedirectResponse(
             url=f"{redirect_uri}?error=unauthorized_client" + (f"&state={state}" if state else ""),
             status_code=303,
@@ -278,6 +279,7 @@ def authorize_grant(
 
     # Handle denial
     if action == "deny":
+        # redirect-ok: registered OAuth2 redirect_uri
         return RedirectResponse(
             url=f"{redirect_uri}?error=access_denied" + (f"&state={state}" if state else ""),
             status_code=303,
@@ -297,6 +299,7 @@ def authorize_grant(
             client_id=client["client_id"],
             client_name=client.get("name"),
         ):
+            # redirect-ok: registered OAuth2 redirect_uri
             return RedirectResponse(
                 url=f"{redirect_uri}?error=access_denied" + (f"&state={state}" if state else ""),
                 status_code=303,
@@ -323,12 +326,14 @@ def authorize_grant(
         )
 
         # Redirect with authorization code
+        # redirect-ok: registered OAuth2 redirect_uri
         return RedirectResponse(
             url=f"{redirect_uri}?code={code}" + (f"&state={state}" if state else ""),
             status_code=303,
         )
 
     # Invalid action
+    # redirect-ok: registered OAuth2 redirect_uri
     return RedirectResponse(
         url=f"{redirect_uri}?error=invalid_request" + (f"&state={state}" if state else ""),
         status_code=303,

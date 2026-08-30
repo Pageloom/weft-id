@@ -27,6 +27,7 @@ from services import saml as saml_service
 from services import settings as settings_service
 from services.activity import track_activity
 from services.exceptions import ServiceError, ValidationError
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -50,11 +51,7 @@ def admin_settings_index(
     # Get first accessible child page
     first_child = get_first_accessible_child("/admin/settings", user.get("role"))
 
-    if first_child:
-        return RedirectResponse(url=first_child, status_code=303)
-
-    # Fallback if no accessible children (shouldn't happen)
-    return RedirectResponse(url="/dashboard", status_code=303)
+    return safe_redirect(first_child, default="/dashboard")
 
 
 @router.get("/privileged-domains", response_class=HTMLResponse)

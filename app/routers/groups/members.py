@@ -9,7 +9,7 @@ from dependencies import (
     require_admin,
 )
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from services import groups as groups_service
 from services.exceptions import (
     ForbiddenError,
@@ -94,7 +94,7 @@ def member_list(
     location = f"/admin/groups/{group_id}/membership"
     if qs:
         location += f"?{qs}"
-    return RedirectResponse(url=location, status_code=301)
+    return safe_redirect(location, status_code=301)
 
 
 @router.get("/{group_id}/members/add", response_class=HTMLResponse)
@@ -205,7 +205,7 @@ def add_members_submit(
         url += f"&role={return_role}"
     if return_status:
         url += f"&status={return_status}"
-    return RedirectResponse(url=url, status_code=303)
+    return safe_redirect(url)
 
 
 @router.post("/{group_id}/members/bulk-remove")

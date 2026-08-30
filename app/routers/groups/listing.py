@@ -9,10 +9,11 @@ from dependencies import (
     require_admin,
 )
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from pages import get_first_accessible_child
 from services import groups as groups_service
 from services.exceptions import ServiceError
+from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -32,9 +33,7 @@ def groups_index(
 ):
     """Redirect to the groups list."""
     first_child = get_first_accessible_child("/admin/groups", user.get("role"))
-    if first_child:
-        return RedirectResponse(url=first_child, status_code=303)
-    return RedirectResponse(url="/admin", status_code=303)
+    return safe_redirect(first_child, default="/admin")
 
 
 @router.get("/list", response_class=HTMLResponse)

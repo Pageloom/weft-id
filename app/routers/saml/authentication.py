@@ -16,6 +16,7 @@ from utils.csp_nonce import get_csp_nonce
 from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp
 from utils.ratelimit import MINUTE, ratelimit
+from utils.redirects import safe_redirect
 from utils.request_metadata import extract_remote_address
 from utils.saml import extract_issuer_from_response
 from utils.session import regenerate_session
@@ -202,6 +203,7 @@ def saml_login(
         request.session["saml_request_id"] = request_id
         request.session["saml_idp_id"] = idp_id
 
+        # redirect-ok: external IdP SSO endpoint
         return RedirectResponse(url=redirect_url, status_code=303)
 
     except NotFoundError as e:
@@ -385,7 +387,7 @@ def saml_acs_per_idp(
     users_service.update_last_login(tenant_id, str(user["id"]))
 
     redirect_url = get_post_auth_redirect(request.session, default=_safe_relay_state(RelayState))
-    return RedirectResponse(url=redirect_url, status_code=303)
+    return safe_redirect(redirect_url)
 
 
 @router.post("/saml/acs")
@@ -621,4 +623,4 @@ def saml_acs(
 
     # Redirect to consent page if pending SSO, otherwise use RelayState
     redirect_url = get_post_auth_redirect(request.session, default=_safe_relay_state(RelayState))
-    return RedirectResponse(url=redirect_url, status_code=303)
+    return safe_redirect(redirect_url)

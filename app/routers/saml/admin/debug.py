@@ -106,6 +106,7 @@ def test_idp_connection(
         request.session["saml_test_request_id"] = request_id
         request.session["saml_test_idp_id"] = idp_id
 
+        # redirect-ok: external IdP SSO endpoint
         return RedirectResponse(url=redirect_url, status_code=303)
 
     except NotFoundError:

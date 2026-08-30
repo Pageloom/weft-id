@@ -244,9 +244,11 @@ def test_delete_expired_nonces(test_tenant):
         tid, str(tid), stale, "acme-corp.com", datetime.now(UTC) - timedelta(seconds=10)
     )
 
-    deleted = database.forward_auth_nonces.delete_expired_nonces(tid, datetime.now(UTC))
+    # No assertion on the returned count: the worker's sweep is UNSCOPED, so a
+    # concurrent run on another xdist worker may already have reaped this row.
+    # The row-level assertions below prove the behavior and are immune to that.
+    database.forward_auth_nonces.delete_expired_nonces(tid, datetime.now(UTC))
 
-    assert deleted >= 1
     # The fresh nonce survives and is still consumable.
     assert _consume(tid, fresh, "acme-corp.com") is not None
     # The stale one was purged.

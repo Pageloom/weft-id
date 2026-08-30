@@ -99,6 +99,13 @@ def _load_oidc_signing_key_cleanup() -> Any:
     return cleanup_oidc_signing_keys()
 
 
+def _load_forward_auth_nonce_cleanup() -> Any:
+    """Import and run the forward-auth nonce cleanup job."""
+    from jobs.cleanup_forward_auth_nonces import cleanup_forward_auth_nonces
+
+    return cleanup_forward_auth_nonces()
+
+
 class PeriodicJob:
     """A periodic background job with interval-based scheduling."""
 
@@ -125,6 +132,7 @@ class Worker:
         scim_push_interval_seconds: int = 60,
         scim_sync_log_cleanup_interval_hours: int = 24,
         oidc_key_cleanup_interval_hours: int = 1,
+        forward_auth_nonce_cleanup_interval_hours: int = 1,
     ) -> None:
         """Initialize the worker.
 
@@ -138,6 +146,7 @@ class Worker:
             scim_push_interval_seconds: Seconds between outbound SCIM push drains
             scim_sync_log_cleanup_interval_hours: Hours between SCIM sync-log retention sweeps
             oidc_key_cleanup_interval_hours: Hours between retired OIDC signing-key sweeps
+            forward_auth_nonce_cleanup_interval_hours: Hours between forward-auth nonce sweeps
         """
         self.poll_interval = poll_interval
         self.running = True
@@ -191,6 +200,11 @@ class Worker:
                 "OIDC signing-key cleanup",
                 _load_oidc_signing_key_cleanup,
                 timedelta(hours=oidc_key_cleanup_interval_hours),
+            ),
+            PeriodicJob(
+                "forward-auth nonce cleanup",
+                _load_forward_auth_nonce_cleanup,
+                timedelta(hours=forward_auth_nonce_cleanup_interval_hours),
             ),
         ]
 

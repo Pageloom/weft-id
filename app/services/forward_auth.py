@@ -136,6 +136,17 @@ def redeem_authorization_token(
     return payload
 
 
+def cleanup_expired_nonces() -> int:
+    """Purge expired forward-auth nonce rows across all tenants.
+
+    System path for the worker's periodic sweep (no requesting user): a
+    cross-tenant UNSCOPED delete of rows whose ``expires_at`` has passed.
+    Idempotent: rows already purged (or still unexpired) are untouched. Not
+    exposed through any router.
+    """
+    return database.forward_auth_nonces.delete_expired_nonces(database.UNSCOPED, datetime.now(UTC))
+
+
 # ---------------------------------------------------------------------------
 # Runtime resolution + access decision (iteration 5)
 # ---------------------------------------------------------------------------

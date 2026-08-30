@@ -48,7 +48,7 @@ def test_worker_init_defaults():
 
     assert worker.poll_interval == 10
     assert worker.running is True
-    assert len(worker._periodic_jobs) == 10
+    assert len(worker._periodic_jobs) == 11
 
     cleanup = worker._periodic_jobs[0]
     assert cleanup.name == "cleanup"
@@ -79,6 +79,11 @@ def test_worker_init_defaults():
     assert oidc_key_cleanup.name == "OIDC signing-key cleanup"
     assert oidc_key_cleanup.interval == timedelta(hours=1)
     assert oidc_key_cleanup.last_run is None
+
+    forward_auth_nonce_cleanup = worker._periodic_jobs[10]
+    assert forward_auth_nonce_cleanup.name == "forward-auth nonce cleanup"
+    assert forward_auth_nonce_cleanup.interval == timedelta(hours=1)
+    assert forward_auth_nonce_cleanup.last_run is None
 
 
 def test_worker_init_custom_values():
@@ -140,7 +145,7 @@ def test_check_periodic_jobs_first_run(mock_datetime):
 
     worker._check_periodic_jobs()
 
-    assert worker._run_job.call_count == 10
+    assert worker._run_job.call_count == 11
     for job in worker._periodic_jobs:
         assert job.last_run == now
 
@@ -283,6 +288,19 @@ def test_load_certificate_rotation(mock_rotate):
 
     mock_rotate.assert_called_once()
     assert result == {"rotated": 1, "cleaned_up": 2, "errors": []}
+
+
+@patch("jobs.cleanup_forward_auth_nonces.cleanup_forward_auth_nonces")
+def test_load_forward_auth_nonce_cleanup(mock_cleanup):
+    """Test _load_forward_auth_nonce_cleanup imports and calls the job."""
+    from worker import _load_forward_auth_nonce_cleanup
+
+    mock_cleanup.return_value = {"deleted": 4}
+
+    result = _load_forward_auth_nonce_cleanup()
+
+    mock_cleanup.assert_called_once()
+    assert result == {"deleted": 4}
 
 
 # =============================================================================

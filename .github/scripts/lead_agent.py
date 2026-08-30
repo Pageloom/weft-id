@@ -261,7 +261,9 @@ def main() -> int:
     if args.push:
         branch = args.branch or _git("rev-parse", "--abbrev-ref", "HEAD")
         print(f"[push] {branch}", file=sys.stderr)
-        _git("push", "origin", branch)
+        # actions/checkout leaves a detached HEAD, so push HEAD explicitly rather
+        # than a local branch name (which does not exist in that state).
+        _git("push", "origin", f"HEAD:{branch}")
     else:
         print("[push] skipped (pass --push to push)", file=sys.stderr)
 

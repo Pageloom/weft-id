@@ -423,7 +423,7 @@ make quality-all                    # Code quality + unit tests + E2E tests
 make up          # Build and start all services
 make down        # Stop and remove containers
 make status      # Show service status
-make restart-app # Restart specific service
+make up-app      # Rebuild and restart one service (no deps)
 ```
 
 **Logs and debugging:**

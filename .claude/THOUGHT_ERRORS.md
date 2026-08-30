@@ -75,8 +75,8 @@ Project architecture: "Routers: HTTP/template layer only. Never import database 
 
 ## Restarting Containers After Code Changes
 
-**Wrong:** `make restart-app` when changing background job code
-**Right:** Restart the worker container for changes to `app/jobs/`
+**Wrong:** `make restart-app` (no such target), or rebuilding the app service when changing background job code
+**Right:** `make up-worker` for changes to `app/jobs/`. The pattern target is `up-%`, e.g. `make up-app`.
 
 Background jobs run in a separate worker container. Changes to job handlers require restarting the worker container, not the app container.
 
@@ -509,3 +509,39 @@ A subagent returned a confident, detailed digest of `app/jobs/inactivate_idle_us
 types, a `_send_email`/`_html_escape` API that doesn't exist). Every edit built on it failed
 with "string not found." The `cat -n` of the real file in the same batch already contradicted
 the digest. Direct file reads win.
+
+---
+
+## A Playwright Bump Needs a Matching Browser Download
+
+**Wrong:** Bumping `playwright` in `pyproject.toml`, running `make e2e`, and reading the
+resulting wall of `ERROR at setup` as a regression from whatever else was in the batch.
+**Right:** Run `poetry run python -m playwright install chromium` after any playwright bump,
+then rerun the suite.
+
+Each playwright release pins its own browser build. After 1.60.0 → 1.62.0 the cached
+`chrome-headless-shell` no longer matched, so every one of the 41 browser-backed E2E tests
+errored at fixture setup with `BrowserType.launch: Executable doesn't exist`. The failures
+are indiscriminate, so they look like the scariest package in the batch broke everything.
+Read the first traceback before blaming the bump you were most worried about.
+
+Note `python -m playwright`, not `playwright` — the bare script is not on the path, the same
+as `pytest` and `pip-audit`.
+
+---
+
+## Piping a Command to `tail` Hides Its Exit Code
+
+**Wrong:** `make up-app 2>&1 | tail -5 && make up-worker ...` and trusting the reported exit
+status.
+**Right:** `set -o pipefail` first, or capture full output to a file and check `$?`.
+
+A pipeline's exit status is the *last* command's, so `tail` reports success even when the
+command ahead of it died. A failed `docker compose build` (wrong project directory, missing
+env file) was reported as exit 0 and the stale container silently kept serving the old
+dependency version, which nearly turned into "the E2E suite validated the bump" when it had
+validated nothing.
+
+Also: always drive compose through the `make` targets. `$(COMPOSE)` is
+`docker compose --project-directory . -f dev/docker-compose.yml`; running `docker compose`
+from inside `dev/` resolves build contexts and the env file against the wrong root.

@@ -8,9 +8,8 @@ name: Lead Agent (Ollama Cloud)
 # runs the final review pass, pushes, and opens a PR.
 #
 # Setup (one-time):
-#   1. Add repository secrets:
+#   1. Add a repository secret:
 #        OLLAMA_API_KEY   - from https://ollama.com/settings/keys
-#        OLLAMA_BASE_URL  - https://ollama.com
 #   2. Push the branch you want the agent to work on (e.g. oidc-upstream).
 #   3. Run: Actions > "Lead Agent (Ollama Cloud)" > Run workflow, selecting the
 #      branch and slug.
@@ -64,7 +63,7 @@ jobs:
           - 1080:1080
 
     env:
-      OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
+      OLLAMA_BASE_URL: https://ollama.com
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
       OLLAMA_MODEL: ${{ inputs.model }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

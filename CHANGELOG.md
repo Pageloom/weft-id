@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-08-30
+
+### Security
+
+- Hardened redirect handling: every same-origin redirect built from request
+  data now passes through a single `safe_redirect()` validation point that
+  rejects protocol-relative, scheme-carrying, backslash, and control-character
+  targets, closing off open-redirect and response-splitting. A compliance check
+  now enforces the rule so new routes cannot regress it.
+- Updated cryptography to 50.0.0 and pyopenssl to 26.4.0 to address CVE fixes.
+- Updated pillow to 12.3.0 and pyasn1 to 0.6.4 to address CVE fixes.
+- Updated pip to 26.2.1 to address CVE-2026-13346.
+
+### Fixed
+
+- Fixed a bug where a "&" or "#" in a group member search term could add or
+  truncate query parameters on the add-members redirect, and a backslash could
+  drop the admin on the dashboard instead of the membership page. Redirect
+  query values are now percent-encoded.
+
+### Changed
+
+- Updated runtime dependencies (webauthn 3.0.0, msoffcrypto-tool 6.0.0, cbor2
+  6.1.4, ua-parser-builtins).
+
 ## [1.11.0] - 2026-07-12
 
 ### Added

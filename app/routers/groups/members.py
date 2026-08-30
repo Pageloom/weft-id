@@ -1,6 +1,7 @@
 """Group member management routes."""
 
 from typing import Annotated
+from urllib.parse import quote, urlencode
 
 from dependencies import (
     build_requesting_user,
@@ -91,7 +92,7 @@ def member_list(
 ):
     """Redirect to the membership tab (members management is now inline)."""
     qs = request.url.query
-    location = f"/admin/groups/{group_id}/membership"
+    location = f"/admin/groups/{quote(group_id, safe='')}/membership"
     if qs:
         location += f"?{qs}"
     return safe_redirect(location, status_code=301)
@@ -192,20 +193,31 @@ def add_members_submit(
     try:
         count = groups_service.bulk_add_members(requesting_user, group_id, user_ids)
     except (NotFoundError, ForbiddenError) as exc:
-        return safe_redirect(f"/admin/groups/{group_id}/membership?error={exc.code}")
+        return safe_redirect(
+            f"/admin/groups/{quote(group_id, safe='')}/membership?error={exc.code}"
+        )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    # Redirect back to add page preserving current view state
-    url = f"/admin/groups/{group_id}/members/add?success=members_added&count={count}"
-    url += f"&page={return_page}&size={return_size}&sort={return_sort}&order={return_order}"
+    # Redirect back to add page preserving current view state. These are all
+    # form values, so the query is built with urlencode rather than interpolated:
+    # a raw "&", "#" or backslash would otherwise reshape the target.
+    params = {
+        "success": "members_added",
+        "count": count,
+        "page": return_page,
+        "size": return_size,
+        "sort": return_sort,
+        "order": return_order,
+    }
     if return_search:
-        url += f"&search={return_search}"
+        params["search"] = return_search
     if return_role:
-        url += f"&role={return_role}"
+        params["role"] = return_role
     if return_status:
-        url += f"&status={return_status}"
-    return safe_redirect(url)
+        params["status"] = return_status
+    path = f"/admin/groups/{quote(group_id, safe='')}/members/add"
+    return safe_redirect(f"{path}?{urlencode(params)}")
 
 
 @router.post("/{group_id}/members/bulk-remove")
@@ -222,7 +234,9 @@ def bulk_remove_members(
     try:
         count = groups_service.bulk_remove_members(requesting_user, group_id, user_ids)
     except (NotFoundError, ForbiddenError) as exc:
-        return safe_redirect(f"/admin/groups/{group_id}/membership?error={exc.code}")
+        return safe_redirect(
+            f"/admin/groups/{quote(group_id, safe='')}/membership?error={exc.code}"
+        )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -245,7 +259,9 @@ def remove_member(
     try:
         groups_service.remove_member(requesting_user, group_id, user_id)
     except NotFoundError as exc:
-        return safe_redirect(f"/admin/groups/{group_id}/membership?error={exc.code}")
+        return safe_redirect(
+            f"/admin/groups/{quote(group_id, safe='')}/membership?error={exc.code}"
+        )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 

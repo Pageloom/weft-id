@@ -1118,6 +1118,89 @@ def test_add_members_submit_forbidden(test_admin_user, override_auth, mocker):
     assert "error=idp_group_read_only" in response.headers["location"]
 
 
+def test_add_members_submit_encodes_return_state(test_admin_user, override_auth, mocker):
+    """Return-state values are form input, so they must be percent-encoded.
+
+    Interpolating them raw let a "&" or "#" in the search term add or truncate
+    query parameters in the redirect target.
+    """
+    from urllib.parse import parse_qs, urlparse
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    mocker.patch(f"{MEMBERS_MODULE}.groups_service.bulk_add_members", return_value=1)
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/members/add",
+        data={
+            "user_ids": [str(uuid4())],
+            "r_search": "a&role=admin#x",
+            "r_role": "admin",
+            "r_status": "active",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers["location"]
+    parsed = urlparse(location)
+    assert parsed.path == f"/admin/groups/{group_id}/members/add"
+    # The injected "&role=" is data inside `search`, not a parameter of its own,
+    # and the "#" did not truncate the query.
+    query = parse_qs(parsed.query)
+    assert query["search"] == ["a&role=admin#x"]
+    assert query["role"] == ["admin"]
+    assert query["status"] == ["active"]
+    assert parsed.fragment == ""
+
+
+def test_add_members_submit_backslash_search_still_redirects(
+    test_admin_user, override_auth, mocker
+):
+    """A backslash in the search term must not trip safe_redirect's guard.
+
+    Unencoded it looks protocol-relative to a browser, so safe_redirect would
+    reject the target and silently drop the admin on /dashboard.
+    """
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    mocker.patch(f"{MEMBERS_MODULE}.groups_service.bulk_add_members", return_value=1)
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/members/add",
+        data={"user_ids": [str(uuid4())], "r_search": "foo\\bar"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert location.startswith(f"/admin/groups/{group_id}/members/add?")
+    assert "\\" not in location
+    assert "search=foo%5Cbar" in location
+
+
+def test_add_members_submit_encodes_group_id_in_path(test_admin_user, override_auth, mocker):
+    """group_id is matched as [^/]+, so a "?" in it could reshape the target."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(f"{MEMBERS_MODULE}.groups_service.bulk_add_members", return_value=1)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/groups/abc%3Fx=1/members/add",
+        data={"user_ids": [str(uuid4())]},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert location.startswith("/admin/groups/abc%3Fx%3D1/members/add?")
+
+
 def test_add_members_submit_service_error(test_admin_user, override_auth, mocker):
     """Test adding members with service error renders error page."""
     from services.exceptions import ServiceError

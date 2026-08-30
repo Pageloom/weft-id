@@ -218,3 +218,37 @@ def test_redeem_does_not_verify_with_cookie_key(test_tenant):
         user_id="u", tenant_id=tid, domain="keysep.com", app_id="a", rd="/", nonce=nonce
     )
     assert svc.redeem_authorization_token(genuine, expected_domain="keysep.com") is not None
+
+
+# -- cleanup ------------------------------------------------------------------
+
+
+def test_cleanup_expired_nonces_purges_stale_rows(test_tenant):
+    """The system sweep deletes expired rows and leaves fresh ones consumable."""
+    tid = test_tenant["id"]
+    fresh = fa.generate_nonce()
+    stale = fa.generate_nonce()
+    database.forward_auth_nonces.create_nonce(
+        tid, str(tid), fresh, "cleanup.com", datetime.now(UTC) + timedelta(seconds=3600)
+    )
+    database.forward_auth_nonces.create_nonce(
+        tid, str(tid), stale, "cleanup.com", datetime.now(UTC) - timedelta(seconds=10)
+    )
+
+    deleted = svc.cleanup_expired_nonces()
+
+    assert deleted >= 1
+    # The fresh nonce survives and is still consumable.
+    assert (
+        database.forward_auth_nonces.consume_nonce(
+            database.UNSCOPED, fresh, "cleanup.com", datetime.now(UTC)
+        )
+        is not None
+    )
+    # The stale one was purged.
+    assert (
+        database.forward_auth_nonces.consume_nonce(
+            database.UNSCOPED, stale, "cleanup.com", datetime.now(UTC)
+        )
+        is None
+    )

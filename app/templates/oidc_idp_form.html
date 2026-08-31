@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Add OIDC Provider - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <div class="mb-6">
+            <a href="/admin/settings/oidc-identity-providers" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                &larr; Back to OIDC Identity Providers
+            </a>
+        </div>
+
+        <h1 class="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+            Add OIDC Provider
+        </h1>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Create a new OpenID Connect identity provider. Choose a vendor preset to pre-fill the
+            authority, discovery URL, scopes, and correlation claim.
+        </p>
+
+        {% if error %}
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">{{ error }}</p>
+        </div>
+        {% endif %}
+
+        <form method="post" action="/admin/settings/oidc-identity-providers/new" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Display Name <span class="text-red-500">*</span>
+                </label>
+                <input type="text" id="name" name="name" required
+                       placeholder="e.g., Corporate Google"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div>
+                <label for="provider_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Provider Type <span class="text-red-500">*</span>
+                </label>
+                <select id="provider_type" name="provider_type" required
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="generic" selected>Generic OIDC</option>
+                    <option value="google">Google</option>
+                    <option value="entra">Entra ID</option>
+                </select>
+            </div>
+
+            <div id="entra-tenant-field" class="hidden">
+                <label for="entra_tenant_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Entra Tenant ID
+                </label>
+                <input type="text" id="entra_tenant_id" name="entra_tenant_id"
+                       placeholder="e.g., a GUID, a verified domain, or 'common'"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The authority is composed from this value.</p>
+            </div>
+
+            <div>
+                <label for="issuer" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Issuer <span class="text-red-500">*</span>
+                </label>
+                <input type="url" id="issuer" name="issuer"
+                       placeholder="https://accounts.google.com"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div>
+                <label for="discovery_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Discovery URL
+                </label>
+                <input type="url" id="discovery_url" name="discovery_url"
+                       placeholder="https://accounts.google.com/.well-known/openid-configuration"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. Falls back to the issuer's well-known path.</p>
+            </div>
+
+            <div>
+                <label for="client_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Client ID
+                </label>
+                <input type="text" id="client_id" name="client_id"
+                       placeholder="your-client-id"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div>
+                <label for="client_secret" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Client Secret
+                </label>
+                <input type="password" id="client_secret" name="client_secret" autocomplete="new-password"
+                       placeholder="your-client-secret"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Encrypted at rest and never displayed again.</p>
+            </div>
+
+            <div>
+                <label for="scopes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Scopes
+                </label>
+                <input type="text" id="scopes" name="scopes"
+                       placeholder="openid profile email"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div>
+                <label for="correlation_claim" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Correlation Claim
+                </label>
+                <input type="text" id="correlation_claim" name="correlation_claim" value="sub"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The claim used to correlate users (Entra uses <code>oid</code>).</p>
+            </div>
+
+            <div id="hosted-domain-field" class="hidden">
+                <label for="hosted_domain" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Hosted Domain (Google <code>hd</code>)
+                </label>
+                <input type="text" id="hosted_domain" name="hosted_domain"
+                       placeholder="example.com"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Restrict sign-in to a Google Workspace domain.</p>
+            </div>
+
+            <div class="space-y-3 pt-2">
+                <div class="flex items-start">
+                    <div class="flex items-center h-5">
+                        <input type="checkbox" id="require_platform_mfa" name="require_platform_mfa"
+                               class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="ml-3">
+                        <label for="require_platform_mfa" class="text-sm font-medium text-gray-700 dark:text-gray-300">Require Platform Two-Step Verification</label>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Require two-step verification after OIDC authentication.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-start">
+                    <div class="flex items-center h-5">
+                        <input type="checkbox" id="jit_provisioning" name="jit_provisioning"
+                               class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="ml-3">
+                        <label for="jit_provisioning" class="text-sm font-medium text-gray-700 dark:text-gray-300">Just-in-Time Provisioning</label>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Create accounts automatically on first OIDC sign-in.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-start">
+                    <div class="flex items-center h-5">
+                        <input type="checkbox" id="allow_email_linking" name="allow_email_linking"
+                               class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                    </div>
+                    <div class="ml-3">
+                        <label for="allow_email_linking" class="text-sm font-medium text-gray-700 dark:text-gray-300">Allow Email Linking</label>
+                        <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                            {{ icon("exclamation-triangle", class="w-3 h-3 inline-block mr-1 -mt-0.5") }}
+                            When enabled, an unrecognized subject may be attached to an existing
+                            account on an email match (requires <code>email_verified: true</code>).
+                            Leave off unless you trust the IdP to verify emails.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Create OIDC Provider
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script type="application/json" id="page-data">
+{{ presets | tojson }}
+</script>
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const presets = JSON.parse(document.getElementById('page-data').textContent);
+    const providerSelect = document.getElementById('provider_type');
+    const issuerInput = document.getElementById('issuer');
+    const discoveryInput = document.getElementById('discovery_url');
+    const scopesInput = document.getElementById('scopes');
+    const correlationInput = document.getElementById('correlation_claim');
+    const entraField = document.getElementById('entra-tenant-field');
+    const hostedField = document.getElementById('hosted-domain-field');
+
+    function applyPreset() {
+        const type = providerSelect.value;
+        const preset = presets[type] || {};
+        if (preset.issuer) {
+            issuerInput.value = preset.issuer;
+        } else if (type !== 'entra') {
+            issuerInput.value = '';
+        }
+        if (preset.discovery_url) {
+            discoveryInput.value = preset.discovery_url;
+        } else {
+            discoveryInput.value = '';
+        }
+        if (preset.scopes) {
+            scopesInput.value = preset.scopes;
+        }
+        if (preset.correlation_claim) {
+            correlationInput.value = preset.correlation_claim;
+        }
+        // The issuer is composed from the tenant id for Entra, so it is not
+        // required there; every other preset needs an explicit issuer.
+        issuerInput.required = type !== 'entra';
+        entraField.classList.toggle('hidden', type !== 'entra');
+        hostedField.classList.toggle('hidden', type !== 'google');
+    }
+
+    providerSelect.addEventListener('change', applyPreset);
+    applyPreset();
+})();
+</script>
+{% endblock %}

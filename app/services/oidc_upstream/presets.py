@@ -40,6 +40,8 @@ class OIDCPreset:
 
     Attributes:
         provider_type: One of ``generic``, ``google``, ``entra``.
+        issuer: The issuer/authority URL, or None when the admin must supply
+            one (generic) or when it is composed from another field (entra).
         discovery_url: The discovery document URL, or None when the admin
             must supply one (generic) or when it is composed from another
             field (entra).
@@ -51,6 +53,7 @@ class OIDCPreset:
     """
 
     provider_type: str
+    issuer: str | None
     discovery_url: str | None
     scopes: str
     correlation_claim: str
@@ -60,18 +63,21 @@ class OIDCPreset:
 _PRESETS: dict[str, OIDCPreset] = {
     "generic": OIDCPreset(
         provider_type="generic",
+        issuer=None,
         discovery_url=None,
         scopes=_DEFAULT_SCOPES,
         correlation_claim="sub",
     ),
     "google": OIDCPreset(
         provider_type="google",
+        issuer="https://accounts.google.com",
         discovery_url="https://accounts.google.com/.well-known/openid-configuration",
         scopes=_DEFAULT_SCOPES,
         correlation_claim="sub",
     ),
     "entra": OIDCPreset(
         provider_type="entra",
+        issuer=None,
         discovery_url=None,
         scopes=_ENTRA_SCOPES,
         correlation_claim="oid",
@@ -96,6 +102,7 @@ def get_preset_defaults(provider_type: str) -> dict:
         return {}
     return {
         "provider_type": preset.provider_type,
+        "issuer": preset.issuer,
         "discovery_url": preset.discovery_url,
         "scopes": preset.scopes,
         "correlation_claim": preset.correlation_claim,

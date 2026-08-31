@@ -15,6 +15,7 @@ class TestGetPreset:
     def test_google(self):
         preset = presets.get_preset("google")
         assert preset is not None
+        assert preset.issuer == "https://accounts.google.com"
         assert preset.discovery_url == (
             "https://accounts.google.com/.well-known/openid-configuration"
         )
@@ -37,6 +38,7 @@ class TestGetPresetDefaults:
     def test_returns_dict(self):
         defaults = presets.get_preset_defaults("google")
         assert defaults["provider_type"] == "google"
+        assert defaults["issuer"] == "https://accounts.google.com"
         assert defaults["correlation_claim"] == "sub"
 
     def test_unknown_returns_empty(self):

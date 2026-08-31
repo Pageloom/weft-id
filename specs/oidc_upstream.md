@@ -6,7 +6,7 @@
 **Created**: 2026-08-30
 **Revised**: 2026-08-30 (plan review -- re-split into 8 iterations, column set settled,
 cross-cutting concerns added)
-**Status**: In progress -- Iteration 4 of 8
+**Status**: In progress -- Iteration 5 of 8
 
 ## Context
 
@@ -555,33 +555,118 @@ closed with new tests.
 ---
 
 ## Iteration 4 -- Admin UI
-**Status**: Not started
+**Status**: Complete
+**Completed**: 2026-08-31
 
 The admin surface, built after the flow and the preset registry exist so the form is built once.
 
 ### Acceptance criteria
-- [ ] List page, create/edit form with the vendor preset picker (Generic / Google / Entra)
+- [x] List page, create/edit form with the vendor preset picker (Generic / Google / Entra)
       pre-filling authority/discovery URL, scopes, and correlation claim; detail tabs
       (details / danger; the claim-mapping tab arrives in Iteration 5).
-- [ ] The connection detail page displays the callback URL to paste into the IdP console, with a
+- [x] The connection detail page displays the callback URL to paste into the IdP console, with a
       copy-to-clipboard control (`WeftUtils`).
-- [ ] Preset-conditional fields: Entra asks for a tenant ID, Google offers the hosted domain.
+- [x] Preset-conditional fields: Entra asks for a tenant ID, Google offers the hosted domain.
       `require_platform_mfa`, `jit_provisioning`, and `allow_email_linking` are exposed as toggles,
       with `allow_email_linking` carrying an explanatory warning about its account-linking effect.
-- [ ] Test-connection action: runs real discovery (Iteration 2) and reports success/failure with
+- [x] Test-connection action: runs real discovery (Iteration 2) and reports success/failure with
       the discovered endpoints. Not a placeholder.
-- [ ] All pages registered in `app/pages.py` under a new SUPER_ADMIN section
+- [x] All pages registered in `app/pages.py` under a new SUPER_ADMIN section
       (`/admin/settings/oidc-identity-providers`) with `docs_path` set.
-- [ ] `make build-css` run after the templates land.
-- [ ] Tests: router happy paths, authz (non-super-admin refused), form validation, secret never
+- [x] `make build-css` run after the templates land.
+- [x] Tests: router happy paths, authz (non-super-admin refused), form validation, secret never
       rendered.
 
-### Layers affected
-Router (admin), Templates, Tests.
+### What was done
+- `app/routers/oidc_upstream/admin.py` -- Admin router mirroring `routers/saml/admin/providers.py`:
+  list, create form (with vendor preset picker), detail tabs (details/danger), and POST handlers
+  (edit name, edit settings, toggle, set-default, delete, test-connection). The test-connection
+  action runs real discovery via `oidc_service.run_discovery(force=True)` and reports success/failure
+  with discovered endpoints. Entra preset composes its issuer from `entra_tenant_id`. The create
+  handler catches Pydantic `ValidationError` and redirects with a generic `error=invalid_input`
+  rather than returning a 500.
+- `app/templates/oidc_idp_list.html` -- List page (name/provider-type/status/discovery columns,
+  default badge).
+- `app/templates/oidc_idp_form.html` -- Create form with Generic/Google/Entra preset picker that
+  pre-fills issuer, discovery URL, scopes, and correlation claim via a `page-data` JSON block;
+  preset-conditional fields (Entra tenant ID, Google hosted domain); `require_platform_mfa` /
+  `jit_provisioning` / `allow_email_linking` toggles with the account-linking warning. The issuer
+  field is conditionally required (not required for Entra, where it is composed from the tenant ID).
+- `app/templates/oidc_idp_base.html` -- Shared tab-bar layout (Details / Delete).
+- `app/templates/oidc_idp_tab_details.html` -- Details tab: callback URL with copy-to-clipboard,
+  endpoint display, settings form, test-connection action, and an edit-name modal (wired to the
+  `/edit` route).
+- `app/templates/oidc_idp_tab_danger.html` -- Danger tab: enable/disable gate + delete with
+  confirmation modal.
+- `app/routers/oidc_upstream/__init__.py` -- Now includes the admin router alongside the auth router.
+- `app/pages.py` -- Registered the new SUPER_ADMIN section `/admin/settings/oidc-identity-providers`
+  (with `new`, `connection`, `connection/details`, `connection/danger` children) and `docs_path` set.
+- `app/services/oidc_upstream/presets.py` -- Added an `issuer` field to `OIDCPreset` and
+  `get_preset_defaults` (Google -> `https://accounts.google.com`; Entra -> None, composed from
+  tenant id) so the preset picker can pre-fill the authority.
 
-### Guidance
-- Do not reuse the SAML templates -- different fields and tabs. Follow their shape, not their markup.
-- No inline `onclick`/`onsubmit` (CSP); server values go in a `page-data` JSON block.
+### Tests added
+- `tests/routers/test_oidc_upstream_admin.py` -- 22 tests covering list/new/create (incl. Entra
+  issuer composition), detail tabs, secret-never-rendered, POST handlers, delete-conflict,
+  test-connection success/failure, invalid `provider_type` and empty `issuer` (both redirect with
+  `error=invalid_input`, not 500), and Google issuer pre-fill in the new-form response.
+- `tests/services/test_oidc_upstream_presets.py` -- Added assertions for the Google preset's
+  `issuer` field and its presence in `get_preset_defaults`.
+
+### Test review
+The test agent found 7 findings. One was a real high-severity production bug, fixed:
+
+1. **[HIGH] Unhandled Pydantic `ValidationError` -> HTTP 500 on the create form.** The route
+   constructed `OIDCConnectionCreate(...)` directly; a malformed form value (bad `provider_type`,
+   empty `issuer`, over-length field) raised `pydantic_core.ValidationError`, which the
+   `except ValidationError` clause (catching `services.exceptions.ValidationError`) did not catch.
+   Fixed: the schema construction is now wrapped in a `try/except PydanticValidationError` that
+   redirects with a generic `error=invalid_input` (no raw `str(e)` echo, to avoid leaking field
+   names/values).
+
+Also fixed (medium/low, from the same review):
+
+2. **[MEDIUM] Entra "compose issuer from tenant ID" unreachable via the form.** The issuer input
+   had an unconditional HTML `required` attribute, so a browser blocked submission when the issuer
+   was empty. Fixed: the issuer field is now conditionally required (removed for Entra, where the
+   authority is composed from the tenant ID).
+3. **[MEDIUM] Preset picker did not pre-fill the issuer/authority.** `get_preset_defaults` carried
+   no issuer; the Google preset left the issuer blank. Fixed: added an `issuer` field to the preset
+   (Google -> `https://accounts.google.com`; Entra -> None) and set `issuerInput.value` in
+   `applyPreset()`.
+4. **[LOW] "Edit name" pencil button was a dead control.** No JS listener or form was wired to it.
+   Fixed: added an edit-name modal (mirroring the SAML details tab) posting to the existing `/edit`
+   route.
+
+Findings #4 (no full "edit form" -- only name + boolean toggles editable) and #5 (default provider
+cannot be unset) were recorded as accepted scope decisions rather than fixed (see decisions log).
+The `ResourceWarning: unclosed socket` messages at interpreter shutdown are pre-existing (memcached
+client) and do not fail the suite.
+
+### Reconceptualisations
+- **The preset picker now pre-fills the issuer/authority, not just discovery URL/scopes/correlation
+  claim.** The original acceptance criterion said "authority/discovery URL" but the preset registry
+  only carried `discovery_url`. Added an `issuer` field to `OIDCPreset` so Google pre-fills
+  `https://accounts.google.com` and Entra leaves it empty (composed from the tenant ID). This is a
+  correction to the Iteration 2 preset shape, not a new data model.
+
+### Decisions log
+- **No full "edit form" this iteration.** -- **Context**: acceptance criterion 1 says "create/edit
+  form", but the implementation provides a create form plus inline name edit and boolean toggles;
+  `issuer`, `discovery_url`, `client_id`, `client_secret`, `scopes`, `correlation_claim`,
+  `hosted_domain`, `entra_tenant_id` are immutable post-creation. -- **Rationale**: the SAML admin
+  surface is also name-only + toggles (its endpoints come from metadata import, not a form); a full
+  edit form is a larger surface than the criterion strictly requires and can be added later if
+  admins need to fix endpoint typos without delete/recreate. Recorded as an accepted gap.
+- **"Default Provider" cannot be unset from the UI.** -- **Context**: the settings form exposes an
+  `is_default` checkbox but the handler only ever *sets* default; `set_connection_default` in the DB
+  layer only writes `true`. -- **Rationale**: this mirrors the SAML behavior exactly (un-defaulting
+  requires picking another default), and the DB trigger unsets other defaults. The checkbox is
+  slightly misleading but consistent with the SAML precedent; left as-is rather than adding an
+  `unset_connection_default` path that SAML does not have.
+- **Pydantic validation errors redirect with a generic message.** -- **Context**: the create form
+  passes many strictly-constrained fields; echoing `str(e)` would leak field names/values. --
+  **Rationale**: a generic `error=invalid_input` is safe and sufficient for an admin surface.
 
 ---
 

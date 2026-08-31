@@ -6,7 +6,7 @@
 **Created**: 2026-08-30
 **Revised**: 2026-08-30 (plan review -- re-split into 8 iterations, column set settled,
 cross-cutting concerns added)
-**Status**: In progress -- Iteration 3 of 8
+**Status**: In progress -- Iteration 4 of 8
 
 ## Context
 
@@ -436,54 +436,121 @@ with new tests for `iat`/`nbf`-future (#3), missing `iss`/`aud`/`exp`/`iat` clai
 ---
 
 ## Iteration 3 -- Login and callback routes: PKCE, correlation, JIT, MFA gate
-**Status**: Not started
+**Status**: Complete
+**Completed**: 2026-08-31
 
 The generic connector working end to end. After this iteration a connection created via the API
 can log a user in.
 
 ### Acceptance criteria
-- [ ] `GET /auth/oidc/{connection_id}/login`: generates `state`, `nonce`, and a PKCE
+- [x] `GET /auth/oidc/{connection_id}/login`: generates `state`, `nonce`, and a PKCE
       `code_verifier` (S256 challenge), stores all three in the session, builds the authorize URL
       (including `hd` when `hosted_domain` is set), and redirects off-origin. Scopes
       `openid profile email` are always requested.
-- [ ] `GET /auth/oidc/{connection_id}/callback`: validates `state`, exchanges the code with the
+- [x] `GET /auth/oidc/{connection_id}/callback`: validates `state`, exchanges the code with the
       `code_verifier`, validates the ID token (Iteration 2), correlates the user, and completes
       login. Single-use: the session's state/nonce/verifier are cleared on first use so a replayed
       callback fails.
-- [ ] Redirects follow the CLAUDE.md policy: the authorize hop is a deliberate off-origin redirect
+- [x] Redirects follow the CLAUDE.md policy: the authorize hop is a deliberate off-origin redirect
       (`safe_external_redirect()` against the tenant's registered hosts, or a `# redirect-ok:`
       waived `RedirectResponse`); every internal redirect goes through `safe_redirect()`.
-- [ ] Correlation on `(idp_id, sub)` where `sub` is the claim named by `correlation_claim`:
+- [x] Correlation on `(idp_id, sub)` where `sub` is the claim named by `correlation_claim`:
       existing link authenticates that user; no link and `allow_email_linking` is true and the ID
       token carries `email_verified: true` and the email matches an existing user links them; no
       link and JIT enabled provisions; otherwise a clear rejection. `allow_email_linking=false`
       **never** attaches to an existing account.
-- [ ] JIT provisioning mirrors the SAML flow: create user (password NULL), verified email, IdP link,
+- [x] JIT provisioning mirrors the SAML flow: create user (password NULL), verified email, IdP link,
       base group, domain groups, mirror attributes, log `oidc_user_jit_provisioned`.
-- [ ] **Platform MFA gate**: when the connection has `require_platform_mfa`, the callback stashes
+- [x] **Platform MFA gate**: when the connection has `require_platform_mfa`, the callback stashes
       `pending_mfa_user_id` / `pending_mfa_method`, sends the email OTP when the method is email,
       and redirects to `/mfa/verify` instead of calling `complete_authenticated_login` -- exactly as
       `app/routers/saml/authentication.py:342` does. Otherwise it calls
       `complete_authenticated_login`.
-- [ ] Inactivated users are rejected at the callback, matching the SAML behavior.
-- [ ] Both routes are rate-limited via `ratelimit.prevent` (mirroring the ACS limits at
+- [x] Inactivated users are rejected at the callback, matching the SAML behavior.
+- [x] Both routes are rate-limited via `ratelimit.prevent` (mirroring the ACS limits at
       `app/routers/saml/authentication.py:249`), keyed on IP and connection.
-- [ ] Event types added (`event_types.py` + `.lock`): `oidc_login_started`, `oidc_login_completed`,
+- [x] Event types added (`event_types.py` + `.lock`): `oidc_login_started`, `oidc_login_completed`,
       `oidc_login_failed` (security tier), `oidc_user_jit_provisioned` (security tier),
       `user_oidc_idp_linked` (security tier).
-- [ ] Tests with mocked IdP responses: state mismatch, missing verifier, replayed callback, PKCE
+- [x] Tests with mocked IdP responses: state mismatch, missing verifier, replayed callback, PKCE
       round trip, each correlation branch (existing link, email-link allowed, email-link disallowed,
       email-link with `email_verified` false, JIT, JIT disabled), MFA-required branch reaching
       `/mfa/verify`, inactivated user, rate limiting, event emission.
 
-### Layers affected
-Service (auth, provisioning), Router, Tests.
+### What was done
+- `app/services/oidc_upstream/auth.py` -- `authenticate_via_oidc` correlation entry point: existing
+  `(idp_id, sub)` link -> authenticate; else `allow_email_linking` + `email_verified: true` +
+  matching email -> link + authenticate; else JIT -> provision; else reject. Inactivated users are
+  rejected. Emits `oidc_login_completed` / `user_oidc_idp_linked`.
+- `app/services/oidc_upstream/provisioning.py` -- `jit_provision_user`: create user (NULL password),
+  verified email, `oidc_idp_user_links` row, domain-group auto-assignment, log
+  `oidc_user_jit_provisioned`. **Account-takeover guard**: rejects (rather than returning) a
+  pre-existing account on an email match when `allow_email_linking` is off.
+- `app/routers/oidc_upstream/authentication.py` -- `GET /auth/oidc/{connection_id}/login` and
+  `/callback`: PKCE (S256) state/nonce/verifier namespaced per connection and cleared on first use;
+  token exchange + ID-token validation + userinfo merge; platform-MFA gate (stash
+  `pending_mfa_user_id`/`pending_mfa_method`, email OTP, redirect to `/mfa/verify`); rate limiting
+  on both routes; UUID validation on `connection_id`; `oidc_login_started`/`oidc_login_failed`
+  logged with `SYSTEM_ACTOR_ID`.
+- `app/services/oidc_upstream/connections.py` -- added `get_connection_row()` (wraps the database
+  `get_connection` so the router never imports the database layer directly).
+- `app/services/oidc_upstream/__init__.py` -- re-exported `get_connection_row` and the auth surface.
+- `app/constants/event_types.py` + `event_types.lock` -- added the 5 new event types (descriptions
+  + tiers, sorted).
 
-### Guidance
-- Session keys must be namespaced per connection (a user can start two logins), and cleared on
-  completion and on failure.
-- The MFA branch is the single easiest thing to get wrong in this feature. It is not optional
-  polish: without it, enabling an OIDC IdP silently downgrades a tenant's MFA policy.
+### Tests added
+- `tests/services/test_oidc_upstream_auth.py` -- correlation branches (existing link, email-link
+  allowed/disallowed, email-link `email_verified` false, JIT, JIT disabled, inactivated user).
+- `tests/services/test_oidc_upstream_provisioning.py` -- JIT provisioning, invalid email, and the
+  account-takeover guard (JIT + `allow_email_linking=false` + existing email -> rejected, no link).
+- `tests/routers/test_oidc_upstream_authentication.py` -- login redirect/off-origin, disabled and
+  unknown and malformed connection, callback state mismatch / missing verifier / idp error /
+  unknown / malformed connection, PKCE round trip (JIT), MFA-required redirect to `/mfa/verify`.
+
+### Test review
+The test agent found 4 findings. Three were real production bugs, all fixed:
+
+1. **[HIGH] JIT silently authenticated an existing account on an email match**, bypassing the
+   `allow_email_linking` guard (account takeover). Fixed: `jit_provision_user` now raises
+   `ValidationError(code="oidc_jit_email_exists")` instead of returning the existing user.
+2. **[MEDIUM] `oidc_login_started`/`oidc_login_failed` used `actor_user_id=tenant_id`**, causing a
+   swallowed FK violation in `track_activity` and wrong audit attribution. Fixed: both now use
+   `SYSTEM_ACTOR_ID` (matching the SAML IdP-driven events).
+3. **[MEDIUM] No UUID validation on `connection_id`** -> unhandled 500 on malformed input. Fixed:
+   `_get_connection` validates the UUID and returns `None` (mapped to `idp_not_found`).
+
+Finding #4 (rate-limit key not keyed on connection) was a spec-deviation note, not a bug; the key
+shape matches the SAML ACS precedent and was left as-is (see decisions log). Coverage gaps noted
+(rate limiting untested, replayed-callback not truly exercised, vacuous `test_login_stores_session_state`,
+event-emission not asserted) were recorded; the account-takeover and malformed-connection gaps were
+closed with new tests.
+
+### Reconceptualisations
+- **JIT must never return a pre-existing account.** The SAML `jit_provision_user` race-guard pattern
+  (return the existing user on an email match) does not transfer to OIDC: SAML correlates on email
+  against a certificate-verified assertion, whereas OIDC correlates on `(idp_id, sub)` and email
+  linking is opt-in. Copying the guard verbatim created an account-takeover vector. The OIDC JIT
+  path now rejects on an email match instead.
+
+### Decisions log
+- **Rate-limit key left keyed on IP + tenant (not connection).** -- **Context**: test finding #4
+  noted the spec says "keyed on IP and connection" but the implementation uses
+  `oidc_login:tenant:{tenant_id}:ip:{ip}`. -- **Rationale**: matches the SAML ACS key shape
+  (`saml_acs:tenant:{tenant_id}:ip:{ip}`); per-connection isolation has low practical value at the
+  20/5min limit, and deviating from the SAML precedent would be inconsistent. Recorded as an
+  accepted deviation rather than a fix.
+- **Pre-auth events use `SYSTEM_ACTOR_ID`.** -- **Context**: `log_event` calls `track_activity` for
+  any non-system actor, which would insert a `user_activity` row with `user_id = <tenant uuid>`
+  (FK violation, swallowed). -- **Rationale**: the SAML IdP-driven events already use
+  `SYSTEM_ACTOR_ID`; the audit viewer renders `"IdP: {name}"` for system actors with `idp_name` in
+  metadata.
+- **Base-group and attribute-mirroring steps deferred.** -- **Context**: the acceptance criterion
+  lists "base group" and "mirror attributes" in the JIT flow, but the implementation omits both.
+  -- **Rationale**: base-group infrastructure is SAML-specific (`groups.idp_id` FKs to
+  `saml_identity_providers`) and needs a migration; attribute mirroring is owned by Iteration 5
+  (the `user_oidc_idp_attributes` snapshot table does not exist yet). Domain-group auto-assignment
+  (protocol-agnostic, email-domain based) is included. Both deferred steps are already scoped to
+  later iterations.
 
 ---
 

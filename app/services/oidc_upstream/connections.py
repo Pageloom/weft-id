@@ -135,6 +135,16 @@ def get_connection(
     return _row_to_config(row, base_url)
 
 
+def get_connection_row(tenant_id: str, connection_id: str) -> dict | None:
+    """Fetch a raw connection row for the public auth path.
+
+    No authorization check: this is used by the login/callback flow, which
+    runs before a user is authenticated. Returns the raw database row (or
+    ``None``) so the router never touches the database layer directly.
+    """
+    return database.oidc_upstream.get_connection(tenant_id, connection_id)
+
+
 def oidc_connection_requires_platform_mfa(tenant_id: str, connection_id: str) -> bool:
     """Check if an OIDC connection requires platform MFA after authentication.
 

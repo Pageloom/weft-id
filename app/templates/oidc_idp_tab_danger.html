@@ -1,0 +1,42 @@
+{% extends "oidc_idp_base.html" %}
+
+{% block tab_content %}
+{# Delete Connection #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-red-200 dark:border-red-800">
+    <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete OIDC Provider</h2>
+    {% if connection.is_enabled %}
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Disable on the Details tab before deleting.
+    </p>
+    <button type="button" disabled
+            class="px-4 py-2 text-sm font-medium text-white bg-red-300 dark:bg-red-900 rounded cursor-not-allowed opacity-60">
+        Delete OIDC Provider
+    </button>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+        Removes the connection configuration and any cached keys. Cannot be undone.
+    </p>
+    <form method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/delete" class="mt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+                class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                data-confirm="Delete {{ connection.name }}?&#10;&#10;This will remove all configuration. This cannot be undone."
+                data-destructive="true">
+            Delete OIDC Provider
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+document.querySelectorAll('.confirm-btn').forEach((btn) => {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const form = this.closest('form');
+        const message = this.dataset.confirm;
+        const isDestructive = this.dataset.destructive === 'true';
+        WeftUtils.confirm(message, () => { form.submit(); }, { destructive: isDestructive });
+    });
+});
+</script>
+{% endblock %}

@@ -360,6 +360,46 @@ PAGES = [
                         ],
                     ),
                     Page(
+                        path="/admin/settings/oidc-identity-providers",
+                        title="OIDC Identity Providers",
+                        permission=PagePermission.SUPER_ADMIN,
+                        show_in_nav=True,
+                        docs_path="/docs/admin-guide/identity-providers/oidc-setup/",
+                        children=[
+                            Page(
+                                path="/admin/settings/oidc-identity-providers/new",
+                                title="Add OIDC Provider",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                            Page(
+                                path="/admin/settings/oidc-identity-providers/connection",
+                                title="OIDC Provider Details",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                                docs_path="/docs/admin-guide/identity-providers/oidc-setup/",
+                                children=[
+                                    Page(
+                                        path="/admin/settings/oidc-identity-providers/connection/details",
+                                        title="Details",
+                                        permission=PagePermission.SUPER_ADMIN,
+                                        show_in_nav=False,
+                                        creates_nav_level=False,
+                                    ),
+                                    Page(
+                                        path="/admin/settings/oidc-identity-providers/connection/danger",
+                                        title="Disable/Delete",
+                                        permission=PagePermission.SUPER_ADMIN,
+                                        show_in_nav=False,
+                                        creates_nav_level=False,
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                    Page(
                         path="/admin/settings/service-providers",
                         title="Service Providers",
                         permission=PagePermission.SUPER_ADMIN,

@@ -1,0 +1,230 @@
+{% extends "oidc_idp_base.html" %}
+
+{% block tab_content %}
+{# Callback URL to paste into the IdP console #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Callback URL</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+        Register this redirect URI in your IdP console.
+    </p>
+    <div class="flex items-center gap-2">
+        <code id="callback-url" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ connection.callback_url }}</code>
+        <button type="button" id="copy-callback-url"
+                class="shrink-0 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+            Copy
+        </button>
+    </div>
+</div>
+
+{# Connection Configuration #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <dl class="grid grid-cols-1 gap-4">
+        <div class="flex items-start justify-between">
+            <div class="min-w-0 flex-1">
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</dt>
+                <dd id="name-display" class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ connection.name }}</dd>
+            </div>
+            <button type="button" id="edit-name-btn"
+                    class="ml-2 mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                    title="Edit name">
+                {{ icon("pencil", class="w-4 h-4") }}
+            </button>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Provider Type</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                {% if connection.provider_type == 'google' %}Google
+                {% elif connection.provider_type == 'entra' %}Entra ID
+                {% else %}Generic OIDC{% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Issuer</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ connection.issuer }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Authorization Endpoint</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.authorization_endpoint %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.authorization_endpoint or 'Not discovered' }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Token Endpoint</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.token_endpoint %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.token_endpoint or 'Not discovered' }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Userinfo Endpoint</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.userinfo_endpoint %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.userinfo_endpoint or 'Not discovered' }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">JWKS URI</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.jwks_uri %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.jwks_uri or 'Not discovered' }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client ID</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.client_id %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.client_id or 'Not configured' }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client Secret</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                {% if connection.client_secret_set %}Configured{% else %}Not configured{% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Correlation Claim</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">{{ connection.correlation_claim }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ fmt_datetime(connection.created_at) }}</dd>
+        </div>
+    </dl>
+</div>
+
+{# Settings #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Settings</h2>
+    <form method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/edit-settings">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="space-y-4">
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="is_enabled" name="is_enabled"
+                           {% if connection.is_enabled %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="is_enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">Enabled</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Authentication via this provider is paused while disabled.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="is_default" name="is_default"
+                           {% if connection.is_default %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="is_default" class="text-sm font-medium text-gray-700 dark:text-gray-300">Default Provider</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Default provider for OIDC sign-in.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="require_platform_mfa" name="require_platform_mfa"
+                           {% if connection.require_platform_mfa %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="require_platform_mfa" class="text-sm font-medium text-gray-700 dark:text-gray-300">Require Platform Two-Step Verification</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Require two-step verification after OIDC authentication.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="jit_provisioning" name="jit_provisioning"
+                           {% if connection.jit_provisioning %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="jit_provisioning" class="text-sm font-medium text-gray-700 dark:text-gray-300">Just-in-Time Provisioning</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Create accounts automatically on first OIDC sign-in.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="allow_email_linking" name="allow_email_linking"
+                           {% if connection.allow_email_linking %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="allow_email_linking" class="text-sm font-medium text-gray-700 dark:text-gray-300">Allow Email Linking</label>
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        {{ icon("exclamation-triangle", class="w-3 h-3 inline-block mr-1 -mt-0.5") }}
+                        Attaches an unrecognized subject to an existing account on an email match
+                        (requires <code>email_verified: true</code>). Leave off unless you trust the
+                        IdP to verify emails.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end mt-6">
+            <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Save Settings
+            </button>
+        </div>
+    </form>
+</div>
+
+{# Connection Testing #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Connection Testing</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Fetch the IdP's discovery document and validate the issuer and endpoints.
+    </p>
+
+    {% if test == 'success' %}
+    <div class="mb-4 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+        <p class="text-sm text-green-800 dark:text-green-300">Discovery succeeded. Endpoints updated.</p>
+    </div>
+    {% elif test == 'error' %}
+    <div class="mb-4 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+        <p class="text-sm text-red-800 dark:text-red-300">Discovery failed: {{ test_detail }}</p>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/test-connection">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            {{ icon("check-circle", class="w-4 h-4 inline-block mr-2 -mt-0.5") }}
+            Test Connection
+        </button>
+    </form>
+</div>
+
+{# Edit Name Modal #}
+<div id="edit-name-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Name</h3>
+        <form method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/edit">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label for="edit-name-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <input type="text" id="edit-name-input" name="name" value="{{ connection.name }}" required
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-name-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const copyBtn = document.getElementById('copy-callback-url');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            const url = document.getElementById('callback-url').textContent.trim();
+            navigator.clipboard.writeText(url).then(() => {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+            });
+        });
+    }
+    document.getElementById('edit-name-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-name-modal'); });
+    document.getElementById('cancel-name-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-name-modal'); });
+})();
+</script>
+{% endblock %}

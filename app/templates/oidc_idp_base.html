@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ connection.name }} - OIDC Provider - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="mb-4">
+        <a href="/admin/settings/oidc-identity-providers"
+           class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to OIDC Identity Providers</a>
+    </div>
+
+    {% if success in ('updated', 'settings_updated', 'enabled', 'disabled', 'set_default') %}
+    <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+        <p class="text-sm text-green-800 dark:text-green-300">
+            {% if success == 'updated' %}
+            OIDC provider updated.
+            {% elif success == 'settings_updated' %}
+            Settings updated.
+            {% elif success == 'enabled' %}
+            OIDC provider enabled. Users can now authenticate via this provider.
+            {% elif success == 'disabled' %}
+            OIDC provider disabled. Authentication via this provider is paused.
+            {% elif success == 'set_default' %}
+            OIDC provider set as default.
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+        <p class="text-sm text-red-800 dark:text-red-300">{{ error }}</p>
+    </div>
+    {% endif %}
+
+    {# Connection Title + Badges #}
+    <div class="flex items-center gap-3 mb-6">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ connection.name }}</h1>
+        {% if connection.is_enabled %}
+        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300">Enabled</span>
+        {% else %}
+        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300">Disabled</span>
+        {% endif %}
+        {% if connection.is_default %}
+        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">Default</span>
+        {% endif %}
+    </div>
+
+    {# Tab Bar #}
+    <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+        <nav class="flex space-x-6">
+            <a href="/admin/settings/oidc-identity-providers/{{ connection.id }}/details"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'details' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Details</a>
+            <a href="/admin/settings/oidc-identity-providers/{{ connection.id }}/danger"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'danger' %}border-red-500 text-red-500 dark:border-red-400 dark:text-red-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Delete</a>
+        </nav>
+    </div>
+
+    {% block tab_content %}{% endblock %}
+</div>
+{% endblock %}

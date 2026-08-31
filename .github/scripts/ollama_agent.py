@@ -10,7 +10,7 @@ Shared by the /lead orchestrator (lead_agent.py). The smoke test
 Env:
     OLLAMA_API_KEY   (required)  from https://ollama.com/settings/keys
     OLLAMA_BASE_URL  (default https://ollama.com)
-    OLLAMA_MODEL     (default deepseek-v4-pro:0813)
+    OLLAMA_MODEL     (default deepseek-v4-flash:0731)
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from pathlib import Path
 
 BASE_URL = os.environ.get("OLLAMA_BASE_URL") or "https://ollama.com"
 API_KEY = os.environ.get("OLLAMA_API_KEY") or ""
-MODEL = os.environ.get("OLLAMA_MODEL") or "deepseek-v4-pro:0813"
+MODEL = os.environ.get("OLLAMA_MODEL") or "deepseek-v4-flash:0731"
 
 # .github/scripts/ollama_agent.py -> repo root is three parents up.
 REPO_ROOT = Path(os.environ.get("REPO_ROOT", Path(__file__).resolve().parent.parent.parent))

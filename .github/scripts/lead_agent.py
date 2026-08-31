@@ -3,8 +3,9 @@
 Replicates the /lead skill's loop: for each iteration in
 `specs/<slug>.md`, spawn a dev agent, run the quality gate
 (`make check && make test`), spawn a test agent, triage via a lead agent,
-and commit. After the last iteration, run the final review pass
-(test/security/compliance/tech-writer), triage, and push.
+and commit. Each iteration is pushed as soon as it is committed, so a
+mid-run failure keeps the completed iterations. After the last iteration,
+run the final review pass (test/security/compliance/tech-writer) and triage.
 
 The loop is deterministic; the model only decides what to read/write/run via
 tool calls. Subagents are separate model calls whose system prompt points at
@@ -17,7 +18,7 @@ Usage:
 Env:
     OLLAMA_API_KEY   (required)
     OLLAMA_BASE_URL  (default https://ollama.com)
-    OLLAMA_MODEL     (default deepseek-v4-pro:0813)
+    OLLAMA_MODEL     (default deepseek-v4-flash:0731)
 """
 
 from __future__ import annotations
@@ -28,12 +29,36 @@ import os
 import re
 import subprocess
 import sys
-from pathlib import Path
+from fnmatch import fnmatch
+from pathlib import PurePosixPath
 
 from ollama_agent import MODEL, REPO_ROOT, run_agent
 
 GATE_CMD = "make check && make test"
 MAX_FIX_ATTEMPTS = 3
+
+# Branch to push to after every iteration commit; None disables pushing.
+# Set from --push in main().
+_PUSH_BRANCH: str | None = None
+
+# Basename globs for throwaway files agents leave behind while debugging.
+# `_commit` uses `git add -A`, so anything untracked and unignored would
+# otherwise be committed (a real run left `tests/routers/test_tmp_dbg.py`
+# behind). Matched against the basename of UNTRACKED files only, so a tracked
+# file named `debug.py` is never at risk. Keep these narrow and explicit:
+# sweeping a file the agent genuinely meant to add is worse than committing junk.
+SCRATCH_GLOBS = (
+    "test_tmp*.py",
+    "tmp_*.py",
+    "debug_*.py",
+    "*_dbg.py",
+    "*_scratch.py",
+    "scratch*.py",
+    "*.tmp",
+    "*.orig",
+    "*.rej",
+    "nohup.out",
+)
 
 
 # --- Git helpers -----------------------------------------------------------
@@ -47,7 +72,9 @@ def _git(*args: str) -> str:
 
 
 def _run(cmd: str, timeout: int = 1800) -> tuple[int, str]:
-    proc = subprocess.run(cmd, shell=True, cwd=REPO_ROOT, capture_output=True, text=True, timeout=timeout)
+    proc = subprocess.run(
+        cmd, shell=True, cwd=REPO_ROOT, capture_output=True, text=True, timeout=timeout
+    )
     out = proc.stdout
     if proc.stderr:
         out += "\n[stderr]\n" + proc.stderr
@@ -66,6 +93,55 @@ def _commit(subject: str, body: str) -> None:
     )
     if proc.returncode != 0 and "nothing to commit" not in proc.stdout + proc.stderr:
         print(f"[commit] {proc.stdout}{proc.stderr}", file=sys.stderr)
+
+
+def _sweep_scratch() -> None:
+    """Delete untracked scratch files before they reach `git add -A`.
+
+    Only untracked, unignored files whose basename matches `SCRATCH_GLOBS` are
+    removed, and every removal is logged so a wrongly-swept file is visible in
+    the run log rather than silently gone.
+    """
+    listing = _git("ls-files", "--others", "--exclude-standard")
+    for rel in filter(None, (line.strip() for line in listing.splitlines())):
+        if not any(fnmatch(PurePosixPath(rel).name, pat) for pat in SCRATCH_GLOBS):
+            continue
+        target = REPO_ROOT / rel
+        try:
+            target.unlink()
+        except OSError as exc:
+            print(f"[scratch] could not remove {rel}: {exc}", file=sys.stderr)
+        else:
+            print(f"[scratch] removed {rel}", file=sys.stderr)
+
+
+def _push(label: str) -> None:
+    """Push HEAD to the tracked branch, if pushing is enabled.
+
+    Called after every iteration commit so a mid-run failure (a model quota
+    error, a timeout, a gate that will not go green) leaves the iterations that
+    already passed the gate on the remote instead of discarding them with the
+    runner. A push failure is reported but never fatal: losing the remaining
+    iterations is better than losing the completed ones too.
+    """
+    if _PUSH_BRANCH is None:
+        return
+    # actions/checkout leaves a detached HEAD, so push HEAD explicitly rather
+    # than a local branch name (which does not exist in that state).
+    proc = subprocess.run(
+        ["git", "push", "origin", f"HEAD:{_PUSH_BRANCH}"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if proc.returncode == 0:
+        print(f"[push] {label} -> {_PUSH_BRANCH}", file=sys.stderr)
+    else:
+        print(
+            f"[push] FAILED ({label} -> {_PUSH_BRANCH}):\n{proc.stdout}{proc.stderr}",
+            file=sys.stderr,
+        )
 
 
 # --- Iteration file parsing -------------------------------------------------
@@ -101,8 +177,10 @@ def _dev_prompt(slug: str, n: int) -> tuple[str, str]:
     task = (
         f"Read `specs/{slug}.md` and implement Iteration {n} end to end. "
         "Write code and tests. Run `make check` and `make test` yourself and fix any "
-        "failures before you finish. Do not commit. When done, report: files changed, "
-        "what each does, tests added, and any decisions you made."
+        "failures before you finish. Delete any temporary or debug files you created "
+        "along the way; only the real implementation and its tests should be left on "
+        "disk. Do not commit. When done, report: files changed, what each does, tests "
+        "added, and any decisions you made."
     )
     return system, task
 
@@ -131,15 +209,18 @@ def _test_prompt(slug: str, n: int, changed: str) -> tuple[str, str]:
     return system, task
 
 
-def _lead_prompt(slug: str, n: int, dev_report: str, test_findings: str, gate_output: str) -> tuple[str, str]:
+def _lead_prompt(
+    slug: str, n: int, dev_report: str, test_findings: str, gate_output: str
+) -> tuple[str, str]:
     system = (
         "You are the tech lead in the WeftID /lead workflow. Read "
         "`.claude/skills/lead/SKILL.md` for the iteration file format and the Step 5g "
         "close-out steps. You have write/edit tools."
     )
+    today = datetime.datetime.now(tz=datetime.UTC).date().isoformat()
     task = (
         f"Close out Iteration {n} in `specs/{slug}.md`: mark it Complete "
-        f"with today's date ({datetime.date.today().isoformat()}), check off the "
+        f"with today's date ({today}), check off the "
         "acceptance criteria, replace the Layers/Guidance sections with a 'What was "
         "done' list, and add 'Tests added', 'Test review', 'Reconceptualisations', and "
         "'Decisions log' sections. If the test findings reveal a real bug, fix it with "
@@ -186,8 +267,10 @@ def run_iteration(slug: str, n: int) -> None:
     # 5. Commit.
     subject = f"Implement {slug} iteration {n}"
     body = f"Implements iteration {n} of the {slug} feature. See specs/{slug}.md."
+    _sweep_scratch()
     _commit(subject, body)
     print(f"[commit] {subject}", file=sys.stderr)
+    _push(f"iteration {n}")
 
 
 # --- Final review pass ------------------------------------------------------
@@ -220,13 +303,15 @@ def final_review(slug: str) -> None:
         "`.claude/skills/lead/SKILL.md` for the Step 8 close-out. You have write/edit tools."
     )
     task = (
-        f"Triage the final review findings below. Fix accepted issues with the tools, "
-        f"log deferred items to `.claude/ISSUES.md`, re-run `make check && make test` "
-        f"after changes, and set the iteration file status to 'Feature complete'.\n\n"
+        "Triage the final review findings below. Fix accepted issues with the tools, "
+        "log deferred items to `.claude/ISSUES.md`, re-run `make check && make test` "
+        "after changes, and set the iteration file status to 'Feature complete'.\n\n"
         + "\n\n".join(f"=== {k.upper()} ===\n{v}" for k, v in findings.items())
     )
     run_agent(system, task)
+    _sweep_scratch()
     _commit(f"Final review pass for {slug}", f"Addresses review findings for the {slug} feature.")
+    _push("final review")
 
 
 # --- Main -------------------------------------------------------------------
@@ -236,9 +321,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Autonomous /lead orchestrator on Ollama Cloud")
     parser.add_argument("slug", help="iteration file slug (e.g. oidc_upstream)")
     parser.add_argument("--branch", default=None, help="branch to work on (default: current)")
-    parser.add_argument("--push", action="store_true", help="push to remote after all iterations")
+    parser.add_argument("--push", action="store_true", help="push to remote after every iteration")
     parser.add_argument("--model", default=None, help="override OLLAMA_MODEL")
     args = parser.parse_args()
+
+    global _PUSH_BRANCH
 
     if args.model:
         os.environ["OLLAMA_MODEL"] = args.model
@@ -246,6 +333,12 @@ def main() -> int:
         raise SystemExit("OLLAMA_API_KEY is not set")
 
     print(f"Model: {MODEL}  Slug: {args.slug}", file=sys.stderr)
+
+    if args.push:
+        _PUSH_BRANCH = args.branch or _git("rev-parse", "--abbrev-ref", "HEAD")
+        print(f"[push] enabled -> {_PUSH_BRANCH} (after every iteration)", file=sys.stderr)
+    else:
+        print("[push] skipped (pass --push to push)", file=sys.stderr)
 
     content = _read_spec(args.slug)
     n = _current_iteration(content)
@@ -257,15 +350,6 @@ def main() -> int:
         n = _current_iteration(content)
 
     final_review(args.slug)
-
-    if args.push:
-        branch = args.branch or _git("rev-parse", "--abbrev-ref", "HEAD")
-        print(f"[push] {branch}", file=sys.stderr)
-        # actions/checkout leaves a detached HEAD, so push HEAD explicitly rather
-        # than a local branch name (which does not exist in that state).
-        _git("push", "origin", f"HEAD:{branch}")
-    else:
-        print("[push] skipped (pass --push to push)", file=sys.stderr)
 
     return 0
 

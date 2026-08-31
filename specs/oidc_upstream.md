@@ -6,7 +6,7 @@
 **Created**: 2026-08-30
 **Revised**: 2026-08-30 (plan review -- re-split into 8 iterations, column set settled,
 cross-cutting concerns added)
-**Status**: In progress -- Iteration 1 of 8
+**Status**: In progress -- Iteration 2 of 8
 
 ## Context
 
@@ -180,7 +180,8 @@ restated in the iterations that own them, but hold throughout:
 ---
 
 ## Iteration 1 -- Data model, database, service CRUD, API
-**Status**: Not started
+**Status**: Complete
+**Completed**: 2026-08-31
 
 The foundation, headless. Full column set (settled now so no later iteration needs a second
 migration on the same table), database module, service CRUD with the secret encrypted at rest, and
@@ -188,32 +189,32 @@ the `/api/v1` surface. **No templates in this iteration** -- the admin UI lands 
 once the connector has proven the field set.
 
 ### Acceptance criteria
-- [ ] Migration adds `oidc_idp_connections` (tenant-scoped, RLS strict fail-closed) with the full
+- [x] Migration adds `oidc_idp_connections` (tenant-scoped, RLS strict fail-closed) with the full
       column set below. `schema.sql` NOT modified (migration-only convention,
       `.claude/THOUGHT_ERRORS.md:294`).
-- [ ] Migration adds `oidc_idp_user_links` (tenant-scoped, RLS): `(tenant_id, idp_id, sub,
+- [x] Migration adds `oidc_idp_user_links` (tenant-scoped, RLS): `(tenant_id, idp_id, sub,
       user_id)`, UNIQUE `(idp_id, sub)`, FKs to `oidc_idp_connections` (CASCADE) and `users`
       (CASCADE). `sub` max 255.
-- [ ] Database module `app/database/oidc_upstream/connections.py`: CRUD + list + get-by-issuer +
+- [x] Database module `app/database/oidc_upstream/connections.py`: CRUD + list + get-by-issuer +
       get-default + get-enabled, mirroring `app/database/saml/providers.py`. Plus
       `app/database/oidc_upstream/links.py` for the user-links table.
-- [ ] Service `app/services/oidc_upstream/connections.py`: create/update/delete/list/get,
+- [x] Service `app/services/oidc_upstream/connections.py`: create/update/delete/list/get,
       set-enabled, set-default, client secret encrypted at rest via the Fernet helper,
       `oidc_connection_requires_platform_mfa` (parallel to
       `app/services/saml/providers.py:111`), and delete-guard + disconnect-scrub mirroring
       `delete_identity_provider` (including the `scrub_canonical_matches_mirror` call at
       `app/services/saml/providers.py:388`, adapted for the OIDC snapshot table once Iteration 5
       creates it -- until then the delete path is scrub-free and Iteration 5 wires it in).
-- [ ] The service exposes the connection's callback URL (`/auth/oidc/{id}/callback` on the tenant
+- [x] The service exposes the connection's callback URL (`/auth/oidc/{id}/callback` on the tenant
       host) as a derived read-only field, so the admin can register it at the IdP.
-- [ ] `/api/v1` endpoints mirroring the SAML shape in `app/routers/api/v1/saml.py`: list, create,
+- [x] `/api/v1` endpoints mirroring the SAML shape in `app/routers/api/v1/saml.py`: list, create,
       get, patch, delete, enable, disable, set-default. Client secret is write-only (never returned;
       a `client_secret_set: bool` flag instead). Docstrings document every accepted field.
-- [ ] Event types added to `event_types.py` (descriptions + tiers) and `event_types.lock`:
+- [x] Event types added to `event_types.py` (descriptions + tiers) and `event_types.lock`:
       `oidc_idp_connection_created`, `oidc_idp_connection_updated`, `oidc_idp_connection_deleted`,
       `oidc_idp_connection_enabled`, `oidc_idp_connection_disabled`,
       `oidc_idp_connection_set_default` (all admin tier).
-- [ ] Tests: database CRUD + RLS isolation, service CRUD + encryption-at-rest (secret never stored
+- [x] Tests: database CRUD + RLS isolation, service CRUD + encryption-at-rest (secret never stored
       or returned in plaintext) + delete-guard + events, API happy paths + authz + field validation.
 
 ### `oidc_idp_connections` column set (settled -- do not defer any of these)
@@ -245,19 +246,83 @@ Constraints: PK, FK `tenant_id` -> `tenants` CASCADE, FK `(created_by, tenant_id
 SET NULL, UNIQUE `(tenant_id, name)`, length CHECKs on every text column, `provider_type` CHECK.
 No uniqueness on `issuer`: one tenant may legitimately register two apps against the same issuer.
 
-### Layers affected
-Database (migration + modules), Service, API, Tests.
+### What was done
+- `db-init/migrations/0057_oidc_upstream_connections.sql` -- Creates `oidc_idp_connections`
+  (full settled column set, strict fail-closed RLS, single-default + updated_at triggers) and
+  `oidc_idp_user_links` (`(tenant_id, idp_id, sub, user_id)`, UNIQUE `(idp_id, sub)`, CASCADE FKs,
+  `sub` <=255). `schema.sql` left untouched per convention.
+- `app/database/oidc_upstream/__init__.py` -- Package re-exports.
+- `app/database/oidc_upstream/connections.py` -- CRUD + list + get-by-issuer + get-default +
+  get-enabled, mirroring `database/saml/providers.py`.
+- `app/database/oidc_upstream/links.py` -- User-link table queries (create/get/get-by-idp-sub/
+  get-user-id-by-sub/delete/count).
+- `app/database/__init__.py` -- Registers the new `oidc_upstream` submodule.
+- `app/services/oidc_upstream/__init__.py` -- Package re-exports.
+- `app/services/oidc_upstream/connections.py` -- create/update/delete/list/get, set-enabled,
+  set-default, `oidc_connection_requires_platform_mfa`, delete-guard (enabled + linked-users),
+  client secret encrypted at rest via a purpose-specific Fernet key
+  (`derive_fernet_key(b"oidc-upstream-client-secret")`), never returned from any read path.
+- `app/schemas/oidc_upstream.py` -- `OIDCConnectionCreate`/`Update`/`Config`/`ListItem`/
+  `ListResponse` with `max_length` matching every column CHECK; `client_secret` write-only,
+  `client_secret_set` bool on read; derived `callback_url`.
+- `app/routers/api/v1/oidc_upstream.py` -- `/api/v1/oidc-upstream/connections` list/create/get/
+  patch/delete/enable/disable/set-default, super-admin-gated, docstrings documenting every field.
+- `app/main.py` -- Registers the new API router.
+- `app/constants/event_types.py` -- Added 6 descriptions + admin-tier entries.
+- `app/constants/event_types.lock` -- Added the 6 new event types (sorted).
 
-### Guidance
-- Every `str` field in the Pydantic schemas and every API parameter needs `max_length` matching the
-  column CHECK (CLAUDE.md rule 10).
-- The client secret is **encrypted** (reversible) via `encrypt_private_key`/`decrypt_private_key`
-  in `app/utils/saml.py` (or a purpose-specific `derive_fernet_key` info string). Never log it;
-  never return it from any read path.
-- `oidc_idp_user_links` is created now (data model first) but only written by Iteration 3's auth
-  flow. Iteration 1 tests it at the database layer only.
-- Delete-guard: mirror `delete_identity_provider` -- block or deliberately cascade when users are
-  linked or domains are bound.
+### Tests added
+- `tests/database/test_oidc_upstream.py` -- Connection CRUD, single-default trigger, user-link
+  CRUD + UNIQUE constraint, RLS isolation (cross-tenant + UNSCOPED fail-closed).
+- `tests/services/test_oidc_upstream.py` -- CRUD, encryption-at-rest (secret never stored/returned
+  plaintext), delete-guard, events, MFA flag, secret length bound (3000-char accepted, 3001-char
+  rejected at schema).
+- `tests/api/test_oidc_upstream.py` -- Happy paths, authz (admin/member 403, unauthenticated 401),
+  field validation (422), secret write-only, delete conflict.
+
+### Test review
+The test agent found one substantive defect and several low-severity items:
+
+1. **`client_secret` max_length exceeded the encrypted column capacity (Medium)** -- the schema
+   accepted up to 4096 chars but Fernet encryption expands a ~3008+ char plaintext past the
+   column's 4096 CHECK, producing an unhandled 500 on create/update. **Fixed**: lowered the schema
+   `max_length` to 3000 (encrypts to ~4088) with an explanatory comment, and added two tests
+   (3000-char accepted, 3001-char rejected at the schema layer).
+2. **`_get_base_url` re-implemented the trusted host-derivation helper (Low)** -- **Fixed**:
+   replaced with `utils.urls.tenant_base_url`.
+3. **`create_link` docstring misleading about duplicate behavior (Low)** -- **Fixed**: corrected
+   to state it raises `UniqueViolation` on a duplicate `(idp_id, sub)`.
+4. **`created_by NOT NULL` + `ON DELETE SET NULL` contradiction (Low, pre-existing)** -- faithful
+   copy of the SAML table's latent pattern; left as-is for consistency, flagged for a follow-up.
+
+Coverage gaps noted (no bug): RLS isolation for `oidc_idp_user_links`, `get_enabled_connections`
+ordering / `get_default_connection` disabled-default path, `get_connection_by_issuer` absent case,
+update-clearing-nullable-field path, and `set_connection_default` on a disabled connection. These
+are deferred to the iterations that consume those paths (Iteration 3 auth flow, Iteration 4 admin
+UI).
+
+### Reconceptualisations
+None -- the column set and scope held as planned. The only change was a defensive schema bound
+correction (client-secret length) that does not alter the data model.
+
+### Decisions log
+- **Delete-guard**: blocks deletion when the connection is enabled or has linked users (mirrors
+  SAML's guard). The disconnect-scrub is intentionally scrub-free now and wired in Iteration 5,
+  per the spec. -- **Context**: the OIDC snapshot table does not exist until Iteration 5. --
+  **Rationale**: matches the SAML delete path's shape without referencing a not-yet-created table.
+- **Secret encryption**: used a purpose-specific Fernet key distinct from the SAML private-key key,
+  rather than reusing `encrypt_private_key`'s `b"saml-key-encryption"` info string. -- **Context**:
+  the spec allowed either. -- **Rationale**: keeps the two credential classes cryptographically
+  independent.
+- **`get_connection_by_issuer`** returns the first match (no issuer uniqueness, per spec) ordered
+  by `created_at asc` for deterministic discovery lookups.
+- **Migration safety**: added the `-- migration-safety: ignore` directive since both tables are
+  created empty in the same migration (indexes can't use `CONCURRENTLY` in-transaction), matching
+  the existing `0051_oidc_signing_keys.sql` precedent.
+- **Client-secret schema bound lowered to 3000** (from 4096) to account for Fernet encryption
+  expansion against the column's 4096 CHECK. -- **Context**: test agent found a valid 3008+ char
+  secret would pass Pydantic but violate the DB CHECK. -- **Rationale**: option (a) from the
+  finding -- safer and matches the spec's "column <= 4096" intent.
 
 ---
 

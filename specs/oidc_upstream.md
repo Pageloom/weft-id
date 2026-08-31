@@ -6,7 +6,7 @@
 **Created**: 2026-08-30
 **Revised**: 2026-08-30 (plan review -- re-split into 8 iterations, column set settled,
 cross-cutting concerns added)
-**Status**: In progress -- Iteration 2 of 8
+**Status**: In progress -- Iteration 3 of 8
 
 ## Context
 
@@ -118,8 +118,9 @@ for "OIDC group claim handling" and "GitHub + Okta presets" carrying the unmet c
   **Rationale**: the secret authenticates outbound requests to the IdP; WeftID must be able to
   read it back. OAuth2's hashed-at-rest pattern is for verifying inbound client credentials.
 - **PyJWT for ID token validation** -- `jwt.decode` against a JWKS fetched from the IdP's
-  `jwks_uri` (PyJWT's `PyJWKClient`). **Rationale**: already a dependency, well-audited, minimal
-  custom crypto surface (same rationale as the OIDC provider).
+  `jwks_uri` (via `PyJWKSet`, not `PyJWKClient` -- see Iteration 2 decisions log). **Rationale**:
+  already a dependency, well-audited, minimal custom crypto surface (same rationale as the OIDC
+  provider).
 - **All outbound OIDC HTTP goes through `build_safe_client()`** -- discovery, token exchange,
   userinfo, JWKS. **Rationale**: every one of those URLs is admin-supplied or derived from an
   admin-supplied discovery document, which is the textbook SSRF shape. `httpx` direct calls are a
@@ -327,45 +328,110 @@ correction (client-secret length) that does not alter the data model.
 ---
 
 ## Iteration 2 -- Preset registry + connector core (discovery, JWKS, ID token validation)
-**Status**: Not started
+**Status**: Complete
+**Completed**: 2026-08-31
 
 The crypto-heavy, test-heavy half of the connector, as pure service code with **no routes**. Split
 out from the auth flow deliberately: it is independently testable against fixtures and is where the
 security bugs live.
 
 ### Acceptance criteria
-- [ ] Preset registry (`app/services/oidc_upstream/presets.py`): each preset supplies discovery/
+- [x] Preset registry (`app/services/oidc_upstream/presets.py`): each preset supplies discovery/
       authority URL, default scopes, and `correlation_claim`. Generic is the spec-correct default;
       Google is `https://accounts.google.com` / `openid profile email` / `sub`; Entra composes
       `https://login.microsoftonline.com/<entra_tenant_id>/v2.0` / `openid profile email User.Read`
       / `oid`. A preset supplies defaults an admin can override -- no forked code paths.
-- [ ] Discovery: fetch `/.well-known/openid-configuration` **through `build_safe_client()`**,
+- [x] Discovery: fetch `/.well-known/openid-configuration` **through `build_safe_client()`**,
       parse the four endpoints + issuer, persist them with `discovery_fetched_at`; failures persist
       `discovery_error` and leave prior values intact. Manual endpoint config is the fallback.
       Refetch is TTL-gated per connection (not per request).
-- [ ] Discovery response validation: the document's `issuer` must equal the connection's configured
+- [x] Discovery response validation: the document's `issuer` must equal the connection's configured
       issuer; every endpoint URL must be `https` (except in `IS_DEV`); a document failing either
       check is rejected and recorded as an error, not persisted.
-- [ ] JWKS: fetched via `PyJWKClient` over the safe client, cached per connection with a TTL (~1h),
+- [x] JWKS: fetched via `PyJWKClient` over the safe client, cached per connection with a TTL (~1h),
       refreshed once on a signature-validation failure (key rotation), and never fetched per
       request.
-- [ ] ID token validation: signature against the JWKS, `iss` match, `aud` match (client_id),
+- [x] ID token validation: signature against the JWKS, `iss` match, `aud` match (client_id),
       `nonce` match, `exp`/`iat` within tolerance. Each failure mode raises a distinct, typed error.
-- [ ] Token exchange and userinfo helpers go through `build_safe_client()`.
-- [ ] Tests against recorded fixtures under `tests/fixtures/oidc/` (no live calls): discovery parse,
+- [x] Token exchange and userinfo helpers go through `build_safe_client()`.
+- [x] Tests against recorded fixtures under `tests/fixtures/oidc/` (no live calls): discovery parse,
       issuer mismatch rejected, non-https endpoint rejected, JWKS cache hit/miss/rotation, ID token
       good path, bad signature, wrong issuer, wrong audience, wrong nonce, expired, missing claims.
-- [ ] An SSRF test proves a discovery URL pointing at a private/link-local address is refused.
+- [x] An SSRF test proves a discovery URL pointing at a private/link-local address is refused.
 
-### Layers affected
-Service, Tests.
+### What was done
+- `app/services/oidc_upstream/presets.py` -- Preset registry: Generic (spec default, `sub`), Google
+  (`https://accounts.google.com`, `sub`), Entra (composed `login.microsoftonline.com/<tenant_id>/v2.0`,
+  `oid` correlation, `User.Read` scope). Presets are defaults only -- no forked code paths.
+- `app/services/oidc_upstream/errors.py` -- Typed error hierarchy: `DiscoveryError` (+ issuer-mismatch
+  / insecure-endpoint / redirect subclasses), `JwksError`, and `IDTokenValidationError` (+ signature /
+  issuer / audience / nonce / expired / not-yet-valid / missing-claims subclasses).
+- `app/services/oidc_upstream/discovery.py` -- Fetches `/.well-known/openid-configuration` through
+  `build_safe_client()`, validates issuer match + https endpoints, persists the four endpoints +
+  `discovery_fetched_at`; failures persist `discovery_error` and leave prior values intact. TTL-gated
+  per connection (`force=` bypasses). `userinfo_endpoint` is optional (RECOMMENDED, not REQUIRED).
+- `app/services/oidc_upstream/jwks.py` -- Fetches JWKS through the SSRF guard, caches per
+  `(tenant, connection)` with a 1h TTL, `refresh_jwks()` for key rotation. Deliberately avoids
+  `PyJWKClient` (which does its own unguarded `urllib` fetch). Stale entries are evicted on read.
+- `app/services/oidc_upstream/id_token.py` -- Validates signature (RS256, hard-coded alg), `iss`,
+  `aud`, `nonce`, `exp`/`iat` with leeway, required-claim presence; single refetch on signature
+  failure. Missing-claim errors are mapped to `IDTokenMissingClaimsError` (not signature).
+- `app/services/oidc_upstream/token_exchange.py` -- `exchange_code()` (authorization code + PKCE,
+  Basic auth) and `fetch_userinfo()`, both through `build_safe_client()`.
+- `app/services/oidc_upstream/connections.py` -- Added `decrypt_client_secret()` (reversible, for
+  the Iteration 3 token exchange); `delete_connection` now clears the cached JWKS.
+- `app/services/oidc_upstream/__init__.py` -- Re-exports the new connector surface, including the
+  `errors.py` types.
 
-### Guidance
-- `build_safe_client()` sets `follow_redirects=False`. An IdP that redirects its discovery URL will
-  fail; that is intended, and the error message should say so rather than looking like a network
-  fault.
-- Keep this module free of `Request`/session concerns so it stays unit-testable. The routes in
-  Iteration 3 own all session state.
+### Tests added
+- `tests/fixtures/oidc/` -- `discovery.json`, `jwks.json`, `private_key.pem` (throwaway RSA-2048
+  test key), and a `load_fixture` helper.
+- `tests/services/test_oidc_upstream_presets.py` -- preset defaults and correlation-claim selection.
+- `tests/services/test_oidc_upstream_discovery.py` -- discovery parse, issuer-mismatch, non-https
+  endpoint, redirect, TTL gating, force, optional `userinfo_endpoint`, SSRF refusal.
+- `tests/services/test_oidc_upstream_jwks.py` -- cache hit/miss/rotation, error paths, SSRF refusal.
+- `tests/services/test_oidc_upstream_id_token.py` -- good path + every failure mode (bad signature,
+  wrong issuer/audience/nonce, expired, not-yet-valid, `nbf`-future, missing `sub`/`iss`/`aud`/`exp`/
+  `iat`), key-rotation refetch.
+- `tests/services/test_oidc_upstream_token_exchange.py` -- token exchange/userinfo success + error
+  paths, SSRF refusal of private/link-local addresses.
+- `tests/services/test_oidc_upstream.py` -- added `decrypt_client_secret` round-trip test.
+
+### Test review
+The test agent found 10 findings. Two were real production bugs (fixed): (1) missing `iss`/`aud`
+claims were misclassified as `IDTokenSignatureError` and triggered a spurious JWKS refetch -- fixed
+by catching `jwt.MissingRequiredClaimError` before the generic `InvalidTokenError` handler; (2)
+`userinfo_endpoint` was treated as required in discovery, blocking IdPs that omit it -- fixed by
+making it optional (validated only if present, persisted as `None` when absent). Also fixed: the
+discovery URL itself is now https-validated (#8), stale JWKS cache entries are evicted on read and
+cleared on connection delete (#6), the dead `nonce` parameter was removed from `_decode_with_key`
+(#9), and the `errors.py` types are re-exported from the package (#10). Coverage gaps were closed
+with new tests for `iat`/`nbf`-future (#3), missing `iss`/`aud`/`exp`/`iat` claims (#4),
+`decrypt_client_secret` round-trip (#5), and token-exchange/userinfo SSRF refusal (#7).
+
+### Reconceptualisations
+- **`userinfo_endpoint` is optional** -- per OIDC Discovery 1.0 it is RECOMMENDED, not REQUIRED.
+  The discovery validator now treats it as optional (persisted `None` when absent). This corrects
+  the Iteration 2 acceptance criterion's "four endpoints" wording; the other three
+  (`authorization_endpoint`, `token_endpoint`, `jwks_uri`) remain required.
+- **JWKS via `PyJWKSet`, not `PyJWKClient`** -- `PyJWKClient` performs its own unguarded `urllib`
+  fetch and caches process-globally, bypassing the SSRF guard. The connector fetches through
+  `build_safe_client()` and hands the parsed `PyJWKSet` to `jwt.decode`, selecting the key by `kid`
+  explicitly. This deviates from the plan's "fetched via `PyJWKClient`" wording for SSRF safety.
+
+### Decisions log
+- **JWKS via `PyJWKSet`, not `PyJWKClient`** -- `PyJWKClient` does its own `urllib` fetch (bypassing
+  the SSRF guard) and caches process-globally. Fetch through `build_safe_client()` and hand the
+  parsed `PyJWKSet` to `jwt.decode`, selecting the key by `kid` explicitly (PyJWT's `PyJWKSet` isn't
+  directly accepted as a `key`). -- **Context**: cross-cutting SSRF requirement. -- **Rationale**:
+  keeps all outbound HTTP behind the guard.
+- **Nonce checked explicitly** (PyJWT doesn't verify `nonce`), and `sub` presence enforced manually
+  (PyJWT doesn't verify it by default). -- **Context**: PyJWT's `jwt.decode` does not cover these.
+- **`decrypt_client_secret` added now** so the connector core is complete and the Iteration 3 flow
+  has the reversible-secret accessor it needs. -- **Context**: the secret is encrypted (reversible)
+  at rest, unlike OAuth2's hashed pattern.
+- **No migration** was needed -- Iteration 2 is pure service code; the data model landed in
+  Iteration 1.
 
 ---
 

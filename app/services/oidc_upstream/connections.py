@@ -1,0 +1,422 @@
+"""OIDC upstream connection CRUD operations.
+
+Mirrors ``services.saml.providers`` for the consuming (relying-party)
+direction of OIDC: list, get, create, update, delete, enable/disable, and
+set-default. The client secret is encrypted at rest (reversible) via a
+purpose-specific Fernet key and is never returned from any read path --
+responses expose a ``client_secret_set`` boolean instead.
+"""
+
+import logging
+from typing import Any
+
+import database
+from cryptography.fernet import Fernet
+from schemas.oidc_upstream import (
+    OIDCConnectionConfig,
+    OIDCConnectionCreate,
+    OIDCConnectionListItem,
+    OIDCConnectionListResponse,
+    OIDCConnectionUpdate,
+)
+from services.activity import track_activity
+from services.auth import require_super_admin
+from services.event_log import log_event
+from services.exceptions import ConflictError, NotFoundError, ValidationError
+from services.types import RequestingUser
+from utils.crypto import derive_fernet_key
+
+logger = logging.getLogger(__name__)
+
+# Purpose-specific Fernet key for the OIDC upstream client secret. Distinct
+# from the SAML private-key key so a compromise of one purpose does not
+# expose the other.
+_cipher = Fernet(derive_fernet_key(b"oidc-upstream-client-secret"))
+
+
+def _encrypt_secret(plaintext: str) -> str:
+    """Encrypt a client secret for storage at rest."""
+    return _cipher.encrypt(plaintext.encode()).decode()
+
+
+def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
+    """Convert a database row to an OIDCConnectionConfig schema."""
+    connection_id = str(row["id"])
+    return OIDCConnectionConfig(
+        id=connection_id,
+        name=row["name"],
+        provider_type=row["provider_type"],
+        issuer=row["issuer"],
+        discovery_url=row.get("discovery_url"),
+        authorization_endpoint=row.get("authorization_endpoint"),
+        token_endpoint=row.get("token_endpoint"),
+        userinfo_endpoint=row.get("userinfo_endpoint"),
+        jwks_uri=row.get("jwks_uri"),
+        discovery_fetched_at=row.get("discovery_fetched_at"),
+        discovery_error=row.get("discovery_error"),
+        client_id=row.get("client_id"),
+        client_secret_set=bool(row.get("client_secret_enc")),
+        scopes=row.get("scopes"),
+        claim_mapping=row["claim_mapping"],
+        correlation_claim=row["correlation_claim"],
+        group_claim_source=row.get("group_claim_source"),
+        hosted_domain=row.get("hosted_domain"),
+        entra_tenant_id=row.get("entra_tenant_id"),
+        is_enabled=row["is_enabled"],
+        is_default=row["is_default"],
+        require_platform_mfa=row["require_platform_mfa"],
+        jit_provisioning=row["jit_provisioning"],
+        allow_email_linking=row["allow_email_linking"],
+        callback_url=f"{base_url}/auth/oidc/{connection_id}/callback",
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _row_to_list_item(row: dict) -> OIDCConnectionListItem:
+    """Convert a database row to an OIDCConnectionListItem schema."""
+    return OIDCConnectionListItem(
+        id=str(row["id"]),
+        name=row["name"],
+        provider_type=row["provider_type"],
+        is_enabled=row["is_enabled"],
+        is_default=row["is_default"],
+        discovery_url=row.get("discovery_url"),
+        discovery_fetched_at=row.get("discovery_fetched_at"),
+        discovery_error=row.get("discovery_error"),
+        created_at=row["created_at"],
+    )
+
+
+def list_connections(
+    requesting_user: RequestingUser,
+) -> OIDCConnectionListResponse:
+    """List all OIDC connections for the tenant.
+
+    Authorization: Requires super_admin role.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    rows = database.oidc_upstream.list_connections(requesting_user["tenant_id"])
+    items = [_row_to_list_item(row) for row in rows]
+
+    return OIDCConnectionListResponse(items=items, total=len(items))
+
+
+def get_connection(
+    requesting_user: RequestingUser,
+    connection_id: str,
+    base_url: str,
+) -> OIDCConnectionConfig:
+    """Get a single OIDC connection configuration.
+
+    Authorization: Requires super_admin role.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    row = database.oidc_upstream.get_connection(requesting_user["tenant_id"], connection_id)
+    if row is None:
+        raise NotFoundError(
+            message="OIDC connection not found",
+            code="oidc_connection_not_found",
+        )
+
+    return _row_to_config(row, base_url)
+
+
+def oidc_connection_requires_platform_mfa(tenant_id: str, connection_id: str) -> bool:
+    """Check if an OIDC connection requires platform MFA after authentication.
+
+    Internal helper for the auth flow. No authorization check because this
+    only returns a single boolean flag.
+    """
+    row = database.oidc_upstream.get_connection(tenant_id, connection_id)
+    if row is None:
+        return False
+    return bool(row.get("require_platform_mfa", False))
+
+
+def create_connection(
+    requesting_user: RequestingUser,
+    data: OIDCConnectionCreate,
+    base_url: str,
+) -> OIDCConnectionConfig:
+    """Create a new OIDC connection.
+
+    Authorization: Requires super_admin role.
+    Logs: oidc_idp_connection_created event.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    client_secret_enc = None
+    if data.client_secret:
+        client_secret_enc = _encrypt_secret(data.client_secret)
+
+    row = database.oidc_upstream.create_connection(
+        tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
+        name=data.name,
+        provider_type=data.provider_type,
+        issuer=data.issuer,
+        created_by=requesting_user["id"],
+        discovery_url=data.discovery_url,
+        authorization_endpoint=data.authorization_endpoint,
+        token_endpoint=data.token_endpoint,
+        userinfo_endpoint=data.userinfo_endpoint,
+        jwks_uri=data.jwks_uri,
+        client_id=data.client_id,
+        client_secret_enc=client_secret_enc,
+        scopes=data.scopes,
+        claim_mapping=data.claim_mapping,
+        correlation_claim=data.correlation_claim,
+        group_claim_source=data.group_claim_source,
+        hosted_domain=data.hosted_domain,
+        entra_tenant_id=data.entra_tenant_id,
+        is_enabled=data.is_enabled,
+        is_default=data.is_default,
+        require_platform_mfa=data.require_platform_mfa,
+        jit_provisioning=data.jit_provisioning,
+        allow_email_linking=data.allow_email_linking,
+    )
+
+    if row is None:
+        raise ValidationError(
+            message="Failed to create OIDC connection",
+            code="oidc_connection_creation_failed",
+        )
+
+    connection_id = str(row["id"])
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="oidc_idp_connection",
+        artifact_id=connection_id,
+        event_type="oidc_idp_connection_created",
+        metadata={
+            "name": data.name,
+            "provider_type": data.provider_type,
+            "issuer": data.issuer,
+        },
+    )
+
+    return _row_to_config(row, base_url)
+
+
+def update_connection(
+    requesting_user: RequestingUser,
+    connection_id: str,
+    data: OIDCConnectionUpdate,
+    base_url: str,
+) -> OIDCConnectionConfig:
+    """Update an existing OIDC connection.
+
+    Authorization: Requires super_admin role.
+    Logs: oidc_idp_connection_updated event.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.oidc_upstream.get_connection(tenant_id, connection_id)
+    if existing is None:
+        raise NotFoundError(
+            message="OIDC connection not found",
+            code="oidc_connection_not_found",
+        )
+
+    update_kwargs: dict[str, Any] = {}
+    for field in [
+        "name",
+        "issuer",
+        "discovery_url",
+        "authorization_endpoint",
+        "token_endpoint",
+        "userinfo_endpoint",
+        "jwks_uri",
+        "client_id",
+        "scopes",
+        "claim_mapping",
+        "correlation_claim",
+        "group_claim_source",
+        "hosted_domain",
+        "entra_tenant_id",
+        "require_platform_mfa",
+        "jit_provisioning",
+        "allow_email_linking",
+    ]:
+        value = getattr(data, field, None)
+        if value is not None:
+            update_kwargs[field] = value
+
+    # The client secret is handled separately: it is write-only and encrypted.
+    if data.client_secret is not None:
+        update_kwargs["client_secret_enc"] = _encrypt_secret(data.client_secret)
+
+    if not update_kwargs:
+        return _row_to_config(existing, base_url)
+
+    row = database.oidc_upstream.update_connection(tenant_id, connection_id, **update_kwargs)
+
+    if row is None:
+        raise ValidationError(
+            message="Failed to update OIDC connection",
+            code="oidc_connection_update_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="oidc_idp_connection",
+        artifact_id=connection_id,
+        event_type="oidc_idp_connection_updated",
+        metadata={"updated_fields": list(update_kwargs.keys())},
+    )
+
+    return _row_to_config(row, base_url)
+
+
+def delete_connection(
+    requesting_user: RequestingUser,
+    connection_id: str,
+) -> None:
+    """Delete an OIDC connection.
+
+    Authorization: Requires super_admin role.
+    Logs: oidc_idp_connection_deleted event.
+
+    Security: Cannot delete if enabled, or if users are linked. The
+    disconnect-scrub of canonical attributes is wired in Iteration 5 once the
+    OIDC snapshot table exists; until then the delete path is scrub-free.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.oidc_upstream.get_connection(tenant_id, connection_id)
+    if existing is None:
+        raise NotFoundError(
+            message="OIDC connection not found",
+            code="oidc_connection_not_found",
+        )
+
+    if existing.get("is_enabled"):
+        raise ConflictError(
+            message="Cannot delete an enabled OIDC connection. Disable it first.",
+            code="oidc_connection_is_enabled",
+        )
+
+    link_count = database.oidc_upstream.count_links_for_connection(tenant_id, connection_id)
+    if link_count > 0:
+        raise ConflictError(
+            message=(
+                f"Cannot delete OIDC connection: {link_count} user(s) are linked to it. "
+                "Unlink users first."
+            ),
+            code="oidc_connection_has_linked_users",
+            details={"link_count": link_count, "connection_id": connection_id},
+        )
+
+    database.oidc_upstream.delete_connection(tenant_id, connection_id)
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="oidc_idp_connection",
+        artifact_id=connection_id,
+        event_type="oidc_idp_connection_deleted",
+        metadata={"name": existing["name"]},
+    )
+
+
+def set_connection_enabled(
+    requesting_user: RequestingUser,
+    connection_id: str,
+    enabled: bool,
+    base_url: str,
+) -> OIDCConnectionConfig:
+    """Enable or disable an OIDC connection.
+
+    Authorization: Requires super_admin role.
+    Logs: oidc_idp_connection_enabled or oidc_idp_connection_disabled event.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.oidc_upstream.get_connection(tenant_id, connection_id)
+    if existing is None:
+        raise NotFoundError(
+            message="OIDC connection not found",
+            code="oidc_connection_not_found",
+        )
+
+    row = database.oidc_upstream.set_connection_enabled(tenant_id, connection_id, enabled)
+
+    if row is None:
+        raise ValidationError(
+            message="Failed to update OIDC connection",
+            code="oidc_connection_update_failed",
+        )
+
+    event_type = "oidc_idp_connection_enabled" if enabled else "oidc_idp_connection_disabled"
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="oidc_idp_connection",
+        artifact_id=connection_id,
+        event_type=event_type,
+        metadata={"name": existing["name"]},
+    )
+
+    return _row_to_config(row, base_url)
+
+
+def set_connection_default(
+    requesting_user: RequestingUser,
+    connection_id: str,
+    base_url: str,
+) -> OIDCConnectionConfig:
+    """Set an OIDC connection as the default for the tenant.
+
+    Authorization: Requires super_admin role.
+    Logs: oidc_idp_connection_set_default event.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.oidc_upstream.get_connection(tenant_id, connection_id)
+    if existing is None:
+        raise NotFoundError(
+            message="OIDC connection not found",
+            code="oidc_connection_not_found",
+        )
+
+    row = database.oidc_upstream.set_connection_default(tenant_id, connection_id)
+
+    if row is None:
+        raise ValidationError(
+            message="Failed to update OIDC connection",
+            code="oidc_connection_update_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="oidc_idp_connection",
+        artifact_id=connection_id,
+        event_type="oidc_idp_connection_set_default",
+        metadata={"name": existing["name"]},
+    )
+
+    return _row_to_config(row, base_url)

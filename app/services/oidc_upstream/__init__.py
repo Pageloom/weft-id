@@ -12,11 +12,18 @@ All functions follow the service layer pattern:
 - Log events for all writes
 """
 
+from services.oidc_upstream.auth import (
+    build_authorize_url,
+    generate_nonce,
+    generate_pkce_pair,
+    generate_state,
+)
 from services.oidc_upstream.connections import (
     create_connection,
     decrypt_client_secret,
     delete_connection,
     get_connection,
+    get_connection_row,
     list_connections,
     oidc_connection_requires_platform_mfa,
     set_connection_default,
@@ -52,6 +59,10 @@ from services.oidc_upstream.presets import (
     get_preset,
     get_preset_defaults,
 )
+from services.oidc_upstream.provisioning import (
+    authenticate_via_oidc,
+    jit_provision_user,
+)
 from services.oidc_upstream.token_exchange import (
     TokenExchangeError,
     UserinfoError,
@@ -62,6 +73,7 @@ from services.oidc_upstream.token_exchange import (
 __all__ = [
     "list_connections",
     "get_connection",
+    "get_connection_row",
     "create_connection",
     "update_connection",
     "delete_connection",
@@ -69,6 +81,12 @@ __all__ = [
     "set_connection_default",
     "oidc_connection_requires_platform_mfa",
     "decrypt_client_secret",
+    "generate_pkce_pair",
+    "generate_state",
+    "generate_nonce",
+    "build_authorize_url",
+    "authenticate_via_oidc",
+    "jit_provision_user",
     "run_discovery",
     "validate_id_token",
     "get_jwks",

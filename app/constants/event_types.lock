@@ -71,8 +71,12 @@ oidc_idp_connection_disabled
 oidc_idp_connection_enabled
 oidc_idp_connection_set_default
 oidc_idp_connection_updated
+oidc_login_completed
+oidc_login_failed
+oidc_login_started
 oidc_signing_key_cleanup_completed
 oidc_signing_key_rotated
+oidc_user_jit_provisioned
 oidc_userinfo_accessed
 passkey_auth_failure
 passkey_auth_success
@@ -188,6 +192,7 @@ user_force_profile_completion_set
 user_groups_bulk_added
 user_idp_attribute_mirror_failed
 user_inactivated
+user_oidc_idp_linked
 user_profile_updated
 user_reactivated
 user_reactivated_cli

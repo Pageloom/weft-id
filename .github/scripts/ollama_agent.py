@@ -31,6 +31,12 @@ MODEL = os.environ.get("OLLAMA_MODEL") or "deepseek-v4-flash:0731"
 REPO_ROOT = Path(os.environ.get("REPO_ROOT", Path(__file__).resolve().parent.parent.parent))
 
 MAX_TOOL_OUTPUT = 20_000  # chars; truncate long tool results
+# Consecutive blank turns (no tool calls, no content) tolerated before an
+# agent is given up on. Some models emit a turn carrying only `thinking`,
+# or get cut mid-generation while building a large tool argument; treating
+# the first blank turn as 'finished' silently ends the agent having done
+# nothing at all.
+MAX_EMPTY_TURNS = 3
 
 
 # --- Tools -----------------------------------------------------------------
@@ -236,12 +242,44 @@ def run_agent(
         {"role": "system", "content": system},
         {"role": "user", "content": task},
     ]
+    empty_turns = 0
     for _ in range(max_turns):
         data = chat(messages, tools)
         msg = data.get("message", {})
         tool_calls = msg.get("tool_calls") or []
+        content = msg.get("content") or ""
         if not tool_calls:
-            return msg.get("content") or "(empty response)"
+            if content.strip():
+                return content
+            # Blank turn: nudge rather than accept it as a finished agent.
+            empty_turns += 1
+            thinking = msg.get("thinking") or ""
+            if verbose:
+                print(
+                    f"\n[warn] blank turn {empty_turns}/{MAX_EMPTY_TURNS} "
+                    f"(done_reason={data.get('done_reason')!r}, "
+                    f"message keys={sorted(msg)}, thinking={len(thinking)} chars)",
+                    file=sys.stderr,
+                )
+                if thinking:
+                    print(f"[warn] thinking tail: ...{thinking[-400:]}", file=sys.stderr)
+            if empty_turns >= MAX_EMPTY_TURNS:
+                return "(model returned only blank turns)"
+            messages.append({"role": "assistant", "content": content})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Your last turn was empty: no tool call and no text. Do not "
+                        "reply with prose. Make your next tool call now -- if the "
+                        "file you are writing is large, write it in smaller pieces "
+                        "(one write_file for a first section, then edit_file to "
+                        "append) rather than in a single call."
+                    ),
+                }
+            )
+            continue
+        empty_turns = 0
         # Append a clean assistant message (drop `thinking` to keep context lean).
         assistant = {"role": "assistant", "content": msg.get("content", "")}
         assistant["tool_calls"] = tool_calls

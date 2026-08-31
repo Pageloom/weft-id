@@ -36,6 +36,8 @@ from ollama_agent import MODEL, REPO_ROOT, run_agent
 
 GATE_CMD = "make check && make test"
 MAX_FIX_ATTEMPTS = 3
+# Re-prompts allowed when the dev agent finishes without touching a file.
+MAX_EMPTY_ATTEMPTS = 2
 
 # Branch to push to after every iteration commit; None disables pushing.
 # Set from --push in main().
@@ -85,14 +87,29 @@ def _changed_files() -> str:
     return _git("diff", "HEAD", "--name-only")
 
 
-def _commit(subject: str, body: str) -> None:
+def _commit(subject: str, body: str) -> bool:
+    """Stage everything and commit. Returns True only if a commit was created.
+
+    The caller must not announce or push a commit this returns False for: an
+    agent that changed nothing would otherwise produce a clean-looking
+    `[commit]` / `[push]` pair in the log while the remote never moves.
+    """
     _git("add", "-A")
     msg = f"{subject}\n\n{body}"
     proc = subprocess.run(
         ["git", "commit", "-m", msg], cwd=REPO_ROOT, capture_output=True, text=True
     )
-    if proc.returncode != 0 and "nothing to commit" not in proc.stdout + proc.stderr:
-        print(f"[commit] {proc.stdout}{proc.stderr}", file=sys.stderr)
+    if proc.returncode == 0:
+        return True
+    combined = proc.stdout + proc.stderr
+    if "nothing to commit" not in combined:
+        print(f"[commit] failed: {combined}", file=sys.stderr)
+    return False
+
+
+def _has_changes() -> bool:
+    """Whether the working tree differs from HEAD (tracked or untracked)."""
+    return bool(_git("status", "--porcelain").strip())
 
 
 def _sweep_scratch() -> None:
@@ -171,16 +188,47 @@ def _dev_prompt(slug: str, n: int) -> tuple[str, str]:
         "You are the dev agent in the WeftID /lead workflow, running autonomously in CI "
         "with no human available. Read `.claude/skills/dev/SKILL.md` and follow its "
         "Headless Mode section. Read `CLAUDE.md` for architectural rules and "
-        "`.claude/THOUGHT_ERRORS.md` for common mistakes. Use the tools to inspect the "
-        "codebase before writing code."
+        "`.claude/THOUGHT_ERRORS.md` for common mistakes. Inspect the codebase before "
+        "writing code, then WRITE THE CODE. You produce changes on disk, not plans: "
+        "`write_file` creates a new file and `edit_file` changes an existing one. "
+        "Reading, grepping and describing an approach are not progress. An iteration "
+        "that ends with no files created or modified has failed."
     )
     task = (
         f"Read `specs/{slug}.md` and implement Iteration {n} end to end. "
-        "Write code and tests. Run `make check` and `make test` yourself and fix any "
-        "failures before you finish. Delete any temporary or debug files you created "
-        "along the way; only the real implementation and its tests should be left on "
-        "disk. Do not commit. When done, report: files changed, what each does, tests "
-        "added, and any decisions you made."
+        "Survey the code you need to mirror, then create every file the acceptance "
+        "criteria call for using `write_file` and `edit_file` -- migration, database "
+        "modules, service, router, schemas, templates and tests as applicable. Do not "
+        "stop after planning: a plan you have not written to disk is worth nothing "
+        "here, and no human will act on it.\n\n"
+        "Then run `make check` and `make test` yourself and fix any failures. Delete "
+        "any temporary or debug files you created along the way; only the real "
+        "implementation and its tests should be left on disk.\n\n"
+        "Before you finish, run `git status --short` and confirm your new and changed "
+        "files are listed. If that output is empty you have not done the work -- go "
+        "back and write the files. Do not commit. When done, report: files changed, "
+        "what each does, tests added, and any decisions you made."
+    )
+    return system, task
+
+
+def _empty_prompt(slug: str, n: int) -> tuple[str, str]:
+    """Re-prompt after a dev agent finished without changing a single file."""
+    system = (
+        "You are the dev agent in the WeftID /lead workflow, running autonomously in "
+        "CI. Your previous attempt ended with an empty `git status` -- you explored the "
+        "codebase and then stopped without writing anything. That is a failed "
+        "iteration. This time, write files."
+    )
+    task = (
+        f"`git status --short` is empty: Iteration {n} of `specs/{slug}.md` is not "
+        "implemented. You have already surveyed the codebase, so skip further "
+        "exploration and start with your first `write_file` call now.\n\n"
+        "Create the files the acceptance criteria require, one `write_file` or "
+        "`edit_file` call at a time, then run `make check` and `make test` and fix what "
+        "fails. Verify with `git status --short` that your files are listed before you "
+        "finish. Do not reply with a plan, a summary, or an explanation of what you "
+        "would do -- only actual tool calls that change files count."
     )
     return system, task
 
@@ -242,6 +290,26 @@ def run_iteration(slug: str, n: int) -> None:
     # 1. Dev agent implements.
     system, task = _dev_prompt(slug, n)
     dev_report = run_agent(system, task)
+    print(f"\n[dev] report:\n{dev_report}\n", file=sys.stderr)
+
+    # 1b. An agent that changed nothing has not implemented anything. Re-prompt
+    # bluntly, then fail: the gate passes trivially on an unchanged tree and the
+    # loop would otherwise re-run this same iteration until the job times out.
+    empty_attempts = 0
+    while not _has_changes() and empty_attempts < MAX_EMPTY_ATTEMPTS:
+        empty_attempts += 1
+        print(
+            f"\n[dev] no files changed (attempt {empty_attempts}); re-prompting",
+            file=sys.stderr,
+        )
+        system, task = _empty_prompt(slug, n)
+        dev_report = run_agent(system, task)
+        print(f"\n[dev] report:\n{dev_report}\n", file=sys.stderr)
+    if not _has_changes():
+        raise SystemExit(
+            f"iteration {n}: dev agent produced no file changes after "
+            f"{MAX_EMPTY_ATTEMPTS + 1} attempts"
+        )
 
     # 2. Quality gate (deterministic).
     code, gate_output = _run(GATE_CMD)
@@ -268,7 +336,8 @@ def run_iteration(slug: str, n: int) -> None:
     subject = f"Implement {slug} iteration {n}"
     body = f"Implements iteration {n} of the {slug} feature. See specs/{slug}.md."
     _sweep_scratch()
-    _commit(subject, body)
+    if not _commit(subject, body):
+        raise SystemExit(f"iteration {n}: nothing to commit after a passing gate")
     print(f"[commit] {subject}", file=sys.stderr)
     _push(f"iteration {n}")
 
@@ -310,8 +379,10 @@ def final_review(slug: str) -> None:
     )
     run_agent(system, task)
     _sweep_scratch()
-    _commit(f"Final review pass for {slug}", f"Addresses review findings for the {slug} feature.")
-    _push("final review")
+    if _commit(f"Final review pass for {slug}", f"Addresses review findings for {slug}."):
+        _push("final review")
+    else:
+        print("[commit] final review made no changes", file=sys.stderr)
 
 
 # --- Main -------------------------------------------------------------------

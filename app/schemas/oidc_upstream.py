@@ -9,7 +9,8 @@ boolean instead.
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from constants.user_attributes import ATTRIBUTE_KEYS
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 PROVIDER_TYPES = ("generic", "google", "entra")
 
@@ -18,6 +19,27 @@ DEFAULT_CLAIM_MAPPING = {
     "first_name": "given_name",
     "last_name": "family_name",
 }
+
+# The fixed claim-mapping keys. These are not in the standard attribute
+# registry because they map to first-class user columns, not user_attributes
+# rows.
+_FIXED_CLAIM_KEYS = frozenset({"email", "first_name", "last_name"})
+
+
+def _validate_claim_mapping_keys(value: dict[str, str] | None) -> dict[str, str] | None:
+    """Drop claim-mapping keys outside the fixed set or the standard registry.
+
+    The claim_mapping is ``{weftid_attribute: oidc_claim}``. Allowed keys =
+    fixed set (email/first_name/last_name) ∪ standard attribute registry keys.
+    Unknown attribute keys are dropped (per the Iteration 5 spec) so the mirror
+    writer never sees an unknown key. This keeps the PATCH and PUT paths
+    consistent: both silently discard unknown keys rather than one rejecting
+    and the other dropping.
+    """
+    if value is None:
+        return value
+    allowed = _FIXED_CLAIM_KEYS | ATTRIBUTE_KEYS
+    return {k: v for k, v in value.items() if k in allowed}
 
 
 class OIDCConnectionCreate(BaseModel):
@@ -40,6 +62,12 @@ class OIDCConnectionCreate(BaseModel):
     claim_mapping: dict[
         Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]
     ] = Field(default_factory=lambda: dict(DEFAULT_CLAIM_MAPPING))
+
+    @field_validator("claim_mapping")
+    @classmethod
+    def _validate_claim_mapping(cls, value: dict[str, str]) -> dict[str, str]:
+        return _validate_claim_mapping_keys(value) or {}
+
     correlation_claim: str = Field("sub", max_length=50)
     group_claim_source: str | None = Field(None, max_length=255)
     hosted_domain: str | None = Field(None, max_length=253)
@@ -68,6 +96,12 @@ class OIDCConnectionUpdate(BaseModel):
     claim_mapping: (
         dict[Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]] | None
     ) = None
+
+    @field_validator("claim_mapping")
+    @classmethod
+    def _validate_claim_mapping(cls, value: dict[str, str] | None) -> dict[str, str] | None:
+        return _validate_claim_mapping_keys(value)
+
     correlation_claim: str | None = Field(None, max_length=50)
     group_claim_source: str | None = Field(None, max_length=255)
     hosted_domain: str | None = Field(None, max_length=253)

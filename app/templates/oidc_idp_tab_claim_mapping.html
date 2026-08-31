@@ -1,0 +1,89 @@
+{% extends "oidc_idp_base.html" %}
+
+{% block tab_content %}
+{% set fields = [
+    ("email", "Email", "attr_email", "email"),
+    ("first_name", "First Name", "attr_first_name", "given_name"),
+    ("last_name", "Last Name", "attr_last_name", "family_name"),
+] %}
+
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Claim Mapping</h2>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        Map OIDC claims from this IdP to WeftID user fields. Values appear in the user's
+        profile (and downstream SAML assertions) once the attribute is enabled and
+        <code>mirror_from_idp</code> is on.
+    </p>
+
+    <form id="claim-map-form" method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/edit-claim-mapping">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <table class="w-full text-sm mb-4">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-gray-700">
+                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Platform Field</th>
+                    <th class="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">OIDC Claim Name</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                {% macro claim_row(mapping_key, display_label, form_field_name, default_value) %}
+                {% set current_value = connection.claim_mapping[mapping_key] if connection.claim_mapping and mapping_key in connection.claim_mapping else default_value %}
+                <tr>
+                    <td class="py-2 pr-4">
+                        <label for="{{ form_field_name }}" class="font-medium text-gray-900 dark:text-gray-100">{{ display_label }}</label>
+                    </td>
+                    <td class="py-2">
+                        <input type="text" id="{{ form_field_name }}" name="{{ form_field_name }}"
+                               value="{{ current_value }}"
+                               class="claim-map-input w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               data-default="{{ default_value }}">
+                    </td>
+                </tr>
+                {% endmacro %}
+
+                {% for mapping_key, display_label, form_field_name, default_value in fields %}
+                {{ claim_row(mapping_key, display_label, form_field_name, default_value) }}
+                {% endfor %}
+
+                {% if enabled_attribute_groups %}
+                {% set category_labels = {"contact": "Contact", "professional": "Professional", "location": "Location", "profile": "Profile"} %}
+                {% for group in enabled_attribute_groups %}
+                <tr>
+                    <td colspan="2" class="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        {{ category_labels[group.category] }}
+                    </td>
+                </tr>
+                {% for attr in group.attributes %}
+                {{ claim_row(attr.key, attr.default_friendly_name, attr.form_field_name, attr.default_friendly_name) }}
+                {% endfor %}
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+
+        <div class="flex items-center gap-4">
+            <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Save Claim Mapping
+            </button>
+            <a href="#" id="reset-claim-defaults" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Reset to defaults</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block tab_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const resetLink = document.getElementById('reset-claim-defaults');
+    if (resetLink) {
+        resetLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.claim-map-input').forEach((input) => {
+                input.value = input.dataset.default;
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

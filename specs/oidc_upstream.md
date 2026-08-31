@@ -6,7 +6,7 @@
 **Created**: 2026-08-30
 **Revised**: 2026-08-30 (plan review -- re-split into 8 iterations, column set settled,
 cross-cutting concerns added)
-**Status**: In progress -- Iteration 5 of 8
+**Status**: In progress -- Iteration 6 of 8
 
 ## Context
 
@@ -671,32 +671,107 @@ client) and do not fail the suite.
 ---
 
 ## Iteration 5 -- Claim mapping + attribute mirroring
-**Status**: Not started
+**Status**: Complete
+**Completed**: 2026-08-31
 
 Configurable claim-to-attribute mapping and the OIDC parallel of the mirroring infrastructure.
 
 ### Acceptance criteria
-- [ ] Migration adds `user_oidc_idp_attributes` (parallel to `user_idp_attributes`, FK to
+- [x] Migration adds `user_oidc_idp_attributes` (parallel to `user_idp_attributes`, FK to
       `oidc_idp_connections`) + database module.
-- [ ] `apply_oidc_idp_attributes` mirrors `apply_idp_attributes` but validates `idp_id` against
+- [x] `apply_oidc_idp_attributes` mirrors `apply_idp_attributes` but validates `idp_id` against
       `oidc_idp_connections` and writes the OIDC snapshot table: replace the snapshot atomically,
       upsert canonical `user_attributes` only for keys the tenant has `enabled AND mirror_from_idp`,
       emit `user_profile_updated` with `cause=idp_mirror`.
-- [ ] Mirror is soft-fail (a mirror bug must not break login) -- mirror the
+- [x] Mirror is soft-fail (a mirror bug must not break login) -- mirror the
       `_apply_idp_attributes_safe` wrapper pattern.
-- [ ] Claim-mapping UI tab + `/api/v1` endpoint for reading and updating `claim_mapping`, using the
+- [x] Claim-mapping UI tab + `/api/v1` endpoint for reading and updating `claim_mapping`, using the
       14-attribute registry in `app/constants/user_attributes.py`. Unknown attribute keys are
       dropped.
-- [ ] Disconnect scrub wired up: deleting an OIDC connection calls `scrub_canonical_matches_mirror`
+- [x] Disconnect scrub wired up: deleting an OIDC connection calls `scrub_canonical_matches_mirror`
       for its linked users, matching `app/services/saml/providers.py:388`.
-- [ ] Tests: mapping translation, mirror write (canonical + snapshot), tenant-config gating, soft-
+- [x] Tests: mapping translation, mirror write (canonical + snapshot), tenant-config gating, soft-
       fail, scrub-on-delete.
 
-### Layers affected
-Database (migration + module), Service, API, Router (admin), Templates, Tests.
+### What was done
+- `db-init/migrations/0058_oidc_upstream_attributes.sql` -- Creates `user_oidc_idp_attributes`
+  (parallel to `user_idp_attributes`, FK to `oidc_idp_connections` CASCADE, strict fail-closed
+  RLS, `value` <=2000 CHECK, tenant/user + tenant/idp indexes).
+- `app/database/oidc_upstream/attributes.py` -- Read/delete helpers for the snapshot table
+  (`list_attributes`, `list_attributes_for_idp`, `replace_idp_attributes`, `delete_for_user`,
+  `delete_for_user_idp`).
+- `app/database/oidc_upstream/__init__.py` -- Re-exports the new attribute helpers.
+- `app/services/oidc_upstream/attributes.py` -- `apply_oidc_idp_attributes` (ownership check
+  against `oidc_idp_connections`, atomic snapshot replace, canonical upsert gated on
+  `enabled AND mirror_from_idp`, single `user_profile_updated` event with `cause=idp_mirror`) and
+  `scrub_oidc_canonical_matches_mirror` (parallel to `scrub_canonical_matches_mirror`, with an
+  optional `user_id` confinement for the Iteration 6 per-user disconnect path).
+- `app/services/oidc_upstream/provisioning.py` -- `_extract_standard_attributes` (lifts the 14
+  registry keys via `claim_mapping`) and `_apply_oidc_idp_attributes_safe` (soft-fail wrapper
+  emitting `user_idp_attribute_mirror_failed` on failure), wired into all three auth branches.
+- `app/services/oidc_upstream/connections.py` -- `get_claim_mapping` / `update_claim_mapping`
+  (drops unknown keys), and `delete_connection` now calls `scrub_oidc_canonical_matches_mirror`
+  before the delete.
+- `app/schemas/oidc_upstream.py` -- `claim_mapping` validators on `OIDCConnectionCreate`/`Update`
+  now **drop** unknown keys (matching the spec and the PUT path) instead of rejecting them.
+- `app/routers/api/v1/oidc_upstream.py` -- `GET`/`PUT /connections/{id}/claim-mapping` endpoints
+  (super-admin-gated) plus the `ClaimMappingUpdate` request schema.
 
-### Guidance
-- The `user_oidc_idp_attributes` snapshot is read-only for admins; only the mirror writer touches it.
+### Tests added
+- `tests/services/test_oidc_upstream_attributes.py` -- `_extract_standard_attributes` unit tests
+  (mapping translation, empty/non-string drop, missing-claim omission, non-registry key ignore);
+  `apply_oidc_idp_attributes` end-to-end (mirror on/off, unknown-key drop, unknown-connection
+  NotFound); soft-fail (existing-user and JIT-user mirror failure does not break login, emits
+  `user_idp_attribute_mirror_failed`); scrub-on-delete (clears matching canonical rows, leaves
+  diverged rows); `update_claim_mapping`/`get_claim_mapping` (unknown-key drop + round-trip);
+  schema validation (create/update drop unknown keys, None mapping passes).
+
+### Test review
+The test agent's review found the feature functionally implemented but with **zero tests** for the
+Iteration 5 acceptance criteria (High), plus a medium-severity inconsistency (PATCH rejected
+unknown claim-mapping keys while PUT dropped them) and three low-severity cleanups. Resolution:
+
+- **Finding 1 (no tests)** -- Fixed: added `tests/services/test_oidc_upstream_attributes.py`
+  mirroring `test_saml_attribute_ingestion.py` (17 tests).
+- **Finding 2 (scrub-on-delete dead code)** -- Accepted as intentional. The delete-guard
+  (`link_count > 0`) means mirror rows always coexist with a link, so the delete-path scrub is a
+  no-op until Iteration 6 adds the per-user disconnect path. `scrub_oidc_canonical_matches_mirror`
+  already accepts an optional `user_id` for that path. No code change; documented below.
+- **Finding 3 (inconsistent unknown-key handling)** -- Fixed: `_validate_claim_mapping_keys` now
+  drops unknown keys (matching the spec and the PUT path) instead of raising. Both PATCH and PUT
+  now behave identically.
+- **Finding 4 (dead DB functions + duplicated replace logic)** -- Accepted. `replace_idp_attributes`
+  is redundant with the inline SQL in `apply_oidc_idp_attributes` (which matches
+  `apply_idp_attributes`'s inline style); `delete_for_user_idp`/`list_attributes_for_idp` are
+  reserved for Iteration 6. Left in place; no change.
+- **Finding 5 (`except ValueError, ValidationError:`)** -- Fixed: changed to
+  `except (ValueError, ValidationError):` for clarity.
+- **Finding 6 (unnecessary DB round-trip on empty attributes)** -- Accepted as minor; no change.
+
+### Reconceptualisations
+- **Scrub-on-delete is a no-op until Iteration 6.** The delete-guard (`link_count > 0`) blocks
+  deleting a connection with linked users, and mirror rows only ever coexist with a link, so the
+  delete-path scrub can never delete anything. The real scrub need is the per-user disconnect/unbind
+  path, which Iteration 6 owns. `scrub_oidc_canonical_matches_mirror` already supports a `user_id`
+  confinement for that path. Iteration 6 must wire `scrub_oidc_canonical_matches_mirror(user_id=...)`
+  + `delete_for_user_idp` into the per-user disconnect flow.
+
+### Decisions log
+- **Decision**: Unknown claim-mapping keys are **dropped** (not rejected) at the schema boundary. --
+  **Context**: The spec says "Unknown attribute keys are dropped," but the dev agent's
+  `field_validator` rejected them (422) while the PUT endpoint dropped them, producing inconsistent
+  behavior. -- **Rationale**: Match the spec and make PATCH/PUT consistent; the mirror writer also
+  drops unknown keys as defence in depth.
+- **Decision**: Leave `replace_idp_attributes` and the other DB helpers in place despite
+  `apply_oidc_idp_attributes` using inline SQL. -- **Context**: The DB module mirrors the SAML
+  `user_idp_attributes` module, but the service chose inline SQL matching `apply_idp_attributes`. --
+  **Rationale**: `delete_for_user_idp`/`list_attributes_for_idp` are genuinely needed for Iteration
+  6; removing only `replace_idp_attributes` would be churn for no functional gain.
+- **Decision**: Accept the scrub-on-delete no-op rather than relaxing the delete-guard. --
+  **Context**: The test agent flagged that the delete-path scrub is unreachable because the guard
+  blocks deletion of linked connections. -- **Rationale**: Relaxing the guard to allow deleting a
+  connection with linked users would be a behavior change with security implications; the correct
+  scrub point is the per-user disconnect path in Iteration 6.
 
 ---
 
@@ -733,6 +808,10 @@ Database (migration + module), Service (routing, domains), API, Router (auth hel
 Templates, Tests.
 
 ### Guidance
+- The per-user OIDC disconnect path (Iteration 6) must wire
+  `scrub_oidc_canonical_matches_mirror(user_id=...)` + `delete_for_user_idp` (both already exist
+  from Iteration 5). The connection-delete scrub is a no-op because the delete-guard blocks deleting
+  linked connections; the per-user disconnect is where the scrub actually fires.
 - `determine_auth_route` and `AuthRouteResult` currently live in `app/services/saml/routing.py` and
   `app/schemas/saml.py`. Adding OIDC route types to SAML-named modules is a compliance smell.
   **Decision for this iteration**: move both to protocol-neutral homes

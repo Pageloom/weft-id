@@ -13,6 +13,7 @@ def test_change_password_api_success(test_user, override_api_auth, mocker):
     override_api_auth(test_user, level="user")
 
     mock_change = mocker.patch("routers.api.v1.users.users_service.change_password")
+    mocker.patch("routers.api.v1.users.password.ratelimit.prevent")
 
     client = TestClient(app)
     response = client.put(
@@ -38,6 +39,7 @@ def test_change_password_api_wrong_current(test_user, override_api_auth, mocker)
         "routers.api.v1.users.users_service.change_password",
         side_effect=ValidationError(message="Wrong password", code="invalid_current_password"),
     )
+    mocker.patch("routers.api.v1.users.password.ratelimit.prevent")
 
     client = TestClient(app)
     response = client.put(

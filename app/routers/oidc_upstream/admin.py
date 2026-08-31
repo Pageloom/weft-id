@@ -39,6 +39,7 @@ CONNECTION_LIST_URL = "/admin/settings/oidc-identity-providers"
 # The page keys used for the per-connection detail tabs (registered in pages.py).
 _PAGE_CONNECTION = "/admin/settings/oidc-identity-providers/connection"
 _PAGE_DETAILS = "/admin/settings/oidc-identity-providers/connection/details"
+_PAGE_CLAIM_MAPPING = "/admin/settings/oidc-identity-providers/connection/claim-mapping"
 _PAGE_DANGER = "/admin/settings/oidc-identity-providers/connection/danger"
 
 
@@ -243,6 +244,130 @@ def connection_tab_details(
         test_detail=request.query_params.get("test_detail"),
     )
     return templates.TemplateResponse(request, "oidc_idp_tab_details.html", context)
+
+
+@router.get(
+    "/admin/settings/oidc-identity-providers/{connection_id}/claim-mapping",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def connection_tab_claim_mapping(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+):
+    """Claim-mapping tab: map OIDC claims to WeftID attributes."""
+    if not has_page_access(_PAGE_CLAIM_MAPPING, user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        connection, requesting_user = _load_connection_common(
+            request, tenant_id, user, connection_id
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as exc:
+        logger.warning("Failed to get OIDC connection: %s", exc)
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error={exc.message}")
+
+    # Surface enabled tenant attributes alongside the fixed rows, grouped by
+    # category, mirroring the SAML attributes tab.
+    from constants.user_attributes import CATEGORIES, STANDARD_ATTRIBUTES
+    from services import settings as settings_service
+
+    try:
+        config_rows = settings_service.list_tenant_attribute_config(requesting_user)
+    except ServiceError:
+        config_rows = []
+    enabled_keys = {row["attribute_key"] for row in config_rows if row.get("enabled")}
+
+    enabled_attribute_groups: list[dict] = []
+    for category in CATEGORIES:
+        category_attrs = [
+            {
+                "key": attr.key,
+                "default_friendly_name": attr.default_friendly_name,
+                "form_field_name": f"attr_{attr.key}",
+            }
+            for attr in STANDARD_ATTRIBUTES
+            if attr.category == category and attr.key in enabled_keys
+        ]
+        if category_attrs:
+            enabled_attribute_groups.append({"category": category, "attributes": category_attrs})
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        connection=connection,
+        enabled_attribute_groups=enabled_attribute_groups,
+        active_tab="claim-mapping",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse(request, "oidc_idp_tab_claim_mapping.html", context)
+
+
+@router.post(
+    "/admin/settings/oidc-identity-providers/{connection_id}/edit-claim-mapping",
+    dependencies=[Depends(require_super_admin)],
+)
+async def edit_claim_mapping(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+):
+    """Update a connection's claim mapping.
+
+    Accepts the three fixed keys (email/first_name/last_name) plus one
+    ``attr_<registry_key>`` form field per standard attribute. Empty / missing
+    values fall back to the registry's friendly default so saving does not
+    silently drop rows.
+    """
+    from constants.user_attributes import STANDARD_ATTRIBUTES
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    form = await request.form()
+
+    def _value(field: str, default: str | None = None) -> str | None:
+        v = form.get(field)
+        if v is None:
+            return default
+        if not isinstance(v, str):
+            return default
+        v = v.strip()
+        if len(v) > 255:
+            v = v[:255]
+        return v if v else default
+
+    claim_mapping: dict[str, str] = {
+        "email": _value("attr_email", "email") or "email",
+        "first_name": _value("attr_first_name", "given_name") or "given_name",
+        "last_name": _value("attr_last_name", "family_name") or "family_name",
+    }
+    for attr in STANDARD_ATTRIBUTES:
+        field_name = f"attr_{attr.key}"
+        if field_name in form:
+            claim_mapping[attr.key] = (
+                _value(field_name, attr.default_friendly_name) or attr.default_friendly_name
+            )
+
+    try:
+        oidc_service.update_claim_mapping(
+            requesting_user,
+            connection_id,
+            claim_mapping,
+            tenant_base_url(request),
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as e:
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/claim-mapping?error={str(e)}")
+
+    return safe_redirect(
+        f"{CONNECTION_LIST_URL}/{connection_id}/claim-mapping?success=claim_mapping_updated"
+    )
 
 
 @router.get(

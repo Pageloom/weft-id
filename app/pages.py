@@ -389,6 +389,13 @@ PAGES = [
                                         creates_nav_level=False,
                                     ),
                                     Page(
+                                        path="/admin/settings/oidc-identity-providers/connection/claim-mapping",
+                                        title="Claim Mapping",
+                                        permission=PagePermission.SUPER_ADMIN,
+                                        show_in_nav=False,
+                                        creates_nav_level=False,
+                                    ),
+                                    Page(
                                         path="/admin/settings/oidc-identity-providers/connection/danger",
                                         title="Disable/Delete",
                                         permission=PagePermission.SUPER_ADMIN,

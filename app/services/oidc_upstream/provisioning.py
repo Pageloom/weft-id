@@ -40,6 +40,31 @@ def _extract_claims(claims: dict, claim_mapping: dict[str, str]) -> dict[str, st
     return result
 
 
+def _extract_standard_attributes(
+    claims: dict,
+    claim_mapping: dict[str, str],
+) -> dict[str, str]:
+    """Lift the 14 standard registry attributes from OIDC claims.
+
+    The claim_mapping is ``{weftid_attribute: oidc_claim}``. For each standard
+    registry key present in the mapping, look up the mapped OIDC claim in the
+    claims and return non-empty string values. Fixed keys (email, first_name,
+    last_name) are not standard attributes and are excluded here -- they are
+    handled by ``_extract_claims`` for JIT provisioning.
+    """
+    from constants.user_attributes import STANDARD_ATTRIBUTES
+
+    result: dict[str, str] = {}
+    for attr in STANDARD_ATTRIBUTES:
+        claim = claim_mapping.get(attr.key)
+        if not claim:
+            continue
+        value = claims.get(claim)
+        if isinstance(value, str) and value.strip():
+            result[attr.key] = value
+    return result
+
+
 def jit_provision_user(
     tenant_id: str,
     connection: dict,
@@ -206,6 +231,7 @@ def authenticate_via_oidc(
                 message="User account is inactivated",
                 code="user_inactivated",
             )
+        _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
         _log_sign_in(tenant_id, str(user["id"]), connection, sub, claims)
         return user
 
@@ -243,12 +269,15 @@ def authenticate_via_oidc(
                         "email": email,
                     },
                 )
+                _apply_oidc_idp_attributes_safe(tenant_id, user_id, connection, claims)
                 _log_sign_in(tenant_id, user_id, connection, sub, claims)
                 return existing
 
     # 3. JIT provisioning.
     if connection.get("jit_provisioning"):
-        return jit_provision_user(tenant_id, connection, sub, claims)
+        user = jit_provision_user(tenant_id, connection, sub, claims)
+        _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
+        return user
 
     # 4. Reject.
     raise NotFoundError(
@@ -256,6 +285,61 @@ def authenticate_via_oidc(
         code="user_not_found",
         details={"sub": sub},
     )
+
+
+def _apply_oidc_idp_attributes_safe(
+    tenant_id: str,
+    user_id: str,
+    connection: dict,
+    claims: dict,
+) -> None:
+    """Wrapper around ``apply_oidc_idp_attributes`` that swallows exceptions.
+
+    The OIDC IdP-mirror write must never break the authentication flow.
+    Internal validation already drops malformed values silently; this wrapper
+    only catches infrastructure failures (DB outages, etc.) so the user can
+    still sign in. On failure we both log to stderr (for ops) and emit a
+    structured ``user_idp_attribute_mirror_failed`` audit event so a recurring
+    failure surfaces in the admin event log instead of only the container logs.
+    """
+    from services.oidc_upstream.attributes import apply_oidc_idp_attributes
+
+    claim_mapping = connection.get("claim_mapping") or {}
+    standard_attributes = _extract_standard_attributes(claims, claim_mapping)
+
+    try:
+        apply_oidc_idp_attributes(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            idp_id=str(connection["id"]),
+            attributes=standard_attributes,
+            actor_user_id=user_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to apply OIDC IdP attributes for user %s (connection %s)",
+            user_id,
+            connection["id"],
+            exc_info=True,
+        )
+        try:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=user_id,
+                artifact_type="user",
+                artifact_id=user_id,
+                event_type="user_idp_attribute_mirror_failed",
+                metadata={
+                    "idp_id": str(connection["id"]),
+                    "error_class": type(exc).__name__,
+                },
+            )
+        except Exception:
+            logger.warning(
+                "Failed to emit user_idp_attribute_mirror_failed event for user %s",
+                user_id,
+                exc_info=True,
+            )
 
 
 def _log_sign_in(

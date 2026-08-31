@@ -6,6 +6,13 @@ to a WeftID user. Every query is RLS-scoped via the ``tenant_id`` argument to
 the database helpers, so only the calling tenant's rows are ever visible.
 """
 
+from database.oidc_upstream.attributes import (
+    delete_for_user,
+    delete_for_user_idp,
+    list_attributes,
+    list_attributes_for_idp,
+    replace_idp_attributes,
+)
 from database.oidc_upstream.connections import (
     create_connection,
     delete_connection,
@@ -46,4 +53,10 @@ __all__ = [
     "get_user_id_by_sub",
     "delete_link",
     "count_links_for_connection",
+    # attributes
+    "list_attributes",
+    "list_attributes_for_idp",
+    "replace_idp_attributes",
+    "delete_for_user",
+    "delete_for_user_idp",
 ]

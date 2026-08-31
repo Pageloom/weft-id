@@ -310,9 +310,10 @@ def delete_connection(
     Authorization: Requires super_admin role.
     Logs: oidc_idp_connection_deleted event.
 
-    Security: Cannot delete if enabled, or if users are linked. The
-    disconnect-scrub of canonical attributes is wired in Iteration 5 once the
-    OIDC snapshot table exists; until then the delete path is scrub-free.
+    Security: Cannot delete if enabled, or if users are linked. Before the
+    delete, canonical ``user_attributes`` rows whose value still matches this
+    connection's last-mirrored snapshot are scrubbed (``cause:
+    idp_disconnect_scrub``), mirroring the SAML delete path.
     """
     require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
@@ -343,6 +344,18 @@ def delete_connection(
             details={"link_count": link_count, "connection_id": connection_id},
         )
 
+    # Disconnect scrub: clear canonical user_attributes rows whose value still
+    # matches this connection's last-mirrored snapshot, so the deleted
+    # connection's attributes stop flowing to downstream SPs. Must run before
+    # the delete because the cascade wipes the mirror rows.
+    from services.oidc_upstream.attributes import scrub_oidc_canonical_matches_mirror
+
+    scrubbed_count = scrub_oidc_canonical_matches_mirror(
+        tenant_id=tenant_id,
+        idp_id=connection_id,
+        actor_user_id=requesting_user["id"],
+    )
+
     database.oidc_upstream.delete_connection(tenant_id, connection_id)
 
     # Drop any cached JWKS for the deleted connection so its keys are not
@@ -357,7 +370,7 @@ def delete_connection(
         artifact_type="oidc_idp_connection",
         artifact_id=connection_id,
         event_type="oidc_idp_connection_deleted",
-        metadata={"name": existing["name"]},
+        metadata={"name": existing["name"], "scrubbed_count": scrubbed_count},
     )
 
 
@@ -403,6 +416,61 @@ def set_connection_enabled(
     )
 
     return _row_to_config(row, base_url)
+
+
+def get_claim_mapping(
+    requesting_user: RequestingUser,
+    connection_id: str,
+) -> dict[str, str]:
+    """Return a connection's claim mapping (OIDC claim -> WeftID attribute).
+
+    Authorization: Requires super_admin role.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    row = database.oidc_upstream.get_connection(requesting_user["tenant_id"], connection_id)
+    if row is None:
+        raise NotFoundError(
+            message="OIDC connection not found",
+            code="oidc_connection_not_found",
+        )
+    return row.get("claim_mapping") or {}
+
+
+def update_claim_mapping(
+    requesting_user: RequestingUser,
+    connection_id: str,
+    claim_mapping: dict[str, str],
+    base_url: str,
+) -> OIDCConnectionConfig:
+    """Replace a connection's claim mapping, dropping unknown attribute keys.
+
+    The mapping is ``{weftid_attribute: oidc_claim}``. Keys outside the fixed
+    set (email/first_name/last_name) or the 14-attribute standard registry are
+    dropped so the mirror writer never sees an unknown key.
+
+    Authorization: Requires super_admin role.
+    Logs: oidc_idp_connection_updated event.
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    from constants.user_attributes import is_standard_attribute
+
+    fixed = frozenset({"email", "first_name", "last_name"})
+    filtered = {
+        key: value
+        for key, value in claim_mapping.items()
+        if key in fixed or is_standard_attribute(key)
+    }
+
+    return update_connection(
+        requesting_user,
+        connection_id,
+        OIDCConnectionUpdate(claim_mapping=filtered),
+        base_url,
+    )
 
 
 def set_connection_default(

@@ -12,6 +12,10 @@ All functions follow the service layer pattern:
 - Log events for all writes
 """
 
+from services.oidc_upstream.attributes import (
+    apply_oidc_idp_attributes,
+    scrub_oidc_canonical_matches_mirror,
+)
 from services.oidc_upstream.auth import (
     build_authorize_url,
     generate_nonce,
@@ -22,12 +26,14 @@ from services.oidc_upstream.connections import (
     create_connection,
     decrypt_client_secret,
     delete_connection,
+    get_claim_mapping,
     get_connection,
     get_connection_row,
     list_connections,
     oidc_connection_requires_platform_mfa,
     set_connection_default,
     set_connection_enabled,
+    update_claim_mapping,
     update_connection,
 )
 from services.oidc_upstream.discovery import run_discovery
@@ -76,6 +82,8 @@ __all__ = [
     "get_connection_row",
     "create_connection",
     "update_connection",
+    "get_claim_mapping",
+    "update_claim_mapping",
     "delete_connection",
     "set_connection_enabled",
     "set_connection_default",
@@ -87,6 +95,8 @@ __all__ = [
     "build_authorize_url",
     "authenticate_via_oidc",
     "jit_provision_user",
+    "apply_oidc_idp_attributes",
+    "scrub_oidc_canonical_matches_mirror",
     "run_discovery",
     "validate_id_token",
     "get_jwks",

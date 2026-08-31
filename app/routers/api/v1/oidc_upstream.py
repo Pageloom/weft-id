@@ -11,6 +11,7 @@ from typing import Annotated
 from api_dependencies import require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request, status
+from pydantic import BaseModel, Field
 from schemas.oidc_upstream import (
     OIDCConnectionConfig,
     OIDCConnectionCreate,
@@ -23,6 +24,14 @@ from utils.service_errors import translate_to_http_exception
 from utils.urls import tenant_base_url
 
 router = APIRouter(prefix="/api/v1/oidc-upstream", tags=["OIDC Upstream"])
+
+
+class ClaimMappingUpdate(BaseModel):
+    """Request body for updating a connection's claim mapping."""
+
+    claim_mapping: dict[
+        Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]
+    ]
 
 
 def _get_base_url(request: Request) -> str:
@@ -228,6 +237,65 @@ def disable_connection(
     try:
         return oidc_upstream_service.set_connection_enabled(
             requesting_user, connection_id, enabled=False, base_url=base_url
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/connections/{connection_id}/claim-mapping")
+def get_claim_mapping(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+):
+    """
+    Get a connection's claim mapping (OIDC claim -> WeftID attribute).
+
+    Requires super_admin role.
+
+    Path parameters:
+    - connection_id: UUID of the connection
+
+    Returns the mapping dict, e.g. ``{"email": "email", "first_name":
+    "given_name", "last_name": "family_name"}``.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return {
+            "claim_mapping": oidc_upstream_service.get_claim_mapping(requesting_user, connection_id)
+        }
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.put("/connections/{connection_id}/claim-mapping", response_model=OIDCConnectionConfig)
+def update_claim_mapping(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+    data: ClaimMappingUpdate,
+):
+    """
+    Replace a connection's claim mapping.
+
+    Requires super_admin role.
+
+    Path parameters:
+    - connection_id: UUID of the connection
+
+    Request body:
+    - claim_mapping: ``{weftid_attribute: oidc_claim}``. Unknown attribute
+      keys (outside the fixed set email/first_name/last_name and the
+      14-attribute standard registry) are dropped.
+
+    Returns the updated connection.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    base_url = _get_base_url(request)
+    try:
+        return oidc_upstream_service.update_claim_mapping(
+            requesting_user, connection_id, data.claim_mapping, base_url
         )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

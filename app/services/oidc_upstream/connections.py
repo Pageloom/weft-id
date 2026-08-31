@@ -39,6 +39,15 @@ def _encrypt_secret(plaintext: str) -> str:
     return _cipher.encrypt(plaintext.encode()).decode()
 
 
+def decrypt_client_secret(encrypted: str) -> str:
+    """Decrypt a client secret read from storage.
+
+    Used by the auth flow (Iteration 3) to authenticate outbound token
+    exchanges. The plaintext never leaves the service layer.
+    """
+    return _cipher.decrypt(encrypted.encode()).decode()
+
+
 def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
     """Convert a database row to an OIDCConnectionConfig schema."""
     connection_id = str(row["id"])
@@ -325,6 +334,12 @@ def delete_connection(
         )
 
     database.oidc_upstream.delete_connection(tenant_id, connection_id)
+
+    # Drop any cached JWKS for the deleted connection so its keys are not
+    # retained in memory.
+    from services.oidc_upstream.jwks import clear_jwks_cache
+
+    clear_jwks_cache(tenant_id, connection_id)
 
     log_event(
         tenant_id=tenant_id,

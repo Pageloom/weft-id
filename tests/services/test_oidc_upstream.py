@@ -95,6 +95,17 @@ class TestCreate:
         conn = svc.create_connection(ru, _create_data(client_secret=long_secret), BASE_URL)
         assert conn.client_secret_set is True
 
+    def test_decrypt_client_secret_round_trip(self, test_tenant, test_super_admin_user):
+        """decrypt_client_secret is the reversible inverse of the at-rest encryption."""
+        import database
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(ru, _create_data(client_secret="round-trip-secret"), BASE_URL)
+
+        row = database.oidc_upstream.get_connection(test_tenant["id"], conn.id)
+        assert svc.decrypt_client_secret(row["client_secret_enc"]) == "round-trip-secret"
+
     def test_secret_over_max_length_rejected_at_schema(self):
         """A >3000-char secret is rejected by the schema before reaching the DB."""
         from pydantic import ValidationError as PydanticValidationError

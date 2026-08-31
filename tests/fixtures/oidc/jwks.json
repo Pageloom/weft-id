@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "oidc-upstream-fixture-key",
+      "n": "sEWmBxBuSd6urDSL2rRfUGa2HBnGBqtRGG86usI0Ca-qqRBt9h3UyC8ma8mLyBKRPQUwObL2z0b8ufFueAetD6g9_N0kEjsIUL0TSC1a5RiIetwx9LASfLeMj8XsW66CuElTCojhUQYjj5kFJ6N0FcaoxNua3cXT1CEeqU_tdzuGtnyn_Z0-6wYCrpOeWMifjwI6KtBwfgPZ3sSR_K0R_onN67WJZWGwY7axO0dLgYgJiao3ub2qqdrN076KhJnRgG79scGDfu9Ruu9PyKWhjeRdld1hR8jHYmSExsx6uS_4sh-8uG7ddE7X0KSjYThcDDPU-SREvaPJwtvhlXuYPw",
+      "e": "AQAB"
+    }
+  ]
+}

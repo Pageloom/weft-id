@@ -14,6 +14,7 @@ All functions follow the service layer pattern:
 
 from services.oidc_upstream.connections import (
     create_connection,
+    decrypt_client_secret,
     delete_connection,
     get_connection,
     list_connections,
@@ -21,6 +22,41 @@ from services.oidc_upstream.connections import (
     set_connection_default,
     set_connection_enabled,
     update_connection,
+)
+from services.oidc_upstream.discovery import run_discovery
+from services.oidc_upstream.errors import (
+    DiscoveryError,
+    DiscoveryInsecureEndpointError,
+    DiscoveryIssuerMismatchError,
+    DiscoveryRedirectError,
+    IDTokenAudienceError,
+    IDTokenExpiredError,
+    IDTokenIssuerError,
+    IDTokenMissingClaimsError,
+    IDTokenNonceError,
+    IDTokenNotYetValidError,
+    IDTokenSignatureError,
+    IDTokenValidationError,
+    JwksError,
+    OIDCUpstreamError,
+)
+from services.oidc_upstream.id_token import validate_id_token
+from services.oidc_upstream.jwks import (
+    clear_jwks_cache,
+    get_jwks,
+    refresh_jwks,
+)
+from services.oidc_upstream.presets import (
+    compose_entra_authority,
+    compose_entra_discovery_url,
+    get_preset,
+    get_preset_defaults,
+)
+from services.oidc_upstream.token_exchange import (
+    TokenExchangeError,
+    UserinfoError,
+    exchange_code,
+    fetch_userinfo,
 )
 
 __all__ = [
@@ -32,4 +68,32 @@ __all__ = [
     "set_connection_enabled",
     "set_connection_default",
     "oidc_connection_requires_platform_mfa",
+    "decrypt_client_secret",
+    "run_discovery",
+    "validate_id_token",
+    "get_jwks",
+    "refresh_jwks",
+    "clear_jwks_cache",
+    "get_preset",
+    "get_preset_defaults",
+    "compose_entra_authority",
+    "compose_entra_discovery_url",
+    "exchange_code",
+    "fetch_userinfo",
+    "TokenExchangeError",
+    "UserinfoError",
+    "OIDCUpstreamError",
+    "DiscoveryError",
+    "DiscoveryIssuerMismatchError",
+    "DiscoveryInsecureEndpointError",
+    "DiscoveryRedirectError",
+    "JwksError",
+    "IDTokenValidationError",
+    "IDTokenSignatureError",
+    "IDTokenIssuerError",
+    "IDTokenAudienceError",
+    "IDTokenNonceError",
+    "IDTokenExpiredError",
+    "IDTokenNotYetValidError",
+    "IDTokenMissingClaimsError",
 ]

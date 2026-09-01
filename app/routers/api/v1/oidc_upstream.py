@@ -448,6 +448,63 @@ def get_unbound_domains(
         raise translate_to_http_exception(exc)
 
 
+@router.get("/connections/{connection_id}/users")
+def list_connection_linked_users(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+):
+    """
+    List users linked to an OIDC upstream connection.
+
+    Requires super_admin role.
+
+    Path parameters:
+    - connection_id: UUID of the connection
+
+    Returns a list of linked users with link_id, user_id, sub, name, and email.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return oidc_upstream_service.list_connection_linked_users(requesting_user, connection_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.delete(
+    "/connections/{connection_id}/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def unlink_user_from_connection(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+    user_id: str,
+):
+    """
+    Disconnect a user from an OIDC upstream connection.
+
+    Requires super_admin role.
+
+    Removes the user's ``(idp_id, sub)`` link, scrubs canonical attributes
+    still matching the connection's last-mirrored snapshot, drops the mirror
+    rows, and inactivates the user + unverifies their emails (mirroring SAML
+    disconnect semantics).
+
+    Path parameters:
+    - connection_id: UUID of the connection
+    - user_id: UUID of the user to disconnect
+
+    Returns 204 No Content on success. Fails with 404 if the user, connection,
+    or link does not exist.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        oidc_upstream_service.unlink_user_from_connection(requesting_user, user_id, connection_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
 @router.post("/connections/{connection_id}/set-default", response_model=OIDCConnectionConfig)
 def set_default_connection(
     request: Request,

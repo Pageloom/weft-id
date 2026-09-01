@@ -197,6 +197,7 @@ user_idp_attribute_mirror_failed
 user_inactivated
 user_oidc_idp_assigned
 user_oidc_idp_linked
+user_oidc_idp_unlinked
 user_profile_updated
 user_reactivated
 user_reactivated_cli

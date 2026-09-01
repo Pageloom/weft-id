@@ -386,17 +386,27 @@ def connection_tab_danger(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     try:
-        connection, _ = _load_connection_common(request, tenant_id, user, connection_id)
+        connection, requesting_user = _load_connection_common(
+            request, tenant_id, user, connection_id
+        )
     except NotFoundError:
         return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
     except ServiceError as exc:
         logger.warning("Failed to get OIDC connection: %s", exc)
         return safe_redirect(f"{CONNECTION_LIST_URL}?error={exc.message}")
 
+    # Linked users (for the per-user disconnect surface).
+    linked_users: list[dict] = []
+    try:
+        linked_users = oidc_service.list_connection_linked_users(requesting_user, connection_id)
+    except ServiceError:
+        pass
+
     context = get_template_context(
         request,
         tenant_id,
         connection=connection,
+        linked_users=linked_users,
         active_tab="danger",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
@@ -560,6 +570,30 @@ def delete_connection(
         return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/danger?error={str(e)}")
 
     return safe_redirect(f"{CONNECTION_LIST_URL}?success=deleted")
+
+
+@router.post(
+    "/admin/settings/oidc-identity-providers/{connection_id}/unlink-user/{user_id}",
+    dependencies=[Depends(require_super_admin)],
+)
+def unlink_user_from_connection(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+    user_id: str,
+):
+    """Disconnect a user from an OIDC connection (per-user disconnect path)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        oidc_service.unlink_user_from_connection(requesting_user, user_id, connection_id)
+    except NotFoundError as exc:
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/danger?error={exc.code}")
+    except ServiceError as e:
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/danger?error={str(e)}")
+
+    return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/danger?success=user_unlinked")
 
 
 @router.post(

@@ -66,6 +66,11 @@ from services.oidc_upstream.jwks import (
     get_jwks,
     refresh_jwks,
 )
+from services.oidc_upstream.links import (
+    list_connection_linked_users,
+    list_user_oidc_links,
+    unlink_user_from_connection,
+)
 from services.oidc_upstream.presets import (
     compose_entra_authority,
     compose_entra_discovery_url,
@@ -102,6 +107,9 @@ __all__ = [
     "build_authorize_url",
     "authenticate_via_oidc",
     "jit_provision_user",
+    "unlink_user_from_connection",
+    "list_user_oidc_links",
+    "list_connection_linked_users",
     "apply_oidc_idp_attributes",
     "scrub_oidc_canonical_matches_mirror",
     "list_domain_bindings",

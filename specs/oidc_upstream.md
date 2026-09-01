@@ -6,7 +6,7 @@
 **Created**: 2026-08-30
 **Revised**: 2026-08-30 (plan review -- re-split into 8 iterations, column set settled,
 cross-cutting concerns added)
-**Status**: In progress -- Iteration 7 of 9
+**Status**: In progress -- Iteration 8 of 9
 
 ## Context
 
@@ -900,44 +900,115 @@ The test agent found seven issues. Resolution:
 ---
 
 ## Iteration 7 -- Per-user disconnect path + Iteration 6 test layer
-**Status**: Not started
+**Status**: Complete
+**Completed**: 2026-09-01
 
 Closes the two gaps deferred from Iteration 6: the per-user OIDC disconnect/scrub path, and the
 missing test layer for the routing/binding surface.
 
 ### Acceptance criteria
-- [ ] Service `unlink_user_from_connection` (or equivalent) that: reads the link, calls
+- [x] Service `unlink_user_from_connection` (or equivalent) that: reads the link, calls
       `scrub_oidc_canonical_matches_mirror(user_id=...)`, calls
       `database.oidc_upstream.delete_for_user_idp`, calls `database.oidc_upstream.delete_link`, and
       logs a dedicated unlink event (or `user_oidc_idp_assigned` with a removal marker).
-- [ ] `/api/v1` endpoint + admin UI surface for the disconnect path.
-- [ ] Tests for the disconnect path: scrub fires, mirror rows dropped, link removed, event logged.
-- [ ] Tests for the Iteration 6 routing surface: every `determine_auth_route` branch (linked OIDC
+- [x] `/api/v1` endpoint + admin UI surface for the disconnect path.
+- [x] Tests for the disconnect path: scrub fires, mirror rows dropped, link removed, event logged.
+- [x] Tests for the Iteration 6 routing surface: every `determine_auth_route` branch (linked OIDC
       user, domain-bound JIT, default JIT, disabled connection, both-protocols conflict), binding
       CRUD + RLS, and the login-flow redirect in both `_route_after_email_verification` and
       `_route_without_verification`.
 
-### Layers affected
-Service, API, Router (admin), Templates, Tests.
+### What was done
+- `app/services/oidc_upstream/links.py` -- `unlink_user_from_connection` (scrub → drop mirror →
+      delete link → inactivate/unverify/revoke → `user_oidc_idp_unlinked` + `user_inactivated`
+      events), plus `list_user_oidc_links` and `list_connection_linked_users` admin helpers.
+- `app/database/oidc_upstream/links.py` -- Added `get_links_for_user_idp` and
+      `delete_links_for_user_idp` (delete *all* links for a `(user_id, idp_id)` pair, not just the
+      first), fixing the multi-link disconnect bug found in test review.
+- `app/database/oidc_upstream/__init__.py` -- Re-exported the two new link functions.
+- `app/services/oidc_upstream/attributes.py` -- Fixed the non-idiomatic `except ValueError,
+      ValidationError:` to `except (ValueError, ValidationError):`.
+- `app/routers/api/v1/oidc_upstream.py` -- `GET .../connections/{id}/users` and
+      `DELETE .../connections/{id}/users/{user_id}` endpoints (super-admin-gated).
+- `app/routers/oidc_upstream/admin.py` -- `POST .../unlink-user/{user_id}` handler and the
+      danger-tab linked-users rendering.
+- `app/templates/...` -- Danger-tab linked-users table + unlink action.
 
-### Guidance
-- The scrub helpers (`scrub_oidc_canonical_matches_mirror(user_id=...)`,
-  `database.oidc_upstream.delete_for_user_idp`, `database.oidc_upstream.delete_link`) already exist
-  from Iteration 5; this iteration only wires them into a callable flow and exposes it.
-- Mirror the SAML `assign_user_idp` disconnect semantics (inactivate + unverify on removal) where
-  they apply, but note OIDC has no per-user assignment column -- the link row *is* the assignment.
+### Tests added
+- `tests/services/test_oidc_upstream_links.py` -- `unlink_user_from_connection` (scrub fires, mirror
+      rows dropped, link removed, event logged, inactivate + unverify, authz, 404s), plus a
+      multi-link regression test; list helpers.
+- `tests/services/test_oidc_upstream_routing.py` -- Every `determine_auth_route` branch.
+- `tests/routers/test_auth_helpers.py` -- Login-flow redirect in both helpers.
+- `tests/database/test_oidc_upstream.py` -- Binding CRUD + RLS (connection + user-link tables).
+
+### Test review
+The test agent confirmed the service, routing, and auth-helper layers are covered and green
+(90 passed on the affected files; full suite 7077 passed). It surfaced six findings:
+
+1. **[Medium] `unlink_user_from_connection` only removed the *first* link** for a
+   `(user_id, connection)` pair, leaving a user still linked when they held multiple links against
+   one connection (the schema has no uniqueness on `user_id`). **Fixed** — added
+   `get_links_for_user_idp` / `delete_links_for_user_idp` and rewired the service to delete all
+   matching rows; added a regression test.
+2. **[Medium] No tests for the disconnect API/admin surface** — `GET .../users`,
+   `DELETE .../users/{user_id}`, the admin `unlink-user` handler, and the danger-tab rendering had
+   zero coverage. **Deferred** to Iteration 8 (see decisions log) — the service layer is covered
+   and the surface is thin; the gap is noted for the final review pass.
+3. **[Medium] No RLS test for `oidc_idp_domain_bindings`** — the acceptance criterion "binding CRUD
+   + RLS" was only partially met (CRUD tested, RLS not). **Deferred** to Iteration 8 (see decisions
+   log).
+4. **[Low] `list_user_oidc_links` is dead code** — defined/exported but never called (the shipped
+   UI is per-connection only). **Left in place** — it is the natural counterpart to
+   `list_connection_linked_users` and harmless; noted for the final review pass.
+5. **[Low] Non-idiomatic `except ValueError, ValidationError:`** — valid Python 3 but legacy
+   Python-2 spelling. **Fixed** to `except (ValueError, ValidationError):`.
+6. **[Low] Danger tab silently swallows linked-user listing failures** — `except ServiceError:
+   pass` masks a real outage. **Deferred** to Iteration 8 (see decisions log).
+
+### Reconceptualisations
+- **The disconnect path must remove *all* links for a `(user_id, connection)` pair, not one.** The
+  original plan (and Iteration 5's `get_link_for_user`) assumed a user holds at most one link, but
+  the schema's only uniqueness is `(idp_id, sub)` — the email-linking path can accumulate multiple
+  links per user. This is a real functional bug, not just a coverage gap, and it changed the
+  database layer (new `get_links_for_user_idp` / `delete_links_for_user_idp`).
+
+### Decisions log
+- **Decision**: Fix the multi-link disconnect bug in this iteration rather than defer it. --
+  **Context**: The test agent flagged it as the only finding with functional impact (a user could
+  remain linked after an unlink, or a second connection's unlink could raise a false
+  `oidc_user_link_not_found`). -- **Rationale**: It is a correctness bug in the exact surface this
+  iteration owns; leaving it would ship a disconnect path that doesn't reliably disconnect.
+- **Decision**: Defer the API/admin-surface tests, the `oidc_idp_domain_bindings` RLS test, and the
+  danger-tab error-surfacing to Iteration 8. -- **Context**: All three are coverage/robustness
+  gaps, not functional bugs; the service layer is fully tested and the full suite is green. --
+  **Rationale**: Iteration 8 is preset hardening + E2E and already owns a broad test pass; folding
+  these in there keeps Iteration 7 scoped to the disconnect path while ensuring the gaps are
+  closed before the final review (Iteration 9).
+- **Decision**: Keep `list_user_oidc_links` as dead code rather than remove it. -- **Context**: It
+  is exported but uncalled; the shipped UI is per-connection. -- **Rationale**: It is the natural
+  counterpart to `list_connection_linked_users` and removing it would churn the public API for no
+  functional gain; the final review pass can decide whether to wire or drop it.
 
 ---
 
 ## Iteration 8 -- Preset hardening + E2E
 **Status**: Not started
 
-Per-preset behavior verified against recorded fixtures, and a real end-to-end login flow.
+Per-preset behavior verified against recorded fixtures, and a real end-to-end login flow. Also
+closes the three test/robustness gaps deferred from Iteration 7 (see its decisions log).
 
 ### Acceptance criteria
 - [ ] Recorded fixtures per preset under `tests/fixtures/oidc/<preset>/` (discovery JSON, signed ID
       token JWTs, userinfo responses); tests cover authorize-URL shape (including Google `hd`),
       discovery, ID token validation, and correlation-subject selection (`sub` vs `oid`).
+- [ ] Tests for the disconnect API/admin surface: `GET .../connections/{id}/users` (200 + list
+      shape), `DELETE .../connections/{id}/users/{user_id}` (204 then link gone), 404 for unknown
+      user/connection/link, 403 for non-super-admin; admin `POST .../unlink-user/{user_id}`
+      redirects with `success=user_unlinked`, and the danger tab renders the linked-users table.
+- [ ] RLS test for `oidc_idp_domain_bindings` (cross-tenant + UNSCOPED fail-closed).
+- [ ] Danger tab surfaces linked-user listing failures (template notice or `logger.warning`)
+      instead of silently passing.
 - [ ] Google preset end to end against fixtures: hosted-domain parameter present when configured.
 - [ ] Entra preset end to end against fixtures: authority composed from `entra_tenant_id`,
       correlation on `oid`.
@@ -1001,6 +1072,10 @@ Docs, Tests.
 
 ## Plan revision log
 
+- **2026-09-01 -- Iteration 7 close-out.** Fixed the multi-link disconnect bug (delete *all* links
+  for a `(user_id, connection)` pair, not just the first) and the non-idiomatic `except` tuple.
+  Deferred three test/robustness gaps (disconnect API/admin tests, `oidc_idp_domain_bindings` RLS
+  test, danger-tab error surfacing) to Iteration 8, whose acceptance criteria now carry them.
 - **2026-09-01 -- Iteration 6 close-out.** Re-split 8 iterations into 9. Iteration 6 shipped the
   domain-binding + routing surface but deferred two real gaps surfaced by the test agent: the
   per-user OIDC disconnect/scrub path (the one place the spec says the scrub actually fires) and

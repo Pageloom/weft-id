@@ -25,12 +25,21 @@ from database.oidc_upstream.connections import (
     set_connection_enabled,
     update_connection,
 )
+from database.oidc_upstream.domains import (
+    bind_domain_to_connection,
+    get_connection_for_domain,
+    get_domain_binding_by_domain_id,
+    get_domain_bindings_for_connection,
+    get_unbound_domains,
+    unbind_domain_from_connection,
+)
 from database.oidc_upstream.links import (
     count_links_for_connection,
     create_link,
     delete_link,
     get_link,
     get_link_by_idp_sub,
+    get_link_for_user,
     get_user_id_by_sub,
 )
 
@@ -50,6 +59,7 @@ __all__ = [
     "create_link",
     "get_link",
     "get_link_by_idp_sub",
+    "get_link_for_user",
     "get_user_id_by_sub",
     "delete_link",
     "count_links_for_connection",
@@ -59,4 +69,11 @@ __all__ = [
     "replace_idp_attributes",
     "delete_for_user",
     "delete_for_user_idp",
+    # domains
+    "get_domain_bindings_for_connection",
+    "get_connection_for_domain",
+    "bind_domain_to_connection",
+    "unbind_domain_from_connection",
+    "get_domain_binding_by_domain_id",
+    "get_unbound_domains",
 ]

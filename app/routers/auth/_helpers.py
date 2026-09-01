@@ -37,13 +37,16 @@ def _route_after_email_verification(
     if result.route_type in ("idp", "idp_jit"):
         return safe_redirect(f"/saml/login/{result.idp_id}")
 
+    if result.route_type in ("idp_oidc", "idp_oidc_jit"):
+        return safe_redirect(f"/auth/oidc/{result.idp_id}/login")
+
     if result.route_type == "inactivated":
         return safe_redirect(f"/login?error=account_inactivated&prefill_email={quote(email)}")
 
     if result.route_type == "not_found":
         return safe_redirect(f"/login?error=user_not_found&prefill_email={quote(email)}")
 
-    if result.route_type == "idp_disabled":
+    if result.route_type in ("idp_disabled", "idp_oidc_disabled"):
         return safe_redirect(f"/login?error=idp_disabled&prefill_email={quote(email)}")
 
     if result.route_type == "no_auth_method":
@@ -71,9 +74,13 @@ def _route_without_verification(request: Request, tenant_id: str, email: str) ->
     if result.route_type in ("idp", "idp_jit"):
         return safe_redirect(f"/saml/login/{result.idp_id}")
 
+    if result.route_type in ("idp_oidc", "idp_oidc_jit"):
+        return safe_redirect(f"/auth/oidc/{result.idp_id}/login")
+
     if result.route_type == "invalid_email":
         return safe_redirect(f"/login?error=invalid_email&prefill_email={quote(email)}")
 
     # Everything else (password, inactivated, not_found, idp_disabled,
-    # no_auth_method, unknown) routes to password form with no disclosure
+    # idp_oidc_disabled, no_auth_method, unknown) routes to password form with
+    # no disclosure
     return safe_redirect(f"/login?prefill_email={quote(email)}&show_password=true")

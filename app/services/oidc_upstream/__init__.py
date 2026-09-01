@@ -37,6 +37,13 @@ from services.oidc_upstream.connections import (
     update_connection,
 )
 from services.oidc_upstream.discovery import run_discovery
+from services.oidc_upstream.domains import (
+    bind_domain_to_connection,
+    get_unbound_domains,
+    list_domain_bindings,
+    rebind_domain_to_connection,
+    unbind_domain_from_connection,
+)
 from services.oidc_upstream.errors import (
     DiscoveryError,
     DiscoveryInsecureEndpointError,
@@ -97,6 +104,11 @@ __all__ = [
     "jit_provision_user",
     "apply_oidc_idp_attributes",
     "scrub_oidc_canonical_matches_mirror",
+    "list_domain_bindings",
+    "bind_domain_to_connection",
+    "unbind_domain_from_connection",
+    "rebind_domain_to_connection",
+    "get_unbound_domains",
     "run_discovery",
     "validate_id_token",
     "get_jwks",

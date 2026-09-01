@@ -14,7 +14,7 @@ from schemas.saml import DomainBinding, DomainBindingList, UnboundDomain
 from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
-from services.exceptions import NotFoundError, ValidationError
+from services.exceptions import ConflictError, NotFoundError, ValidationError
 from services.types import RequestingUser
 from services.users.attributes import scrub_canonical_matches_mirror
 
@@ -111,6 +111,20 @@ def bind_domain_to_idp(
         raise NotFoundError(
             message="Privileged domain not found",
             code="domain_not_found",
+        )
+
+    # Cross-protocol exclusivity: a domain cannot be bound to a SAML IdP and an
+    # OIDC connection at the same time. The DB UNIQUE constraint only spans the
+    # SAML table, so check the OIDC binding table explicitly.
+    oidc_binding = database.oidc_upstream.get_domain_binding_by_domain_id(tenant_id, domain_id)
+    if oidc_binding is not None:
+        raise ConflictError(
+            message=(
+                f"Domain '{domain['domain']}' is already bound to an OIDC connection. "
+                "Unbind it from the OIDC connection first."
+            ),
+            code="domain_bound_to_oidc_connection",
+            details={"domain_id": domain_id, "oidc_connection_id": str(oidc_binding["idp_id"])},
         )
 
     # Get all users with emails in this domain who don't already have this IdP

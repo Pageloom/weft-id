@@ -16,7 +16,9 @@
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">
                 {% if success == 'domain_bound' %}
-                Domain bound. Existing users with this domain assigned to the IdP.
+                Domain bound to SAML IdP. Existing users with this domain assigned to the IdP.
+                {% elif success == 'domain_bound_oidc' %}
+                Domain bound to OIDC connection. Unknown users with this domain will be routed to the connection's JIT flow.
                 {% elif success == 'domain_unbound' %}
                 Domain unbound from IdP.
                 {% elif success == 'group_linked' %}
@@ -57,9 +59,15 @@
                                 <span class="text-sm font-medium text-gray-900 dark:text-gray-100">@{{ domain.domain }}</span>
                                 {% if domain.bound_idp_name %}
                                 <span class="px-2 py-0.5 text-xs font-semibold bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full">
-                                    {{ domain.bound_idp_name }}
+                                    SAML: {{ domain.bound_idp_name }}
                                 </span>
-                                {% else %}
+                                {% endif %}
+                                {% if domain.bound_oidc_idp_name %}
+                                <span class="px-2 py-0.5 text-xs font-semibold bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full">
+                                    OIDC: {{ domain.bound_oidc_idp_name }}
+                                </span>
+                                {% endif %}
+                                {% if not domain.bound_idp_name and not domain.bound_oidc_idp_name %}
                                 <span class="px-2 py-0.5 text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
                                     Not bound
                                 </span>
@@ -75,13 +83,13 @@
 
                         <div class="flex items-center gap-3">
                             {% if user.role == 'super_admin' and idps %}
-                            <!-- IdP Binding Controls -->
+                            <!-- SAML IdP Binding Controls -->
                             {% if domain.bound_idp_id %}
                             <form method="post" action="/admin/settings/privileged-domains/{{ domain.id }}/unbind">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="confirm-btn text-sm text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
-                                        data-confirm="Unbind @{{ domain.domain }} from its IdP?&#10;&#10;New users with this domain will no longer be auto-assigned.">
-                                    Unbind
+                                        data-confirm="Unbind @{{ domain.domain }} from its SAML IdP?&#10;&#10;New users with this domain will no longer be auto-assigned.">
+                                    Unbind SAML
                                 </button>
                             </form>
                             {% else %}
@@ -89,13 +97,41 @@
                                   class="flex items-center gap-2">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <select name="idp_id" required class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                                    <option value="">Bind to IdP...</option>
+                                    <option value="">Bind to SAML IdP...</option>
                                     {% for idp in idps %}
                                     <option value="{{ idp.id }}">{{ idp.name }}</option>
                                     {% endfor %}
                                 </select>
                                 <button type="submit" class="confirm-btn text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                                        data-confirm="Bind @{{ domain.domain }} to the selected IdP?&#10;&#10;All existing users with this domain will be assigned to the IdP. If later removed from the IdP, they will be deactivated and require admin reactivation.">
+                                        data-confirm="Bind @{{ domain.domain }} to the selected SAML IdP?&#10;&#10;All existing users with this domain will be assigned to the IdP. If later removed from the IdP, they will be deactivated and require admin reactivation.">
+                                    Bind
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% endif %}
+
+                            {% if user.role == 'super_admin' and oidc_connections %}
+                            <!-- OIDC Connection Binding Controls -->
+                            {% if domain.bound_oidc_idp_id %}
+                            <form method="post" action="/admin/settings/privileged-domains/{{ domain.id }}/unbind-oidc">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="confirm-btn text-sm text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
+                                        data-confirm="Unbind @{{ domain.domain }} from its OIDC connection?&#10;&#10;New users with this domain will no longer be auto-routed.">
+                                    Unbind OIDC
+                                </button>
+                            </form>
+                            {% else %}
+                            <form method="post" action="/admin/settings/privileged-domains/{{ domain.id }}/bind-oidc"
+                                  class="flex items-center gap-2">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <select name="connection_id" required class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                                    <option value="">Bind to OIDC...</option>
+                                    {% for conn in oidc_connections %}
+                                    <option value="{{ conn.id }}">{{ conn.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="confirm-btn text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300"
+                                        data-confirm="Bind @{{ domain.domain }} to the selected OIDC connection?&#10;&#10;Unknown users with this domain will be routed to the connection's JIT flow.">
                                     Bind
                                 </button>
                             </form>
@@ -179,11 +215,11 @@
             </p>
         </div>
 
-        {% if user.role == 'super_admin' and idps %}
+        {% if user.role == 'super_admin' and (idps or oidc_connections) %}
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
             <div class="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
                 <p class="text-sm text-amber-800 dark:text-amber-300">
-                    <strong>Note:</strong> Binding assigns all matching users to this IdP. They will only authenticate via SAML.
+                    <strong>Note:</strong> SAML binding assigns all matching users to the IdP (they will only authenticate via SAML). OIDC binding only routes unknown users to the connection's JIT flow; it does not retroactively assign existing users.
                 </p>
             </div>
         </div>

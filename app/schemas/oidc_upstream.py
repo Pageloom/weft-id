@@ -166,3 +166,41 @@ class OIDCConnectionListResponse(BaseModel):
 
     items: list[OIDCConnectionListItem]
     total: int
+
+
+# ============================================================================
+# Domain Binding Schemas
+# ============================================================================
+
+
+class OIDCDomainBinding(BaseModel):
+    """Domain-to-OIDC-connection binding info."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    domain_id: str
+    domain: str
+    idp_id: str
+    created_at: datetime
+
+
+class OIDCDomainBindingCreate(BaseModel):
+    """Request to bind a domain to an OIDC connection."""
+
+    domain_id: str = Field(..., max_length=36, description="UUID of the privileged domain to bind")
+
+
+class OIDCDomainBindingList(BaseModel):
+    """List of OIDC domain bindings."""
+
+    items: list[OIDCDomainBinding]
+
+
+class OIDCUnboundDomain(BaseModel):
+    """Privileged domain not bound to any OIDC connection."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    domain: str

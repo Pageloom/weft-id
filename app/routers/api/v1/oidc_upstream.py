@@ -17,6 +17,10 @@ from schemas.oidc_upstream import (
     OIDCConnectionCreate,
     OIDCConnectionListResponse,
     OIDCConnectionUpdate,
+    OIDCDomainBinding,
+    OIDCDomainBindingCreate,
+    OIDCDomainBindingList,
+    OIDCUnboundDomain,
 )
 from services import oidc_upstream as oidc_upstream_service
 from services.exceptions import ServiceError
@@ -297,6 +301,149 @@ def update_claim_mapping(
         return oidc_upstream_service.update_claim_mapping(
             requesting_user, connection_id, data.claim_mapping, base_url
         )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Domain Binding Endpoints
+# =============================================================================
+
+
+@router.get("/connections/{connection_id}/domains", response_model=OIDCDomainBindingList)
+def list_connection_domain_bindings(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+):
+    """
+    List domains bound to a specific OIDC connection.
+
+    Requires super_admin role.
+
+    Path parameters:
+    - connection_id: UUID of the connection
+
+    Returns list of bound domains with binding info.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return oidc_upstream_service.list_domain_bindings(requesting_user, connection_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post(
+    "/connections/{connection_id}/domains",
+    response_model=OIDCDomainBinding,
+    status_code=status.HTTP_201_CREATED,
+)
+def bind_domain_to_connection(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+    binding_data: OIDCDomainBindingCreate,
+):
+    """
+    Bind a privileged domain to an OIDC connection.
+
+    Requires super_admin role.
+
+    Unknown users with emails matching this domain will be routed to this
+    connection's JIT flow during the email-first login flow. A domain binds to
+    at most one IdP across both protocols; binding a domain already bound to a
+    SAML IdP fails with 409.
+
+    Path parameters:
+    - connection_id: UUID of the connection to bind to
+
+    Request body:
+    - domain_id: UUID of the privileged domain to bind
+
+    Returns the created domain binding.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return oidc_upstream_service.bind_domain_to_connection(
+            requesting_user, connection_id, binding_data.domain_id
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.delete(
+    "/connections/{connection_id}/domains/{domain_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def unbind_domain_from_connection(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+    domain_id: str,
+):
+    """
+    Unbind a domain from an OIDC connection.
+
+    Requires super_admin role.
+
+    Path parameters:
+    - connection_id: UUID of the connection (for URL consistency)
+    - domain_id: UUID of the domain to unbind
+
+    Returns 204 No Content on success.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        oidc_upstream_service.unbind_domain_from_connection(requesting_user, domain_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.put(
+    "/connections/{connection_id}/domains/{domain_id}",
+    response_model=OIDCDomainBinding,
+)
+def rebind_domain_to_connection(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+    domain_id: str,
+):
+    """
+    Rebind a domain from one OIDC connection to another.
+
+    Requires super_admin role.
+
+    Path parameters:
+    - connection_id: UUID of the new connection to bind to
+    - domain_id: UUID of the domain to rebind
+
+    Returns the updated domain binding.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return oidc_upstream_service.rebind_domain_to_connection(
+            requesting_user, domain_id, connection_id
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/domains/unbound", response_model=list[OIDCUnboundDomain])
+def get_unbound_domains(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+):
+    """
+    List privileged domains not bound to any OIDC connection.
+
+    Requires super_admin role.
+
+    Returns list of domains available for binding.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return oidc_upstream_service.get_unbound_domains(requesting_user)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

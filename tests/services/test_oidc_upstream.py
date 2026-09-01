@@ -114,6 +114,78 @@ class TestCreate:
             _create_data(client_secret="s" * 3001)
 
 
+class TestPresetDefaults:
+    """Preset defaults are applied server-side (not just in browser JS)."""
+
+    def test_entra_defaults_correlation_claim_and_authority(
+        self, test_tenant, test_super_admin_user
+    ):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(
+            ru,
+            OIDCConnectionCreate(
+                name="Entra",
+                provider_type="entra",
+                entra_tenant_id="contoso.onmicrosoft.com",
+            ),
+            BASE_URL,
+        )
+        assert conn.correlation_claim == "oid"
+        assert conn.issuer == "https://login.microsoftonline.com/contoso.onmicrosoft.com/v2.0"
+        assert conn.discovery_url == (
+            "https://login.microsoftonline.com/contoso.onmicrosoft.com/v2.0"
+            "/.well-known/openid-configuration"
+        )
+        assert conn.scopes == "openid profile email User.Read"
+
+    def test_google_defaults_issuer_and_scopes(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(
+            ru,
+            OIDCConnectionCreate(name="Google", provider_type="google"),
+            BASE_URL,
+        )
+        assert conn.issuer == "https://accounts.google.com"
+        assert conn.discovery_url == (
+            "https://accounts.google.com/.well-known/openid-configuration"
+        )
+        assert conn.correlation_claim == "sub"
+        assert conn.scopes == "openid profile email"
+
+    def test_generic_requires_explicit_issuer(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        with pytest.raises(ValidationError) as exc_info:
+            svc.create_connection(
+                ru,
+                OIDCConnectionCreate(name="Generic", provider_type="generic"),
+                BASE_URL,
+            )
+        assert exc_info.value.code == "oidc_connection_issuer_required"
+
+    def test_explicit_correlation_claim_not_overridden(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(
+            ru,
+            OIDCConnectionCreate(
+                name="Entra custom",
+                provider_type="entra",
+                entra_tenant_id="contoso.onmicrosoft.com",
+                correlation_claim="sub",
+            ),
+            BASE_URL,
+        )
+        assert conn.correlation_claim == "sub"
+
+
 class TestGetAndList:
     def test_get_returns_config_without_secret(self, test_tenant, test_super_admin_user):
         from services import oidc_upstream as svc

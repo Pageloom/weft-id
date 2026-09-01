@@ -223,3 +223,83 @@ class TestTenantIsolation:
         _create_connection(test_tenant)
         assert database.oidc_upstream.list_connections(test_tenant["id"]) != []
         assert database.oidc_upstream.list_connections(database.UNSCOPED) == []
+
+
+class TestDomainBindingTenantIsolation:
+    """RLS isolation for oidc_idp_domain_bindings (Iteration 8)."""
+
+    def _add_domain(self, tenant, domain):
+        return database.fetchone(
+            tenant["id"],
+            """
+            INSERT INTO tenant_privileged_domains (tenant_id, domain, created_by)
+            VALUES (:tenant_id, :domain, :created_by)
+            RETURNING id
+            """,
+            {
+                "tenant_id": tenant["id"],
+                "domain": domain,
+                "created_by": str(_make_user(tenant)["id"]),
+            },
+        )
+
+    def _bind(self, tenant, connection, domain_id):
+        return database.oidc_upstream.bind_domain_to_connection(
+            tenant_id=tenant["id"],
+            tenant_id_value=str(tenant["id"]),
+            domain_id=domain_id,
+            connection_id=str(connection["id"]),
+            created_by=str(_make_user(tenant)["id"]),
+        )
+
+    def test_binding_not_visible_under_other_tenant(self, test_tenant):
+        conn = _create_connection(test_tenant)
+        domain = self._add_domain(test_tenant, "bindiso.example.com")
+        self._bind(test_tenant, conn, str(domain["id"]))
+
+        other_subdomain = f"other-{uuid4().hex[:8]}"
+        other = database.fetchone(
+            database.UNSCOPED,
+            "INSERT INTO tenants (subdomain, name) VALUES (:s, :n) RETURNING id",
+            {"s": other_subdomain, "n": "Other Tenant"},
+        )
+        try:
+            assert (
+                database.oidc_upstream.get_domain_bindings_for_connection(
+                    other["id"], str(conn["id"])
+                )
+                == []
+            )
+        finally:
+            database.execute(
+                database.UNSCOPED,
+                "DELETE FROM tenants WHERE id = :id",
+                {"id": other["id"]},
+            )
+
+    def test_unscoped_read_fails_closed(self, test_tenant):
+        conn = _create_connection(test_tenant)
+        domain = self._add_domain(test_tenant, "bindiso2.example.com")
+        self._bind(test_tenant, conn, str(domain["id"]))
+
+        # Scoped read sees the binding.
+        assert (
+            database.oidc_upstream.get_domain_bindings_for_connection(
+                test_tenant["id"], str(conn["id"])
+            )
+            != []
+        )
+
+        # UNSCOPED read of the oidc_idp_domain_bindings table itself fails
+        # closed (its policy uses NULLIF, so an unset app.tenant_id yields an
+        # empty result rather than an error). We query the table directly to
+        # avoid the join to tenant_privileged_domains, whose legacy policy
+        # predates the NULLIF convention and is out of scope here.
+        assert (
+            database.fetchall(
+                database.UNSCOPED,
+                "select id from oidc_idp_domain_bindings",
+                {},
+            )
+            == []
+        )

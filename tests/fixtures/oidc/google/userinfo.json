@@ -1,0 +1,8 @@
+{
+  "sub": "google-subject-123",
+  "email": "google-user@example.com",
+  "email_verified": true,
+  "given_name": "Google",
+  "family_name": "User",
+  "name": "Google User"
+}

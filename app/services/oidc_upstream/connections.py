@@ -23,6 +23,11 @@ from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
+from services.oidc_upstream.presets import (
+    compose_entra_authority,
+    compose_entra_discovery_url,
+    get_preset_defaults,
+)
 from services.types import RequestingUser
 from utils.crypto import derive_fernet_key
 
@@ -157,6 +162,55 @@ def oidc_connection_requires_platform_mfa(tenant_id: str, connection_id: str) ->
     return bool(row.get("require_platform_mfa", False))
 
 
+def _apply_preset_defaults(data: OIDCConnectionCreate) -> OIDCConnectionCreate:
+    """Fill unset fields from the provider preset so the API and non-JS form
+    paths receive the same defaults the browser form pre-fills.
+
+    The preset registry defines per-provider defaults (scopes, correlation
+    claim, issuer/discovery URL). These were previously applied only by the
+    form's client-side JS, so an API-created connection (or a form submitted
+    with JS disabled) silently fell back to ``sub`` correlation and no scopes.
+    This makes the service layer the single source of truth.
+
+    For Entra, the issuer/discovery URL are composed from ``entra_tenant_id``
+    when the admin did not supply an explicit issuer.
+    """
+    defaults = get_preset_defaults(data.provider_type)
+    if not defaults:
+        return data
+
+    # correlation_claim: when the caller left it unset, use the preset's claim
+    # (Entra -> "oid"); otherwise fall back to "sub". An explicit caller value
+    # is always respected.
+    if data.correlation_claim is None:
+        data.correlation_claim = defaults.get("correlation_claim") or "sub"
+
+    if not data.scopes and defaults.get("scopes"):
+        data.scopes = defaults["scopes"]
+
+    if not data.issuer and defaults.get("issuer"):
+        data.issuer = defaults["issuer"]
+
+    if not data.discovery_url and defaults.get("discovery_url"):
+        data.discovery_url = defaults["discovery_url"]
+
+    # Entra composes its authority from the tenant id when no explicit issuer
+    # was supplied.
+    if data.provider_type == "entra" and not data.issuer and data.entra_tenant_id:
+        data.issuer = compose_entra_authority(data.entra_tenant_id)
+        if not data.discovery_url:
+            data.discovery_url = compose_entra_discovery_url(data.entra_tenant_id)
+
+    # Generic has no preset issuer; it must be supplied explicitly.
+    if data.provider_type == "generic" and not data.issuer:
+        raise ValidationError(
+            message="issuer is required for a generic OIDC connection",
+            code="oidc_connection_issuer_required",
+        )
+
+    return data
+
+
 def create_connection(
     requesting_user: RequestingUser,
     data: OIDCConnectionCreate,
@@ -172,6 +226,16 @@ def create_connection(
 
     tenant_id = requesting_user["tenant_id"]
 
+    data = _apply_preset_defaults(data)
+
+    # _apply_preset_defaults guarantees a non-None issuer (composed from the
+    # preset or tenant id, or rejected for generic) and a non-None
+    # correlation_claim (preset claim or "sub").
+    issuer = data.issuer
+    correlation_claim = data.correlation_claim
+    assert issuer is not None
+    assert correlation_claim is not None
+
     client_secret_enc = None
     if data.client_secret:
         client_secret_enc = _encrypt_secret(data.client_secret)
@@ -181,7 +245,7 @@ def create_connection(
         tenant_id_value=tenant_id,
         name=data.name,
         provider_type=data.provider_type,
-        issuer=data.issuer,
+        issuer=issuer,
         created_by=requesting_user["id"],
         discovery_url=data.discovery_url,
         authorization_endpoint=data.authorization_endpoint,
@@ -192,7 +256,7 @@ def create_connection(
         client_secret_enc=client_secret_enc,
         scopes=data.scopes,
         claim_mapping=data.claim_mapping,
-        correlation_claim=data.correlation_claim,
+        correlation_claim=correlation_claim,
         group_claim_source=data.group_claim_source,
         hosted_domain=data.hosted_domain,
         entra_tenant_id=data.entra_tenant_id,

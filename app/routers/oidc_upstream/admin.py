@@ -138,7 +138,7 @@ def create_connection(
     client_id: Annotated[str, Form(max_length=255)] = "",
     client_secret: Annotated[str, Form(max_length=3000)] = "",
     scopes: Annotated[str, Form(max_length=500)] = "",
-    correlation_claim: Annotated[str, Form(max_length=50)] = "sub",
+    correlation_claim: Annotated[str, Form(max_length=50)] = "",
     hosted_domain: Annotated[str, Form(max_length=253)] = "",
     entra_tenant_id: Annotated[str, Form(max_length=100)] = "",
     require_platform_mfa: Annotated[bool, Form()] = False,
@@ -149,22 +149,20 @@ def create_connection(
     requesting_user = build_requesting_user(user, tenant_id, request)
     base_url = tenant_base_url(request)
 
-    # Compose the issuer for the Entra preset from its tenant id when the
-    # admin did not supply an explicit issuer.
-    resolved_issuer = issuer.strip()
-    if provider_type == "entra" and not resolved_issuer and entra_tenant_id.strip():
-        resolved_issuer = oidc_service.compose_entra_authority(entra_tenant_id.strip())
-
+    # The service layer composes the issuer/discovery URL and applies preset
+    # defaults (scopes, correlation claim) server-side, so the form only needs
+    # to pass through what the admin typed. Empty strings become None so the
+    # preset defaults apply.
     try:
         data = OIDCConnectionCreate(
             name=name,
             provider_type=provider_type,
-            issuer=resolved_issuer,
+            issuer=issuer.strip() or None,
             discovery_url=discovery_url.strip() or None,
             client_id=client_id.strip() or None,
             client_secret=client_secret or None,
             scopes=scopes.strip() or None,
-            correlation_claim=correlation_claim.strip() or "sub",
+            correlation_claim=correlation_claim.strip() or None,
             hosted_domain=hosted_domain.strip() or None,
             entra_tenant_id=entra_tenant_id.strip() or None,
             require_platform_mfa=require_platform_mfa,
@@ -395,12 +393,18 @@ def connection_tab_danger(
         logger.warning("Failed to get OIDC connection: %s", exc)
         return safe_redirect(f"{CONNECTION_LIST_URL}?error={exc.message}")
 
-    # Linked users (for the per-user disconnect surface).
+    # Linked users (for the per-user disconnect surface). A listing failure
+    # must not silently pass: surface it in the logs so a recurring outage is
+    # visible to operators rather than rendering an empty (misleading) table.
     linked_users: list[dict] = []
     try:
         linked_users = oidc_service.list_connection_linked_users(requesting_user, connection_id)
-    except ServiceError:
-        pass
+    except ServiceError as exc:
+        logger.warning(
+            "Failed to list linked users for OIDC connection %s: %s",
+            connection_id,
+            exc,
+        )
 
     context = get_template_context(
         request,

@@ -841,6 +841,43 @@ def step_9_identity_providers(
                 log.info("Domain binding exists: %s", domain)
 
 
+def step_9b_oidc_connection(
+    log: logging.Logger,
+    tenant_id: str,
+    super_admin_id: str,
+) -> None:
+    """Seed an OIDC upstream connection for the Meridian Health fixture.
+
+    Mirrors the SAML IdP seeding in step_9 so the upstream OIDC login flow is
+    reachable by hand. Uses a generic preset with a placeholder issuer and
+    discovery URL (no live external IdP is reachable from the dev seed).
+    """
+    log.info("--- Step 9b: OIDC connection ---")
+
+    name = "Meridian OIDC"
+    issuer = "https://oidc.meridian-health.dev"
+
+    existing = database.oidc_upstream.get_connection_by_issuer(tenant_id, issuer)
+    if existing:
+        log.info("OIDC connection exists: %s", name)
+        return
+
+    conn = database.oidc_upstream.create_connection(
+        tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
+        name=name,
+        provider_type="generic",
+        issuer=issuer,
+        discovery_url=f"{issuer}/.well-known/openid-configuration",
+        created_by=super_admin_id,
+        is_enabled=True,
+        jit_provisioning=True,
+    )
+    if not conn:
+        raise RuntimeError(f"Failed to create OIDC connection: {name}")
+    log.info("Created OIDC connection: %s (id=%s)", name, conn["id"])
+
+
 def step_10_idp_assertion_groups(
     log: logging.Logger,
     tenant_id: str,
@@ -947,6 +984,7 @@ def _print_summary(log: logging.Logger, tenant_id: str) -> None:
     idp_count = database.fetchone(
         tenant_id, "select count(*) as n from saml_identity_providers", {}
     )
+    oidc_count = database.fetchone(tenant_id, "select count(*) as n from oidc_idp_connections", {})
 
     log.info("")
     log.info("=" * 60)
@@ -960,6 +998,7 @@ def _print_summary(log: logging.Logger, tenant_id: str) -> None:
     log.info("Groups:    %d", group_count["n"] if group_count else 0)
     log.info("SPs:       %d", sp_count["n"] if sp_count else 0)
     log.info("IdPs:      %d", idp_count["n"] if idp_count else 0)
+    log.info("OIDC IdPs: %d", oidc_count["n"] if oidc_count else 0)
     log.info("")
     log.info("Password:  %s  (all users)", DEV_PASSWORD)
     log.info("")
@@ -998,6 +1037,7 @@ def main() -> None:
     sp_ids = step_7_service_providers(log, tenant_id, super_admin_id)
     step_8_sp_group_assignments(log, tenant_id, sp_ids, groups, super_admin_id)
     step_9_identity_providers(log, tenant_id, super_admin_id)
+    step_9b_oidc_connection(log, tenant_id, super_admin_id)
     step_10_idp_assertion_groups(log, tenant_id, dept_user_ids)
     step_11_domain_group_links(log, tenant_id, super_admin_id, groups)
     _print_summary(log, tenant_id)

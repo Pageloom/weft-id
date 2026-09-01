@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "oidc-upstream-entra-key",
+      "n": "7a1-PGZsVNnFvmNeub71k7fK34RgruuFz0rKLMnZSo2MYafx-B8JNQCEzmufImN8_IvV12Le95XdZ9_D1YH9l0ejEn0fHfegK8FxFKi3RqkUJBArD3ZAHs9z-Ac0GmsTz-H178t2xEBqp72Gq-SGHT6qzw17gP5nnSuvxI_Ip8XFHQPIqUaoEa-4koJx6aFiM9o19ea0vkSR8h8mUYPjrp_tybCZodCrXrQH8cBnY1SdT0FNX_DZW2HZnOmjE0bHo-eyg4FeW4a8LhNVRi8To4jZBdhYDCiw6Wn991Yks3LaWLXfujLJD71eX4rom1f0DMkPmE97HpTJ1741uwzZ_Q",
+      "e": "AQAB"
+    }
+  ]
+}

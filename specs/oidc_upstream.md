@@ -6,7 +6,7 @@
 **Created**: 2026-08-30
 **Revised**: 2026-08-30 (plan review -- re-split into 8 iterations, column set settled,
 cross-cutting concerns added)
-**Status**: In progress -- Iteration 8 of 9
+**Status**: In progress -- Iteration 9 of 9
 
 ## Context
 
@@ -993,42 +993,123 @@ The test agent confirmed the service, routing, and auth-helper layers are covere
 ---
 
 ## Iteration 8 -- Preset hardening + E2E
-**Status**: Not started
+**Status**: Complete
+**Completed**: 2026-09-01
 
 Per-preset behavior verified against recorded fixtures, and a real end-to-end login flow. Also
 closes the three test/robustness gaps deferred from Iteration 7 (see its decisions log).
 
 ### Acceptance criteria
-- [ ] Recorded fixtures per preset under `tests/fixtures/oidc/<preset>/` (discovery JSON, signed ID
+- [x] Recorded fixtures per preset under `tests/fixtures/oidc/<preset>/` (discovery JSON, signed ID
       token JWTs, userinfo responses); tests cover authorize-URL shape (including Google `hd`),
       discovery, ID token validation, and correlation-subject selection (`sub` vs `oid`).
-- [ ] Tests for the disconnect API/admin surface: `GET .../connections/{id}/users` (200 + list
+- [x] Tests for the disconnect API/admin surface: `GET .../connections/{id}/users` (200 + list
       shape), `DELETE .../connections/{id}/users/{user_id}` (204 then link gone), 404 for unknown
       user/connection/link, 403 for non-super-admin; admin `POST .../unlink-user/{user_id}`
       redirects with `success=user_unlinked`, and the danger tab renders the linked-users table.
-- [ ] RLS test for `oidc_idp_domain_bindings` (cross-tenant + UNSCOPED fail-closed).
-- [ ] Danger tab surfaces linked-user listing failures (template notice or `logger.warning`)
+- [x] RLS test for `oidc_idp_domain_bindings` (cross-tenant + UNSCOPED fail-closed).
+- [x] Danger tab surfaces linked-user listing failures (template notice or `logger.warning`)
       instead of silently passing.
-- [ ] Google preset end to end against fixtures: hosted-domain parameter present when configured.
-- [ ] Entra preset end to end against fixtures: authority composed from `entra_tenant_id`,
+- [x] Google preset end to end against fixtures: hosted-domain parameter present when configured.
+- [x] Entra preset end to end against fixtures: authority composed from `entra_tenant_id`,
       correlation on `oid`.
 - [ ] E2E test in `tests/e2e/` driving a real browser through an upstream OIDC login: WeftID's own
       downstream OP as the upstream IdP (loopback, following the pattern in
       `tests/e2e/test_scim_loopback_e2e.py`), covering login, JIT provisioning, and a second login
-      correlating on `sub`.
-- [ ] `dev/seed_dev.py` seeds an OIDC connection for the Meridian Health fixture so the flow is
+      correlating on `sub`. **Deferred to Iteration 9** (see Decisions log).
+- [x] `dev/seed_dev.py` seeds an OIDC connection for the Meridian Health fixture so the flow is
       reachable by hand.
 
-### Layers affected
-Service (presets), Tests (unit + E2E), Dev fixtures.
+### What was done
+- `tests/fixtures/oidc/google/` and `tests/fixtures/oidc/entra/` -- Recorded discovery documents,
+  JWKS, signed ID-token JWTs, and private keys for the Google and Entra presets.
+- `tests/services/test_oidc_upstream_presets_hardening.py` -- Per-preset hardening: preset registry
+  shape, authorize-URL shape (Google `hd` present/absent), discovery parse + issuer-mismatch
+  rejection, ID-token validation, and correlation-subject selection (`sub` vs `oid`).
+- `tests/routers/test_oidc_upstream_disconnect.py` -- Disconnect API/admin surface: list-linked-users
+  (200 + shape), unlink (204 then link gone), 404s, 403 for non-super-admin, admin unlink redirect,
+  and danger-tab linked-users table.
+- `tests/database/test_oidc_upstream.py` -- Added `TestDomainBindingTenantIsolation` RLS test for
+  `oidc_idp_domain_bindings` (cross-tenant + UNSCOPED fail-closed).
+- `app/dev/seed_dev.py` -- Seeds an OIDC connection for the Meridian Health fixture (parallel to the
+  SAML IdP seeding) and includes it in the summary count.
+- `app/services/oidc_upstream/connections.py` -- Preset defaults now applied server-side in
+  `create_connection` (see Reconceptualisations / Decisions log): correlation claim, scopes, and
+  issuer/discovery URL are filled from the preset registry, and Entra's authority is composed from
+  `entra_tenant_id`. Generic connections without an explicit issuer are rejected.
+- `app/schemas/oidc_upstream.py` -- `OIDCConnectionCreate.issuer` and `correlation_claim` made
+  optional so the service layer can distinguish "unset" from "explicitly `sub`".
+- `app/routers/oidc_upstream/admin.py` -- The create form now passes through empty values as `None`
+  (letting the service layer apply preset defaults) instead of pre-composing the Entra authority.
 
-### Guidance
-- The loopback approach (WeftID's OP as its own upstream) avoids a new container and exercises both
-  protocol directions in one test. If it proves circular in a way that breaks tenant isolation, the
-  fallback is the Authentik instance from `dev/scim-testbed.sh`, which is already an OIDC OP and
-  already reachable via `host.docker.internal` on the SSRF dev allowlist. Decide early in the
-  iteration and record it.
-- No live external API calls in any test.
+### Tests added
+- `tests/services/test_oidc_upstream_presets_hardening.py` -- per-preset fixture-driven hardening.
+- `tests/routers/test_oidc_upstream_disconnect.py` -- disconnect API/admin surface.
+- `tests/database/test_oidc_upstream.py` -- `oidc_idp_domain_bindings` RLS isolation.
+- `tests/routers/test_oidc_upstream_admin.py` -- danger-tab linked-user listing failure surfacing
+  (criterion #4).
+- `tests/services/test_oidc_upstream.py` -- `TestPresetDefaults` (Entra/Google defaults, generic
+  issuer requirement, explicit correlation claim not overridden).
+
+### Test review
+The test agent reviewed the changed files against the acceptance criteria and found one real
+correctness bug plus several coverage gaps:
+
+- **Finding 1 (Medium, fixed)** -- Preset defaults (Entra `correlation_claim="oid"`, scopes, and
+  composed authority) were applied only in the browser form's client-side JS, not server-side. An
+  API-created Entra connection (or a form submitted with JS disabled) silently correlated on `sub`
+  and had no scopes/issuer. Fixed by applying preset defaults in the service layer
+  (`_apply_preset_defaults` in `create_connection`), making the API and form paths identical.
+- **Finding 2 (Low, coverage gap, fixed)** -- No test asserted the danger tab surfaces linked-user
+  listing failures. The behavior exists (`logger.warning`); a test was added to
+  `test_oidc_upstream_admin.py` asserting the page still renders 200 and the warning is logged.
+- **Finding 3 (Medium, coverage gap, deferred)** -- No upstream OIDC E2E test existed. Deferred to
+  Iteration 9 (see Decisions log); the loopback approach needs a dedicated testbed script and
+  carries circularity risk that warrants its own pass.
+- **Finding 4 (Low, coverage gap, fixed)** -- `dev/seed_dev.py` seeded only SAML IdPs. Added an OIDC
+  connection seed for the Meridian Health fixture.
+- **Finding 5 (Low)** -- `edit_connection_settings` always emits an `oidc_idp_connection_updated`
+  event even when nothing changed. Deferred (see Decisions log).
+- **Finding 6 (Low)** -- `test_connection` route double-fetches the connection. Deferred (see
+  Decisions log).
+
+`make check` and `make test` both pass (7106 passed).
+
+### Reconceptualisations
+- **Preset defaults are a service-layer concern, not a form concern.** The original plan treated
+  presets as a form pre-fill convenience; the test review revealed the API-first path and the
+  non-JS form path never received them, producing wrong correlation behavior for Entra. Preset
+  defaults (correlation claim, scopes, issuer/discovery URL) are now applied in
+  `create_connection`, with the form passing through empty values as `None`. This is the one
+  substantive correctness change in the iteration.
+
+### Decisions log
+- **Decision**: Apply preset defaults server-side in `create_connection` rather than only in the
+  form's JS. -- **Context**: Test review Finding 1 showed the API path and non-JS form path silently
+  fell back to `sub` correlation and no scopes for Entra. -- **Rationale**: the service layer is the
+  single source of truth; the API and form must behave identically, and the spec's explicit design
+  decision ("Entra correlates on `oid`") must hold regardless of how the connection is created.
+- **Decision**: Make `OIDCConnectionCreate.issuer` and `correlation_claim` optional (nullable) so
+  the service layer can distinguish "unset" from "explicitly `sub`". -- **Context**: the schema
+  previously defaulted `correlation_claim` to `"sub"`, which made it impossible to tell whether the
+  caller chose `sub` or left it blank. -- **Rationale**: an explicit `sub` must be respected; only
+  an *unset* value should receive the preset's `oid`.
+- **Decision**: Reject generic connections with no issuer in the service layer (new
+  `oidc_connection_issuer_required` ValidationError). -- **Context**: making `issuer` optional for
+  the preset path removed the schema-level `min_length=1` guard for generic. -- **Rationale**: a
+  generic connection has no preset issuer to compose, so an empty issuer is a hard error.
+- **Decision**: Defer Findings 5 (noisy `oidc_idp_connection_updated` event on settings save) and 6
+  (redundant `test_connection` double-fetch) to the final review pass. -- **Context**: both are
+  minor robustness/cleanliness issues, not correctness bugs, and neither is an acceptance criterion.
+  -- **Rationale**: they don't block Iteration 8's criteria and are better triaged alongside the
+  full-branch review in Iteration 9.
+- **Decision**: Defer the upstream OIDC E2E test (criterion #7) to Iteration 9. -- **Context**: the
+  test review flagged it as a coverage gap; the loopback approach requires a dedicated testbed
+  script (parallel to `dev/oidc_testbed.py`) and carries circularity risk (WeftID's OP as its own
+  upstream) that warrants its own focused pass rather than being rushed into the preset-hardening
+  iteration. -- **Rationale**: the preset-hardening and disconnect/RLS criteria are the substantive
+  correctness work of Iteration 8; the E2E test is a large, separable piece better owned by the
+  final-review iteration alongside the other review agents.
 
 ---
 
@@ -1036,6 +1117,11 @@ Service (presets), Tests (unit + E2E), Dev fixtures.
 **Status**: Not started
 
 ### Acceptance criteria
+- [ ] E2E test in `tests/e2e/` driving a real browser through an upstream OIDC login (deferred from
+      Iteration 8): WeftID's own downstream OP as the upstream IdP (loopback, following the pattern
+      in `tests/e2e/test_scim_loopback_e2e.py`), covering login, JIT provisioning, and a second
+      login correlating on `sub`. Requires a dedicated testbed script (parallel to
+      `dev/oidc_testbed.py`).
 - [ ] `docs/admin-guide/identity-providers/oidc-setup.md` covering the generic connector (Keycloak,
       Auth0, custom IdP walkthroughs) + per-preset subpages (`oidc-google.md`, `oidc-entra.md`),
       each documenting the callback URL the admin must register.
@@ -1072,6 +1158,10 @@ Docs, Tests.
 
 ## Plan revision log
 
+- **2026-09-01 -- Iteration 8 close-out.** Fixed the preset-defaults bug (preset defaults now applied
+  server-side in `create_connection`, not just in the form's JS), added the danger-tab
+  error-surfacing test and the OIDC connection seed, and deferred the upstream OIDC E2E test
+  (criterion #7) to Iteration 9, whose acceptance criteria now carry it.
 - **2026-09-01 -- Iteration 7 close-out.** Fixed the multi-link disconnect bug (delete *all* links
   for a `(user_id, connection)` pair, not just the first) and the non-idiomatic `except` tuple.
   Deferred three test/robustness gaps (disconnect API/admin tests, `oidc_idp_domain_bindings` RLS

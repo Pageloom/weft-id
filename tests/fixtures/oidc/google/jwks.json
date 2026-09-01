@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "oidc-upstream-google-key",
+      "n": "zMjJ9icGxJSNwWXTbGJSABX0JndLWhsbzMD7PCt7_Xy1A8nkoIrkWjtYr3x5EkYCJNPYad8rqIvih-Sr3viWwnwT463zzQJ5jTFhPZXaAKMYblfBPjU9wuWt4ZjumXXlzzsBKvO2Lr_supnpog7UTXx7zQhjW7k7GG89xAKhNNHKkOLBYoFlfT3dVEG_aexEPjnyXP4gDE9dKtGtAwk1IqA6Qg02q9PDLy0hByxnvLn2Dngj6or3lQ6YXr8B3ve4sQLHCq-IHdhrSt75k4KH_WJJqnFC-lYnCEsopAHZjzdFXnSYZdZcniQlG6QaKEVxPBvJgJDgDCyeD88xC4Bi8Q",
+      "e": "AQAB"
+    }
+  ]
+}

@@ -83,6 +83,26 @@ def get_user_id_by_sub(tenant_id: TenantArg, idp_id: str, sub: str) -> str | Non
     return str(row["user_id"]) if row else None
 
 
+def get_link_for_user(tenant_id: TenantArg, user_id: str) -> dict | None:
+    """Return the first OIDC user link for a user, or None.
+
+    Used by the auth-routing decision point to detect that a user is an OIDC
+    user. A user has at most one OIDC link in practice (one upstream subject),
+    but this returns the first match ordered by created_at for determinism.
+    """
+    return fetchone(
+        tenant_id,
+        f"""
+        select {_COLUMNS}
+        from oidc_idp_user_links
+        where user_id = :user_id
+        order by created_at asc
+        limit 1
+        """,
+        {"user_id": user_id},
+    )
+
+
 def delete_link(tenant_id: TenantArg, link_id: str) -> int:
     """Delete a user link by ID. Returns the number of rows deleted."""
     return execute(

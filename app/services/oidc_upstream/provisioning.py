@@ -148,6 +148,20 @@ def jit_provision_user(
         user_id=user_id,
     )
 
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=user_id,
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="user_oidc_idp_assigned",
+        metadata={
+            "idp_id": str(connection["id"]),
+            "idp_name": connection["name"],
+            "sub": sub,
+            "assigned_via": "jit_provisioning",
+        },
+    )
+
     # NOTE: The SAML "base group" step is intentionally omitted here. The
     # base-group infrastructure is SAML-specific: ``groups.idp_id`` FKs to
     # ``saml_identity_providers``, so an OIDC connection id cannot be stored
@@ -267,6 +281,19 @@ def authenticate_via_oidc(
                         "idp_name": connection["name"],
                         "sub": sub,
                         "email": email,
+                    },
+                )
+                log_event(
+                    tenant_id=tenant_id,
+                    actor_user_id=user_id,
+                    artifact_type="user",
+                    artifact_id=user_id,
+                    event_type="user_oidc_idp_assigned",
+                    metadata={
+                        "idp_id": connection_id,
+                        "idp_name": connection["name"],
+                        "sub": sub,
+                        "assigned_via": "email_linking",
                     },
                 )
                 _apply_oidc_idp_attributes_safe(tenant_id, user_id, connection, claims)

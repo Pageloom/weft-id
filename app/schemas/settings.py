@@ -100,6 +100,10 @@ class PrivilegedDomain(BaseModel):
     created_by_name: str | None = Field(None, description="Name of user who added the domain")
     bound_idp_id: str | None = Field(None, description="ID of bound IdP, if any")
     bound_idp_name: str | None = Field(None, description="Name of bound IdP, if any")
+    bound_oidc_idp_id: str | None = Field(None, description="ID of bound OIDC connection, if any")
+    bound_oidc_idp_name: str | None = Field(
+        None, description="Name of bound OIDC connection, if any"
+    )
     linked_groups: list[DomainGroupLink] = Field(
         default_factory=list, description="Groups linked for auto-assignment"
     )

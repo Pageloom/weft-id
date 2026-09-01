@@ -23,6 +23,7 @@ from schemas.settings import (
     TenantSecuritySettingsUpdate,
 )
 from services import groups as groups_service
+from services import oidc_upstream as oidc_service
 from services import saml as saml_service
 from services import settings as settings_service
 from services.activity import track_activity
@@ -65,10 +66,14 @@ def privileged_domains(
 
     try:
         domains = settings_service.list_privileged_domains(requesting_user)
-        # Get IdPs for binding dropdown (super_admin only)
+        # Get IdPs for binding dropdown (super_admin only). Both SAML IdPs and
+        # OIDC connections are binding targets; the template groups them by
+        # protocol.
         idps = []
+        oidc_connections = []
         if user.get("role") == "super_admin":
             idps = saml_service.list_identity_providers(requesting_user).items
+            oidc_connections = oidc_service.list_connections(requesting_user).items
         # Get WeftID groups for link dropdown
         weftid_groups = groups_service.list_groups(
             requesting_user, group_type="weftid", page_size=500
@@ -87,6 +92,7 @@ def privileged_domains(
             tenant_id,
             domains=domains,
             idps=idps,
+            oidc_connections=oidc_connections,
             weftid_groups=weftid_groups,
             error=error,
             success=success,
@@ -220,6 +226,62 @@ def unbind_domain_from_idp(
 
     try:
         saml_service.unbind_domain_from_idp(
+            requesting_user=requesting_user,
+            domain_id=domain_id,
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/settings/privileged-domains?success=domain_unbound",
+        status_code=303,
+    )
+
+
+@router.post(
+    "/privileged-domains/{domain_id}/bind-oidc",
+    dependencies=[Depends(require_super_admin)],
+)
+def bind_domain_to_oidc_connection(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    domain_id: str,
+    connection_id: Annotated[str, Form(max_length=50)],
+):
+    """Bind a privileged domain to an OIDC connection (super_admin only)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        oidc_service.bind_domain_to_connection(
+            requesting_user=requesting_user,
+            connection_id=connection_id,
+            domain_id=domain_id,
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/settings/privileged-domains?success=domain_bound_oidc",
+        status_code=303,
+    )
+
+
+@router.post(
+    "/privileged-domains/{domain_id}/unbind-oidc",
+    dependencies=[Depends(require_super_admin)],
+)
+def unbind_domain_from_oidc_connection(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    domain_id: str,
+):
+    """Unbind a privileged domain from its OIDC connection (super_admin only)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        oidc_service.unbind_domain_from_connection(
             requesting_user=requesting_user,
             domain_id=domain_id,
         )

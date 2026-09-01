@@ -123,7 +123,8 @@ def get_unbound_domains(tenant_id: TenantArg) -> list[dict]:
         select pd.id, pd.domain
         from tenant_privileged_domains pd
         left join saml_idp_domain_bindings db on pd.id = db.domain_id
-        where db.id is null
+        left join oidc_idp_domain_bindings ob on pd.id = ob.domain_id
+        where db.id is null and ob.id is null
         order by pd.domain
         """,
         {},

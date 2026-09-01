@@ -5,6 +5,7 @@ from typing import Annotated
 
 from constants.user_attributes import ATTRIBUTE_KEYS
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from schemas.auth_routing import AuthRouteResult  # noqa: F401
 
 # The fixed (pre-iteration-5) attribute mapping keys. These are not in the
 # standard attribute registry because they map to first-class user columns,
@@ -412,28 +413,9 @@ class UnboundDomain(BaseModel):
 # Authentication Routing Schemas (Phase 3)
 # ============================================================================
 
-
-class AuthRouteResult(BaseModel):
-    """Result of authentication route determination.
-
-    Every user is either:
-    - Password user (saml_idp_id = NULL) → route to password form
-    - IdP user (saml_idp_id = UUID) → route to that IdP
-
-    For unknown users:
-    - If domain is bound to IdP with JIT → route to domain's IdP
-    - If default IdP has JIT → route to default IdP
-    - Otherwise → not found
-    """
-
-    route_type: str = Field(
-        ...,
-        description="Route type: password, idp, idp_jit, idp_disabled, "
-        "not_found, inactivated, no_auth_method, invalid_email",
-    )
-    idp_id: str | None = Field(None, description="IdP UUID if route_type is idp or idp_jit")
-    idp_name: str | None = Field(None, description="IdP name for display")
-    user_id: str | None = Field(None, description="User UUID if user exists (internal use)")
+# AuthRouteResult moved to the protocol-neutral ``schemas.auth_routing`` home
+# (Iteration 6) because it now carries OIDC route types. Re-exported here for
+# backwards compatibility with existing call sites and tests.
 
 
 # ============================================================================

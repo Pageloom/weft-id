@@ -15,11 +15,14 @@ def list_privileged_domains(tenant_id: TenantArg) -> list[dict]:
         tenant_id,
         """
         select pd.id, pd.domain, pd.created_at, u.first_name, u.last_name,
-               idp.id as bound_idp_id, idp.name as bound_idp_name
+               idp.id as bound_idp_id, idp.name as bound_idp_name,
+               oconn.id as bound_oidc_idp_id, oconn.name as bound_oidc_idp_name
         from tenant_privileged_domains pd
         left join users u on pd.created_by = u.id
         left join saml_idp_domain_bindings b on pd.id = b.domain_id
         left join saml_identity_providers idp on b.idp_id = idp.id
+        left join oidc_idp_domain_bindings ob on pd.id = ob.domain_id
+        left join oidc_idp_connections oconn on ob.idp_id = oconn.id
         order by pd.created_at desc
         """,
     )

@@ -64,6 +64,9 @@ oidc_client_enabled
 oidc_client_group_assigned
 oidc_client_group_unassigned
 oidc_client_groups_bulk_assigned
+oidc_domain_bound
+oidc_domain_rebound
+oidc_domain_unbound
 oidc_id_token_issued
 oidc_idp_connection_created
 oidc_idp_connection_deleted
@@ -192,6 +195,7 @@ user_force_profile_completion_set
 user_groups_bulk_added
 user_idp_attribute_mirror_failed
 user_inactivated
+user_oidc_idp_assigned
 user_oidc_idp_linked
 user_profile_updated
 user_reactivated

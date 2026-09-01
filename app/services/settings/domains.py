@@ -82,6 +82,8 @@ def _domain_row_to_model(
         created_by_name=created_by_name,
         bound_idp_id=str(row["bound_idp_id"]) if row.get("bound_idp_id") else None,
         bound_idp_name=row.get("bound_idp_name"),
+        bound_oidc_idp_id=(str(row["bound_oidc_idp_id"]) if row.get("bound_oidc_idp_id") else None),
+        bound_oidc_idp_name=row.get("bound_oidc_idp_name"),
         linked_groups=linked_groups or [],
     )
 

@@ -1,0 +1,9 @@
+{
+  "sub": "per-app-anonymous-sub",
+  "oid": "entra-oid-123",
+  "email": "entra-user@example.com",
+  "email_verified": true,
+  "given_name": "Entra",
+  "family_name": "User",
+  "name": "Entra User"
+}

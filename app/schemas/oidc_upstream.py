@@ -47,7 +47,11 @@ class OIDCConnectionCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=120)
     provider_type: str = Field(..., max_length=50, pattern="^(generic|google|entra)$")
-    issuer: str = Field(..., min_length=1, max_length=2048)
+    # issuer is optional at the schema level: the service layer composes it
+    # from the preset (Google) or from ``entra_tenant_id`` (Entra) when the
+    # caller does not supply one. Generic still requires an explicit issuer,
+    # enforced in the service layer.
+    issuer: str | None = Field(None, max_length=2048)
     discovery_url: str | None = Field(None, max_length=2048)
     authorization_endpoint: str | None = Field(None, max_length=2048)
     token_endpoint: str | None = Field(None, max_length=2048)
@@ -68,7 +72,11 @@ class OIDCConnectionCreate(BaseModel):
     def _validate_claim_mapping(cls, value: dict[str, str]) -> dict[str, str]:
         return _validate_claim_mapping_keys(value) or {}
 
-    correlation_claim: str = Field("sub", max_length=50)
+    # Defaults to None so the service layer can distinguish "caller left it
+    # unset" (apply the preset's correlation claim) from "caller explicitly
+    # chose 'sub'". The service layer falls back to "sub" when neither the
+    # preset nor the caller specifies one.
+    correlation_claim: str | None = Field(None, max_length=50)
     group_claim_source: str | None = Field(None, max_length=255)
     hosted_domain: str | None = Field(None, max_length=253)
     entra_tenant_id: str | None = Field(None, max_length=100)

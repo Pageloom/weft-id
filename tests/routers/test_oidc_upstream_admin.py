@@ -178,9 +178,11 @@ def test_create_connection_empty_issuer(super_admin_session, test_tenant_host):
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
-    # Empty issuer must not 500; redirect back with a generic error.
+    # Empty issuer for a generic connection must not 500; the service layer
+    # rejects it and redirects back with a specific error.
     assert response.status_code == 303
-    assert "error=invalid_input" in response.headers["location"]
+    assert "error=" in response.headers["location"]
+    assert "issuer" in response.headers["location"]
 
 
 def test_new_connection_form_prefills_google_issuer(super_admin_session, test_tenant_host):
@@ -247,6 +249,33 @@ def test_danger_tab_renders(
         follow_redirects=False,
     )
     assert response.status_code == 200
+
+
+def test_danger_tab_surfaces_linked_user_listing_failure(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, caplog
+):
+    """A linked-user listing failure must not silently pass (criterion #4).
+
+    The danger tab catches ``ServiceError`` from ``list_connection_linked_users``
+    and logs a warning rather than rendering an empty (misleading) table. This
+    asserts the page still renders 200 and the warning is emitted.
+    """
+    from services.exceptions import ServiceError
+
+    conn = _make_connection(test_tenant, test_super_admin_user)
+
+    with patch(
+        "services.oidc_upstream.list_connection_linked_users",
+        side_effect=ServiceError(message="boom", code="boom"),
+    ):
+        response = super_admin_session.get(
+            f"/admin/settings/oidc-identity-providers/{conn['id']}/danger",
+            headers={"Host": test_tenant_host},
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 200
+    assert any("Failed to list linked users" in record.message for record in caplog.records)
 
 
 def test_details_tab_not_found_redirects(super_admin_session, test_tenant_host):

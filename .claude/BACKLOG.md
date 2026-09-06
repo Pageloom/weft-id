@@ -406,7 +406,7 @@ So that group-based app access follows the upstream directory without a separate
 
 **Context:**
 
-Split from **OIDC Upstream IdP Support** (shipped 1.12.0 without group claims; see
+Split from **OIDC Upstream IdP Support** (on the `oidc-upstream` branch without group claims; see
 BACKLOG_ARCHIVE.md). The connector already stores a reserved `group_claim_source`
 column (written by the admin form, read by nothing). Group claim shapes are
 per-vendor:
@@ -435,7 +435,7 @@ synced on sign-in), mirroring the SAML group-assertion behavior.
 **Effort:** M
 **Value:** Medium-High (group-based access is the reason many tenants federate)
 
-**Dependencies:** OIDC Upstream IdP Support ✅ (shipped 1.12.0)
+**Dependencies:** OIDC Upstream IdP Support ✅ (oidc-upstream branch)
 
 ---
 
@@ -448,7 +448,7 @@ So that setup is pre-filled instead of manual generic configuration.
 
 **Context:**
 
-Split from **OIDC Upstream IdP Support** (shipped 1.12.0 with Generic + Google +
+Split from **OIDC Upstream IdP Support** (on the `oidc-upstream` branch with Generic + Google +
 Entra; see BACKLOG_ARCHIVE.md). The preset registry
 (`app/services/oidc_upstream/presets.py`) makes a preset a set of defaults, not a
 code path, so each is a small addition -- except GitHub, which is not spec OIDC
@@ -470,44 +470,8 @@ GitHub because it is developer-niche. Revisit when a customer asks.
 **Effort:** M (GitHub is most of it)
 **Value:** Medium
 
-**Dependencies:** OIDC Upstream IdP Support ✅ (shipped 1.12.0). GitHub group
+**Dependencies:** OIDC Upstream IdP Support ✅ (oidc-upstream branch). GitHub group
 mapping belongs to **OIDC Upstream Group Claim Handling**.
-
----
-
-## Upstream OIDC Login E2E Test
-
-**User Story:**
-As a maintainer,
-I want a browser E2E test driving a full upstream OIDC login,
-So that the one flow unit tests cannot cover (real redirects, session cookies,
-callback handling end to end) is exercised before releases.
-
-**Context:**
-
-Split from **OIDC Upstream IdP Support** (shipped 1.12.0; deferred twice during
-the /lead run, deliberately -- see `specs/oidc_upstream.md` iteration 8 decisions
-log). The natural approach is loopback: WeftID's own downstream OP
-(shipped 1.11.0) as the upstream IdP, following
-`tests/e2e/test_scim_loopback_e2e.py`. That needs a seed/testbed script wiring an
-OIDC-enabled App to an OIDC upstream connection in the dev fixture, and carries
-circularity risk (both directions share session state on the same host) that is
-exactly why it deserves focused work rather than a rushed bolt-on. Fallback:
-the Authentik testbed (`dev/scim-testbed.sh`) is already an OIDC OP on the
-SSRF dev allowlist.
-
-**Acceptance Criteria:**
-
-- [ ] E2E test in `tests/e2e/`: login via upstream OIDC, JIT provisioning on
-      first sign-in, second sign-in correlates on the same subject (no duplicate)
-- [ ] Runs under `make e2e` with the standard dev services; skipped cleanly when
-      services are absent
-- [ ] Testbed/seed wiring documented or scripted
-
-**Effort:** S-M
-**Value:** Medium (closes the one untested flow in the 1.12.0 surface)
-
-**Dependencies:** OIDC Upstream IdP Support ✅, OIDC Provider ✅
 
 ---
 

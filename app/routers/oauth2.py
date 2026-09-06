@@ -1,9 +1,12 @@
 """OAuth2 authorization and token endpoints."""
 
+import base64
+import binascii
 import secrets
 import time
 from datetime import UTC, datetime
 from typing import Annotated
+from urllib.parse import unquote, urlparse
 
 import oauth2
 import services.oauth2 as oauth2_service
@@ -169,6 +172,15 @@ def authorize_page(
     }
     request.session["oauth2_auth_requests"] = auth_requests
 
+    # Allow the consent form's redirect chain to leave this origin. Chromium
+    # applies the consent page's CSP ``form-action`` to every hop that follows
+    # the form POST, so the 303 to the client's redirect_uri (and the client's
+    # own follow-up redirect on that origin) would be refused under the default
+    # ``form-action 'self'``. The redirect_uri was matched exactly against the
+    # client's registered URIs above; allow its origin, mirroring the SAML IdP
+    # SSO post binding (``routers.saml_idp.sso``).
+    request.state.csp_form_action_url = _form_action_origin(redirect_uri)
+
     # Show authorization page
     return templates.TemplateResponse(
         request,
@@ -184,6 +196,12 @@ def authorize_page(
             "csp_nonce": get_csp_nonce(request),
         },
     )
+
+
+def _form_action_origin(redirect_uri: str) -> str:
+    """Return ``scheme://host[:port]`` of a registered redirect_uri for CSP."""
+    parts = urlparse(redirect_uri)
+    return f"{parts.scheme}://{parts.netloc}"
 
 
 @router.post("/authorize")
@@ -345,13 +363,73 @@ def authorize_grant(
 # ============================================================================
 
 
+# Upper bound for a Basic-auth client_id / client_secret, matching the form
+# fields' max_length so both methods enforce the same limit.
+_CLIENT_CREDENTIAL_MAX_LENGTH = 255
+
+
+def _resolve_client_credentials(
+    request: Request,
+    form_client_id: str | None,
+    form_client_secret: str | None,
+) -> tuple[str, str] | None:
+    """Resolve the token-endpoint client credentials from the request.
+
+    Supports both client authentication methods for confidential clients:
+
+    - ``client_secret_basic``: ``Authorization: Basic base64(id:secret)``,
+      with ``id`` and ``secret`` form-urlencoded per RFC 6749 section 2.3.1.
+      This is the method the spec says servers MUST support and the OIDC
+      discovery default when ``token_endpoint_auth_methods_supported`` is
+      omitted.
+    - ``client_secret_post``: ``client_id`` + ``client_secret`` form fields.
+
+    Returns ``(client_id, client_secret)``, or ``None`` when no usable
+    credentials were supplied. A request carrying BOTH a Basic header and
+    form credentials is rejected (RFC 6749 section 2.3: a client must not
+    use more than one authentication method per request), as is a malformed
+    or over-long Basic header.
+    """
+    authorization = request.headers.get("authorization", "")
+    scheme, _, encoded = authorization.partition(" ")
+    has_basic = scheme.lower() == "basic" and bool(encoded.strip())
+    has_form = bool(form_client_id) or bool(form_client_secret)
+
+    if has_basic and has_form:
+        return None
+
+    if has_basic:
+        try:
+            decoded = base64.b64decode(encoded.strip(), validate=True).decode("utf-8")
+        except binascii.Error, UnicodeDecodeError, ValueError:
+            return None
+        raw_id, sep, raw_secret = decoded.partition(":")
+        if not sep:
+            return None
+        basic_id = unquote(raw_id)
+        basic_secret = unquote(raw_secret)
+        if not basic_id or not basic_secret:
+            return None
+        if (
+            len(basic_id) > _CLIENT_CREDENTIAL_MAX_LENGTH
+            or len(basic_secret) > _CLIENT_CREDENTIAL_MAX_LENGTH
+        ):
+            return None
+        return basic_id, basic_secret
+
+    if form_client_id and form_client_secret:
+        return form_client_id, form_client_secret
+
+    return None
+
+
 @router.post("/token", response_model=TokenResponse, responses={400: {"model": TokenErrorResponse}})
 def token_endpoint(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     grant_type: Annotated[str, Form(max_length=50)],
-    client_id: Annotated[str, Form(max_length=255)],
-    client_secret: Annotated[str, Form(max_length=255)],
+    client_id: Annotated[str | None, Form(max_length=255)] = None,
+    client_secret: Annotated[str | None, Form(max_length=255)] = None,
     code: Annotated[str | None, Form(max_length=255)] = None,
     redirect_uri: Annotated[str | None, Form(max_length=2048)] = None,
     code_verifier: Annotated[str | None, Form(max_length=255)] = None,
@@ -365,15 +443,31 @@ def token_endpoint(
     2. refresh_token - Refresh access token using refresh token
     3. client_credentials - Get access token using client credentials (B2B)
 
+    Client authentication (RFC 6749 section 2.3.1): either HTTP Basic
+    (``client_secret_basic``, the Authorization header) or the ``client_id`` +
+    ``client_secret`` form fields (``client_secret_post``). Exactly one method
+    must be used per request.
+
     Form Data:
         grant_type: "authorization_code", "refresh_token", or "client_credentials"
-        client_id: OAuth2 client ID
-        client_secret: OAuth2 client secret
+        client_id: OAuth2 client ID (client_secret_post; omit when using Basic)
+        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic)
         code: Authorization code (for authorization_code grant)
         redirect_uri: Redirect URI (for authorization_code grant, must match)
         code_verifier: PKCE code verifier (if PKCE was used)
         refresh_token: Refresh token (for refresh_token grant)
     """
+    credentials = _resolve_client_credentials(request, client_id, client_secret)
+    if credentials is None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_client",
+                "error_description": "Client authentication failed",
+            },
+        )
+    client_id, client_secret = credentials
+
     # Get and validate client
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
 

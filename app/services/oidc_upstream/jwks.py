@@ -46,7 +46,9 @@ def _fetch_jwks(jwks_uri: str) -> dict:
     Raises:
         JwksError: on any fetch/parse failure.
     """
-    with build_safe_client(timeout=10.0) as client:
+    # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
+    # IdP (the loopback E2E); it is inert outside IS_DEV.
+    with build_safe_client(timeout=10.0, dev_base_domain_rewrite=True) as client:
         try:
             response = client.get(jwks_uri)
         except Exception as exc:  # noqa: BLE001

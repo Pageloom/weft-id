@@ -127,7 +127,9 @@ def _fetch_discovery_document(discovery_url: str) -> dict:
             followed).
         DiscoveryError: on any other fetch/parse failure.
     """
-    with build_safe_client(timeout=10.0) as client:
+    # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
+    # IdP (the loopback E2E); it is inert outside IS_DEV.
+    with build_safe_client(timeout=10.0, dev_base_domain_rewrite=True) as client:
         try:
             response = client.get(discovery_url)
         except Exception as exc:  # noqa: BLE001 - surface as DiscoveryError

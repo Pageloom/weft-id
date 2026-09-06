@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.12.0] - 2026-09-06
-
 ### Added
 
 - **OIDC upstream identity providers.** WeftID can now consume OpenID Connect
@@ -35,12 +33,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   plus Google Workspace and Entra ID walkthroughs, and glossary entries for OIDC
   discovery, JWKS, the UserInfo endpoint, and correlation claims.
 
+- The OAuth2 token endpoint accepts `client_secret_basic` (HTTP Basic) client
+  authentication in addition to `client_secret_post` form fields, as RFC 6749
+  requires. The discovery document now advertises
+  `token_endpoint_auth_methods_supported`.
+- Upstream OIDC browser E2E test: WeftID's own OpenID Provider acts as the
+  upstream IdP for a second tenant (`tests/e2e/test_oidc_upstream_loopback_e2e.py`,
+  provisioned by `app/dev/oidc_loopback_testbed.py`). Covers JIT provisioning on
+  first sign-in and subject correlation on the second.
+
 ### Changed
 
 - `determine_auth_route` and `AuthRouteResult` moved to protocol-neutral homes
   (`services.auth_routing`, `schemas.auth_routing`) now that login routing
   resolves OIDC connections as well as SAML IdPs. The previous
   `services.saml.routing` import continues to work.
+
+### Fixed
+
+- Signing in through an identity provider from the login page did not work in
+  Chromium: the email step's redirect chain was cut off by the page's CSP
+  `form-action` at the off-origin hop, for SAML and OIDC alike. The email step
+  now renders a same-origin hand-off page that navigates to the provider.
+- The OAuth2 consent page could not complete for relying parties on another
+  origin in Chromium, for the same reason. The consent page now allows the
+  registered redirect URI's origin in its CSP, as the SAML IdP does for SP ACS
+  URLs.
+- Upstream OIDC discovery, JWKS, token, and userinfo fetches now use the SSRF
+  guard's dev-only base-domain rewrite so a dev-stack tenant can be its own
+  upstream IdP. No production behavior change.
 
 ### Security
 

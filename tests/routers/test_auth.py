@@ -875,8 +875,11 @@ def test_verify_code_success_routes_to_idp(test_tenant, mocker):
         follow_redirects=False,
     )
 
-    assert response.status_code == 303
-    assert "/saml/login/idp-123" in response.headers["location"]
+    # IdP routes render the same-origin hand-off page (meta refresh), not a
+    # 303: Chromium's form-action enforcement would cut a redirect chain at
+    # the off-origin IdP hop.
+    assert response.status_code == 200
+    assert 'content="0;url=/saml/login/idp-123"' in response.text
 
 
 def test_verify_code_invalid_code(test_tenant):
@@ -1507,8 +1510,11 @@ def test_direct_routing_idp_user(test_tenant, mocker):
         follow_redirects=False,
     )
 
-    assert response.status_code == 303
-    assert "/saml/login/idp-abc" in response.headers["location"]
+    # IdP routes render the same-origin hand-off page (meta refresh), not a
+    # 303: Chromium's form-action enforcement would cut a redirect chain at
+    # the off-origin IdP hop.
+    assert response.status_code == 200
+    assert 'content="0;url=/saml/login/idp-abc"' in response.text
 
 
 def test_direct_routing_idp_jit_user(test_tenant, mocker):
@@ -1523,8 +1529,11 @@ def test_direct_routing_idp_jit_user(test_tenant, mocker):
         follow_redirects=False,
     )
 
-    assert response.status_code == 303
-    assert "/saml/login/idp-jit-123" in response.headers["location"]
+    # IdP routes render the same-origin hand-off page (meta refresh), not a
+    # 303: Chromium's form-action enforcement would cut a redirect chain at
+    # the off-origin IdP hop.
+    assert response.status_code == 200
+    assert 'content="0;url=/saml/login/idp-jit-123"' in response.text
 
 
 def test_direct_routing_inactivated_user_no_disclosure(test_tenant, mocker):

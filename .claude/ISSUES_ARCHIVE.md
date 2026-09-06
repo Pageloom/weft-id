@@ -4,6 +4,91 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [BUG] Login-form IdP routing blocked by CSP form-action in Chromium
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (upstream OIDC loopback E2E, first browser run)
+**Severity:** High (SAML and OIDC sign-in from the login page did not work in
+Chromium; only direct navigation to `/saml/login/{id}` or `/auth/oidc/{id}/login`
+worked, which is how every existing SSO E2E started the hop)
+**Category:** Correctness / browser security policy
+
+`POST /login/send-code` (and `/login/verify-code`) answered an IdP route with a
+303 to `/saml/login/{id}` or `/auth/oidc/{id}/login`, which then 303s off-origin
+to the provider. Chromium applies the login page's CSP `form-action 'self'` to
+every hop of the redirect chain that follows a form submission, so the
+off-origin hop was refused and the browser stayed on the login page. Confirmed
+by the reverse-proxy access log: the provider's authorize endpoint was never
+requested.
+
+**Resolution.** `routers.auth._helpers._idp_handoff` renders a 200 same-origin
+page (`auth_idp_handoff.html`) whose `<meta http-equiv="refresh">` starts a
+fresh top-level GET navigation to the IdP hop. That navigation is outside the
+form-submission chain, so `form-action` no longer governs it or any redirect
+the provider makes afterwards. An allow-list in `form-action` was rejected:
+Chromium checks every hop, and real providers (Entra) redirect again to other
+origins.
+
+**Files changed:** `app/routers/auth/_helpers.py`,
+`app/templates/auth_idp_handoff.html`, `tests/routers/test_auth_helpers.py`,
+`tests/routers/test_auth.py`
+
+---
+
+## [BUG] OAuth2 consent page blocked the redirect to cross-origin relying parties
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (upstream OIDC loopback E2E)
+**Severity:** High (the OIDC provider's consent step could not complete for
+any relying party on another origin in Chromium; the existing provider E2E used
+a same-origin redirect URI and so never hit it)
+**Category:** Correctness / browser security policy
+
+`POST /oauth2/authorize` (allow) returns a 303 to the client's `redirect_uri`.
+The consent page's CSP was the default `form-action 'self'`, which Chromium
+enforces on the post-submission redirect chain, so the hop to a cross-origin
+`redirect_uri` was refused. The access log showed the 303 issued and the
+callback never requested.
+
+**Resolution.** `GET /oauth2/authorize` now sets
+`request.state.csp_form_action_url` to the origin of the already-validated
+`redirect_uri` (exact match against the client's registered URIs), so the
+consent page's CSP reads `form-action 'self' <origin>`. Origin rather than
+full URL so the client's own follow-up redirect on that origin is covered.
+Mirrors `routers.saml_idp.sso`, which allow-lists the SP's ACS URL for the
+SAML post binding.
+
+**Files changed:** `app/routers/oauth2.py`, `tests/routers/test_oauth2.py`
+
+---
+
+## [INTEROP] OP token endpoint only accepted client_secret_post
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (upstream OIDC loopback E2E)
+**Severity:** Medium (RFC 6749 section 2.3.1 requires servers to support HTTP
+Basic; the discovery document omitted `token_endpoint_auth_methods_supported`,
+whose default is `client_secret_basic`, so the OP advertised a method it
+rejected with a 422)
+**Category:** Spec conformance
+
+WeftID's own relying-party side sends the client secret via HTTP Basic, so the
+loopback failed at the token exchange, as would any standards-following RP.
+
+**Resolution.** `_resolve_client_credentials` in `routers.oauth2` accepts
+either `Authorization: Basic base64(urlencode(id):urlencode(secret))` or the
+`client_id` + `client_secret` form fields (now optional). Both present, a
+malformed header, over-long values, or no credentials all fail closed as
+`invalid_client` (never a 422). Discovery now advertises
+`token_endpoint_auth_methods_supported: ["client_secret_basic",
+"client_secret_post"]`.
+
+**Files changed:** `app/routers/oauth2.py`, `app/schemas/oidc.py`,
+`app/services/oidc/discovery.py`, `tests/routers/test_oauth2_client_auth.py`,
+`tests/routers/test_oidc_discovery.py`, `docs/admin-guide/integrations/apps.md`
+
+---
+
 ## [DEAD-CODE] `list_user_oidc_links` exported but never called
 
 **Fixed:** 2026-09-06

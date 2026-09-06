@@ -4,6 +4,31 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [DEAD-CODE] `list_user_oidc_links` exported but never called
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-01 (iteration 7 decisions log), confirmed 2026-09-06
+**Severity:** Low
+**Category:** Dead code
+
+`services.oidc_upstream.list_user_oidc_links` was referenced only by its own
+package re-export. The admin UI lists links per connection; nothing lists
+them per user, and the user detail page has no per-user IdP link display to
+mirror.
+
+**Resolution.** Deleted, per the issue's stated default: the service
+function, its re-export, its only test, and the database helper
+`list_links_for_user` (which became dead with it) plus that helper's
+re-export. If a per-user "OIDC connections" panel is wanted on the user
+detail page later, that is a backlog item and would bring both back with a
+caller.
+
+**Files changed:** `app/services/oidc_upstream/links.py`,
+`app/services/oidc_upstream/__init__.py`, `app/database/oidc_upstream/links.py`,
+`app/database/oidc_upstream/__init__.py`, `tests/services/test_oidc_upstream_links.py`
+
+---
+
 ## [TEST-INFRA] Rate limiting fails open in every host-run test
 
 **Fixed:** 2026-09-06

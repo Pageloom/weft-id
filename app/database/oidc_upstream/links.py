@@ -173,25 +173,6 @@ def count_links_for_connection(tenant_id: TenantArg, connection_id: str) -> int:
     return result["count"] if result else 0
 
 
-def list_links_for_user(tenant_id: TenantArg, user_id: str) -> list[dict]:
-    """List all OIDC user links for a user, ordered by created_at.
-
-    Used by the admin disconnect surface to show which connections a user is
-    linked to. A user has at most one link in practice, but this returns all
-    of them for completeness.
-    """
-    return fetchall(
-        tenant_id,
-        f"""
-        select {_COLUMNS}
-        from oidc_idp_user_links
-        where user_id = :user_id
-        order by created_at asc
-        """,
-        {"user_id": user_id},
-    )
-
-
 def list_links_for_connection(tenant_id: TenantArg, connection_id: str) -> list[dict]:
     """List all user links for a connection, joined to user + primary email.
 

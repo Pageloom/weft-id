@@ -213,15 +213,3 @@ class TestListHelpers:
         assert len(users) == 1
         assert users[0]["user_id"] == str(test_user["id"])
         assert users[0]["sub"] == "subject-123"
-
-    def test_list_user_oidc_links(self, test_tenant, test_super_admin_user, test_user):
-        from services import oidc_upstream as svc
-
-        conn = _make_connection(test_tenant, test_super_admin_user)
-        _link(test_tenant, conn, test_user)
-
-        requesting = _make_requesting_user(test_super_admin_user, test_tenant["id"])
-        links = svc.list_user_oidc_links(requesting, str(test_user["id"]))
-        assert len(links) == 1
-        assert links[0]["connection_id"] == str(conn["id"])
-        assert links[0]["sub"] == "subject-123"

@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 2 | Upload-auth temp-file leak (warning-ignored, tracked), Dead code (`list_user_oidc_links`) |
+| Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
 
 Note: the `[DEPS] pygments` entry was resolved in 1.11.0 (2026-07-12) — pymdown-extensions
 11.0.1 unblocked the 2.20.0 bump and the pin is gone; see ISSUES_ARCHIVE.md.
@@ -42,27 +42,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [DEAD-CODE] `list_user_oidc_links` exported but never called
-
-**Discovered:** 2026-09-01 (flagged by the lead-agent run's own iteration 7
-decisions log, deliberately deferred to final review); confirmed 2026-09-06
-**Severity:** Low
-**Category:** Dead code
-
-`services.oidc_upstream.list_user_oidc_links` is referenced only by its own
-package `__init__` re-export. The shipped admin UI lists links per-connection
-(`list_connection_linked_users`); nothing lists them per-user. The agent kept
-it as "the natural counterpart" to the per-connection listing.
-
-**Suggested fix:** Either wire it into the user detail page (an "OIDC
-connections" section mirroring the SAML IdP assignment display) or delete it.
-Deleting is the default unless the user-detail surface wants it.
-
-**Files affected:** `app/services/oidc_upstream/links.py`,
-`app/services/oidc_upstream/__init__.py`
 
 ---
 

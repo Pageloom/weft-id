@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}New Group - {{ site_title }}{% endblock %}
+{% block title %}Add Group - {{ site_title }}{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-        <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Create New Group</h1>
+        <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Add Group</h1>
 
         {% if error %}
         <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
@@ -53,7 +53,7 @@
             <div class="flex gap-3 pt-4">
                 <button type="submit"
                         class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition duration-150">
-                    Create Group
+                    Add Group
                 </button>
                 <a href="/groups/list"
                    class="py-2 px-6 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition duration-150">

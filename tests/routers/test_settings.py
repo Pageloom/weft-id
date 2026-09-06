@@ -32,6 +32,20 @@ def test_settings_index_redirects_to_first_child(test_admin_user, override_auth,
     assert response.headers["location"] == "/settings/branding/global"
 
 
+def test_settings_index_works_without_trailing_slash(test_admin_user, override_auth, mocker):
+    """Test settings index works without a trailing slash (no 307 hop)."""
+    override_auth(test_admin_user, level="admin")
+
+    mock_first_child = mocker.patch(f"{ROUTERS_SETTINGS}.get_first_accessible_child")
+    mock_first_child.return_value = "/settings/branding/global"
+
+    client = TestClient(app)
+    response = client.get("/settings", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/settings/branding/global"
+
+
 # =============================================================================
 # Settings Index Fallback Test
 # =============================================================================

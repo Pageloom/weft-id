@@ -38,7 +38,7 @@ class TestSpRegistrationViaUrl:
         page.goto(f"{mid_base}/identity-providers/saml/new")
         page.locator("#name").fill(f"URL Import Source IdP {uuid4().hex[:8]}")
         page.locator("#provider_type").select_option("generic")
-        page.get_by_role("button", name="Create Identity Provider").click()
+        page.get_by_role("button", name="Create SAML Provider").click()
 
         page.wait_for_url(
             "**/identity-providers/saml/*/details**",

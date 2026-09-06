@@ -275,16 +275,29 @@ def test_get_navigation_context_sub_nav_items():
 def test_get_navigation_context_filters_by_permission():
     """Test navigation context filters items by user permission."""
     # Member should not see admin-only sub-sub-items
-    context_member = get_navigation_context("/users/list", "member")
+    context_member = get_navigation_context("/directory/requests/reactivation", "member")
     sub_sub_nav_paths_member = [item.path for item in context_member["sub_sub_nav_items"]]
 
     # Admin should see admin sub-sub-items
-    context_admin = get_navigation_context("/users/list", "admin")
+    context_admin = get_navigation_context("/directory/requests/reactivation", "admin")
     sub_sub_nav_paths_admin = [item.path for item in context_admin["sub_sub_nav_items"]]
 
-    # Both should see /users/list (nested under Directory > Users)
-    assert "/users/list" in sub_sub_nav_paths_member
-    assert "/users/list" in sub_sub_nav_paths_admin
+    # Member sees no admin-only items; admin sees both Requests children
+    assert sub_sub_nav_paths_member == []
+    assert "/directory/requests/reactivation" in sub_sub_nav_paths_admin
+    assert "/directory/requests/user-attributes" in sub_sub_nav_paths_admin
+
+
+def test_single_item_sub_sub_nav_is_suppressed():
+    """A level with one visible child collapses (no degenerate strip).
+
+    /users/list and /groups/list are the only visible children of their
+    sections after Add User / Add Group moved to list-page buttons, so the
+    third-level strip must not render a lone tab.
+    """
+    for path in ("/users/list", "/groups/list"):
+        context = get_navigation_context(path, "admin")
+        assert context["sub_sub_nav_items"] == [], path
 
 
 def test_get_navigation_context_top_level_items():

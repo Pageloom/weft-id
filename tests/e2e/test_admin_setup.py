@@ -137,7 +137,7 @@ class TestSpAdminRegistersIdp:
         idp_name = f"E2E Test IdP (XML Import) {uuid4().hex[:8]}"
         page.locator("#name").fill(idp_name)
         page.locator("#provider_type").select_option("generic")
-        page.get_by_role("button", name="Create Identity Provider").click()
+        page.get_by_role("button", name="Create SAML Provider").click()
 
         # Should redirect to the new IdP's details page (pending trust)
         page.wait_for_url(

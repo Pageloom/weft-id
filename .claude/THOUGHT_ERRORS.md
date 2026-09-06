@@ -565,3 +565,17 @@ Chromium applies the form's document CSP `form-action` to every redirect hop aft
 The reverse-proxy access log is the fastest way to see it: the 303 is issued, the next hop is
 never requested. Found 2026-09-06 by the upstream OIDC loopback E2E; both the login-page IdP
 routing (SAML and OIDC) and the OAuth2 consent redirect had shipped broken in Chromium.
+
+## Copy Changes Must Be Grepped in E2E Tests
+
+**Wrong:** Renaming a user-visible button/label in a template and declaring "E2E not run -- no
+changes touch login/SAML/MFA/group-access flows" without grepping `tests/e2e/` for the old string.
+**Right:** Before changing any user-visible copy, `grep -rn "<old string>" tests/e2e/` and update
+every Playwright locator that targets it. E2E tests drive the real UI by role/name/text, so a
+button rename is a test break even when the flow itself is untouched.
+
+Renaming the SAML IdP form's submit button "Create Identity Provider" -> "Create SAML Provider"
+broke three E2E tests (`test_admin_setup.py`, `test_idp_setup_variants.py`,
+`test_sp_setup_variants.py`) that clicked `get_by_role("button", name="Create Identity Provider")`.
+The unit suite stayed green because it never asserts on that button's label. Found 2026-09-06 when
+the user ran `make e2e` and reported widespread failures.

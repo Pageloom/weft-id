@@ -10,8 +10,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 1 | File Structure (pre-existing) |
-| Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
+| Medium | 3 | File Structure (pre-existing), Test infrastructure (rate limiting untestable from host), Admin/API parity (manual OIDC endpoints) |
+| Low | 3 | Upload-auth temp-file leak (warning-ignored, tracked), Missing OIDC rate-limit tests, Dead code (`list_user_oidc_links`) |
 
 Note: the `[DEPS] pygments` entry was resolved in 1.11.0 (2026-07-12) — pymdown-extensions
 11.0.1 unblocked the 2.20.0 bump and the pin is gone; see ISSUES_ARCHIVE.md.
@@ -42,6 +42,105 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
+
+---
+
+## [TEST-INFRA] Rate limiting fails open in every host-run test
+
+**Discovered:** 2026-09-06 (oidc-upstream final review, while triaging the
+`test_password_api.py` rate-limit mocks)
+**Severity:** Medium
+**Category:** Test infrastructure
+
+`utils.ratelimit` fails open by design when Memcached is unreachable
+(`prevent()` logs "Rate limit check failed (cache unavailable)" and returns 0).
+When the suite runs on the host via `make test`, the Memcached hostname does not
+resolve (it is a Docker service name), so **every** rate limit in the codebase
+is inert during host-run tests. Verified directly: 8 calls against a
+`limit=5` key never tripped.
+
+**Why it matters:** No rate-limit behavior is ever exercised by a local
+`make test` run. A regression that drops or misconfigures a limit
+(wrong key pattern, wrong window, guard removed) passes the suite silently.
+Inside CI containers Memcached IS reachable, which is why the
+`test_password_api.py` tests needed `ratelimit.prevent` mocks there -- the two
+environments diverge.
+
+**Suggested fix:** A test fixture providing a deterministic in-memory counter
+backend for `utils.cache` (or a `ratelimit` test double that actually counts),
+so limits can be asserted without Memcached and behave identically on host and
+CI. Then add regression tests for the key limits (login, password change, OIDC
+login/callback, SAML ACS).
+
+**Files affected:** `app/utils/ratelimit.py`, `app/utils/cache.py`,
+`tests/conftest.py`
+
+---
+
+## [TEST] OIDC login/callback rate limiting has no tests despite spec claiming them
+
+**Discovered:** 2026-09-06 (oidc-upstream final review)
+**Severity:** Low
+**Category:** Test coverage
+
+Iteration 3 of `specs/oidc_upstream.md` lists rate limiting among its test
+acceptance criteria and marks the criterion `[x]`, but
+`tests/routers/test_oidc_upstream_authentication.py` contains no rate-limit
+test. The routes DO rate-limit (`ratelimit.prevent` on both
+`/auth/oidc/{id}/login` and `/callback`) -- the feature is present, the test is
+missing, and the spec over-claims.
+
+Blocked in practice by the [TEST-INFRA] issue above: a meaningful test needs a
+counting backend. Fix together.
+
+**Files affected:** `tests/routers/test_oidc_upstream_authentication.py`
+
+---
+
+## [PARITY] Manual OIDC endpoint configuration is API-only
+
+**Discovered:** 2026-09-06 (oidc-upstream final review)
+**Severity:** Medium
+**Category:** Admin/API parity
+
+`authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, and `jwks_uri`
+exist on `oidc_idp_connections`, in the Pydantic schemas, and in the
+`PATCH /api/v1/oidc-upstream/connections/{id}` endpoint, but the admin
+create/edit form has no fields for them. An IdP that does not publish
+`/.well-known/openid-configuration` can only be configured through the API.
+
+This is the inverse of the usual API-first gap (rule 8 guards web-first
+features lacking API endpoints; here the API leads the web UI). Documented
+honestly in `docs/admin-guide/identity-providers/oidc-setup.md` ("Providers
+without discovery"), so fixing the form should also update that section.
+
+**Suggested fix:** An "Advanced: manual endpoints" collapsible section on the
+connection form, shown for the Generic provider type.
+
+**Files affected:** `app/routers/oidc_upstream/admin.py`,
+`app/templates/oidc_idp_form.html`,
+`docs/admin-guide/identity-providers/oidc-setup.md`
+
+---
+
+## [DEAD-CODE] `list_user_oidc_links` exported but never called
+
+**Discovered:** 2026-09-01 (flagged by the lead-agent run's own iteration 7
+decisions log, deliberately deferred to final review); confirmed 2026-09-06
+**Severity:** Low
+**Category:** Dead code
+
+`services.oidc_upstream.list_user_oidc_links` is referenced only by its own
+package `__init__` re-export. The shipped admin UI lists links per-connection
+(`list_connection_linked_users`); nothing lists them per-user. The agent kept
+it as "the natural counterpart" to the per-connection listing.
+
+**Suggested fix:** Either wire it into the user detail page (an "OIDC
+connections" section mirroring the SAML IdP assignment display) or delete it.
+Deleting is the default unless the user-detail surface wants it.
+
+**Files affected:** `app/services/oidc_upstream/links.py`,
+`app/services/oidc_upstream/__init__.py`
 
 ---
 

@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-09-06
+
+### Added
+
+- **OIDC upstream identity providers.** WeftID can now consume OpenID Connect
+  providers as upstream IdPs, alongside the existing SAML 2.0 support. Generic,
+  Google Workspace, and Microsoft Entra ID presets are included. The connector
+  uses the authorization code flow with PKCE only, validates ID tokens against
+  the provider's JWKS, and correlates users on a stable subject claim per
+  connection so an upstream email change does not create a duplicate account.
+- Admin surface at **Settings > OIDC Identity Providers**: connection list,
+  create and edit forms with a provider preset picker, details, claim mapping
+  and danger tabs, and a test-connection action that runs real discovery.
+- `/api/v1/oidc-upstream/connections` endpoints for listing, creating, reading,
+  updating, deleting, enabling, disabling, and setting the default connection.
+- Per-connection claim mapping onto WeftID's standard user attributes, mirrored
+  on each sign-in subject to the tenant's attribute settings.
+- OIDC connections can be bound to privileged domains, so a domain routes its
+  users to an OIDC provider exactly as it can to a SAML IdP. A domain still
+  binds to at most one IdP across both protocols.
+- Per-user disconnect from a connection, scrubbing mirrored attribute values
+  that still match what the provider supplied.
+- Optional per-connection `require_platform_mfa`, so WeftID's own two-step
+  verification can be required after the upstream provider authenticates.
+- Documentation: [OIDC Setup](docs/admin-guide/identity-providers/oidc-setup.md)
+  plus Google Workspace and Entra ID walkthroughs, and glossary entries for OIDC
+  discovery, JWKS, the UserInfo endpoint, and correlation claims.
+
+### Changed
+
+- `determine_auth_route` and `AuthRouteResult` moved to protocol-neutral homes
+  (`services.auth_routing`, `schemas.auth_routing`) now that login routing
+  resolves OIDC connections as well as SAML IdPs. The previous
+  `services.saml.routing` import continues to work.
+
+### Security
+
+- Upstream client secrets are encrypted at rest with a purpose-specific Fernet
+  key and are never returned from any read path.
+- All outbound requests to a provider (discovery, token exchange, userinfo,
+  JWKS) go through the SSRF-hardened HTTP client. Discovery documents are
+  rejected when the issuer does not match the configured issuer or when any
+  endpoint is not HTTPS.
+- Linking an upstream subject to an existing WeftID account by email address is
+  off by default. When enabled it additionally requires the ID token to assert
+  `email_verified`.
+
 ## [1.11.1] - 2026-08-30
 
 ### Security

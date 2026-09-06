@@ -89,24 +89,24 @@ def test_groups_index_redirects_to_list(test_admin_user, override_auth):
     override_auth(test_admin_user, level="admin")
 
     client = TestClient(app)
-    response = client.get("/admin/groups/", follow_redirects=False)
+    response = client.get("/groups/", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin/groups/list"
+    assert response.headers["location"] == "/groups/list"
 
 
 def test_groups_index_fallback_when_no_children(test_admin_user, override_auth, mocker):
-    """Test groups index falls back to /admin when no accessible children."""
+    """Test groups index falls back to /dashboard when no accessible children."""
     override_auth(test_admin_user, level="admin")
 
     mock_first = mocker.patch(f"{LISTING_MODULE}.get_first_accessible_child")
     mock_first.return_value = None
 
     client = TestClient(app)
-    response = client.get("/admin/groups/", follow_redirects=False)
+    response = client.get("/groups/", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin"
+    assert response.headers["location"] == "/dashboard"
 
 
 # =============================================================================
@@ -127,7 +127,7 @@ def test_groups_list_renders(test_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>groups</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/groups/list")
+    response = client.get("/groups/list")
 
     assert response.status_code == 200
     mock_list.assert_called_once()
@@ -149,7 +149,7 @@ def test_groups_list_with_search(test_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>groups</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/groups/list?search=engineering")
+    response = client.get("/groups/list?search=engineering")
 
     assert response.status_code == 200
     call_kwargs = mock_list.call_args[1]
@@ -169,7 +169,7 @@ def test_groups_list_with_pagination(test_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>groups</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/groups/list?page=2&size=50")
+    response = client.get("/groups/list?page=2&size=50")
 
     assert response.status_code == 200
     call_kwargs = mock_list.call_args[1]
@@ -195,7 +195,7 @@ def test_groups_list_with_groups(test_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>groups</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/groups/list")
+    response = client.get("/groups/list")
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
@@ -215,7 +215,7 @@ def test_groups_list_shows_success_message(test_admin_user, override_auth, mocke
     mock_tmpl.return_value = HTMLResponse(content="<html>groups</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/groups/list?success=deleted")
+    response = client.get("/groups/list?success=deleted")
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
@@ -235,7 +235,7 @@ def test_groups_list_service_error(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/groups/list")
+    response = client.get("/groups/list")
 
     # Should render error page
     assert response.status_code == 200
@@ -252,7 +252,7 @@ def test_groups_list_non_admin_redirects(test_user, override_auth):
     override_auth(test_user)
 
     client = TestClient(app)
-    response = client.get("/admin/groups/list", follow_redirects=False)
+    response = client.get("/groups/list", follow_redirects=False)
 
     assert response.status_code == 303
     # require_admin redirects to /login when user is not admin
@@ -275,7 +275,7 @@ def test_new_group_form_renders(test_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>new group</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/groups/new")
+    response = client.get("/groups/new")
 
     assert response.status_code == 200
     mock_tmpl.assert_called_once()
@@ -294,9 +294,7 @@ def test_new_group_form_preserves_values_on_error(test_admin_user, override_auth
     mock_tmpl.return_value = HTMLResponse(content="<html>new group</html>")
 
     client = TestClient(app)
-    response = client.get(
-        "/admin/groups/new?error=duplicate_name&name=Engineering&description=Team"
-    )
+    response = client.get("/groups/new?error=duplicate_name&name=Engineering&description=Team")
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
@@ -322,13 +320,13 @@ def test_create_group_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/groups/new",
+        "/groups/new",
         data={"name": "Engineering", "description": "Engineering team"},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}" in response.headers["location"]
+    assert f"/groups/{group_id}" in response.headers["location"]
     assert "success=created" in response.headers["location"]
     mock_create.assert_called_once()
 
@@ -345,7 +343,7 @@ def test_create_group_without_description(test_admin_user, override_auth, mocker
 
     client = TestClient(app)
     response = client.post(
-        "/admin/groups/new",
+        "/groups/new",
         data={"name": "Sales", "description": ""},
         follow_redirects=False,
     )
@@ -365,7 +363,7 @@ def test_create_group_validation_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/groups/new",
+        "/groups/new",
         data={"name": "E", "description": ""},
         follow_redirects=False,
     )
@@ -386,7 +384,7 @@ def test_create_group_conflict_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/groups/new",
+        "/groups/new",
         data={"name": "Engineering", "description": ""},
         follow_redirects=False,
     )
@@ -409,7 +407,7 @@ def test_create_group_service_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/groups/new",
+        "/groups/new",
         data={"name": "Engineering", "description": ""},
         follow_redirects=False,
     )
@@ -451,16 +449,16 @@ def mock_group_detail_deps(mocker):
 
 
 def test_group_detail_redirects_to_details_tab(test_admin_user, override_auth):
-    """Test GET /admin/groups/{id} redirects to the details tab."""
+    """Test GET /groups/{id} redirects to the details tab."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}", follow_redirects=False)
+    response = client.get(f"/groups/{group_id}", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == f"/admin/groups/{group_id}/details"
+    assert response.headers["location"] == f"/groups/{group_id}/details"
 
 
 def test_group_tab_details_renders(test_admin_user, override_auth, mock_group_detail_deps):
@@ -483,7 +481,7 @@ def test_group_tab_details_renders(test_admin_user, override_auth, mock_group_de
     mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>detail</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/details")
+    response = client.get(f"/groups/{group_id}/details")
 
     assert response.status_code == 200
     mock_group_detail_deps["template"].assert_called_once()
@@ -518,7 +516,7 @@ def test_group_tab_membership_renders(test_admin_user, override_auth, mock_group
     )
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/membership")
+    response = client.get(f"/groups/{group_id}/membership")
 
     assert response.status_code == 200
     template_name = mock_group_detail_deps["template"].call_args[0][1]
@@ -547,7 +545,7 @@ def test_group_tab_applications_renders(test_admin_user, override_auth, mock_gro
     )
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/applications")
+    response = client.get(f"/groups/{group_id}/applications")
 
     assert response.status_code == 200
     template_name = mock_group_detail_deps["template"].call_args[0][1]
@@ -576,7 +574,7 @@ def test_group_tab_relationships_renders(test_admin_user, override_auth, mock_gr
     )
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/relationships")
+    response = client.get(f"/groups/{group_id}/relationships")
 
     assert response.status_code == 200
     template_name = mock_group_detail_deps["template"].call_args[0][1]
@@ -603,7 +601,7 @@ def test_group_tab_delete_renders(test_admin_user, override_auth, mock_group_det
     mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>delete</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/delete")
+    response = client.get(f"/groups/{group_id}/delete")
 
     assert response.status_code == 200
     template_name = mock_group_detail_deps["template"].call_args[0][1]
@@ -625,7 +623,7 @@ def test_group_tab_details_not_found(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/details")
+    response = client.get(f"/groups/{group_id}/details")
 
     # Should render error page
     assert response.status_code == 200
@@ -651,7 +649,7 @@ def test_group_tab_details_service_error(test_admin_user, override_auth, mocker)
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/details")
+    response = client.get(f"/groups/{group_id}/details")
 
     # Should render error page
     assert response.status_code == 200
@@ -680,7 +678,7 @@ def test_group_tab_details_shows_success_message(
     mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>detail</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/details?success=updated")
+    response = client.get(f"/groups/{group_id}/details?success=updated")
 
     assert response.status_code == 200
     ctx_kwargs = mock_group_detail_deps["get_context"].call_args[1]
@@ -703,13 +701,13 @@ def test_update_group_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/edit",
+        f"/groups/{group_id}/edit",
         data={"name": "Updated Name", "description": "New description"},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert response.headers["location"] == f"/admin/groups/{group_id}/details?success=updated"
+    assert response.headers["location"] == f"/groups/{group_id}/details?success=updated"
 
 
 def test_update_group_validation_error(test_admin_user, override_auth, mocker):
@@ -726,7 +724,7 @@ def test_update_group_validation_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/edit",
+        f"/groups/{group_id}/edit",
         data={"name": "Valid Name", "description": ""},
         follow_redirects=False,
     )
@@ -748,7 +746,7 @@ def test_update_group_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/edit",
+        f"/groups/{group_id}/edit",
         data={"name": "New Name", "description": ""},
         follow_redirects=False,
     )
@@ -770,7 +768,7 @@ def test_update_group_conflict_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/edit",
+        f"/groups/{group_id}/edit",
         data={"name": "Engineering", "description": ""},
         follow_redirects=False,
     )
@@ -795,7 +793,7 @@ def test_update_group_service_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/edit",
+        f"/groups/{group_id}/edit",
         data={"name": "New Name", "description": ""},
     )
 
@@ -820,12 +818,12 @@ def test_delete_group_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/delete",
+        f"/groups/{group_id}/delete",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert "/admin/groups/list" in response.headers["location"]
+    assert "/groups/list" in response.headers["location"]
     assert "success=deleted" in response.headers["location"]
 
 
@@ -842,12 +840,12 @@ def test_delete_group_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/delete",
+        f"/groups/{group_id}/delete",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert "/admin/groups/list" in response.headers["location"]
+    assert "/groups/list" in response.headers["location"]
     assert "error=group_not_found" in response.headers["location"]
 
 
@@ -864,12 +862,12 @@ def test_delete_group_validation_error_redirects_to_delete(test_admin_user, over
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/delete",
+        f"/groups/{group_id}/delete",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/delete" in response.headers["location"]
+    assert f"/groups/{group_id}/delete" in response.headers["location"]
     assert "error=has_relationships" in response.headers["location"]
 
 
@@ -888,7 +886,7 @@ def test_delete_group_service_error(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.post(f"/admin/groups/{group_id}/delete")
+    response = client.post(f"/groups/{group_id}/delete")
 
     # Should render error page
     assert response.status_code == 200
@@ -906,12 +904,12 @@ def test_clear_relationships_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/relationships/clear",
+        f"/groups/{group_id}/relationships/clear",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/delete" in response.headers["location"]
+    assert f"/groups/{group_id}/delete" in response.headers["location"]
     assert "success=relationships_cleared" in response.headers["location"]
 
 
@@ -928,12 +926,12 @@ def test_clear_relationships_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/relationships/clear",
+        f"/groups/{group_id}/relationships/clear",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/delete" in response.headers["location"]
+    assert f"/groups/{group_id}/delete" in response.headers["location"]
     assert "error=group_not_found" in response.headers["location"]
 
 
@@ -949,10 +947,10 @@ def test_member_list_renders(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members", follow_redirects=False)
+    response = client.get(f"/groups/{group_id}/members", follow_redirects=False)
 
     assert response.status_code == 301
-    assert response.headers["location"] == f"/admin/groups/{group_id}/membership"
+    assert response.headers["location"] == f"/groups/{group_id}/membership"
 
 
 def test_member_list_with_search(test_admin_user, override_auth, mocker):
@@ -963,12 +961,12 @@ def test_member_list_with_search(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.get(
-        f"/admin/groups/{group_id}/members?search=test&sort=name&order=asc",
+        f"/groups/{group_id}/members?search=test&sort=name&order=asc",
         follow_redirects=False,
     )
 
     assert response.status_code == 301
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
+    assert f"/groups/{group_id}/membership" in response.headers["location"]
     assert "search=test" in response.headers["location"]
 
 
@@ -1013,7 +1011,7 @@ def test_add_members_page_renders(test_admin_user, override_auth, mocker):
     mock_template.return_value = HTMLResponse(content="<html>add members</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members/add")
+    response = client.get(f"/groups/{group_id}/members/add")
 
     assert response.status_code == 200
     mock_template.assert_called_once()
@@ -1036,7 +1034,7 @@ def test_add_members_page_not_found(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members/add")
+    response = client.get(f"/groups/{group_id}/members/add")
 
     assert response.status_code == 200
     mock_error.assert_called_once()
@@ -1059,14 +1057,14 @@ def test_add_members_submit_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/add",
+        f"/groups/{group_id}/members/add",
         data={"user_ids": user_ids},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers["location"]
-    assert f"/admin/groups/{group_id}/members/add" in location
+    assert f"/groups/{group_id}/members/add" in location
     assert "success=members_added" in location
     assert "count=2" in location
     mock_bulk.assert_called_once()
@@ -1085,13 +1083,13 @@ def test_add_members_submit_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/add",
+        f"/groups/{group_id}/members/add",
         data={"user_ids": [str(uuid4())]},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
+    assert f"/groups/{group_id}/membership" in response.headers["location"]
     assert "error=group_not_found" in response.headers["location"]
 
 
@@ -1108,13 +1106,13 @@ def test_add_members_submit_forbidden(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/add",
+        f"/groups/{group_id}/members/add",
         data={"user_ids": [str(uuid4())]},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
+    assert f"/groups/{group_id}/membership" in response.headers["location"]
     assert "error=idp_group_read_only" in response.headers["location"]
 
 
@@ -1133,7 +1131,7 @@ def test_add_members_submit_encodes_return_state(test_admin_user, override_auth,
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/add",
+        f"/groups/{group_id}/members/add",
         data={
             "user_ids": [str(uuid4())],
             "r_search": "a&role=admin#x",
@@ -1146,7 +1144,7 @@ def test_add_members_submit_encodes_return_state(test_admin_user, override_auth,
     assert response.status_code == 303
     location = response.headers["location"]
     parsed = urlparse(location)
-    assert parsed.path == f"/admin/groups/{group_id}/members/add"
+    assert parsed.path == f"/groups/{group_id}/members/add"
     # The injected "&role=" is data inside `search`, not a parameter of its own,
     # and the "#" did not truncate the query.
     query = parse_qs(parsed.query)
@@ -1171,14 +1169,14 @@ def test_add_members_submit_backslash_search_still_redirects(
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/add",
+        f"/groups/{group_id}/members/add",
         data={"user_ids": [str(uuid4())], "r_search": "foo\\bar"},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers["location"]
-    assert location.startswith(f"/admin/groups/{group_id}/members/add?")
+    assert location.startswith(f"/groups/{group_id}/members/add?")
     assert "\\" not in location
     assert "search=foo%5Cbar" in location
 
@@ -1191,14 +1189,14 @@ def test_add_members_submit_encodes_group_id_in_path(test_admin_user, override_a
 
     client = TestClient(app)
     response = client.post(
-        "/admin/groups/abc%3Fx=1/members/add",
+        "/groups/abc%3Fx=1/members/add",
         data={"user_ids": [str(uuid4())]},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers["location"]
-    assert location.startswith("/admin/groups/abc%3Fx%3D1/members/add?")
+    assert location.startswith("/groups/abc%3Fx%3D1/members/add?")
 
 
 def test_add_members_submit_service_error(test_admin_user, override_auth, mocker):
@@ -1217,7 +1215,7 @@ def test_add_members_submit_service_error(test_admin_user, override_auth, mocker
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/add",
+        f"/groups/{group_id}/members/add",
         data={"user_ids": [str(uuid4())]},
     )
 
@@ -1238,12 +1236,12 @@ def test_remove_member_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/{user_id}/remove",
+        f"/groups/{group_id}/members/{user_id}/remove",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
+    assert f"/groups/{group_id}/membership" in response.headers["location"]
     assert "success=member_removed" in response.headers["location"]
 
 
@@ -1261,12 +1259,12 @@ def test_remove_member_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/{user_id}/remove",
+        f"/groups/{group_id}/members/{user_id}/remove",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
+    assert f"/groups/{group_id}/membership" in response.headers["location"]
     assert "error=not_a_member" in response.headers["location"]
 
 
@@ -1286,7 +1284,7 @@ def test_remove_member_service_error(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.post(f"/admin/groups/{group_id}/members/{user_id}/remove")
+    response = client.post(f"/groups/{group_id}/members/{user_id}/remove")
 
     # Should render error page
     assert response.status_code == 200
@@ -1310,13 +1308,13 @@ def test_add_child_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/children/add",
+        f"/groups/{group_id}/children/add",
         data={"child_group_id": child_group_id},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    expected = f"/admin/groups/{group_id}/relationships?success=child_added"
+    expected = f"/groups/{group_id}/relationships?success=child_added"
     assert response.headers["location"] == expected
     mock_add.assert_called_once()
 
@@ -1335,7 +1333,7 @@ def test_add_child_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/children/add",
+        f"/groups/{group_id}/children/add",
         data={"child_group_id": child_group_id},
         follow_redirects=False,
     )
@@ -1358,7 +1356,7 @@ def test_add_child_would_create_cycle(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/children/add",
+        f"/groups/{group_id}/children/add",
         data={"child_group_id": child_group_id},
         follow_redirects=False,
     )
@@ -1381,7 +1379,7 @@ def test_add_child_already_exists(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/children/add",
+        f"/groups/{group_id}/children/add",
         data={"child_group_id": child_group_id},
         follow_redirects=False,
     )
@@ -1407,7 +1405,7 @@ def test_add_child_service_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/children/add",
+        f"/groups/{group_id}/children/add",
         data={"child_group_id": child_group_id},
     )
 
@@ -1428,12 +1426,12 @@ def test_remove_child_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/children/{child_group_id}/remove",
+        f"/groups/{group_id}/children/{child_group_id}/remove",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    expected = f"/admin/groups/{group_id}/relationships?success=child_removed"
+    expected = f"/groups/{group_id}/relationships?success=child_removed"
     assert response.headers["location"] == expected
 
 
@@ -1451,7 +1449,7 @@ def test_remove_child_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/children/{child_group_id}/remove",
+        f"/groups/{group_id}/children/{child_group_id}/remove",
         follow_redirects=False,
     )
 
@@ -1476,7 +1474,7 @@ def test_remove_child_idp_managed_returns_error(test_admin_user, override_auth, 
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/children/{child_group_id}/remove",
+        f"/groups/{group_id}/children/{child_group_id}/remove",
         follow_redirects=False,
     )
 
@@ -1501,7 +1499,7 @@ def test_remove_parent_idp_managed_returns_error(test_admin_user, override_auth,
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/parents/{parent_group_id}/remove",
+        f"/groups/{group_id}/parents/{parent_group_id}/remove",
         follow_redirects=False,
     )
 
@@ -1525,7 +1523,7 @@ def test_remove_child_service_error(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.post(f"/admin/groups/{group_id}/children/{child_group_id}/remove")
+    response = client.post(f"/groups/{group_id}/children/{child_group_id}/remove")
 
     # Should render error page
     assert response.status_code == 200
@@ -1549,13 +1547,13 @@ def test_add_parent_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/parents/add",
+        f"/groups/{group_id}/parents/add",
         data={"parent_group_id": parent_group_id},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    expected = f"/admin/groups/{group_id}/relationships?success=parent_added"
+    expected = f"/groups/{group_id}/relationships?success=parent_added"
     assert response.headers["location"] == expected
     # Should call add_child with parent as parent and group as child
     mock_add.assert_called_once()
@@ -1575,7 +1573,7 @@ def test_add_parent_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/parents/add",
+        f"/groups/{group_id}/parents/add",
         data={"parent_group_id": parent_group_id},
         follow_redirects=False,
     )
@@ -1598,7 +1596,7 @@ def test_add_parent_would_create_cycle(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/parents/add",
+        f"/groups/{group_id}/parents/add",
         data={"parent_group_id": parent_group_id},
         follow_redirects=False,
     )
@@ -1621,7 +1619,7 @@ def test_add_parent_already_exists(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/parents/add",
+        f"/groups/{group_id}/parents/add",
         data={"parent_group_id": parent_group_id},
         follow_redirects=False,
     )
@@ -1647,7 +1645,7 @@ def test_add_parent_service_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/parents/add",
+        f"/groups/{group_id}/parents/add",
         data={"parent_group_id": parent_group_id},
     )
 
@@ -1668,12 +1666,12 @@ def test_remove_parent_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/parents/{parent_group_id}/remove",
+        f"/groups/{group_id}/parents/{parent_group_id}/remove",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    expected = f"/admin/groups/{group_id}/relationships?success=parent_removed"
+    expected = f"/groups/{group_id}/relationships?success=parent_removed"
     assert response.headers["location"] == expected
 
 
@@ -1691,7 +1689,7 @@ def test_remove_parent_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/parents/{parent_group_id}/remove",
+        f"/groups/{group_id}/parents/{parent_group_id}/remove",
         follow_redirects=False,
     )
 
@@ -1715,7 +1713,7 @@ def test_remove_parent_service_error(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.post(f"/admin/groups/{group_id}/parents/{parent_group_id}/remove")
+    response = client.post(f"/groups/{group_id}/parents/{parent_group_id}/remove")
 
     # Should render error page
     assert response.status_code == 200
@@ -1762,7 +1760,7 @@ def test_group_detail_with_effective_members(
     mock_group_detail_deps["get_effective_members"].return_value = mock_effective
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/details")
+    response = client.get(f"/groups/{group_id}/details")
 
     assert response.status_code == 200
     mock_group_detail_deps["get_effective_members"].assert_called_once()
@@ -1793,7 +1791,7 @@ def test_group_detail_no_effective_members_without_children(
     mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>detail</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/details")
+    response = client.get(f"/groups/{group_id}/details")
 
     assert response.status_code == 200
     ctx_kwargs = mock_group_detail_deps["get_context"].call_args[1]
@@ -1817,13 +1815,13 @@ def test_bulk_remove_members_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/bulk-remove",
+        f"/groups/{group_id}/members/bulk-remove",
         data={"user_ids": user_ids},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
+    assert f"/groups/{group_id}/membership" in response.headers["location"]
     assert "success=members_removed" in response.headers["location"]
     mock_bulk.assert_called_once()
 
@@ -1841,13 +1839,13 @@ def test_bulk_remove_members_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/bulk-remove",
+        f"/groups/{group_id}/members/bulk-remove",
         data={"user_ids": [str(uuid4())]},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
+    assert f"/groups/{group_id}/membership" in response.headers["location"]
     assert "error=group_not_found" in response.headers["location"]
 
 
@@ -1864,13 +1862,13 @@ def test_bulk_remove_members_idp_forbidden(test_admin_user, override_auth, mocke
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/bulk-remove",
+        f"/groups/{group_id}/members/bulk-remove",
         data={"user_ids": [str(uuid4())]},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
+    assert f"/groups/{group_id}/membership" in response.headers["location"]
     assert "error=idp_group_read_only" in response.headers["location"]
 
 
@@ -1890,7 +1888,7 @@ def test_bulk_remove_members_service_error(test_admin_user, override_auth, mocke
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/bulk-remove",
+        f"/groups/{group_id}/members/bulk-remove",
         data={"user_ids": [str(uuid4())]},
     )
 
@@ -2080,7 +2078,7 @@ def test_member_list_pagination_metadata_middle_page(test_admin_user, override_a
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=53)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/membership?page=2&size=25")
+    response = client.get(f"/groups/{group_id}/membership?page=2&size=25")
 
     assert response.status_code == 200
     pagination = mock_ctx.call_args[1]["pagination"]
@@ -2101,7 +2099,7 @@ def test_member_list_pagination_empty_results(test_admin_user, override_auth, mo
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=0)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/membership")
+    response = client.get(f"/groups/{group_id}/membership")
 
     assert response.status_code == 200
     pagination = mock_ctx.call_args[1]["pagination"]
@@ -2120,7 +2118,7 @@ def test_member_list_pagination_last_page(test_admin_user, override_auth, mocker
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=53)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/membership?page=3&size=25")
+    response = client.get(f"/groups/{group_id}/membership?page=3&size=25")
 
     assert response.status_code == 200
     pagination = mock_ctx.call_args[1]["pagination"]
@@ -2139,7 +2137,7 @@ def test_member_list_page_clamped_to_total(test_admin_user, override_auth, mocke
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=10)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/membership?page=99&size=25")
+    response = client.get(f"/groups/{group_id}/membership?page=99&size=25")
 
     assert response.status_code == 200
     pagination = mock_ctx.call_args[1]["pagination"]
@@ -2184,7 +2182,7 @@ def test_member_list_passes_filters_to_service(test_admin_user, override_auth, m
 
     client = TestClient(app)
     response = client.get(
-        f"/admin/groups/{group_id}/membership"
+        f"/groups/{group_id}/membership"
         "?role=member,admin&status=active&sort=email&order=desc&page=2&size=50"
     )
 
@@ -2218,7 +2216,7 @@ def test_add_members_page_passes_filters_to_service(test_admin_user, override_au
 
     client = TestClient(app)
     response = client.get(
-        f"/admin/groups/{group_id}/members/add"
+        f"/groups/{group_id}/members/add"
         "?role=super_admin&status=active,inactivated&sort=role&order=desc&size=10"
     )
 
@@ -2246,7 +2244,7 @@ def test_add_members_submit_preserves_return_state(test_admin_user, override_aut
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/add",
+        f"/groups/{group_id}/members/add",
         data={
             "user_ids": [str(uuid4())],
             "r_page": "2",
@@ -2283,7 +2281,7 @@ def test_add_members_submit_omits_empty_search_and_filters(test_admin_user, over
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/members/add",
+        f"/groups/{group_id}/members/add",
         data={
             "user_ids": [str(uuid4())],
             "r_page": "1",
@@ -2318,7 +2316,7 @@ def test_member_list_success_message(test_admin_user, override_auth, mocker):
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=5)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/membership?success=members_removed&count=3")
+    response = client.get(f"/groups/{group_id}/membership?success=members_removed&count=3")
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
@@ -2333,7 +2331,7 @@ def test_member_list_error_message(test_admin_user, override_auth, mocker):
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=5)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/membership?error=idp_group_read_only")
+    response = client.get(f"/groups/{group_id}/membership?error=idp_group_read_only")
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
@@ -2361,7 +2359,7 @@ def test_add_members_page_success_count(test_admin_user, override_auth, mocker):
     mock_list.return_value = mock_result
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members/add?success=members_added&count=5")
+    response = client.get(f"/groups/{group_id}/members/add?success=members_added&count=5")
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
@@ -2386,13 +2384,13 @@ def test_assign_sp_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/applications/add",
+        f"/groups/{group_id}/applications/add",
         data={"sp_id": sp_id},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert f"/groups/{group_id}/applications" in response.headers["location"]
     assert "success=sp_assigned" in response.headers["location"]
 
 
@@ -2410,13 +2408,13 @@ def test_assign_sp_not_found_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/applications/add",
+        f"/groups/{group_id}/applications/add",
         data={"sp_id": sp_id},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert f"/groups/{group_id}/applications" in response.headers["location"]
     assert "error=sp_not_found" in response.headers["location"]
 
 
@@ -2434,13 +2432,13 @@ def test_assign_sp_conflict_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/applications/add",
+        f"/groups/{group_id}/applications/add",
         data={"sp_id": sp_id},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert f"/groups/{group_id}/applications" in response.headers["location"]
     assert "error=sp_group_already_assigned" in response.headers["location"]
 
 
@@ -2460,7 +2458,7 @@ def test_assign_sp_service_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/applications/add",
+        f"/groups/{group_id}/applications/add",
         data={"sp_id": sp_id},
     )
 
@@ -2480,12 +2478,12 @@ def test_remove_sp_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/applications/{sp_id}/remove",
+        f"/groups/{group_id}/applications/{sp_id}/remove",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert f"/groups/{group_id}/applications" in response.headers["location"]
     assert "success=sp_removed" in response.headers["location"]
 
 
@@ -2505,12 +2503,12 @@ def test_remove_sp_not_found_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/applications/{sp_id}/remove",
+        f"/groups/{group_id}/applications/{sp_id}/remove",
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert f"/groups/{group_id}/applications" in response.headers["location"]
     assert "error=sp_group_assignment_not_found" in response.headers["location"]
 
 
@@ -2530,7 +2528,7 @@ def test_remove_sp_service_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        f"/admin/groups/{group_id}/applications/{sp_id}/remove",
+        f"/groups/{group_id}/applications/{sp_id}/remove",
     )
 
     assert response.status_code == 200
@@ -2556,7 +2554,7 @@ def test_group_tab_membership_not_found(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>not found</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/membership")
+    response = client.get(f"/groups/{group_id}/membership")
 
     assert response.status_code == 200
     mock_error.assert_called_once()
@@ -2576,7 +2574,7 @@ def test_group_tab_applications_not_found(test_admin_user, override_auth, mocker
     mock_error.return_value = HTMLResponse(content="<html>not found</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/applications")
+    response = client.get(f"/groups/{group_id}/applications")
 
     assert response.status_code == 200
     mock_error.assert_called_once()
@@ -2596,7 +2594,7 @@ def test_group_tab_relationships_not_found(test_admin_user, override_auth, mocke
     mock_error.return_value = HTMLResponse(content="<html>not found</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/relationships")
+    response = client.get(f"/groups/{group_id}/relationships")
 
     assert response.status_code == 200
     mock_error.assert_called_once()
@@ -2616,7 +2614,7 @@ def test_group_tab_delete_not_found(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>not found</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/delete")
+    response = client.get(f"/groups/{group_id}/delete")
 
     assert response.status_code == 200
     mock_error.assert_called_once()
@@ -2654,7 +2652,7 @@ def test_group_tab_applications_sp_service_swallowed(
     )
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/applications")
+    response = client.get(f"/groups/{group_id}/applications")
 
     assert response.status_code == 200
     template_name = mock_group_detail_deps["template"].call_args[0][1]
@@ -2712,7 +2710,7 @@ def test_group_tab_applications_shows_inherited_sps(
     )
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/applications")
+    response = client.get(f"/groups/{group_id}/applications")
 
     assert response.status_code == 200
     ctx_call_kwargs = mock_group_detail_deps["get_context"].call_args[1]

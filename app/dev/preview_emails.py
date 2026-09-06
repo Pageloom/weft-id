@@ -31,7 +31,7 @@ def _send_all(kw: dict) -> list[tuple[str, bool]]:
     cred_set = f"{BASE}/set-password?email_id=abc&nonce=1"  # noqa: S105 (not a real credential)
     cred_reset = f"{BASE}/reset-password/token123"  # noqa: S105
     login = f"{BASE}/login"
-    reqs = f"{BASE}/admin/reactivation-requests"
+    reqs = f"{BASE}/directory/requests/reactivation"
     idle_users = [
         {
             "first_name": "Alice",

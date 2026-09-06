@@ -16,4 +16,4 @@ Configure this on the IdP's detail page under connection settings.
 
 Super admins can reset a user's verification method from the user's detail page. This deletes the user's TOTP secret and backup codes. Registered passkeys are not affected. The user reverts to email-based verification on their next sign-in.
 
-To revoke individual passkeys, go to **Users > (user) > Profile > Passkeys** and click **Revoke** on the specific credential.
+To revoke individual passkeys, go to **Directory > Users > (user) > Profile > Passkeys** and click **Revoke** on the specific credential.

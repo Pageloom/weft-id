@@ -19,7 +19,7 @@ from utils.template_context import get_template_context
 from utils.templates import templates
 
 router = APIRouter(
-    prefix="/admin/settings",
+    prefix="/settings",
     tags=["admin-settings-branding"],
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
@@ -31,7 +31,7 @@ def admin_branding_redirect(
     request: Request,
 ):
     """Redirect to branding global tab."""
-    return RedirectResponse(url="/admin/settings/branding/global", status_code=303)
+    return RedirectResponse(url="/settings/branding/global", status_code=303)
 
 
 @router.get("/branding/global", response_class=HTMLResponse)
@@ -117,7 +117,7 @@ async def upload_branding_logo(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url="/admin/settings/branding/global?success=logo_uploaded",
+        url="/settings/branding/global?success=logo_uploaded",
         status_code=303,
     )
 
@@ -138,7 +138,7 @@ def delete_branding_logo(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url="/admin/settings/branding/global?success=logo_deleted",
+        url="/settings/branding/global?success=logo_deleted",
         status_code=303,
     )
 
@@ -183,7 +183,7 @@ def update_branding_settings(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url="/admin/settings/branding/global?success=settings_updated",
+        url="/settings/branding/global?success=settings_updated",
         status_code=303,
     )
 
@@ -211,7 +211,7 @@ async def upload_group_logo_form(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url="/admin/settings/branding/groups?success=logo_uploaded",
+        url="/settings/branding/groups?success=logo_uploaded",
         status_code=303,
     )
 
@@ -232,6 +232,6 @@ def delete_group_logo_form(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url="/admin/settings/branding/groups?success=logo_deleted",
+        url="/settings/branding/groups?success=logo_deleted",
         status_code=303,
     )

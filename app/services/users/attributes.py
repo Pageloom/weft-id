@@ -801,6 +801,18 @@ def list_users_with_missing_required(
     ]
 
 
+def count_users_with_missing_required(requesting_user: RequestingUser) -> int:
+    """Count distinct users with at least one missing required attribute.
+
+    Authorization: admin / super_admin only. Used to render the Requests
+    nav badge (paired with pending reactivation count).
+    """
+    require_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+    track_activity(tenant_id, requesting_user["id"])
+    return database.user_attributes.count_users_with_missing_required(tenant_id)
+
+
 def bulk_set_force_profile_completion(
     requesting_user: RequestingUser,
     user_ids: list[str],

@@ -167,16 +167,21 @@ def test_local_storage_delete_preserves_non_empty_directories(tmp_path, mocker):
     assert (tmp_path / "dir/file2.txt").exists()
 
 
-def test_local_storage_get_download_url(tmp_path, mocker):
-    """Test get_download_url returns internal URL."""
+def test_local_storage_get_download_url_not_implemented(tmp_path, mocker):
+    """get_download_url is unreachable for local storage and raises.
+
+    services.exports only calls get_download_url() for the "spaces" storage
+    type; local downloads stream via get_file_path() instead. The method is
+    kept as a raising stub (rather than removed) because it satisfies the
+    StorageBackend.get_download_url() abstractmethod contract.
+    """
     from utils.storage import LocalStorageBackend
 
     mocker.patch("settings.LOCAL_STORAGE_PATH", str(tmp_path))
     backend = LocalStorageBackend()
 
-    url = backend.get_download_url("test/file.txt", "file.txt", expires_in=3600)
-
-    assert url == "/admin/exports/file/test/file.txt"
+    with pytest.raises(NotImplementedError):
+        backend.get_download_url("test/file.txt", "file.txt", expires_in=3600)
 
 
 def test_local_storage_get_file_path_exists(tmp_path, mocker):

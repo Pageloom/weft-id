@@ -15,11 +15,11 @@
         Remove all relationships before deleting.
     </p>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        The <a href="/admin/groups/list?view=graph&search={{ group.name|urlencode }}&fullscreen=1"
+        The <a href="/groups/list?view=graph&search={{ group.name|urlencode }}&fullscreen=1"
                class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline">groups graph</a>
         shows all connections and lets you cut relationships interactively.
     </p>
-    <form method="post" action="/admin/groups/{{ group.id }}/relationships/clear" class="inline">
+    <form method="post" action="/groups/{{ group.id }}/relationships/clear" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit"
                 class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
@@ -48,7 +48,7 @@
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
         Permanently deletes this group and all memberships. Members are not affected. Cannot be undone.
     </p>
-    <form method="post" action="/admin/groups/{{ group.id }}/delete" class="inline">
+    <form method="post" action="/groups/{{ group.id }}/delete" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit"
                 class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"

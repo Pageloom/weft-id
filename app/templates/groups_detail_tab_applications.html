@@ -12,7 +12,7 @@
             </p>
         </div>
         {% if available_sps %}
-        <form method="post" action="/admin/groups/{{ group.id }}/applications/add" class="flex gap-2 shrink-0">
+        <form method="post" action="/groups/{{ group.id }}/applications/add" class="flex gap-2 shrink-0">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <select name="sp_id" required
                     class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
@@ -46,7 +46,7 @@
             {% for spa in assigned_sps %}
             <div class="px-6 py-4 flex items-center justify-between">
                 <div>
-                    <a href="/admin/settings/service-providers/{{ spa.sp_id }}"
+                    <a href="/applications/saml/{{ spa.sp_id }}"
                        class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
                         {{ spa.sp_name }}
                     </a>
@@ -60,7 +60,7 @@
                         {{ spa.sp_entity_id[:50] }}{% if spa.sp_entity_id|length > 50 %}…{% endif %}
                     </span>
                     {% endif %}
-                    <form method="post" action="/admin/groups/{{ group.id }}/applications/{{ spa.sp_id }}/remove">
+                    <form method="post" action="/groups/{{ group.id }}/applications/{{ spa.sp_id }}/remove">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit"
                                 class="confirm-btn text-xs text-red-600 hover:text-red-800 dark:text-red-400"
@@ -87,13 +87,13 @@
             {% for item in inherited_sps %}
             <div class="px-6 py-4 flex items-center justify-between">
                 <div>
-                    <a href="/admin/settings/service-providers/{{ item.sp.sp_id }}"
+                    <a href="/applications/saml/{{ item.sp.sp_id }}"
                        class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
                         {{ item.sp.sp_name }}
                     </a>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                         via
-                        <a href="/admin/groups/{{ item.from_group_id }}/applications"
+                        <a href="/groups/{{ item.from_group_id }}/applications"
                            class="hover:underline">{{ item.from_group_name }}</a>
                         {% if item.from_group_type == 'idp' %}
                         <span class="ml-1 px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full" title="Managed by identity provider">IdP</span>

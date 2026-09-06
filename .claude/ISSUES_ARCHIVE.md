@@ -5182,3 +5182,38 @@ Store the SP's UUID (`sp.id`) in the session as `pending_sso_sp_id` alongside th
 
 **Files Created:**
 - `tests/services/test_saml_assertion_replay.py` - 12 tests (unit + integration)
+
+---
+
+## [COPY] Security and Branding render two identical navigation rows
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, Step 8 tech-writer review, independently
+confirmed by the test agent)
+**Severity:** Medium
+
+Both `settings_security_base.html` and `settings_branding_base.html` carried a bespoke in-page
+tab bar that predated the nav restructure. It existed because those tabs used to sit one level
+deeper (`Admin > Settings > Security > Sessions`), below where `base.html` rendered its own
+sub-nav. Once Security was promoted to top-level and Settings narrowed, `base.html`'s level-2/
+level-3 sub-nav started covering the same tabs, so every page in both sections rendered the tab
+list twice -- once in the global sub-nav strip, once again in the bespoke in-page bar (and on
+Security, the two rows disagreed about ordering).
+
+**Resolution:** Removed the `{# Tab Bar #}` block from both `settings_security_base.html` and
+`settings_branding_base.html`, letting `base.html`'s sub-nav own the tabs exclusively. Also
+removed the now-dead `{% set active_tab = '...' %}` lines from the seven tab-content templates
+that extended these bases (`settings_security_tab_{sessions,certificates,passwords,permissions,
+authentication}.html`, `settings_branding_{global,groups}.html`) -- the routers for these two
+sections never passed `active_tab` themselves, the tab templates set it locally purely for the
+now-removed bar's highlighting. Checked every other `_base.html` template with a similar in-page
+tab bar (`groups_detail_base.html`, `oidc_idp_base.html`, `saml_idp_base.html`,
+`saml_idp_sp_base.html`, `user_detail_base.html`) and the `/applications` and `/identity-providers`
+sections generally; none are affected because their tab children are `show_in_nav=False` in
+`app/pages.py`, so `base.html` renders nothing for them there.
+
+**Files changed:** `app/templates/settings_security_base.html`,
+`app/templates/settings_branding_base.html`, `app/templates/settings_security_tab_authentication.html`,
+`app/templates/settings_security_tab_certificates.html`, `app/templates/settings_security_tab_passwords.html`,
+`app/templates/settings_security_tab_permissions.html`, `app/templates/settings_security_tab_sessions.html`,
+`app/templates/settings_branding_global.html`, `app/templates/settings_branding_groups.html`

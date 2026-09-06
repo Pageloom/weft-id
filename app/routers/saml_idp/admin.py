@@ -26,13 +26,13 @@ from ._helpers import get_base_url
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/admin/settings/service-providers",
+    prefix="/applications/saml",
     tags=["saml-idp"],
     dependencies=[Depends(require_super_admin)],
     include_in_schema=False,
 )
 
-SP_LIST_URL = "/admin/settings/service-providers"
+SP_LIST_URL = "/applications/saml"
 
 
 def _build_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
@@ -58,7 +58,7 @@ def _load_sp_tab(
     or a ``(sp_config, group_count, requesting_user)`` tuple. Handlers then build
     their own template context, which varies per tab.
     """
-    if not has_page_access(f"/admin/settings/service-providers/detail/{tab}", user.get("role")):
+    if not has_page_access(f"/applications/saml/detail/{tab}", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -84,7 +84,7 @@ def sp_list(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """List all registered service providers."""
-    if not has_page_access("/admin/settings/service-providers", user.get("role")):
+    if not has_page_access("/applications/saml", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -113,7 +113,7 @@ def sp_new(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Show the SP registration form."""
-    if not has_page_access("/admin/settings/service-providers/new", user.get("role")):
+    if not has_page_access("/applications/saml/new", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     context = get_template_context(
@@ -132,7 +132,7 @@ def sp_create_manual(
     name: str = Form(""),
 ):
     """Create an SP with just a name (step 1 of trust establishment flow)."""
-    if not has_page_access("/admin/settings/service-providers", user.get("role")):
+    if not has_page_access("/applications/saml", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
@@ -160,7 +160,7 @@ def sp_import_xml(
     metadata_xml: str = Form(""),
 ):
     """Create an SP from pasted metadata XML."""
-    if not has_page_access("/admin/settings/service-providers", user.get("role")):
+    if not has_page_access("/applications/saml", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
@@ -189,7 +189,7 @@ def sp_import_url(
     metadata_url: str = Form(""),
 ):
     """Create an SP from a metadata URL."""
-    if not has_page_access("/admin/settings/service-providers", user.get("role")):
+    if not has_page_access("/applications/saml", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
@@ -222,7 +222,7 @@ def sp_detail_redirect(
     sp_id: str,
 ):
     """Redirect to the Details tab."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     return safe_redirect(f"{SP_LIST_URL}/{sp_id}/details")
@@ -485,7 +485,7 @@ def sp_edit(
     slo_url: str = Form(""),
 ):
     """Update an SP's name, description, and optionally ACS/SLO URLs (manual SPs)."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -523,7 +523,7 @@ def sp_edit_slo_url(
     slo_url: str = Form(""),
 ):
     """Update an SP's SLO URL (works for both manual and metadata-imported SPs)."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -548,7 +548,7 @@ def sp_edit_nameid_format(
     nameid_format: str = Form(""),
 ):
     """Update an SP's NameID format."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     valid_formats = {"emailAddress", "persistent", "transient", "unspecified"}
@@ -585,7 +585,7 @@ async def sp_edit_attributes(
           enabled (Iteration 6). Unknown attr_map_* keys are silently dropped
           so the validator does not reject the request.
     """
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -665,7 +665,7 @@ def sp_refresh_metadata_preview(
     sp_id: str,
 ):
     """Preview changes from refreshing metadata from the stored URL."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -693,7 +693,7 @@ def sp_refresh_metadata_apply(
     sp_id: str,
 ):
     """Apply metadata refresh from the stored URL."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -715,7 +715,7 @@ def sp_reimport_metadata_preview(
     metadata_xml: str = Form(""),
 ):
     """Preview changes from re-importing metadata from provided XML."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not metadata_xml.strip():
@@ -749,7 +749,7 @@ def sp_reimport_metadata_apply(
     metadata_xml: str = Form(""),
 ):
     """Apply metadata reimport from provided XML."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not metadata_xml.strip():
@@ -779,7 +779,7 @@ def sp_establish_trust_url(
     metadata_url: str = Form(""),
 ):
     """Establish trust with an SP by fetching its metadata URL."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not metadata_url.strip():
@@ -804,7 +804,7 @@ def sp_establish_trust_xml(
     metadata_xml: str = Form(""),
 ):
     """Establish trust with an SP by providing metadata XML."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not metadata_xml.strip():
@@ -831,7 +831,7 @@ def sp_establish_trust_manual(
     slo_url: str = Form(""),
 ):
     """Establish trust with an SP by manually providing entity_id and acs_url."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not entity_id.strip():
@@ -863,7 +863,7 @@ def sp_rotate_certificate(
     sp_id: str,
 ):
     """Rotate the signing certificate for an SP."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -885,7 +885,7 @@ def sp_toggle_available_to_all(
     available_to_all: str = Form("false"),
 ):
     """Toggle the 'available to all users' access mode for an SP."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -910,7 +910,7 @@ def sp_add_group(
     group_id: str = Form(""),
 ):
     """Assign a group to a service provider."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not group_id.strip():
@@ -935,7 +935,7 @@ def sp_bulk_add_groups(
     group_ids: list[str] = Form(default=[]),
 ):
     """Bulk-assign groups to a service provider."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not group_ids:
@@ -960,7 +960,7 @@ def sp_remove_group(
     group_id: str,
 ):
     """Remove a group assignment from a service provider."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -981,7 +981,7 @@ def sp_enable(
     sp_id: str,
 ):
     """Enable a disabled service provider."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -1002,7 +1002,7 @@ def sp_disable(
     sp_id: str,
 ):
     """Disable a service provider. SSO will stop working immediately."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -1023,7 +1023,7 @@ def sp_delete(
     sp_id: str,
 ):
     """Delete a service provider."""
-    if not has_page_access("/admin/settings/service-providers", user.get("role")):
+    if not has_page_access("/applications/saml", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -1050,7 +1050,7 @@ async def sp_upload_logo(
     file: UploadFile = Form(...),
 ):
     """Upload a custom logo for a service provider."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -1077,7 +1077,7 @@ def sp_delete_logo(
     sp_id: str,
 ):
     """Remove a custom logo from a service provider."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+    if not has_page_access("/applications/saml/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)

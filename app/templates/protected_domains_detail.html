@@ -5,7 +5,7 @@
 {% block content %}
 <div class="max-w-4xl">
     <div class="mb-4">
-        <a href="/admin/settings/protected-domains" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to protected domains</a>
+        <a href="/applications/forward-auth/domains" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to protected domains</a>
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
@@ -66,7 +66,7 @@
                     <code class="text-sm text-gray-900 dark:text-gray-100 break-all">{{ domain.verification_record_value }}</code>
                 </div>
             </div>
-            <form method="post" action="/admin/settings/protected-domains/detail/{{ domain.id }}/verify">
+            <form method="post" action="/applications/forward-auth/domains/detail/{{ domain.id }}/verify">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
@@ -92,7 +92,7 @@
 
         <!-- Danger zone -->
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <form method="post" action="/admin/settings/protected-domains/delete/{{ domain.id }}">
+            <form method="post" action="/applications/forward-auth/domains/delete/{{ domain.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"

@@ -7,7 +7,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <!-- Header with back link -->
         <div class="mb-6">
-            <a href="/admin/integrations/apps" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+            <a href="/applications/oauth" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
                 &larr; Back to Apps
             </a>
         </div>
@@ -86,7 +86,7 @@
         {% endif %}
 
         <!-- Edit Form -->
-        <form method="post" action="/admin/integrations/apps/{{ client.client_id }}/edit" class="space-y-6">
+        <form method="post" action="/applications/oauth/{{ client.client_id }}/edit" class="space-y-6">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div>
@@ -135,7 +135,7 @@
                         When enabled, the token endpoint issues signed ID tokens for the <code>openid</code> scope and group-based access control is enforced at login.
                     </p>
                 </div>
-                <form method="post" action="/admin/integrations/apps/{{ client.client_id }}/oidc/toggle" class="shrink-0">
+                <form method="post" action="/applications/oauth/{{ client.client_id }}/oidc/toggle" class="shrink-0">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="oidc_enabled" value="{{ 'false' if client.oidc_enabled else 'true' }}">
                     {% if client.oidc_enabled %}
@@ -179,7 +179,7 @@
             <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                 <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Access Mode</h3>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Control which users can sign in to this application.</p>
-                <form method="post" action="/admin/integrations/apps/{{ client.client_id }}/oidc/toggle-available-to-all" class="flex items-center gap-3">
+                <form method="post" action="/applications/oauth/{{ client.client_id }}/oidc/toggle-available-to-all" class="flex items-center gap-3">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     {% if client.available_to_all %}
                     <input type="hidden" name="available_to_all" value="false">
@@ -202,7 +202,7 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Members of these groups (and their descendants) can sign in to this application.</p>
 
                 {% if available_groups %}
-                <form method="post" action="/admin/integrations/apps/{{ client.client_id }}/oidc/groups/add" class="mb-4 flex gap-3">
+                <form method="post" action="/applications/oauth/{{ client.client_id }}/oidc/groups/add" class="mb-4 flex gap-3">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <select name="group_id" required
                             class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm">
@@ -229,7 +229,7 @@
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ ag.group_description }}</p>
                             {% endif %}
                         </div>
-                        <form method="post" action="/admin/integrations/apps/{{ client.client_id }}/oidc/groups/{{ ag.group_id }}/remove">
+                        <form method="post" action="/applications/oauth/{{ client.client_id }}/oidc/groups/{{ ag.group_id }}/remove">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400"
                                     data-confirm="Remove group '{{ ag.group_name }}' from {{ client.name }}?&#10;&#10;Users in this group will lose access to this application."
@@ -280,7 +280,7 @@
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Reactivate App</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Allow this app to request tokens again.</p>
                     </div>
-                    <form method="post" action="/admin/integrations/apps/{{ client.client_id }}/reactivate" class="inline">
+                    <form method="post" action="/applications/oauth/{{ client.client_id }}/reactivate" class="inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit"
                                 class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700">
@@ -321,7 +321,7 @@
                     class="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cancel
             </button>
-            <form method="post" action="/admin/integrations/apps/{{ client.client_id }}/regenerate-secret" class="inline">
+            <form method="post" action="/applications/oauth/{{ client.client_id }}/regenerate-secret" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
@@ -344,7 +344,7 @@
                     class="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cancel
             </button>
-            <form method="post" action="/admin/integrations/apps/{{ client.client_id }}/deactivate" class="inline">
+            <form method="post" action="/applications/oauth/{{ client.client_id }}/deactivate" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700">

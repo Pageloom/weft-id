@@ -45,18 +45,21 @@ nav:
     - Adding an Application: getting-started/adding-an-application.md
   - Admin Guide:
     - admin-guide/index.md
-    - Users:
-      - admin-guide/users/index.md
-      - Creating Users: admin-guide/users/creating-users.md
-      - Email Management: admin-guide/users/email-management.md
-      - User Lifecycle: admin-guide/users/user-lifecycle.md
-      - Roles and Permissions: admin-guide/users/roles-and-permissions.md
-    - Groups:
-      - admin-guide/groups/index.md
-      - Creating Groups: admin-guide/groups/creating-groups.md
-      - Group Hierarchy: admin-guide/groups/group-hierarchy.md
-      - Membership Management: admin-guide/groups/membership-management.md
-      - Group-Based Access: admin-guide/groups/group-based-access.md
+    - Directory:
+      - admin-guide/directory/index.md
+      - Users:
+        - admin-guide/users/index.md
+        - Creating Users: admin-guide/users/creating-users.md
+        - Email Management: admin-guide/users/email-management.md
+        - User Lifecycle: admin-guide/users/user-lifecycle.md
+        - Roles and Permissions: admin-guide/users/roles-and-permissions.md
+      - Groups:
+        - admin-guide/groups/index.md
+        - Creating Groups: admin-guide/groups/creating-groups.md
+        - Group Hierarchy: admin-guide/groups/group-hierarchy.md
+        - Membership Management: admin-guide/groups/membership-management.md
+        - Group-Based Access: admin-guide/groups/group-based-access.md
+      - Attributes: admin-guide/security/user-attributes.md
     - Identity Providers:
       - admin-guide/identity-providers/index.md
       - SAML Setup: admin-guide/identity-providers/saml-setup.md
@@ -66,34 +69,34 @@ nav:
       - Inbound SCIM Overview: admin-guide/identity-providers/inbound-scim.md
       - Inbound SCIM (Okta): admin-guide/identity-providers/inbound-scim-okta.md
       - Inbound SCIM (Entra): admin-guide/identity-providers/inbound-scim-entra.md
-      - Privileged Domains: admin-guide/identity-providers/privileged-domains.md
-    - Service Providers:
-      - admin-guide/service-providers/index.md
-      - Registering a Service Provider: admin-guide/service-providers/registering-an-sp.md
-      - Signing Certificates: admin-guide/service-providers/sp-certificates.md
-      - Attribute Mapping: admin-guide/service-providers/attribute-mapping.md
-      - SSO Flow: admin-guide/service-providers/sso-flow.md
-      - Single Logout: admin-guide/service-providers/slo.md
-      - Outbound SCIM Provisioning: admin-guide/service-providers/scim.md
-      - Forward Auth for HTTP Apps: admin-guide/service-providers/forward-auth.md
-    - Integrations:
-      - admin-guide/integrations/index.md
-      - Apps: admin-guide/integrations/apps.md
-      - Sign in with WeftID (OIDC): admin-guide/integrations/oidc-provider-setup.md
-      - B2B Service Accounts: admin-guide/integrations/b2b.md
+      - Domain Routing: admin-guide/identity-providers/privileged-domains.md
+    - Applications:
+      - admin-guide/applications/index.md
+      - SAML:
+        - admin-guide/service-providers/index.md
+        - Registering a Service Provider: admin-guide/service-providers/registering-an-sp.md
+        - Signing Certificates: admin-guide/service-providers/sp-certificates.md
+        - Attribute Mapping: admin-guide/service-providers/attribute-mapping.md
+        - SSO Flow: admin-guide/service-providers/sso-flow.md
+        - Single Logout: admin-guide/service-providers/slo.md
+        - Outbound SCIM Provisioning: admin-guide/service-providers/scim.md
+      - OAuth2 / OIDC:
+        - admin-guide/integrations/apps.md
+        - Sign in with WeftID (OIDC): admin-guide/integrations/oidc-provider-setup.md
+      - Forward Auth: admin-guide/service-providers/forward-auth.md
+      - Service Accounts: admin-guide/integrations/b2b.md
     - Security:
       - admin-guide/security/index.md
       - Passwords: admin-guide/security/passwords.md
       - Sessions: admin-guide/security/sessions.md
       - Certificates: admin-guide/security/certificates.md
       - Permissions: admin-guide/security/permissions.md
-      - User Attributes: admin-guide/security/user-attributes.md
       - Two-Step Verification: admin-guide/security/two-step-verification.md
       - Authentication Policy: admin-guide/security/authentication-policy.md
-    - Branding:
-      - admin-guide/branding/index.md
     - Audit:
       - admin-guide/audit/index.md
+    - Settings:
+      - Branding: admin-guide/branding/index.md
   - User Guide:
     - user-guide/index.md
     - Dashboard: user-guide/dashboard.md

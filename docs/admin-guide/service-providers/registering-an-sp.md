@@ -4,7 +4,7 @@ Register a downstream application as a SAML service provider to enable single si
 
 ## Step 1: Create the service provider
 
-1. Navigate to **Settings > Service Providers**
+1. Navigate to **Applications > SAML**
 2. Click **Add Service Provider**
 3. Enter a display name
 4. Click **Create**

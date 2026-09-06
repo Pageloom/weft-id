@@ -54,9 +54,16 @@ class LocalStorageBackend(StorageBackend):
         return str(path)
 
     def get_download_url(self, key: str, filename: str, expires_in: int = 3600) -> str:
-        # For local storage, we return an internal URL that the router will handle
-        # The router will stream the file directly
-        return f"/admin/exports/file/{key}"
+        # Unreachable in the served flow: the only caller (services.exports)
+        # invokes get_download_url() only when export["storage_type"] ==
+        # "spaces"; local downloads stream directly via get_file_path()
+        # instead. Kept as a raising stub (rather than removed) because
+        # StorageBackend.get_download_url() is an abstractmethod that every
+        # concrete backend must implement.
+        raise NotImplementedError(
+            "LocalStorageBackend does not serve download URLs; local files "
+            "stream via get_file_path() instead."
+        )
 
     def delete(self, key: str) -> bool:
         path = self.base_path / key

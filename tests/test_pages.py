@@ -45,7 +45,7 @@ def test_get_all_pages():
     assert "/account" in paths
     assert "/account/profile" in paths
     assert "/account/emails" in paths
-    assert "/admin/settings/security" in paths
+    assert "/security" in paths
 
 
 def test_has_permission_public():
@@ -68,7 +68,7 @@ def test_has_permission_authenticated():
 
 def test_has_permission_admin():
     """Test admin pages require admin or super_admin role."""
-    settings_page = get_page_by_path("/admin/settings/privileged-domains")
+    settings_page = get_page_by_path("/identity-providers/domain-routing")
     assert not has_permission(settings_page, None)
     assert not has_permission(settings_page, "member")
     assert has_permission(settings_page, "admin")
@@ -77,7 +77,7 @@ def test_has_permission_admin():
 
 def test_has_permission_super_admin():
     """Test super_admin pages require super_admin role."""
-    security_page = get_page_by_path("/admin/settings/security")
+    security_page = get_page_by_path("/security")
     assert not has_permission(security_page, None)
     assert not has_permission(security_page, "member")
     assert not has_permission(security_page, "admin")
@@ -94,18 +94,18 @@ def test_has_page_access_dashboard():
 
 def test_has_page_access_admin_page():
     """Test page access check for admin pages."""
-    assert not has_page_access("/admin/settings/privileged-domains", None)
-    assert not has_page_access("/admin/settings/privileged-domains", "member")
-    assert has_page_access("/admin/settings/privileged-domains", "admin")
-    assert has_page_access("/admin/settings/privileged-domains", "super_admin")
+    assert not has_page_access("/identity-providers/domain-routing", None)
+    assert not has_page_access("/identity-providers/domain-routing", "member")
+    assert has_page_access("/identity-providers/domain-routing", "admin")
+    assert has_page_access("/identity-providers/domain-routing", "super_admin")
 
 
 def test_has_page_access_super_admin_page():
     """Test page access check for super_admin pages."""
-    assert not has_page_access("/admin/settings/security", None)
-    assert not has_page_access("/admin/settings/security", "member")
-    assert not has_page_access("/admin/settings/security", "admin")
-    assert has_page_access("/admin/settings/security", "super_admin")
+    assert not has_page_access("/security", None)
+    assert not has_page_access("/security", "member")
+    assert not has_page_access("/security", "admin")
+    assert has_page_access("/security", "super_admin")
 
 
 def test_has_page_access_undefined_page():
@@ -132,8 +132,9 @@ def test_get_nav_items_member():
 
     paths = [item.path for item in nav_items]
     assert "/dashboard" in paths
-    assert "/users" in paths
-    assert "/admin" not in paths  # Admin only
+    assert "/directory" in paths
+    assert "/security" not in paths  # Admin only
+    assert "/identity-providers" not in paths  # Admin only
 
 
 def test_get_nav_items_admin():
@@ -142,8 +143,12 @@ def test_get_nav_items_admin():
 
     paths = [item.path for item in nav_items]
     assert "/dashboard" in paths
-    assert "/users" in paths
-    assert "/admin" in paths  # Admin can see admin menu
+    assert "/directory" in paths
+    assert "/identity-providers" in paths  # Container permission is ADMIN
+    assert "/applications" in paths  # Container permission is ADMIN
+    assert "/audit" in paths
+    assert "/settings" in paths
+    assert "/security" not in paths  # Super admin only
 
 
 def test_get_nav_items_super_admin():
@@ -152,8 +157,32 @@ def test_get_nav_items_super_admin():
 
     paths = [item.path for item in nav_items]
     assert "/dashboard" in paths
-    assert "/users" in paths
-    assert "/admin" in paths
+    assert "/directory" in paths
+    assert "/identity-providers" in paths
+    assert "/applications" in paths
+    assert "/security" in paths
+    assert "/audit" in paths
+    assert "/settings" in paths
+
+
+def test_seven_top_level_nav_items_for_super_admin():
+    """Full nav is exactly 7 top-level items for super_admin.
+
+    Dashboard, Directory, Identity Providers, Applications, Security, Audit,
+    Settings -- see the target path map in
+    .claude/ITERATION_nav_restructure.md.
+    """
+    nav_items = get_nav_items("super_admin")
+    paths = [item.path for item in nav_items]
+    assert paths == [
+        "/dashboard",
+        "/directory",
+        "/identity-providers",
+        "/applications",
+        "/security",
+        "/audit",
+        "/settings",
+    ]
 
 
 def test_get_first_accessible_child_account_member():
@@ -168,23 +197,27 @@ def test_get_first_accessible_child_users_member():
     assert first_child == "/users/list"
 
 
-def test_get_first_accessible_child_settings_admin():
-    """Test getting first accessible child for admin menu as admin."""
-    first_child = get_first_accessible_child("/admin", "admin")
-    # Admin can see security or privileged-domains (security is first but requires super_admin)
-    assert first_child == "/admin/settings/privileged-domains"
+def test_get_first_accessible_child_settings_menu_unaffected_by_role():
+    """Settings is narrowed to Branding + About, both ADMIN -- same first child for both roles."""
+    assert get_first_accessible_child("/settings", "admin") == "/settings/branding/global"
+    assert get_first_accessible_child("/settings", "super_admin") == "/settings/branding/global"
 
 
-def test_get_first_accessible_child_settings_super_admin():
-    """Test getting first accessible child for admin menu as super_admin."""
-    first_child = get_first_accessible_child("/admin", "super_admin")
-    # Super admin sees security first, which recurses to sessions tab
-    assert first_child == "/admin/settings/security/sessions"
+def test_get_first_accessible_child_security_menu_super_admin_only():
+    """Security is entirely super_admin-only, so a plain admin sees nothing."""
+    assert get_first_accessible_child("/security", "super_admin") == "/security/sessions"
+    assert get_first_accessible_child("/security", "admin") is None
+
+
+def test_get_first_accessible_child_audit_menu_by_role():
+    """Event Log is ADMIN, so both admin and super_admin land there first."""
+    assert get_first_accessible_child("/audit", "admin") == "/audit/events"
+    assert get_first_accessible_child("/audit", "super_admin") == "/audit/events"
 
 
 def test_get_first_accessible_child_no_permission():
     """Test getting None when user has no permission to any children."""
-    first_child = get_first_accessible_child("/admin", "member")
+    first_child = get_first_accessible_child("/security", "member")
     assert first_child is None
 
 
@@ -241,17 +274,17 @@ def test_get_navigation_context_sub_nav_items():
 
 def test_get_navigation_context_filters_by_permission():
     """Test navigation context filters items by user permission."""
-    # Member should not see admin-only sub-items
+    # Member should not see admin-only sub-sub-items
     context_member = get_navigation_context("/users/list", "member")
-    sub_nav_paths_member = [item.path for item in context_member["sub_nav_items"]]
+    sub_sub_nav_paths_member = [item.path for item in context_member["sub_sub_nav_items"]]
 
-    # Admin should see admin sub-items
+    # Admin should see admin sub-sub-items
     context_admin = get_navigation_context("/users/list", "admin")
-    sub_nav_paths_admin = [item.path for item in context_admin["sub_nav_items"]]
+    sub_sub_nav_paths_admin = [item.path for item in context_admin["sub_sub_nav_items"]]
 
-    # Both should see /users/list
-    assert "/users/list" in sub_nav_paths_member
-    assert "/users/list" in sub_nav_paths_admin
+    # Both should see /users/list (nested under Directory > Users)
+    assert "/users/list" in sub_sub_nav_paths_member
+    assert "/users/list" in sub_sub_nav_paths_admin
 
 
 def test_get_navigation_context_top_level_items():
@@ -260,8 +293,9 @@ def test_get_navigation_context_top_level_items():
 
     top_level_paths = [item.path for item in context["top_level_items"]]
     assert "/dashboard" in top_level_paths
-    assert "/users" in top_level_paths
-    assert "/admin" in top_level_paths
+    assert "/directory" in top_level_paths
+    assert "/audit" in top_level_paths
+    assert "/settings" in top_level_paths
 
 
 def test_get_navigation_context_unknown_path():
@@ -334,8 +368,8 @@ def test_has_permission_hierarchy():
     # A super_admin user should have access to all permission levels
     public_page = get_page_by_path("/login")
     auth_page = get_page_by_path("/dashboard")
-    admin_page = get_page_by_path("/admin/settings/privileged-domains")
-    super_admin_page = get_page_by_path("/admin/settings/security")
+    admin_page = get_page_by_path("/identity-providers/domain-routing")
+    super_admin_page = get_page_by_path("/security")
 
     # Super admin can access everything
     assert has_permission(public_page, "super_admin")
@@ -357,19 +391,18 @@ def test_has_permission_hierarchy():
 
 
 def test_settings_children_permissions():
-    """Test that admin page children have appropriate permissions."""
-    admin_page = get_page_by_path("/admin")
-    assert admin_page is not None
+    """Test that the Security and Identity Providers pages have appropriate permissions."""
+    # Security (super_admin only) -- top-level since Iteration 4, no longer
+    # nested under /admin
+    security_page = get_page_by_path("/security")
+    assert security_page is not None
+    assert security_page.permission == PagePermission.SUPER_ADMIN
 
-    # Find security (super_admin only)
-    admin_security = get_page_by_path("/admin/settings/security")
-    assert admin_security is not None
-    assert admin_security.permission == PagePermission.SUPER_ADMIN
-
-    # Find privileged-domains (admin)
-    privileged_domains = get_page_by_path("/admin/settings/privileged-domains")
-    assert privileged_domains is not None
-    assert privileged_domains.permission == PagePermission.ADMIN
+    # Domain Routing (admin) -- lives under the top-level Identity Providers
+    # container, not /admin, since the nav restructure
+    domain_routing = get_page_by_path("/identity-providers/domain-routing")
+    assert domain_routing is not None
+    assert domain_routing.permission == PagePermission.ADMIN
 
 
 def test_users_page_has_children():
@@ -392,102 +425,149 @@ def test_users_user_detail_not_in_nav():
 
 
 # =============================================================================
-# Integration Pages Tests
+# Applications Pages Tests (nav_restructure Iteration 3)
 # =============================================================================
 
 
-def test_integrations_page_exists():
-    """Test that the integrations page is registered."""
-    page = get_page_by_path("/admin/integrations")
+def test_applications_container_permission_is_admin():
+    """The Applications container is ADMIN, not SUPER_ADMIN.
+
+    OAuth2 / OIDC is ADMIN-accessible, which pins the container's own
+    permission down to ADMIN per the permission fidelity rule, even though
+    its SAML, Forward Auth, and Service Accounts siblings are SUPER_ADMIN.
+    """
+    page = get_page_by_path("/applications")
     assert page is not None
-    assert page.title == "Integrations"
+    assert page.title == "Applications"
     assert page.permission == PagePermission.ADMIN
     assert page.show_in_nav is True
+    assert not has_page_access("/applications", "member")
+    assert has_page_access("/applications", "admin")
+    assert has_page_access("/applications", "super_admin")
 
 
-def test_integrations_apps_page_exists():
-    """Test that the integrations apps page is registered."""
-    page = get_page_by_path("/admin/integrations/apps")
+def test_applications_children_structure():
+    """Test the Applications page has the four expected children."""
+    page = get_page_by_path("/applications")
+    assert page.children is not None
+    assert len(page.children) == 4
+
+    child_paths = [child.path for child in page.children]
+    assert child_paths == [
+        "/applications/saml",
+        "/applications/oauth",
+        "/applications/forward-auth",
+        "/applications/service-accounts",
+    ]
+
+
+def test_saml_moved_from_admin_settings_service_providers():
+    """SAML service providers moved from /admin/settings/service-providers."""
+    assert get_page_by_path("/admin/settings/service-providers") is None
+    assert not has_page_access("/admin/settings/service-providers", "super_admin")
+    page = get_page_by_path("/applications/saml")
     assert page is not None
-    assert page.title == "Apps"
-    assert page.permission == PagePermission.ADMIN
-    assert page.show_in_nav is True
-
-
-def test_integrations_b2b_page_exists():
-    """Test that the integrations B2B page is registered."""
-    page = get_page_by_path("/admin/integrations/b2b")
-    assert page is not None
-    assert page.title == "B2B"
+    assert page.title == "SAML"
     assert page.permission == PagePermission.SUPER_ADMIN
-    assert page.show_in_nav is True
+    assert not has_page_access("/applications/saml", "admin")
+    assert has_page_access("/applications/saml", "super_admin")
 
 
-def test_integrations_page_access_member():
-    """Test that members cannot access integration pages."""
-    assert not has_page_access("/admin/integrations", "member")
-    assert not has_page_access("/admin/integrations/apps", "member")
-    assert not has_page_access("/admin/integrations/b2b", "member")
+def test_saml_sp_detail_children_keep_super_admin_permission():
+    """Details, Attributes, Groups, SCIM, Certificates, Metadata, Danger stay SUPER_ADMIN."""
+    for path in (
+        "/applications/saml/new",
+        "/applications/saml/detail/details",
+        "/applications/saml/detail/attributes",
+        "/applications/saml/detail/groups",
+        "/applications/saml/detail/scim",
+        "/applications/saml/detail/certificates",
+        "/applications/saml/detail/metadata",
+        "/applications/saml/detail/danger",
+    ):
+        page = get_page_by_path(path)
+        assert page is not None, f"{path} not registered"
+        assert page.permission == PagePermission.SUPER_ADMIN
+        assert not has_page_access(path, "admin")
+        assert has_page_access(path, "super_admin")
 
 
-def test_integrations_page_access_admin():
-    """Test that admins can access integration pages (except B2B)."""
-    assert has_page_access("/admin/integrations", "admin")
-    assert has_page_access("/admin/integrations/apps", "admin")
-    assert not has_page_access("/admin/integrations/b2b", "admin")
+def test_oauth_moved_from_admin_integrations_apps_and_renamed():
+    """OAuth2 / OIDC apps moved from /admin/integrations/apps, renamed."""
+    assert get_page_by_path("/admin/integrations/apps") is None
+    assert not has_page_access("/admin/integrations/apps", "admin")
+    page = get_page_by_path("/applications/oauth")
+    assert page is not None
+    assert page.title == "OAuth2 / OIDC"
+    assert page.permission == PagePermission.ADMIN
+    assert has_page_access("/applications/oauth", "admin")
+    assert not has_page_access("/applications/oauth", "member")
 
 
-def test_integrations_page_access_super_admin():
-    """Test that super_admins can access integration pages."""
-    assert has_page_access("/admin/integrations", "super_admin")
-    assert has_page_access("/admin/integrations/apps", "super_admin")
-    assert has_page_access("/admin/integrations/b2b", "super_admin")
+def test_forward_auth_tabs_domains_and_apps():
+    """Protected Domains and Proxy Apps render as Domains | Apps tabs."""
+    assert get_page_by_path("/admin/settings/protected-domains") is None
+    assert get_page_by_path("/admin/settings/proxy-apps") is None
+
+    container = get_page_by_path("/applications/forward-auth")
+    assert container is not None
+    assert container.title == "Forward Auth"
+    assert container.permission == PagePermission.SUPER_ADMIN
+    assert container.children is not None
+
+    child_paths = [child.path for child in container.children]
+    assert child_paths == [
+        "/applications/forward-auth/domains",
+        "/applications/forward-auth/apps",
+    ]
+
+    domains = get_page_by_path("/applications/forward-auth/domains")
+    apps = get_page_by_path("/applications/forward-auth/apps")
+    assert domains is not None and domains.title == "Domains"
+    assert apps is not None and apps.title == "Apps"
+    assert domains.permission == PagePermission.SUPER_ADMIN
+    assert apps.permission == PagePermission.SUPER_ADMIN
+
+    assert get_page_by_path("/applications/forward-auth/domains/detail") is not None
+    assert get_page_by_path("/applications/forward-auth/apps/detail") is not None
 
 
-def test_integrations_first_accessible_child_admin():
-    """Test that first accessible child for integrations is apps."""
-    first_child = get_first_accessible_child("/admin/integrations", "admin")
-    assert first_child == "/admin/integrations/apps"
+def test_service_accounts_moved_from_admin_integrations_b2b_and_renamed():
+    """B2B service accounts moved from /admin/integrations/b2b, renamed."""
+    assert get_page_by_path("/admin/integrations/b2b") is None
+    assert not has_page_access("/admin/integrations/b2b", "super_admin")
+    page = get_page_by_path("/applications/service-accounts")
+    assert page is not None
+    assert page.title == "Service Accounts"
+    assert page.permission == PagePermission.SUPER_ADMIN
+    assert has_page_access("/applications/service-accounts", "super_admin")
+    assert not has_page_access("/applications/service-accounts", "admin")
 
 
-def test_integrations_children_structure():
-    """Test the integrations page has expected children."""
-    page = get_page_by_path("/admin/integrations")
-    assert page.children is not None
-    assert len(page.children) == 2
-
-    child_paths = [child.path for child in page.children]
-    assert "/admin/integrations/apps" in child_paths
-    assert "/admin/integrations/b2b" in child_paths
+def test_integrations_container_removed():
+    """The old /admin/integrations container no longer exists, nor does /admin."""
+    assert get_page_by_path("/admin/integrations") is None
+    assert get_page_by_path("/admin") is None
 
 
-def test_service_providers_in_settings():
-    """Test that service providers is under settings, next to identity providers."""
-    page = get_page_by_path("/admin/settings")
-    assert page.children is not None
-
-    child_paths = [child.path for child in page.children]
-    assert "/admin/settings/identity-providers" in child_paths
-    assert "/admin/settings/service-providers" in child_paths
+def test_applications_first_accessible_child_by_role():
+    """OAuth2 / OIDC is the only child a plain admin can see; super_admin sees SAML."""
+    assert get_first_accessible_child("/applications", "admin") == "/applications/oauth"
+    assert get_first_accessible_child("/applications", "super_admin") == "/applications/saml"
 
 
-def test_integrations_in_admin_nav():
-    """Test that integrations appears in admin navigation."""
-    admin_page = get_page_by_path("/admin")
-    assert admin_page is not None
-
-    child_titles = [child.title for child in admin_page.children]
-    assert "Integrations" in child_titles
-
-
-def test_integrations_get_all_paths():
-    """Test get_all_paths includes integrations pages."""
-    page = get_page_by_path("/admin/integrations")
+def test_applications_get_all_paths():
+    """Test get_all_paths includes all Applications pages."""
+    page = get_page_by_path("/applications")
     all_paths = page.get_all_paths()
 
-    assert "/admin/integrations" in all_paths
-    assert "/admin/integrations/apps" in all_paths
-    assert "/admin/integrations/b2b" in all_paths
+    assert "/applications" in all_paths
+    assert "/applications/saml" in all_paths
+    assert "/applications/oauth" in all_paths
+    assert "/applications/forward-auth" in all_paths
+    assert "/applications/forward-auth/domains" in all_paths
+    assert "/applications/forward-auth/apps" in all_paths
+    assert "/applications/service-accounts" in all_paths
 
 
 # =============================================================================
@@ -509,20 +589,21 @@ def test_docs_path_set_on_dashboard():
 
 def test_docs_path_set_on_admin_pages():
     """Test that key admin pages have docs_path values."""
-    sec = "/admin/settings/security"
+    sec = "/security"
     idp = "/docs/admin-guide/identity-providers"
     cases = {
         sec: "/docs/admin-guide/security/",
         f"{sec}/sessions": "/docs/admin-guide/security/sessions/",
         f"{sec}/certificates": "/docs/admin-guide/security/certificates/",
         f"{sec}/permissions": "/docs/admin-guide/security/permissions/",
-        "/admin/settings/privileged-domains": f"{idp}/privileged-domains/",
-        "/admin/settings/identity-providers": f"{idp}/",
-        "/admin/settings/service-providers": "/docs/admin-guide/service-providers/",
-        "/admin/settings/branding": "/docs/admin-guide/branding/",
-        "/admin/groups": "/docs/admin-guide/groups/",
-        "/admin/audit": "/docs/admin-guide/audit/",
-        "/admin/integrations": "/docs/admin-guide/integrations/",
+        "/identity-providers/domain-routing": f"{idp}/privileged-domains/",
+        "/identity-providers/saml": f"{idp}/",
+        "/applications/saml": "/docs/admin-guide/service-providers/",
+        "/applications/oauth": "/docs/admin-guide/integrations/apps/",
+        "/applications/service-accounts": "/docs/admin-guide/integrations/b2b/",
+        "/settings/branding": "/docs/admin-guide/branding/",
+        "/groups": "/docs/admin-guide/groups/",
+        "/audit": "/docs/admin-guide/audit/",
     }
     for path, expected_docs in cases.items():
         page = get_page_by_path(path)
@@ -544,7 +625,7 @@ def test_docs_path_set_on_user_pages():
 
 def test_docs_path_set_on_sp_detail_tabs():
     """Test that SP detail tabs have specific docs_path values."""
-    sp = "/admin/settings/service-providers/detail"
+    sp = "/applications/saml/detail"
     docs = "/docs/admin-guide/service-providers"
     cases = {
         f"{sp}/details": f"{docs}/registering-an-sp/",
@@ -560,9 +641,9 @@ def test_docs_path_set_on_sp_detail_tabs():
 def test_docs_path_set_on_group_detail_tabs():
     """Test that group detail tabs have specific docs_path values."""
     cases = {
-        "/admin/groups/detail/membership": "/docs/admin-guide/groups/membership-management/",
-        "/admin/groups/detail/applications": "/docs/admin-guide/groups/group-based-access/",
-        "/admin/groups/detail/relationships": "/docs/admin-guide/groups/group-hierarchy/",
+        "/groups/detail/membership": "/docs/admin-guide/groups/membership-management/",
+        "/groups/detail/applications": "/docs/admin-guide/groups/group-based-access/",
+        "/groups/detail/relationships": "/docs/admin-guide/groups/group-hierarchy/",
     }
     for path, expected_docs in cases.items():
         page = get_page_by_path(path)
@@ -577,15 +658,15 @@ def test_navigation_context_docs_path_direct():
 
 def test_navigation_context_docs_path_inherited():
     """Test that child pages inherit docs_path from nearest ancestor."""
-    # /admin/groups/list has no docs_path, but parent /admin/groups does
-    context = get_navigation_context("/admin/groups/list", "admin")
+    # /groups/list has no docs_path, but parent /groups does
+    context = get_navigation_context("/groups/list", "admin")
     assert context["docs_path"] == "/docs/admin-guide/groups/"
 
 
 def test_navigation_context_docs_path_child_overrides_parent():
     """Test that a child's own docs_path overrides the parent's."""
-    # /admin/groups/detail/membership has its own docs_path
-    context = get_navigation_context("/admin/groups/detail/membership", "admin")
+    # /groups/detail/membership has its own docs_path
+    context = get_navigation_context("/groups/detail/membership", "admin")
     assert context["docs_path"] == "/docs/admin-guide/groups/membership-management/"
 
 
@@ -603,9 +684,361 @@ def test_navigation_context_docs_path_unknown_path():
 
 def test_navigation_context_docs_path_idp_detail_inherited():
     """Test IdP detail tabs inherit from IdP detail parent."""
-    # /admin/settings/identity-providers/idp/details has no docs_path,
-    # but its parent /admin/settings/identity-providers/idp does
-    context = get_navigation_context(
-        "/admin/settings/identity-providers/idp/details", "super_admin"
-    )
+    # /identity-providers/saml/idp/details has no docs_path,
+    # but its parent /identity-providers/saml/idp does
+    context = get_navigation_context("/identity-providers/saml/idp/details", "super_admin")
     assert context["docs_path"] == "/docs/admin-guide/identity-providers/saml-setup/"
+
+
+# =============================================================================
+# Directory Container Permission Fidelity (nav_restructure Iteration 1)
+# =============================================================================
+
+
+def test_directory_container_page_exists_and_is_authenticated():
+    """The Directory container itself is AUTHENTICATED so it never disappears."""
+    page = get_page_by_path("/directory")
+    assert page is not None
+    assert page.title == "Directory"
+    assert page.permission == PagePermission.AUTHENTICATED
+    assert has_page_access("/directory", "member")
+    assert has_page_access("/directory", "admin")
+    assert has_page_access("/directory", "super_admin")
+    assert not has_page_access("/directory", None)
+
+
+def test_groups_container_moved_to_top_level_keeps_admin_permission():
+    """Groups moved from /admin/groups to /groups but kept its ADMIN permission."""
+    assert get_page_by_path("/admin/groups") is None
+    page = get_page_by_path("/groups")
+    assert page is not None
+    assert page.permission == PagePermission.ADMIN
+    assert not has_page_access("/groups", "member")
+    assert has_page_access("/groups", "admin")
+    assert has_page_access("/groups", "super_admin")
+
+
+def test_requests_container_moved_and_renamed_keeps_admin_permission():
+    """Todo -> Requests moved to /directory/requests, permission unchanged (ADMIN)."""
+    assert get_page_by_path("/admin/todo") is None
+    page = get_page_by_path("/directory/requests")
+    assert page is not None
+    assert page.title == "Requests"
+    assert page.permission == PagePermission.ADMIN
+    assert not has_page_access("/directory/requests", "member")
+    assert has_page_access("/directory/requests", "admin")
+
+
+def test_requests_children_keep_admin_permission():
+    """Reactivation, its history tab, and User Attributes all stay ADMIN."""
+    for path in (
+        "/directory/requests/reactivation",
+        "/directory/requests/reactivation/history",
+        "/directory/requests/user-attributes",
+    ):
+        page = get_page_by_path(path)
+        assert page is not None, f"{path} not registered"
+        assert page.permission == PagePermission.ADMIN
+        assert not has_page_access(path, "member")
+        assert has_page_access(path, "admin")
+
+
+def test_attributes_page_moved_keeps_super_admin_permission():
+    """Settings > User attributes -> /directory/attributes, still SUPER_ADMIN only."""
+    assert get_page_by_path("/admin/settings/user-attributes") is None
+    page = get_page_by_path("/directory/attributes")
+    assert page is not None
+    assert page.permission == PagePermission.SUPER_ADMIN
+    assert not has_page_access("/directory/attributes", "admin")
+    assert has_page_access("/directory/attributes", "super_admin")
+
+
+def test_exports_page_moved_keeps_admin_permission():
+    """Audit > User Export -> /directory/exports, still ADMIN (unchanged)."""
+    assert get_page_by_path("/admin/audit/user-export") is None
+    page = get_page_by_path("/directory/exports")
+    assert page is not None
+    assert page.permission == PagePermission.ADMIN
+    assert not has_page_access("/directory/exports", "member")
+    assert has_page_access("/directory/exports", "admin")
+
+
+def test_users_new_add_user_removed_from_nav_but_permission_unchanged():
+    """Add User is now a button, not a nav item, but keeps its ADMIN permission."""
+    page = get_page_by_path("/users/new")
+    assert page is not None
+    assert page.permission == PagePermission.ADMIN
+    assert page.show_in_nav is False
+
+
+def test_groups_new_add_group_removed_from_nav_but_permission_unchanged():
+    """Add Group is now a button, not a nav item, but keeps its ADMIN permission."""
+    page = get_page_by_path("/groups/new")
+    assert page is not None
+    assert page.permission == PagePermission.ADMIN
+    assert page.show_in_nav is False
+
+
+# =============================================================================
+# Identity Providers Container Permission Fidelity (nav_restructure Iteration 2)
+# =============================================================================
+
+
+def test_identity_providers_container_permission_is_admin():
+    """The Identity Providers container is ADMIN, not SUPER_ADMIN.
+
+    Domain Routing is ADMIN-accessible, which pins the container's own
+    permission down to ADMIN per the permission fidelity rule, even though
+    its SAML and OIDC siblings are SUPER_ADMIN only.
+    """
+    page = get_page_by_path("/identity-providers")
+    assert page is not None
+    assert page.title == "Identity Providers"
+    assert page.permission == PagePermission.ADMIN
+    assert not has_page_access("/identity-providers", "member")
+    assert has_page_access("/identity-providers", "admin")
+    assert has_page_access("/identity-providers", "super_admin")
+
+
+def test_saml_and_oidc_are_sibling_tabs_with_symmetric_naming():
+    """SAML and OIDC are children of Identity Providers with parallel titles."""
+    saml_page = get_page_by_path("/identity-providers/saml")
+    oidc_page = get_page_by_path("/identity-providers/oidc")
+    assert saml_page is not None
+    assert oidc_page is not None
+    assert saml_page.title == "SAML"
+    assert oidc_page.title == "OIDC"
+    assert saml_page.permission == PagePermission.SUPER_ADMIN
+    assert oidc_page.permission == PagePermission.SUPER_ADMIN
+
+    container = get_page_by_path("/identity-providers")
+    assert container is not None
+    assert container.children is not None
+    child_paths = [child.path for child in container.children]
+    assert "/identity-providers/saml" in child_paths
+    assert "/identity-providers/oidc" in child_paths
+    assert "/identity-providers/domain-routing" in child_paths
+
+
+def test_saml_moved_from_admin_settings_keeps_super_admin_permission():
+    """SAML identity providers moved from /admin/settings/identity-providers."""
+    assert get_page_by_path("/admin/settings/identity-providers") is None
+    assert not has_page_access("/admin/settings/identity-providers", "super_admin")
+    assert has_page_access("/identity-providers/saml", "super_admin")
+    assert not has_page_access("/identity-providers/saml", "admin")
+
+
+def test_saml_idp_detail_children_keep_super_admin_permission():
+    """Details, Certificates, Attributes, Metadata, SCIM, Disable/Delete stay SUPER_ADMIN."""
+    for path in (
+        "/identity-providers/saml/new",
+        "/identity-providers/saml/idp/details",
+        "/identity-providers/saml/idp/certificates",
+        "/identity-providers/saml/idp/attributes",
+        "/identity-providers/saml/idp/metadata",
+        "/identity-providers/saml/idp/scim",
+        "/identity-providers/saml/idp/danger",
+    ):
+        page = get_page_by_path(path)
+        assert page is not None, f"{path} not registered"
+        assert page.permission == PagePermission.SUPER_ADMIN
+        assert not has_page_access(path, "admin")
+        assert has_page_access(path, "super_admin")
+
+
+def test_oidc_moved_from_admin_settings_keeps_super_admin_permission():
+    """OIDC identity providers moved from /admin/settings/oidc-identity-providers."""
+    assert get_page_by_path("/admin/settings/oidc-identity-providers") is None
+    assert not has_page_access("/admin/settings/oidc-identity-providers", "super_admin")
+    assert has_page_access("/identity-providers/oidc", "super_admin")
+    assert not has_page_access("/identity-providers/oidc", "admin")
+
+
+def test_oidc_connection_detail_children_keep_super_admin_permission():
+    """Add, Details, Claim Mapping, Disable/Delete all stay SUPER_ADMIN."""
+    for path in (
+        "/identity-providers/oidc/new",
+        "/identity-providers/oidc/connection/details",
+        "/identity-providers/oidc/connection/claim-mapping",
+        "/identity-providers/oidc/connection/danger",
+    ):
+        page = get_page_by_path(path)
+        assert page is not None, f"{path} not registered"
+        assert page.permission == PagePermission.SUPER_ADMIN
+        assert not has_page_access(path, "admin")
+        assert has_page_access(path, "super_admin")
+
+
+def test_domain_routing_moved_and_renamed_keeps_admin_permission():
+    """Privileged Domains -> Domain Routing, moved and renamed, still ADMIN."""
+    assert get_page_by_path("/admin/settings/privileged-domains") is None
+    page = get_page_by_path("/identity-providers/domain-routing")
+    assert page is not None
+    assert page.title == "Domain Routing"
+    assert page.permission == PagePermission.ADMIN
+    assert not has_page_access("/identity-providers/domain-routing", "member")
+    assert has_page_access("/identity-providers/domain-routing", "admin")
+
+
+def test_identity_providers_first_accessible_child_by_role():
+    """Domain Routing is the only child an admin can see; super_admin sees SAML."""
+    assert get_first_accessible_child("/identity-providers", "admin") == (
+        "/identity-providers/domain-routing"
+    )
+    assert get_first_accessible_child("/identity-providers", "super_admin") == (
+        "/identity-providers/saml"
+    )
+
+
+# =============================================================================
+# Security, Audit, Settings Promoted to Top-Level; /admin Removed
+# (nav_restructure Iteration 4)
+# =============================================================================
+
+
+def test_security_promoted_to_top_level():
+    """Security moved from /admin/settings/security to /security, unchanged permission."""
+    assert get_page_by_path("/admin/settings/security") is None
+    page = get_page_by_path("/security")
+    assert page is not None
+    assert page.title == "Security"
+    assert page.permission == PagePermission.SUPER_ADMIN
+    assert not has_page_access("/security", "admin")
+    assert has_page_access("/security", "super_admin")
+
+
+def test_security_children_keep_super_admin_permission():
+    """Sessions, Certificates, Passwords, Permissions, Authentication all stay SUPER_ADMIN."""
+    for path in (
+        "/security/sessions",
+        "/security/certificates",
+        "/security/passwords",
+        "/security/permissions",
+        "/security/authentication",
+    ):
+        page = get_page_by_path(path)
+        assert page is not None, f"{path} not registered"
+        assert page.permission == PagePermission.SUPER_ADMIN
+        assert not has_page_access(path, "admin")
+        assert has_page_access(path, "super_admin")
+
+
+def test_audit_promoted_to_top_level():
+    """Audit moved from /admin/audit to /audit; User Export moved out in Iteration 1."""
+    assert get_page_by_path("/admin/audit") is None
+    page = get_page_by_path("/audit")
+    assert page is not None
+    assert page.title == "Audit"
+    assert page.permission == PagePermission.ADMIN
+    assert not has_page_access("/audit", "member")
+    assert has_page_access("/audit", "admin")
+
+    child_paths = [child.path for child in page.children]
+    assert child_paths == ["/audit/events", "/audit/saml-debug"]
+
+
+def test_audit_events_keeps_admin_permission():
+    """Event Log stays ADMIN (unchanged from /admin/audit/events)."""
+    assert get_page_by_path("/admin/audit/events") is None
+    page = get_page_by_path("/audit/events")
+    assert page is not None
+    assert page.permission == PagePermission.ADMIN
+    assert has_page_access("/audit/events", "admin")
+
+
+def test_audit_saml_debug_stays_super_admin():
+    """SAML Debug Log stays SUPER_ADMIN (unchanged from /admin/audit/saml-debug)."""
+    assert get_page_by_path("/admin/audit/saml-debug") is None
+    page = get_page_by_path("/audit/saml-debug")
+    assert page is not None
+    assert page.permission == PagePermission.SUPER_ADMIN
+    assert not has_page_access("/audit/saml-debug", "admin")
+    assert has_page_access("/audit/saml-debug", "super_admin")
+
+
+def test_settings_narrowed_to_branding_and_about():
+    """Settings narrowed to Branding + About, promoted to top-level from /admin/settings."""
+    assert get_page_by_path("/admin/settings") is None
+    page = get_page_by_path("/settings")
+    assert page is not None
+    assert page.title == "Settings"
+    assert page.permission == PagePermission.ADMIN
+
+    child_paths = [child.path for child in page.children]
+    assert child_paths == ["/settings/branding", "/settings/about"]
+
+
+def test_settings_branding_and_about_keep_admin_permission():
+    """Branding (and its tabs) and About all stay ADMIN (unchanged)."""
+    assert get_page_by_path("/admin/settings/branding") is None
+    assert get_page_by_path("/admin/settings/about") is None
+    for path in (
+        "/settings/branding",
+        "/settings/branding/global",
+        "/settings/branding/groups",
+        "/settings/about",
+    ):
+        page = get_page_by_path(path)
+        assert page is not None, f"{path} not registered"
+        assert page.permission == PagePermission.ADMIN
+        assert not has_page_access(path, "member")
+        assert has_page_access(path, "admin")
+
+
+def test_admin_wrapper_fully_removed():
+    """The /admin top-level page no longer exists as a concept."""
+    assert get_page_by_path("/admin") is None
+    assert not has_page_access("/admin", "super_admin")
+
+
+def test_no_page_anywhere_in_the_registry_lives_under_admin():
+    """Nothing may sit under /admin -- it survives only as a legacy redirect.
+
+    The per-section tests each check one retired path; this catches any page
+    reintroduced under /admin by later work, wherever it is nested.
+    """
+    offenders = [
+        page.path
+        for page in get_all_pages(PAGES)
+        if page.path == "/admin" or page.path.startswith("/admin/")
+    ]
+
+    assert offenders == []
+
+
+def test_security_get_all_paths():
+    """Test get_all_paths includes all Security pages."""
+    page = get_page_by_path("/security")
+    all_paths = page.get_all_paths()
+    assert all_paths == [
+        "/security",
+        "/security/sessions",
+        "/security/certificates",
+        "/security/passwords",
+        "/security/permissions",
+        "/security/authentication",
+    ]
+
+
+def test_audit_get_all_paths():
+    """Test get_all_paths includes all Audit pages."""
+    page = get_page_by_path("/audit")
+    all_paths = page.get_all_paths()
+    assert "/audit" in all_paths
+    assert "/audit/events" in all_paths
+    assert "/audit/events/detail" in all_paths
+    assert "/audit/saml-debug" in all_paths
+    assert "/audit/saml-debug/entry" in all_paths
+
+
+def test_settings_get_all_paths():
+    """Test get_all_paths includes all Settings pages."""
+    page = get_page_by_path("/settings")
+    all_paths = page.get_all_paths()
+    assert all_paths == [
+        "/settings",
+        "/settings/branding",
+        "/settings/branding/global",
+        "/settings/branding/groups",
+        "/settings/about",
+    ]

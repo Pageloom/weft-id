@@ -50,7 +50,7 @@
         {% endif %}
 
         {% if available_keys %}
-        <form method="get" action="/admin/todo/user-attributes" class="mb-6 flex items-center gap-3">
+        <form method="get" action="/directory/requests/user-attributes" class="mb-6 flex items-center gap-3">
             <label for="filter-key" class="text-sm text-gray-700 dark:text-gray-300">Filter by missing key:</label>
             <select id="filter-key" name="filter_key" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100">
                 <option value="">(all)</option>
@@ -60,7 +60,7 @@
             </select>
             <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">Apply</button>
             {% if filter_key %}
-            <a href="/admin/todo/user-attributes" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Clear</a>
+            <a href="/directory/requests/user-attributes" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Clear</a>
             {% endif %}
         </form>
         {% endif %}
@@ -73,7 +73,7 @@
             </p>
         </div>
         {% else %}
-        <form method="post" action="/admin/todo/user-attributes/force-complete" id="force-complete-form">
+        <form method="post" action="/directory/requests/user-attributes/force-complete" id="force-complete-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="border-t border-gray-200 dark:border-gray-700 overflow-x-auto">

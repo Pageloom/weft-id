@@ -5,7 +5,7 @@
 {% block content %}
 <div class="max-w-4xl space-y-6">
     <div>
-        <a href="/admin/settings/proxy-apps" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to Proxy Apps</a>
+        <a href="/applications/forward-auth/apps" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to Proxy Apps</a>
         <h1 class="text-2xl font-semibold mt-2 text-gray-900 dark:text-gray-100">{{ app.name }}</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
             <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">{{ app.external_url }}</code>
@@ -28,7 +28,7 @@
     {# Configuration #}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Configuration</h2>
-        <form method="post" action="/admin/settings/proxy-apps/detail/{{ app.id }}/edit" class="space-y-4">
+        <form method="post" action="/applications/forward-auth/apps/detail/{{ app.id }}/edit" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">App name</label>
@@ -91,7 +91,7 @@
         </p>
 
         {% if available_groups %}
-        <form method="post" action="/admin/settings/proxy-apps/detail/{{ app.id }}/grants/add" class="mb-4 flex gap-3">
+        <form method="post" action="/applications/forward-auth/apps/detail/{{ app.id }}/grants/add" class="mb-4 flex gap-3">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <select name="group_id" required
                     class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
@@ -119,7 +119,7 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ grant.group_description }}</p>
                     {% endif %}
                 </div>
-                <form method="post" action="/admin/settings/proxy-apps/detail/{{ app.id }}/grants/{{ grant.group_id }}/remove">
+                <form method="post" action="/applications/forward-auth/apps/detail/{{ app.id }}/grants/{{ grant.group_id }}/remove">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400"
                             data-confirm="Remove group '{{ grant.group_name }}' from {{ app.name }}?&#10;&#10;Users in this group will lose access."

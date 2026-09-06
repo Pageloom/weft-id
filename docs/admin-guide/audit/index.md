@@ -1,6 +1,6 @@
 # Audit
 
-Review a complete event log of all actions taken in your tenant. Navigate to **Audit > Events**.
+Review a complete event log of all actions taken in your tenant. Navigate to **Audit > Event Log**.
 
 ## Event log
 
@@ -41,7 +41,7 @@ Files are retained for 24 hours, then automatically deleted. Admin role required
 
 ## User export
 
-Export a comprehensive snapshot of all users, group memberships, and application access. Navigate to **Audit > User Export** and click **Export Users**.
+Export a comprehensive snapshot of all users, group memberships, and application access. Navigate to **Directory > Exports** and click **Export Users**.
 
 The export produces a password-encrypted XLSX workbook with three sheets:
 
@@ -53,7 +53,7 @@ The export runs as a background job, same as event log exports. See [Background 
 
 ## SAML debug log
 
-Navigate to **Audit > SAML Debug** to view a log of SAML authentication failures. Each entry shows the error type, identity provider, timestamp, and the raw SAML response XML for troubleshooting.
+Navigate to **Audit > SAML Debug Log** to view a log of SAML authentication failures. Each entry shows the error type, identity provider, timestamp, and the raw SAML response XML for troubleshooting.
 
 By default, only failures are logged. To temporarily log successful assertions (for debugging attribute mapping or encryption), enable **Verbose logging** on the identity provider's detail page.
 

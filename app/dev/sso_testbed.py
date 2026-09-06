@@ -530,11 +530,11 @@ def _print_summary(log, idp_subdomain: str, sp_subdomain: str, sp_id: str):
     log.info("  5. Redirected back to SP, logged in via JIT")
     log.info("")
     log.info("Admin pages:")
-    log.info("  SPs:  %s/admin/settings/service-providers", idp_url)
-    log.info("  IdPs: %s/admin/settings/identity-providers", sp_url)
+    log.info("  SPs:  %s/applications/saml", idp_url)
+    log.info("  IdPs: %s/identity-providers/saml", sp_url)
     log.info("")
     log.info("IdP metadata: %s/saml/idp/metadata/%s", idp_url, sp_id)
-    log.info("SP metadata:  %s/admin/settings/identity-providers (per-IdP URLs)", sp_url)
+    log.info("SP metadata:  %s/identity-providers/saml (per-IdP URLs)", sp_url)
 
 
 # ---------------------------------------------------------------------------

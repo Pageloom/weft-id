@@ -25,7 +25,7 @@
             </p>
         </div>
 
-        <form method="post" action="/admin/settings/service-providers/create">
+        <form method="post" action="/applications/saml/create">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="space-y-4">
                 <div>
@@ -40,7 +40,7 @@
                     </p>
                 </div>
                 <div class="flex justify-end gap-3 pt-4">
-                    <a href="/admin/settings/service-providers"
+                    <a href="/applications/saml"
                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                         Cancel
                     </a>

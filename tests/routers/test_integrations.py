@@ -1,4 +1,8 @@
-"""Tests for routers/integrations.py endpoints."""
+"""Tests for routers/integrations.py endpoints (mounted at /applications/*).
+
+The module is still named integrations.py for historical reasons -- see its
+docstring and .claude/ITERATION_nav_restructure.md.
+"""
 
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -17,26 +21,64 @@ SERVICES_OAUTH2 = "services.oauth2"
 # =============================================================================
 
 
-def test_integrations_index_redirects_to_apps(test_admin_user, override_auth):
-    """Test integrations index redirects to apps tab."""
+def test_applications_index_redirects_to_oauth(test_admin_user, override_auth):
+    """Test the /applications/ index redirects a plain admin to OAuth2 / OIDC.
+
+    A plain admin can't see SAML/Forward Auth/Service Accounts (super_admin
+    only), so OAuth2 / OIDC -- the only child they have access to -- must be
+    the fallback destination.
+    """
     override_auth(test_admin_user, level="admin")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/", follow_redirects=False)
+    response = client.get("/applications/", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin/integrations/apps"
+    assert response.headers["location"] == "/applications/oauth"
 
 
-def test_integrations_index_fallback_to_dashboard(test_admin_user, override_auth, mocker):
-    """Test integrations index falls back to dashboard when no accessible children."""
+def test_applications_index_redirects_super_admin_to_saml(test_super_admin_user, override_auth):
+    """Test the /applications/ index redirects a super_admin to SAML."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    client = TestClient(app)
+    response = client.get("/applications/", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/applications/saml"
+
+
+def test_applications_index_fallback_to_dashboard(test_admin_user, override_auth, mocker):
+    """Test the /applications/ index falls back to dashboard with no accessible children."""
     override_auth(test_admin_user, level="admin")
 
     mock_first = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_first_accessible_child")
     mock_first.return_value = None
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/", follow_redirects=False)
+    response = client.get("/applications/", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+
+
+def test_forward_auth_index_redirects_to_domains(test_super_admin_user, override_auth):
+    """Test the /applications/forward-auth index redirects to the Domains tab."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    client = TestClient(app)
+    response = client.get("/applications/forward-auth", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/applications/forward-auth/domains"
+
+
+def test_forward_auth_index_non_super_admin_fallback_to_dashboard(test_admin_user, override_auth):
+    """Test the /applications/forward-auth index falls back to dashboard for a plain admin."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.get("/applications/forward-auth", follow_redirects=False)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/dashboard"
@@ -60,7 +102,7 @@ def test_apps_list_renders(test_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>apps</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/apps")
+    response = client.get("/applications/oauth")
 
     assert response.status_code == 200
     mock_get.assert_called_once_with(str(test_admin_user["tenant_id"]), client_type="normal")
@@ -97,7 +139,7 @@ def test_apps_list_with_clients(test_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>apps</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/apps")
+    response = client.get("/applications/oauth")
 
     assert response.status_code == 200
     # Verify clients passed to template context
@@ -110,7 +152,7 @@ def test_apps_list_non_admin_redirects(test_user, override_auth):
     override_auth(test_user, level="admin")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/apps", follow_redirects=False)
+    response = client.get("/applications/oauth", follow_redirects=False)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/dashboard"
@@ -143,7 +185,7 @@ def test_apps_create_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/create",
+        "/applications/oauth/create",
         data={
             "name": "New App",
             "redirect_uris": "https://example.com/callback",
@@ -154,7 +196,7 @@ def test_apps_create_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert "/admin/integrations/apps" in response.headers["location"]
+    assert "/applications/oauth" in response.headers["location"]
     assert "success=created" in response.headers["location"]
 
     mock_create.assert_called_once_with(
@@ -188,7 +230,7 @@ def test_apps_create_with_description(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/create",
+        "/applications/oauth/create",
         data={
             "name": "Described App",
             "redirect_uris": "https://example.com/callback",
@@ -228,7 +270,7 @@ def test_apps_create_multiple_redirect_uris(test_admin_user, override_auth, mock
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/create",
+        "/applications/oauth/create",
         data={
             "name": "Multi URI App",
             "redirect_uris": "https://example.com/callback\nhttps://example.com/auth/redirect",
@@ -277,7 +319,7 @@ def test_apps_create_validation_error(test_admin_user, override_auth, form_data,
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/create",
+        "/applications/oauth/create",
         data=form_data,
         follow_redirects=False,
     )
@@ -297,7 +339,7 @@ def test_apps_create_service_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/create",
+        "/applications/oauth/create",
         data={
             "name": "Fail App",
             "redirect_uris": "https://example.com/callback",
@@ -317,7 +359,7 @@ def test_apps_create_non_admin_redirects(test_user, override_auth):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/create",
+        "/applications/oauth/create",
         data={
             "name": "Test",
             "redirect_uris": "https://example.com/callback",
@@ -349,7 +391,7 @@ def test_b2b_list_renders(test_super_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>b2b</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/b2b")
+    response = client.get("/applications/service-accounts")
 
     assert response.status_code == 200
     mock_get.assert_called_once_with(str(test_super_admin_user["tenant_id"]), client_type="b2b")
@@ -363,7 +405,7 @@ def test_b2b_list_admin_redirects(test_admin_user, override_auth):
     override_auth(test_admin_user, level="admin")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/b2b", follow_redirects=False)
+    response = client.get("/applications/service-accounts", follow_redirects=False)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/dashboard"
@@ -374,7 +416,7 @@ def test_b2b_list_non_admin_redirects(test_user, override_auth):
     override_auth(test_user, level="admin")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/b2b", follow_redirects=False)
+    response = client.get("/applications/service-accounts", follow_redirects=False)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/dashboard"
@@ -407,7 +449,7 @@ def test_b2b_create_success(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/create",
+        "/applications/service-accounts/create",
         data={
             "name": "New B2B Client",
             "role": "admin",
@@ -418,7 +460,7 @@ def test_b2b_create_success(test_super_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert "/admin/integrations/b2b" in response.headers["location"]
+    assert "/applications/service-accounts" in response.headers["location"]
     assert "success=created" in response.headers["location"]
 
     mock_create.assert_called_once_with(
@@ -452,7 +494,7 @@ def test_b2b_create_with_description(test_super_admin_user, override_auth, mocke
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/create",
+        "/applications/service-accounts/create",
         data={
             "name": "Described B2B",
             "role": "member",
@@ -473,7 +515,7 @@ def test_b2b_create_empty_name_redirects_with_error(test_super_admin_user, overr
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/create",
+        "/applications/service-accounts/create",
         data={
             "name": "",
             "role": "member",
@@ -493,7 +535,7 @@ def test_b2b_create_invalid_role_redirects_with_error(test_super_admin_user, ove
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/create",
+        "/applications/service-accounts/create",
         data={
             "name": "Test B2B",
             "role": "invalid_role",
@@ -518,7 +560,7 @@ def test_b2b_create_service_error(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/create",
+        "/applications/service-accounts/create",
         data={
             "name": "Fail B2B",
             "role": "member",
@@ -538,7 +580,7 @@ def test_b2b_create_non_admin_redirects(test_user, override_auth):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/create",
+        "/applications/service-accounts/create",
         data={
             "name": "Test",
             "role": "member",
@@ -571,7 +613,7 @@ def test_apps_list_pops_pending_credentials(test_admin_user, override_auth, mock
 
     # Verify template context is called with pending_credentials
     client = TestClient(app)
-    response = client.get("/admin/integrations/apps?success=created")
+    response = client.get("/applications/oauth?success=created")
 
     assert response.status_code == 200
     # The pending_credentials should be passed to template context
@@ -593,7 +635,7 @@ def test_b2b_list_pops_pending_credentials(test_super_admin_user, override_auth,
     mock_tmpl.return_value = HTMLResponse(content="<html>b2b</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/b2b?success=created")
+    response = client.get("/applications/service-accounts?success=created")
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
@@ -635,7 +677,7 @@ def test_app_detail_renders(test_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>detail</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/apps/weft-id_client_detail123")
+    response = client.get("/applications/oauth/weft-id_client_detail123")
 
     assert response.status_code == 200
     mock_tmpl.assert_called_once()
@@ -653,7 +695,7 @@ def test_app_detail_not_found_redirects(test_admin_user, override_auth, mocker):
     mock_get.return_value = None
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/apps/nonexistent", follow_redirects=False)
+    response = client.get("/applications/oauth/nonexistent", follow_redirects=False)
 
     assert response.status_code == 303
     assert "error=not_found" in response.headers["location"]
@@ -679,7 +721,7 @@ def test_app_detail_wrong_type_redirects(test_admin_user, override_auth, mocker)
     mock_get.return_value = mock_client
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/apps/weft-id_b2b_wrong", follow_redirects=False)
+    response = client.get("/applications/oauth/weft-id_b2b_wrong", follow_redirects=False)
 
     assert response.status_code == 303
     assert "error=not_found" in response.headers["location"]
@@ -711,7 +753,7 @@ def test_app_edit_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/weft-id_client_edit123/edit",
+        "/applications/oauth/weft-id_client_edit123/edit",
         data={
             "name": "Updated Name",
             "description": "Updated desc",
@@ -732,7 +774,7 @@ def test_app_edit_empty_name_returns_error(test_admin_user, override_auth):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/weft-id_client_edit123/edit",
+        "/applications/oauth/weft-id_client_edit123/edit",
         data={
             "name": "",
             "description": "",
@@ -752,7 +794,7 @@ def test_app_edit_empty_uris_returns_error(test_admin_user, override_auth):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/weft-id_client_edit123/edit",
+        "/applications/oauth/weft-id_client_edit123/edit",
         data={
             "name": "Test",
             "description": "",
@@ -794,7 +836,7 @@ def test_app_regenerate_secret_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/weft-id_client_regen123/regenerate-secret",
+        "/applications/oauth/weft-id_client_regen123/regenerate-secret",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -812,7 +854,7 @@ def test_app_regenerate_secret_not_found(test_admin_user, override_auth, mocker)
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/nonexistent/regenerate-secret",
+        "/applications/oauth/nonexistent/regenerate-secret",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -847,7 +889,7 @@ def test_app_deactivate_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/weft-id_client_deact123/deactivate",
+        "/applications/oauth/weft-id_client_deact123/deactivate",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -877,7 +919,7 @@ def test_app_reactivate_success(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/weft-id_client_react123/reactivate",
+        "/applications/oauth/weft-id_client_react123/reactivate",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -917,7 +959,7 @@ def test_b2b_detail_renders(test_super_admin_user, override_auth, mocker):
     mock_tmpl.return_value = HTMLResponse(content="<html>b2b detail</html>")
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/b2b/weft-id_b2b_detail123")
+    response = client.get("/applications/service-accounts/weft-id_b2b_detail123")
 
     assert response.status_code == 200
     mock_tmpl.assert_called_once()
@@ -933,7 +975,7 @@ def test_b2b_detail_not_found_redirects(test_super_admin_user, override_auth, mo
     mock_get.return_value = None
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/b2b/nonexistent", follow_redirects=False)
+    response = client.get("/applications/service-accounts/nonexistent", follow_redirects=False)
 
     assert response.status_code == 303
     assert "error=not_found" in response.headers["location"]
@@ -965,7 +1007,7 @@ def test_b2b_edit_success(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
+        "/applications/service-accounts/weft-id_b2b_edit123/edit",
         data={
             "name": "Updated B2B Name",
             "description": "Updated desc",
@@ -1005,7 +1047,7 @@ def test_b2b_role_change_success(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_role123/role",
+        "/applications/service-accounts/weft-id_b2b_role123/role",
         data={
             "role": "super_admin",
             "csrf_token": "test-token",
@@ -1023,7 +1065,7 @@ def test_b2b_role_change_invalid_role(test_super_admin_user, override_auth):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_role123/role",
+        "/applications/service-accounts/weft-id_b2b_role123/role",
         data={
             "role": "invalid_role",
             "csrf_token": "test-token",
@@ -1063,7 +1105,7 @@ def test_b2b_regenerate_secret_success(test_super_admin_user, override_auth, moc
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_regen123/regenerate-secret",
+        "/applications/service-accounts/weft-id_b2b_regen123/regenerate-secret",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -1090,7 +1132,7 @@ def test_b2b_deactivate_success(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_deact123/deactivate",
+        "/applications/service-accounts/weft-id_b2b_deact123/deactivate",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -1117,7 +1159,7 @@ def test_b2b_reactivate_success(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_react123/reactivate",
+        "/applications/service-accounts/weft-id_b2b_react123/reactivate",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -1140,7 +1182,7 @@ def test_app_edit_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/weft-id_client_missing/edit",
+        "/applications/oauth/weft-id_client_missing/edit",
         data={
             "name": "Updated Name",
             "description": "",
@@ -1165,7 +1207,7 @@ def test_app_edit_service_error(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/weft-id_client_edit123/edit",
+        "/applications/oauth/weft-id_client_edit123/edit",
         data={
             "name": "Updated Name",
             "description": "",
@@ -1188,7 +1230,7 @@ def test_app_deactivate_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/nonexistent/deactivate",
+        "/applications/oauth/nonexistent/deactivate",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -1206,7 +1248,7 @@ def test_app_reactivate_not_found(test_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/nonexistent/reactivate",
+        "/applications/oauth/nonexistent/reactivate",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -1221,7 +1263,7 @@ def test_b2b_edit_empty_name(test_super_admin_user, override_auth):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
+        "/applications/service-accounts/weft-id_b2b_edit123/edit",
         data={
             "name": "   ",
             "description": "",
@@ -1243,7 +1285,7 @@ def test_b2b_edit_not_found(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_missing/edit",
+        "/applications/service-accounts/weft-id_b2b_missing/edit",
         data={
             "name": "Updated Name",
             "description": "",
@@ -1267,7 +1309,7 @@ def test_b2b_edit_service_error(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
+        "/applications/service-accounts/weft-id_b2b_edit123/edit",
         data={
             "name": "Updated Name",
             "description": "",
@@ -1289,7 +1331,7 @@ def test_b2b_role_change_not_found(test_super_admin_user, override_auth, mocker)
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_role123/role",
+        "/applications/service-accounts/weft-id_b2b_role123/role",
         data={
             "role": "admin",
             "csrf_token": "test-token",
@@ -1312,7 +1354,7 @@ def test_b2b_role_change_service_error(test_super_admin_user, override_auth, moc
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_b2b_role123/role",
+        "/applications/service-accounts/weft-id_b2b_role123/role",
         data={
             "role": "admin",
             "csrf_token": "test-token",
@@ -1345,7 +1387,7 @@ def test_b2b_regenerate_secret_wrong_type(test_super_admin_user, override_auth, 
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/weft-id_client_normal/regenerate-secret",
+        "/applications/service-accounts/weft-id_client_normal/regenerate-secret",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -1363,7 +1405,7 @@ def test_b2b_regenerate_secret_not_found(test_super_admin_user, override_auth, m
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/nonexistent/regenerate-secret",
+        "/applications/service-accounts/nonexistent/regenerate-secret",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -1381,7 +1423,7 @@ def test_b2b_deactivate_not_found(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/nonexistent/deactivate",
+        "/applications/service-accounts/nonexistent/deactivate",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -1399,7 +1441,7 @@ def test_b2b_reactivate_not_found(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/nonexistent/reactivate",
+        "/applications/service-accounts/nonexistent/reactivate",
         data={"csrf_token": "test-token"},
         follow_redirects=False,
     )
@@ -1428,7 +1470,9 @@ def test_b2b_detail_wrong_type(test_super_admin_user, override_auth, mocker):
     mock_get.return_value = mock_client
 
     client = TestClient(app)
-    response = client.get("/admin/integrations/b2b/weft-id_client_normal", follow_redirects=False)
+    response = client.get(
+        "/applications/service-accounts/weft-id_client_normal", follow_redirects=False
+    )
 
     assert response.status_code == 303
     assert "error=not_found" in response.headers["location"]

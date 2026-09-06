@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-IDP_LIST_URL = "/admin/settings/identity-providers"
+IDP_LIST_URL = "/identity-providers/saml"
 
 
 def _load_idp_common(request: Request, tenant_id: str, user: dict, idp_id: str):
@@ -41,7 +41,7 @@ def _load_idp_common(request: Request, tenant_id: str, user: dict, idp_id: str):
 
 
 @router.get(
-    "/admin/settings/identity-providers",
+    "/identity-providers/saml",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -81,7 +81,7 @@ def list_idps(
 
 
 @router.get(
-    "/admin/settings/identity-providers/new",
+    "/identity-providers/saml/new",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -101,7 +101,7 @@ def new_idp_form(
 
 
 @router.post(
-    "/admin/settings/identity-providers/new",
+    "/identity-providers/saml/new",
     dependencies=[Depends(require_super_admin)],
 )
 def create_idp(
@@ -132,7 +132,7 @@ def create_idp(
 
 
 @router.post(
-    "/admin/settings/identity-providers/import-metadata",
+    "/identity-providers/saml/import-metadata",
     dependencies=[Depends(require_super_admin)],
 )
 def import_from_metadata(
@@ -160,7 +160,7 @@ def import_from_metadata(
 
 
 @router.post(
-    "/admin/settings/identity-providers/import-metadata-xml",
+    "/identity-providers/saml/import-metadata-xml",
     dependencies=[Depends(require_super_admin)],
 )
 def import_from_metadata_xml(
@@ -202,7 +202,7 @@ def import_from_metadata_xml(
 
 
 @router.get(
-    "/admin/settings/identity-providers/{idp_id}",
+    "/identity-providers/saml/{idp_id}",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -213,14 +213,14 @@ def idp_detail_redirect(
     idp_id: str,
 ):
     """Redirect to the Details tab."""
-    if not has_page_access("/admin/settings/identity-providers/idp", user.get("role")):
+    if not has_page_access("/identity-providers/saml/idp", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     return safe_redirect(f"{IDP_LIST_URL}/{idp_id}/details")
 
 
 @router.get(
-    "/admin/settings/identity-providers/{idp_id}/details",
+    "/identity-providers/saml/{idp_id}/details",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -231,7 +231,7 @@ def idp_tab_details(
     idp_id: str,
 ):
     """Details tab: name, provider type, entity ID, SSO/SLO URLs, settings, connection test."""
-    if not has_page_access("/admin/settings/identity-providers/idp/details", user.get("role")):
+    if not has_page_access("/identity-providers/saml/idp/details", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     try:
@@ -264,7 +264,7 @@ def idp_tab_details(
 
 
 @router.get(
-    "/admin/settings/identity-providers/{idp_id}/certificates",
+    "/identity-providers/saml/{idp_id}/certificates",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -275,7 +275,7 @@ def idp_tab_certificates(
     idp_id: str,
 ):
     """Certificates tab: IdP certificates with management, SP certificate info."""
-    if not has_page_access("/admin/settings/identity-providers/idp/certificates", user.get("role")):
+    if not has_page_access("/identity-providers/saml/idp/certificates", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     try:
@@ -312,7 +312,7 @@ def idp_tab_certificates(
 
 
 @router.get(
-    "/admin/settings/identity-providers/{idp_id}/attributes",
+    "/identity-providers/saml/{idp_id}/attributes",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -323,7 +323,7 @@ def idp_tab_attributes(
     idp_id: str,
 ):
     """Attributes tab: attribute mapping table with presets."""
-    if not has_page_access("/admin/settings/identity-providers/idp/attributes", user.get("role")):
+    if not has_page_access("/identity-providers/saml/idp/attributes", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     try:
@@ -377,7 +377,7 @@ def idp_tab_attributes(
 
 
 @router.get(
-    "/admin/settings/identity-providers/{idp_id}/metadata",
+    "/identity-providers/saml/{idp_id}/metadata",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -388,7 +388,7 @@ def idp_tab_metadata(
     idp_id: str,
 ):
     """Metadata tab: re-import from URL or XML, last sync status."""
-    if not has_page_access("/admin/settings/identity-providers/idp/metadata", user.get("role")):
+    if not has_page_access("/identity-providers/saml/idp/metadata", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     try:
@@ -411,7 +411,7 @@ def idp_tab_metadata(
 
 
 @router.get(
-    "/admin/settings/identity-providers/{idp_id}/danger",
+    "/identity-providers/saml/{idp_id}/danger",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -422,7 +422,7 @@ def idp_tab_danger(
     idp_id: str,
 ):
     """Danger tab: enable/disable toggle, set default, delete."""
-    if not has_page_access("/admin/settings/identity-providers/idp/danger", user.get("role")):
+    if not has_page_access("/identity-providers/saml/idp/danger", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     try:
@@ -452,7 +452,7 @@ def idp_tab_danger(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/edit",
+    "/identity-providers/saml/{idp_id}/edit",
     dependencies=[Depends(require_super_admin)],
 )
 def edit_idp_name(
@@ -476,7 +476,7 @@ def edit_idp_name(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/edit-slo-url",
+    "/identity-providers/saml/{idp_id}/edit-slo-url",
     dependencies=[Depends(require_super_admin)],
 )
 def edit_idp_slo_url(
@@ -502,7 +502,7 @@ def edit_idp_slo_url(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/edit-settings",
+    "/identity-providers/saml/{idp_id}/edit-settings",
     dependencies=[Depends(require_super_admin)],
 )
 def edit_idp_settings(
@@ -547,7 +547,7 @@ def edit_idp_settings(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/verbose-logging",
+    "/identity-providers/saml/{idp_id}/verbose-logging",
     dependencies=[Depends(require_super_admin)],
 )
 def toggle_verbose_logging(
@@ -576,7 +576,7 @@ def toggle_verbose_logging(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/edit-attributes",
+    "/identity-providers/saml/{idp_id}/edit-attributes",
     dependencies=[Depends(require_super_admin)],
 )
 async def edit_idp_attributes(
@@ -642,7 +642,7 @@ async def edit_idp_attributes(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/reimport-metadata",
+    "/identity-providers/saml/{idp_id}/reimport-metadata",
     dependencies=[Depends(require_super_admin)],
 )
 def reimport_idp_metadata(
@@ -680,7 +680,7 @@ def reimport_idp_metadata(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/toggle",
+    "/identity-providers/saml/{idp_id}/toggle",
     dependencies=[Depends(require_super_admin)],
 )
 def toggle_idp(
@@ -705,7 +705,7 @@ def toggle_idp(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/set-default",
+    "/identity-providers/saml/{idp_id}/set-default",
     dependencies=[Depends(require_super_admin)],
 )
 def set_default_idp(
@@ -728,7 +728,7 @@ def set_default_idp(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/refresh-metadata",
+    "/identity-providers/saml/{idp_id}/refresh-metadata",
     dependencies=[Depends(require_super_admin)],
 )
 def refresh_idp_metadata(
@@ -753,7 +753,7 @@ def refresh_idp_metadata(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/delete",
+    "/identity-providers/saml/{idp_id}/delete",
     dependencies=[Depends(require_super_admin)],
 )
 def delete_idp(
@@ -785,7 +785,7 @@ def delete_idp(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/establish-trust-url",
+    "/identity-providers/saml/{idp_id}/establish-trust-url",
     dependencies=[Depends(require_super_admin)],
 )
 def establish_trust_url(
@@ -817,7 +817,7 @@ def establish_trust_url(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/establish-trust-xml",
+    "/identity-providers/saml/{idp_id}/establish-trust-xml",
     dependencies=[Depends(require_super_admin)],
 )
 def establish_trust_xml(
@@ -849,7 +849,7 @@ def establish_trust_xml(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/establish-trust-manual",
+    "/identity-providers/saml/{idp_id}/establish-trust-manual",
     dependencies=[Depends(require_super_admin)],
 )
 def establish_trust_manual(
@@ -883,7 +883,7 @@ def establish_trust_manual(
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/rotate-sp-certificate",
+    "/identity-providers/saml/{idp_id}/rotate-sp-certificate",
     dependencies=[Depends(require_super_admin)],
 )
 def rotate_idp_sp_certificate(

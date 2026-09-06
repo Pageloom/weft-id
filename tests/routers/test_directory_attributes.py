@@ -1,4 +1,4 @@
-"""Tests for the /admin/settings/user-attributes page route."""
+"""Tests for the /directory/attributes page route."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from main import app
 
-ROUTERS_SETTINGS = "routers.settings"
+ROUTERS_DIRECTORY = "routers.directory"
 SERVICES_SETTINGS = "services.settings"
 UTILS_TEMPLATE = "utils.template_context"
 
@@ -42,8 +42,10 @@ def _make_seed(**overrides) -> list[dict]:
     return rows
 
 
-def test_user_attributes_page_super_admin_renders(test_super_admin_user, override_auth, mocker):
-    """Super admin can load the user attributes settings page."""
+def test_directory_attributes_page_super_admin_renders(
+    test_super_admin_user, override_auth, mocker
+):
+    """Super admin can load the Directory > Attributes page."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(
@@ -51,12 +53,12 @@ def test_user_attributes_page_super_admin_renders(test_super_admin_user, overrid
         return_value=_make_seed(job_title={"enabled": True}),
     )
     mock_template = mocker.patch(
-        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        f"{ROUTERS_DIRECTORY}.templates.TemplateResponse",
         return_value=HTMLResponse(content="<html>user attributes</html>"),
     )
 
     client = TestClient(app)
-    response = client.get("/admin/settings/user-attributes")
+    response = client.get("/directory/attributes")
 
     assert response.status_code == 200
     mock_template.assert_called_once()
@@ -93,8 +95,8 @@ def test_user_attributes_page_super_admin_renders(test_super_admin_user, overrid
         assert field in sample
 
 
-def test_user_attributes_page_admin_forbidden(test_admin_user, override_auth):
-    """Plain admin (non-super) cannot load the user attributes page."""
+def test_directory_attributes_page_admin_forbidden(test_admin_user, override_auth):
+    """Plain admin (non-super) cannot load the Attributes page."""
     # Only override the lower auth dependency, so require_super_admin still blocks.
     from dependencies import (
         get_current_user,
@@ -107,15 +109,15 @@ def test_user_attributes_page_admin_forbidden(test_admin_user, override_auth):
     app.dependency_overrides[require_admin] = lambda: test_admin_user
 
     client = TestClient(app)
-    response = client.get("/admin/settings/user-attributes", follow_redirects=False)
+    response = client.get("/directory/attributes", follow_redirects=False)
     assert response.status_code in (302, 303, 401, 403)
 
 
-def test_user_attributes_page_unauthenticated_redirects_or_blocks(test_tenant_host):
+def test_directory_attributes_page_unauthenticated_redirects_or_blocks(test_tenant_host):
     """Unauthenticated requests are blocked (redirected to login or 401)."""
     client = TestClient(app)
     response = client.get(
-        "/admin/settings/user-attributes",
+        "/directory/attributes",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -123,7 +125,9 @@ def test_user_attributes_page_unauthenticated_redirects_or_blocks(test_tenant_ho
     assert response.status_code in (302, 303, 401, 403)
 
 
-def test_user_attributes_page_full_registry_present(test_super_admin_user, override_auth, mocker):
+def test_directory_attributes_page_full_registry_present(
+    test_super_admin_user, override_auth, mocker
+):
     """The grouped context must include all 14 standard attributes."""
     override_auth(test_super_admin_user, level="super_admin")
 
@@ -132,12 +136,12 @@ def test_user_attributes_page_full_registry_present(test_super_admin_user, overr
         return_value=_make_seed(),
     )
     mock_template = mocker.patch(
-        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        f"{ROUTERS_DIRECTORY}.templates.TemplateResponse",
         return_value=HTMLResponse(content="<html>ok</html>"),
     )
 
     client = TestClient(app)
-    response = client.get("/admin/settings/user-attributes")
+    response = client.get("/directory/attributes")
     assert response.status_code == 200
 
     context = mock_template.call_args.args[2]
@@ -147,13 +151,36 @@ def test_user_attributes_page_full_registry_present(test_super_admin_user, overr
     assert total_attrs == len(ATTRIBUTE_KEYS)
 
 
-def test_user_attributes_registered_in_pages():
-    """The user attributes page must appear in pages.py for navigation/access."""
+def test_directory_attributes_page_service_error(test_super_admin_user, override_auth, mocker):
+    """Test the Attributes page renders an error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+    from services.exceptions import ServiceError
+
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(
+        f"{SERVICES_SETTINGS}.list_tenant_attribute_config",
+        side_effect=ServiceError(message="Database error", code="db_error"),
+    )
+    mock_error = mocker.patch(
+        f"{ROUTERS_DIRECTORY}.render_error_page",
+        return_value=HTMLResponse(content="<html>Error</html>", status_code=500),
+    )
+
+    client = TestClient(app)
+    response = client.get("/directory/attributes")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_directory_attributes_registered_in_pages():
+    """The Attributes page must appear in pages.py for navigation/access."""
     from pages import get_page_by_path, has_page_access
 
-    page = get_page_by_path("/admin/settings/user-attributes")
+    page = get_page_by_path("/directory/attributes")
     assert page is not None
-    assert page.title == "User attributes"
+    assert page.title == "Attributes"
     # Super admin can access; plain admin cannot.
-    assert has_page_access("/admin/settings/user-attributes", "super_admin") is True
-    assert has_page_access("/admin/settings/user-attributes", "admin") is False
+    assert has_page_access("/directory/attributes", "super_admin") is True
+    assert has_page_access("/directory/attributes", "admin") is False

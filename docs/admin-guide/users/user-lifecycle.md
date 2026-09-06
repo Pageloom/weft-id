@@ -38,13 +38,13 @@ There are three ways to reactivate a user:
 **User-requested.** A deactivated user who tries to sign in sees a message explaining their account is deactivated. They can click **Request Reactivation** to submit a request. When they do:
 
 1. All admins receive an email notification with the user's name and email.
-2. The request appears under **Admin > Todo > Reactivation**.
+2. The request appears under **Directory > Requests > Reactivation**.
 3. An admin reviews the request and clicks **Approve** or **Deny**.
 4. The user receives an email with the decision.
 
 Approved users can sign in immediately. Denied users cannot submit another request. They must contact their administrator, who can still reactivate them manually from the user detail page.
 
-Past decisions are visible in the reactivation history view (**Admin > Todo > Reactivation > View History**).
+Past decisions are visible in the reactivation history view (**Directory > Requests > Reactivation > View History**).
 
 ### Account recovery via forgot-password
 
@@ -68,7 +68,7 @@ If your tenant requires certain [profile attributes](../security/user-attributes
 and a user is missing values, an admin can require them to complete their profile
 before they can use the site.
 
-1. Navigate to **Admin > Todo > User attributes**. Each user is listed with the
+1. Navigate to **Directory > Requests > User Attributes**. Each user is listed with the
    missing attributes split by whether the user can fill them (unlocked) or only
    an admin can (locked).
 2. Select users with missing unlocked attributes.

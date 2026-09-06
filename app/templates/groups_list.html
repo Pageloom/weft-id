@@ -9,7 +9,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Groups</h1>
-            <a href="/admin/groups/new" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+            <a href="/groups/new" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
                 + New Group
             </a>
         </div>
@@ -53,7 +53,7 @@
                     Search
                 </button>
                 {% if search %}
-                <a href="/admin/groups/list?view={{ view }}&size={{ pagination.page_size }}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm">
+                <a href="/groups/list?view={{ view }}&size={{ pagination.page_size }}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm">
                     Clear
                 </a>
                 {% endif %}
@@ -288,7 +288,7 @@
                                      width="32" height="32" class="rounded-full shrink-0" alt="">
                                 {% endif %}
                                 <span>
-                                    <a href="/admin/groups/{{ group.id }}" class="text-sm font-medium {% if group.is_valid %}text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300{% else %}text-gray-500 hover:text-gray-700 dark:text-gray-400{% endif %}">
+                                    <a href="/groups/{{ group.id }}" class="text-sm font-medium {% if group.is_valid %}text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300{% else %}text-gray-500 hover:text-gray-700 dark:text-gray-400{% endif %}">
                                         {{ group.name }}
                                     </a>
                                     {% if not group.is_valid %}
@@ -946,7 +946,7 @@ WeftUtils.listManager({
         node.addClass('selected');
         applyOffViewportEdgeLabels();
         hoverTooltip.style.display = 'none';
-        showTooltipForNode(node, `/admin/groups/${node.id()}/relationships`);
+        showTooltipForNode(node, `/groups/${node.id()}/relationships`);
       }
 
       // Pan just enough to bring a node into view, keeping it ~15% in from each

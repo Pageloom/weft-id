@@ -130,7 +130,7 @@ def test_scim_tab_renders(sp_admin_session, sp_host, sample_sp, mocker):
         ),
     ):
         response = sp_admin_session.get(
-            f"/admin/settings/service-providers/{sample_sp.id}/scim",
+            f"/applications/saml/{sample_sp.id}/scim",
             headers={"Host": sp_host},
         )
 
@@ -158,7 +158,7 @@ def test_scim_tab_redirects_non_super_admin(client, sp_user, override_auth, sp_h
     admin_user = {**sp_user, "role": "admin"}
     override_auth(admin_user, level="admin")
     response = client.get(
-        f"/admin/settings/service-providers/{uuid4()}/scim",
+        f"/applications/saml/{uuid4()}/scim",
         headers={"Host": sp_host},
         follow_redirects=False,
     )
@@ -176,10 +176,10 @@ def test_scim_tab_redirects_when_sp_missing(sp_admin_session, sp_host):
         side_effect=NotFoundError(message="missing", code="sp_not_found"),
     ):
         response = sp_admin_session.get(
-            f"/admin/settings/service-providers/{sp_id}/scim",
+            f"/applications/saml/{sp_id}/scim",
             headers={"Host": sp_host},
             follow_redirects=False,
         )
 
     assert response.status_code == 303
-    assert "/admin/settings/service-providers" in response.headers["location"]
+    assert "/applications/saml" in response.headers["location"]

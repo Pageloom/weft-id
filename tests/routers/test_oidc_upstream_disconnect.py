@@ -243,7 +243,7 @@ def test_admin_unlink_user_redirects_success(
     _link(test_tenant, conn, test_user)
 
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/unlink-user/{test_user['id']}",
+        f"/identity-providers/oidc/{conn['id']}/unlink-user/{test_user['id']}",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -267,7 +267,7 @@ def test_danger_tab_renders_linked_users_table(
     _link(test_tenant, conn, test_user)
 
     response = super_admin_session.get(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/danger",
+        f"/identity-providers/oidc/{conn['id']}/danger",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )

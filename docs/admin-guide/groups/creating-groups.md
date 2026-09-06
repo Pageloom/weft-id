@@ -2,8 +2,8 @@
 
 ## Create a group
 
-1. Navigate to **Groups**
-2. Click **Create Group**
+1. Navigate to **Directory > Groups**
+2. Click **New Group**
 3. Enter a name and optional description
 4. Click **Create**
 

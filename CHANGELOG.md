@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   uses the authorization code flow with PKCE only, validates ID tokens against
   the provider's JWKS, and correlates users on a stable subject claim per
   connection so an upstream email change does not create a duplicate account.
-- Admin surface at **Settings > OIDC Identity Providers**: connection list,
+- Admin surface at **Identity Providers > OIDC**: connection list,
   create and edit forms with a provider preset picker, details, claim mapping
   and danger tabs, and a test-connection action that runs real discovery.
 - `/api/v1/oidc-upstream/connections` endpoints for listing, creating, reading,
@@ -44,6 +44,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Admin navigation restructured around concepts, not permissions.** The
+  `Admin` top-level wrapper is gone; the sections it held are now top-level
+  nav items, and a few pages were regrouped or renamed to match. Old URLs
+  still work: every path below issues a permanent (301) redirect to its new
+  location. List/section paths redirect; per-instance detail URLs (e.g. a
+  specific group's or provider's detail page) do not, by design.
+
+  | Old path | New path |
+  |----------|----------|
+  | `/admin/groups*` | `/groups*` |
+  | `/admin/todo*` (renamed **Requests**) | `/directory/requests*` |
+  | `/admin/settings/user-attributes` | `/directory/attributes` |
+  | `/admin/audit/user-export` | `/directory/exports` |
+  | `/admin/settings/identity-providers*` | `/identity-providers/saml*` |
+  | `/admin/settings/oidc-identity-providers*` | `/identity-providers/oidc*` |
+  | `/admin/settings/privileged-domains` (renamed **Domain Routing**) | `/identity-providers/domain-routing` |
+  | `/admin/settings/service-providers*` | `/applications/saml*` |
+  | `/admin/integrations/apps` (renamed **OAuth2 / OIDC**) | `/applications/oauth` |
+  | `/admin/settings/protected-domains*` + `/admin/settings/proxy-apps*` (merged as tabs) | `/applications/forward-auth/domains*` / `/applications/forward-auth/apps*` |
+  | `/admin/integrations/b2b` (renamed **Service Accounts**) | `/applications/service-accounts` |
+  | `/admin/settings/security*` | `/security*` |
+  | `/admin/audit/events*` | `/audit/events*` |
+  | `/admin/audit/saml-debug*` | `/audit/saml-debug*` |
+  | `/admin/settings/branding*` | `/settings/branding*` |
+  | `/admin/settings/about` | `/settings/about` |
+  | `/admin`, `/admin/` | `/dashboard` |
+
+  SAML and OIDC identity providers now render as sibling tabs under
+  **Identity Providers** instead of two unrelated sections. Protected Domains
+  and Proxy Apps are now **Domains** and **Apps** tabs under
+  **Applications > Forward Auth**. `/users*` is unaffected (only its nav
+  grouping changed, under **Directory**). All existing permission levels are
+  unchanged; only navigation location moved.
 - `determine_auth_route` and `AuthRouteResult` moved to protocol-neutral homes
   (`services.auth_routing`, `schemas.auth_routing`) now that login routing
   resolves OIDC connections as well as SAML IdPs. The previous

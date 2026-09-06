@@ -27,7 +27,7 @@ Choosing **Internal** on the consent screen restricts sign-in to your Workspace 
 
 ## Step 2: Configure the WeftID connection
 
-1. In WeftID, go to **Settings > OIDC Identity Providers** and create a connection with provider type **Google**
+1. In WeftID, go to **Identity Providers > OIDC** and create a connection with provider type **Google**
 2. Paste the client ID and client secret
 3. Optionally set a **hosted domain** (see below)
 4. Click **Test connection**, then enable it

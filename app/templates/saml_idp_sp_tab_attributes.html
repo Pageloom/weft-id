@@ -12,7 +12,7 @@
         {% endif %}
     </p>
 
-    <form id="attr-form" method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit-attributes"
+    <form id="attr-form" method="post" action="/applications/saml/{{ sp.id }}/edit-attributes"
           class="space-y-4">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 

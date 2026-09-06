@@ -4,7 +4,7 @@ B2B clients are OAuth2 clients that use the client credentials flow. They're des
 
 ## Creating a B2B client
 
-Navigate to **Admin > Integrations > B2B** and click **Create B2B Client**.
+Navigate to **Applications > Service Accounts** and click **Create B2B Client**.
 
 | Field | Required | Description |
 |-------|----------|-------------|

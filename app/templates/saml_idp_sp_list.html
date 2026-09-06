@@ -12,7 +12,7 @@
                 <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Service Providers (apps)</h1>
                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Applications that authenticate users via SAML SSO</p>
             </div>
-            <a href="/admin/settings/service-providers/new"
+            <a href="/applications/saml/new"
                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                 Add Service Provider
             </a>
@@ -78,7 +78,7 @@
                     {% for sp in service_providers %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700{% if not sp.enabled and sp.trust_established %} opacity-60{% endif %}">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <a href="/admin/settings/service-providers/{{ sp.id }}"
+                            <a href="/applications/saml/{{ sp.id }}"
                                class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2">
                                 {% if sp.has_logo %}
                                 <img src="/branding/sp-logo/{{ sp.id }}{% if sp.logo_updated_at %}?v={{ sp.logo_updated_at.timestamp() | int }}{% endif %}"

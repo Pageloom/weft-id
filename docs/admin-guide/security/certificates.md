@@ -2,7 +2,7 @@
 
 Configure how long newly generated certificates remain valid and when rotation begins.
 
-Navigate to **Settings > Security > Certificates**.
+Navigate to **Security > Certificates**.
 
 ## Validity period
 

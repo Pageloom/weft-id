@@ -1,12 +1,10 @@
 {% extends "settings_security_base.html" %}
 
-{% set active_tab = 'authentication' %}
-
 {% block tab_content %}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
     <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Authentication</h1>
 
-    <form method="post" action="/admin/settings/security/authentication/update">
+    <form method="post" action="/security/authentication/update">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6">

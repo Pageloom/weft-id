@@ -19,7 +19,7 @@ from utils.redirects import safe_redirect
 from utils.service_errors import render_error_page
 
 router = APIRouter(
-    prefix="/admin/groups",
+    prefix="/groups",
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
 )
@@ -39,11 +39,11 @@ def assign_sp(
     try:
         sp_service.assign_sp_to_group(requesting_user, sp_id, group_id)
     except (NotFoundError, ConflictError) as exc:
-        return safe_redirect(f"/admin/groups/{group_id}/applications?error={exc.code}")
+        return safe_redirect(f"/groups/{group_id}/applications?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return safe_redirect(f"/admin/groups/{group_id}/applications?success=sp_assigned")
+    return safe_redirect(f"/groups/{group_id}/applications?success=sp_assigned")
 
 
 @router.post("/{group_id}/applications/{sp_id}/remove")
@@ -60,8 +60,8 @@ def remove_sp(
     try:
         sp_service.remove_sp_group_assignment(requesting_user, sp_id, group_id)
     except NotFoundError as exc:
-        return safe_redirect(f"/admin/groups/{group_id}/applications?error={exc.code}")
+        return safe_redirect(f"/groups/{group_id}/applications?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return safe_redirect(f"/admin/groups/{group_id}/applications?success=sp_removed")
+    return safe_redirect(f"/groups/{group_id}/applications?success=sp_removed")

@@ -26,7 +26,7 @@ from utils.template_context import get_template_context
 from utils.templates import templates
 
 router = APIRouter(
-    prefix="/admin/groups",
+    prefix="/groups",
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
 )
@@ -107,7 +107,7 @@ def group_detail_redirect(
     group_id: str,
 ):
     """Redirect to the details tab."""
-    return safe_redirect(f"/admin/groups/{group_id}/details")
+    return safe_redirect(f"/groups/{group_id}/details")
 
 
 @router.get("/{group_id}/details", response_class=HTMLResponse)
@@ -380,11 +380,11 @@ def update_group(
         group_data = GroupUpdate(name=name, description=description, acronym=acronym)
         groups_service.update_group(requesting_user, group_id, group_data)
     except (ValidationError, ConflictError, NotFoundError) as exc:
-        return safe_redirect(f"/admin/groups/{group_id}/details?error={exc.code}")
+        return safe_redirect(f"/groups/{group_id}/details?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return safe_redirect(f"/admin/groups/{group_id}/details?success=updated")
+    return safe_redirect(f"/groups/{group_id}/details?success=updated")
 
 
 @router.post("/{group_id}/delete")
@@ -401,15 +401,15 @@ def delete_group(
         groups_service.delete_group(requesting_user, group_id)
     except NotFoundError:
         return RedirectResponse(
-            url="/admin/groups/list?error=group_not_found",
+            url="/groups/list?error=group_not_found",
             status_code=303,
         )
     except ValidationError as exc:
-        return safe_redirect(f"/admin/groups/{group_id}/delete?error={exc.code}")
+        return safe_redirect(f"/groups/{group_id}/delete?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url="/admin/groups/list?success=deleted",
+        url="/groups/list?success=deleted",
         status_code=303,
     )

@@ -21,7 +21,7 @@
         </div>
         {% endif %}
 
-        <form method="post" action="/admin/groups/new" class="space-y-6">
+        <form method="post" action="/groups/new" class="space-y-6">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div>
@@ -55,7 +55,7 @@
                         class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition duration-150">
                     Create Group
                 </button>
-                <a href="/admin/groups/list"
+                <a href="/groups/list"
                    class="py-2 px-6 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition duration-150">
                     Cancel
                 </a>

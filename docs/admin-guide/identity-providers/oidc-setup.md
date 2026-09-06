@@ -19,7 +19,7 @@ WeftID uses the authorization code flow with PKCE, and nothing else. There is no
 
 ## Step 1: Create the connection
 
-1. Navigate to **Settings > OIDC Identity Providers**
+1. Navigate to **Identity Providers > OIDC**
 2. Click **Add Connection**
 3. Enter a display name
 4. Select the provider type (Generic, Google, or Entra)

@@ -46,7 +46,7 @@ To include the user's group memberships in the assertion, enable **Send group me
 
 ### Group assertion scope
 
-Which groups are included depends on the **group assertion scope** setting. The tenant-wide default is set in **Settings > Security > [Permissions](../security/permissions.md)**. Each SP can override it on its **Attributes** tab.
+Which groups are included depends on the **group assertion scope** setting. The tenant-wide default is set in **Security > [Permissions](../security/permissions.md)**. Each SP can override it on its **Attributes** tab.
 
 | Scope | What's shared |
 |-------|--------------|

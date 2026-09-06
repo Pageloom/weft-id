@@ -164,3 +164,171 @@ def test_get_template_context_with_admin_user(test_admin_user):
     assert context["user"]["role"] == "admin"
     # Verify navigation was called with admin role
     mock_nav.assert_called_once_with("/admin", "admin")
+
+
+# =============================================================================
+# Requests Nav Badge Count
+# =============================================================================
+
+
+def test_requests_badge_count_zero_for_member(test_user):
+    """Member role never triggers the pending-count queries, and gets 0."""
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/directory/requests"
+    request.session = {"user_id": test_user["id"]}
+
+    with (
+        patch(
+            "utils.template_context.get_navigation_context",
+            return_value={"active_top_level": Mock(path="/directory")},
+        ),
+        patch("services.reactivation.count_pending_requests") as mock_reactivation,
+        patch("services.users.count_users_with_missing_required") as mock_attributes,
+    ):
+        context = get_template_context(request, test_user["tenant_id"])
+
+    assert context["nav"]["requests_badge_count"] == 0
+    mock_reactivation.assert_not_called()
+    mock_attributes.assert_not_called()
+
+
+def test_requests_badge_count_sums_reactivations_and_attributes_for_admin(test_admin_user):
+    """Badge count is the sum of pending reactivations and incomplete profiles."""
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/directory/requests"
+    request.session = {"user_id": test_admin_user["id"]}
+
+    with (
+        patch(
+            "utils.template_context.get_navigation_context",
+            return_value={"active_top_level": Mock(path="/directory")},
+        ),
+        patch("services.reactivation.count_pending_requests", return_value=2) as mock_reactivation,
+        patch(
+            "services.users.count_users_with_missing_required", return_value=3
+        ) as mock_attributes,
+    ):
+        context = get_template_context(request, test_admin_user["tenant_id"])
+
+    assert context["nav"]["requests_badge_count"] == 5
+    mock_reactivation.assert_called_once()
+    mock_attributes.assert_called_once()
+
+
+def test_requests_badge_count_included_for_super_admin(test_super_admin_user):
+    """Super admins also see the summed badge count."""
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/directory/requests"
+    request.session = {"user_id": test_super_admin_user["id"]}
+
+    with (
+        patch(
+            "utils.template_context.get_navigation_context",
+            return_value={"active_top_level": Mock(path="/directory")},
+        ),
+        patch("services.reactivation.count_pending_requests", return_value=1),
+        patch("services.users.count_users_with_missing_required", return_value=0),
+    ):
+        context = get_template_context(request, test_super_admin_user["tenant_id"])
+
+    assert context["nav"]["requests_badge_count"] == 1
+
+
+def test_requests_badge_count_swallows_forbidden_error(test_admin_user):
+    """A ForbiddenError from either count call degrades to 0, not a 500."""
+    from services.exceptions import ForbiddenError
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/directory/requests"
+    request.session = {"user_id": test_admin_user["id"]}
+
+    with (
+        patch(
+            "utils.template_context.get_navigation_context",
+            return_value={"active_top_level": Mock(path="/directory")},
+        ),
+        patch(
+            "services.reactivation.count_pending_requests",
+            side_effect=ForbiddenError(message="Admin required", code="admin_required"),
+        ),
+    ):
+        context = get_template_context(request, test_admin_user["tenant_id"])
+
+    assert context["nav"]["requests_badge_count"] == 0
+
+
+def test_requests_badge_count_swallows_generic_service_error(test_admin_user):
+    """A non-Forbidden ServiceError from either count call also degrades to 0.
+
+    Widened from `except ForbiddenError` to `except ServiceError` so any other
+    service-layer error can't 500 an otherwise-unrelated page render.
+    """
+    from services.exceptions import ValidationError
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/directory/requests"
+    request.session = {"user_id": test_admin_user["id"]}
+
+    with (
+        patch(
+            "utils.template_context.get_navigation_context",
+            return_value={"active_top_level": Mock(path="/directory")},
+        ),
+        patch(
+            "services.reactivation.count_pending_requests",
+            side_effect=ValidationError(message="Bad input", code="validation_error"),
+        ),
+    ):
+        context = get_template_context(request, test_admin_user["tenant_id"])
+
+    assert context["nav"]["requests_badge_count"] == 0
+
+
+def test_requests_badge_count_not_computed_outside_directory_section(test_admin_user):
+    """The two count queries are skipped entirely outside the Directory section.
+
+    The badge only ever renders in base.html's Directory sub-nav, so when the
+    active top-level section is something else, the count is 0 and neither
+    service is queried.
+    """
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/security/sessions"
+    request.session = {"user_id": test_admin_user["id"]}
+
+    with (
+        patch(
+            "utils.template_context.get_navigation_context",
+            return_value={"active_top_level": Mock(path="/security")},
+        ),
+        patch("services.reactivation.count_pending_requests") as mock_reactivation,
+        patch("services.users.count_users_with_missing_required") as mock_attributes,
+    ):
+        context = get_template_context(request, test_admin_user["tenant_id"])
+
+    assert context["nav"]["requests_badge_count"] == 0
+    mock_reactivation.assert_not_called()
+    mock_attributes.assert_not_called()
+
+
+def test_requests_badge_count_absent_when_no_user():
+    """No user in session means no nav context at all, so no badge key."""
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/login"
+    request.session = {}
+
+    context = get_template_context(request, "any-tenant-id")
+
+    assert context["nav"] == {}
+    assert "requests_badge_count" not in context["nav"]

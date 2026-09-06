@@ -49,7 +49,7 @@
 
     {# Tab: Metadata URL #}
     <div id="tab-trust-url" class="trust-tab-content">
-        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/establish-trust-url">
+        <form method="post" action="/applications/saml/{{ sp.id }}/establish-trust-url">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="space-y-4">
                 <div>
@@ -75,7 +75,7 @@
 
     {# Tab: Metadata XML #}
     <div id="tab-trust-xml" class="trust-tab-content hidden">
-        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/establish-trust-xml">
+        <form method="post" action="/applications/saml/{{ sp.id }}/establish-trust-xml">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="space-y-4">
                 <div>
@@ -98,7 +98,7 @@
 
     {# Tab: Manual Entry #}
     <div id="tab-trust-manual" class="trust-tab-content hidden">
-        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/establish-trust-manual">
+        <form method="post" action="/applications/saml/{{ sp.id }}/establish-trust-manual">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="space-y-4">
                 <div>
@@ -159,7 +159,7 @@
     </div>
     <div class="flex items-center gap-3 flex-wrap">
         <form method="post"
-              action="/admin/settings/service-providers/{{ sp.id }}/logo/upload"
+              action="/applications/saml/{{ sp.id }}/logo/upload"
               enctype="multipart/form-data"
               class="flex items-center gap-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -172,7 +172,7 @@
         </form>
         {% if sp.has_logo %}
         <form method="post"
-              action="/admin/settings/service-providers/{{ sp.id }}/logo/delete">
+              action="/applications/saml/{{ sp.id }}/logo/delete">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit"
                     class="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
@@ -212,7 +212,7 @@
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SP Metadata Source URL</dt>
             <dd class="mt-1 text-sm text-blue-600 dark:text-blue-400 font-mono break-all">
-                <a href="/admin/settings/service-providers/{{ sp.id }}/metadata" class="hover:underline">{{ sp.metadata_url }}</a>
+                <a href="/applications/saml/{{ sp.id }}/metadata" class="hover:underline">{{ sp.metadata_url }}</a>
             </dd>
         </div>
         {% endif %}
@@ -222,7 +222,7 @@
         </div>
         {% if not sp.metadata_url and not sp.metadata_xml %}
         {# Manual SP: ACS URL and SLO URL are editable #}
-        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit" class="contents">
+        <form method="post" action="/applications/saml/{{ sp.id }}/edit" class="contents">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="name" value="{{ sp.name }}">
             <input type="hidden" name="description" value="{{ sp.description or '' }}">
@@ -252,7 +252,7 @@
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ACS URL</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ sp.acs_url }}</dd>
         </div>
-        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit-slo-url" class="contents">
+        <form method="post" action="/applications/saml/{{ sp.id }}/edit-slo-url" class="contents">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SLO URL</dt>
@@ -272,7 +272,7 @@
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">NameID Format</dt>
             <dd class="mt-1">
-                <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit-nameid-format" class="flex items-center gap-2">
+                <form method="post" action="/applications/saml/{{ sp.id }}/edit-nameid-format" class="flex items-center gap-2">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <select name="nameid_format"
                             class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -335,7 +335,7 @@
 <div id="edit-name-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Name</h3>
-        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit">
+        <form method="post" action="/applications/saml/{{ sp.id }}/edit">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="description" value="{{ sp.description or '' }}">
             <div class="mb-4">
@@ -361,7 +361,7 @@
 <div id="edit-desc-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Description</h3>
-        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit">
+        <form method="post" action="/applications/saml/{{ sp.id }}/edit">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="name" value="{{ sp.name }}">
             <div class="mb-4">

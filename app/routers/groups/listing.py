@@ -19,7 +19,7 @@ from utils.template_context import get_template_context
 from utils.templates import templates
 
 router = APIRouter(
-    prefix="/admin/groups",
+    prefix="/groups",
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
 )
@@ -32,8 +32,8 @@ def groups_index(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Redirect to the groups list."""
-    first_child = get_first_accessible_child("/admin/groups", user.get("role"))
-    return safe_redirect(first_child, default="/admin")
+    first_child = get_first_accessible_child("/groups", user.get("role"))
+    return safe_redirect(first_child, default="/dashboard")
 
 
 @router.get("/list", response_class=HTMLResponse)

@@ -4,7 +4,7 @@ Register a downstream application as a SAML service provider so users can access
 
 ## Create the service provider
 
-1. Navigate to **Settings > Service Providers**
+1. Navigate to **Applications > SAML**
 2. Click **Add Service Provider**
 3. Enter a display name (e.g., "Confluence", "Slack")
 4. Click **Create**

@@ -18,7 +18,7 @@ API requests authenticate with an OAuth2 bearer token in the `Authorization` hea
 Authorization: Bearer <access_token>
 ```
 
-Tokens are issued through the OAuth2 authorization code flow or client credentials flow. See [Integrations](../admin-guide/integrations/index.md) in the admin guide for how to create OAuth2 clients.
+Tokens are issued through the OAuth2 authorization code flow or client credentials flow. See [Applications](../admin-guide/applications/index.md) in the admin guide for how to create OAuth2 clients.
 
 ## Conventions
 

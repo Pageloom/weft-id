@@ -6,7 +6,7 @@ This page covers registering a downstream app as an OIDC relying party. For the 
 
 ## Enabling OIDC on an app
 
-1. Create an app under **Admin > Integrations > Apps** (or open an existing one).
+1. Create an app under **Applications > OAuth2 / OIDC** (or open an existing one).
 2. On the app's detail page, find the **OpenID Connect** section and click **Enable OIDC**.
 
 Enabling OIDC changes two behaviors:

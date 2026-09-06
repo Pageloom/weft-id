@@ -36,7 +36,7 @@ router = APIRouter(
     include_in_schema=False,
 )
 
-IDP_LIST_URL = "/admin/settings/identity-providers"
+IDP_LIST_URL = "/identity-providers/saml"
 
 
 def _base_url(request: Request) -> str:
@@ -50,7 +50,7 @@ def _base_url(request: Request) -> str:
 
 
 @router.get(
-    "/admin/settings/identity-providers/{idp_id}/scim",
+    "/identity-providers/saml/{idp_id}/scim",
     response_class=HTMLResponse,
 )
 def idp_tab_scim_inbound(
@@ -66,7 +66,7 @@ def idp_tab_scim_inbound(
     `/api/v1/saml-identity-providers/{idp_id}/inbound-scim/credentials`
     endpoints, so this route only paints the initial state.
     """
-    if not has_page_access("/admin/settings/identity-providers/idp/scim", user.get("role")):
+    if not has_page_access("/identity-providers/saml/idp/scim", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = build_requesting_user(user, tenant_id, request)

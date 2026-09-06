@@ -20,7 +20,7 @@ class TestIsSafePath:
             "/dashboard",
             "/users/list?error=user_not_found",
             "/users/abc-123/profile?success=attributes_saved",
-            "/admin/integrations/apps/xyz?success=updated",
+            "/applications/oauth/xyz?success=updated",
             "/",
             "/path/with/trailing?a=1&b=2#fragment",
             "/path%20with%20encoding",

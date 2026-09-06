@@ -1,4 +1,4 @@
-# Security Settings
+# Security
 
 Configure authentication policy, password policy, session behavior, certificate lifecycle, user permissions, group assertion scope, and two-step verification for your tenant.
 
@@ -7,5 +7,5 @@ Configure authentication policy, password policy, session behavior, certificate 
 - [Sessions](sessions.md) — Session timeout, persistent sessions, deactivation thresholds
 - [Certificates](certificates.md) — Certificate validity and rotation windows
 - [Permissions](permissions.md) — User self-service permissions
-- [User attributes](user-attributes.md) — Configure the standard profile attribute catalog and required fields
+- [User attributes](user-attributes.md) — Configure the standard profile attribute catalog and required fields (now under **Directory > Attributes**)
 - [Two-Step Verification](two-step-verification.md) — Per-IdP verification requirement and admin resets

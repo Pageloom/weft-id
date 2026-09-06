@@ -13,7 +13,7 @@ Enhanced is the right choice for any tenant that handles regulated data, serves 
 
 ## Setting the policy
 
-1. Go to **Settings > Security > Authentication**.
+1. Go to **Security > Authentication**.
 2. Select **Baseline** or **Enhanced**.
 3. Save.
 
@@ -31,7 +31,7 @@ The enrollment block is per-sign-in, not per-user. A user who clears enrollment 
 
 If a user is stuck (lost their TOTP device and all backup codes, lost every passkey), an admin can reset their two-step verification from the user detail page:
 
-1. Go to **Users > (user) > Danger**.
+1. Go to **Directory > Users > (user) > Danger**.
 2. Click **Reset two-step verification**.
 
 This clears the user's TOTP secret and backup codes. It does not delete any registered passkeys; those must be revoked individually from the user's Profile tab (see "Revoking a single passkey" below). On the next sign-in the user goes through the enrollment flow again unless they still have a passkey that satisfies the enhanced policy.
@@ -42,7 +42,7 @@ Resetting two-step verification is the recovery path; there is no "one-time base
 
 To revoke one passkey without resetting the user entirely:
 
-1. Go to **Users > (user) > Profile**.
+1. Go to **Directory > Users > (user) > Profile**.
 2. Scroll to the **Passkeys** section.
 3. Click **Revoke** on the passkey you want to remove.
 

@@ -1,22 +1,29 @@
-"""Admin routes for event log viewer."""
+"""Directory routes: index redirect, Requests (reactivation + profile
+completion approvals), Attributes (tenant attribute configuration), and
+Exports (user audit export).
+"""
 
 import re
-from datetime import date
 from typing import Annotated
 
-from constants.event_types import DEFAULT_TIERS, VALID_TIERS
+from constants.user_attributes import (
+    CATEGORIES,
+    STANDARD_ATTRIBUTES,
+)
 from dependencies import (
     build_requesting_user,
     get_current_user,
     get_tenant_id_from_request,
     require_admin,
+    require_current_user,
+    require_super_admin,
 )
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child
 from services import bg_tasks as bg_tasks_service
-from services import event_log as event_log_service
 from services import reactivation as reactivation_service
+from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.email import (
@@ -29,229 +36,54 @@ from utils.template_context import get_template_context
 from utils.templates import templates
 
 router = APIRouter(
-    prefix="/admin",
-    tags=["admin"],
-    dependencies=[Depends(require_admin)],  # All routes require admin role
+    prefix="/directory",
+    tags=["directory"],
+    dependencies=[Depends(require_current_user)],  # Baseline: every route requires login
     include_in_schema=False,
 )
 
 
 @router.get("/", response_class=HTMLResponse)
-def admin_index(
+def directory_index(
     request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
+    user: Annotated[dict, Depends(require_current_user)],
 ):
-    """Redirect to the first accessible admin page."""
-    first_child = get_first_accessible_child("/admin", user.get("role"))
+    """Redirect to the first accessible directory page."""
+    first_child = get_first_accessible_child("/directory", user.get("role"))
 
     return safe_redirect(first_child, default="/dashboard")
 
 
-@router.get("/audit/", response_class=HTMLResponse)
-@router.get("/audit", response_class=HTMLResponse)
-def audit_index(
+# =============================================================================
+# Requests: Reactivation
+# =============================================================================
+
+
+@router.get(
+    "/requests/",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_admin)],
+)
+@router.get(
+    "/requests",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_admin)],
+)
+def requests_index(
     request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
-    """Redirect to the first accessible audit page."""
-    first_child = get_first_accessible_child("/admin/audit", user.get("role"))
+    """Redirect to the first accessible requests page."""
+    first_child = get_first_accessible_child("/directory/requests", user.get("role"))
 
     return safe_redirect(first_child, default="/dashboard")
 
 
-@router.get("/todo/", response_class=HTMLResponse)
-@router.get("/todo", response_class=HTMLResponse)
-def todo_index(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-):
-    """Redirect to the first accessible todo page."""
-    first_child = get_first_accessible_child("/admin/todo", user.get("role"))
-
-    return safe_redirect(first_child, default="/dashboard")
-
-
-@router.get("/audit/events", response_class=HTMLResponse)
-def event_log_list(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-):
-    """Display paginated event log list."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-
-    # Parse pagination params
-    try:
-        page = max(1, int(request.query_params.get("page", "1")))
-    except ValueError:
-        page = 1
-
-    try:
-        page_size = int(request.query_params.get("size", "50"))
-        if page_size not in [25, 50, 100]:
-            page_size = 50
-    except ValueError:
-        page_size = 50
-
-    # Parse tier filter (comma-separated, defaults to security+admin)
-    tiers_param = request.query_params.get("tiers", "")
-    if tiers_param:
-        active_tiers = [t for t in tiers_param.split(",") if t in VALID_TIERS]
-    else:
-        active_tiers = list(DEFAULT_TIERS)
-
-    try:
-        result = event_log_service.list_events(
-            requesting_user,
-            page=page,
-            limit=page_size,
-            tiers=active_tiers if active_tiers else None,
-        )
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    # Calculate pagination metadata
-    total_pages = max(1, (result.total + page_size - 1) // page_size)
-    page = min(page, total_pages)
-    offset = (page - 1) * page_size
-
-    pagination = {
-        "page": page,
-        "page_size": page_size,
-        "total_count": result.total,
-        "total_pages": total_pages,
-        "has_previous": page > 1,
-        "has_next": page < total_pages,
-        "start_index": offset + 1 if result.total > 0 else 0,
-        "end_index": min(offset + page_size, result.total),
-    }
-
-    success = request.query_params.get("success")
-    error = request.query_params.get("error")
-
-    return templates.TemplateResponse(
-        request,
-        "admin_events.html",
-        get_template_context(
-            request,
-            tenant_id,
-            events=result.items,
-            pagination=pagination,
-            active_tiers=active_tiers,
-            all_tiers=VALID_TIERS,
-            success=success,
-            error=error,
-        ),
-    )
-
-
-@router.get("/audit/events/{event_id}", response_class=HTMLResponse)
-def event_log_detail(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    event_id: str,
-):
-    """Display single event log detail with full metadata."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-
-    try:
-        event = event_log_service.get_event(requesting_user, event_id)
-    except NotFoundError:
-        return RedirectResponse(url="/admin/audit/events?error=not_found", status_code=303)
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    return templates.TemplateResponse(
-        request,
-        "admin_event_detail.html",
-        get_template_context(
-            request,
-            tenant_id,
-            event=event,
-        ),
-    )
-
-
-@router.post("/audit/events/export")
-def trigger_export(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    start_date: Annotated[str, Form(max_length=20)] = "",
-    end_date: Annotated[str, Form(max_length=20)] = "",
-):
-    """Trigger event log XLSX export job with optional date range."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-
-    try:
-        parsed_start = date.fromisoformat(start_date) if start_date else None
-        parsed_end = date.fromisoformat(end_date) if end_date else None
-    except ValueError:
-        return RedirectResponse(url="/admin/audit/events?error=invalid_date", status_code=303)
-
-    try:
-        bg_tasks_service.create_export_task(
-            requesting_user, start_date=parsed_start, end_date=parsed_end
-        )
-    except ValidationError:
-        return RedirectResponse(url="/admin/audit/events?error=invalid_date_range", status_code=303)
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    return RedirectResponse(url="/account/background-jobs?success=export_started", status_code=303)
-
-
-# =============================================================================
-# User Audit Export
-# =============================================================================
-
-
-@router.get("/audit/user-export", response_class=HTMLResponse)
-def user_export_page(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    success: str | None = None,
-):
-    """Display user audit export page."""
-    return templates.TemplateResponse(
-        request,
-        "admin_user_export.html",
-        get_template_context(
-            request,
-            tenant_id,
-            success=success,
-        ),
-    )
-
-
-@router.post("/audit/user-export")
-def trigger_user_export(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-):
-    """Trigger user audit XLSX export job."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-
-    try:
-        bg_tasks_service.create_user_export_task(requesting_user)
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    return RedirectResponse(url="/account/background-jobs?success=export_started", status_code=303)
-
-
-# =============================================================================
-# Reactivation Requests
-# =============================================================================
-
-
-@router.get("/todo/reactivation", response_class=HTMLResponse)
+@router.get(
+    "/requests/reactivation",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_admin)],
+)
 def reactivation_requests_list(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -281,7 +113,11 @@ def reactivation_requests_list(
     )
 
 
-@router.get("/todo/reactivation/history", response_class=HTMLResponse)
+@router.get(
+    "/requests/reactivation/history",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_admin)],
+)
 def reactivation_requests_history(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -306,7 +142,10 @@ def reactivation_requests_history(
     )
 
 
-@router.post("/todo/reactivation/{request_id}/approve")
+@router.post(
+    "/requests/reactivation/{request_id}/approve",
+    dependencies=[Depends(require_admin)],
+)
 def approve_reactivation_request(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -320,11 +159,11 @@ def approve_reactivation_request(
         result = reactivation_service.approve_request(requesting_user, request_id)
     except NotFoundError:
         return RedirectResponse(
-            url="/admin/todo/reactivation?error=request_not_found",
+            url="/directory/requests/reactivation?error=request_not_found",
             status_code=303,
         )
     except ValidationError as exc:
-        return safe_redirect(f"/admin/todo/reactivation?error={exc.code}")
+        return safe_redirect(f"/directory/requests/reactivation?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -336,12 +175,15 @@ def approve_reactivation_request(
         )
 
     return RedirectResponse(
-        url="/admin/todo/reactivation?success=approved",
+        url="/directory/requests/reactivation?success=approved",
         status_code=303,
     )
 
 
-@router.post("/todo/reactivation/{request_id}/deny")
+@router.post(
+    "/requests/reactivation/{request_id}/deny",
+    dependencies=[Depends(require_admin)],
+)
 def deny_reactivation_request(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -355,11 +197,11 @@ def deny_reactivation_request(
         result = reactivation_service.deny_request(requesting_user, request_id)
     except NotFoundError:
         return RedirectResponse(
-            url="/admin/todo/reactivation?error=request_not_found",
+            url="/directory/requests/reactivation?error=request_not_found",
             status_code=303,
         )
     except ValidationError as exc:
-        return safe_redirect(f"/admin/todo/reactivation?error={exc.code}")
+        return safe_redirect(f"/directory/requests/reactivation?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -368,13 +210,13 @@ def deny_reactivation_request(
         send_reactivation_denied_notification(result.email, tenant_id=requesting_user["tenant_id"])
 
     return RedirectResponse(
-        url="/admin/todo/reactivation?success=denied",
+        url="/directory/requests/reactivation?success=denied",
         status_code=303,
     )
 
 
 # =============================================================================
-# Todo: User Attributes (incomplete profiles)
+# Requests: User Attributes (incomplete profiles)
 # =============================================================================
 
 
@@ -383,7 +225,7 @@ def _group_missing_rows(rows: list[dict]) -> list[dict]:
 
     Each output row preserves ``user_id``, ``first_name``, ``last_name``,
     ``email``, and ``force_profile_completion``, plus two key lists:
-    ``missing_unlocked`` and ``missing_locked``. The admin Todo view uses
+    ``missing_unlocked`` and ``missing_locked``. The Requests view uses
     these to flag at a glance which users can be force-completed.
     """
     by_user: dict[str, dict] = {}
@@ -406,8 +248,12 @@ def _group_missing_rows(rows: list[dict]) -> list[dict]:
     return list(by_user.values())
 
 
-@router.get("/todo/user-attributes", response_class=HTMLResponse)
-def todo_user_attributes_list(
+@router.get(
+    "/requests/user-attributes",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_admin)],
+)
+def requests_user_attributes_list(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
@@ -479,8 +325,11 @@ def _parse_force_complete_success(value: str | None) -> dict[str, int] | None:
     }
 
 
-@router.post("/todo/user-attributes/force-complete")
-async def todo_user_attributes_force_complete(
+@router.post(
+    "/requests/user-attributes/force-complete",
+    dependencies=[Depends(require_admin)],
+)
+async def requests_user_attributes_force_complete(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
@@ -497,7 +346,7 @@ async def todo_user_attributes_force_complete(
 
     if not user_ids:
         return RedirectResponse(
-            url="/admin/todo/user-attributes?error=no_users_selected", status_code=303
+            url="/directory/requests/user-attributes?error=no_users_selected", status_code=303
         )
 
     try:
@@ -510,4 +359,132 @@ async def todo_user_attributes_force_complete(
     skipped_complete = len(result["skipped_complete"])
     suffix = f"flagged_{flagged_count}_skipped_locked_{skipped_locked}_complete_{skipped_complete}"
 
-    return safe_redirect(f"/admin/todo/user-attributes?success={suffix}")
+    return safe_redirect(f"/directory/requests/user-attributes?success={suffix}")
+
+
+# =============================================================================
+# Attributes (tenant standard user attribute configuration, super_admin only)
+# =============================================================================
+
+
+_CATEGORY_LABELS = {
+    "contact": "Contact",
+    "professional": "Professional",
+    "location": "Location",
+    "profile": "Profile",
+}
+
+
+@router.get(
+    "/attributes",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def directory_attributes(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display the tenant standard user attribute configuration page."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        rows = settings_service.list_tenant_attribute_config(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    rows_by_key = {r["attribute_key"]: r for r in rows}
+
+    # Build a category-grouped, registry-ordered structure for the template.
+    # Each row carries both the registry metadata (label, default friendly name)
+    # and the persisted flags. Rows missing from the database fall back to
+    # default-false flags (matches the seed defaults).
+    grouped: list[dict] = []
+    for category in CATEGORIES:
+        category_attrs = []
+        for attr in STANDARD_ATTRIBUTES:
+            if attr.category != category:
+                continue
+            row = rows_by_key.get(attr.key)
+            category_attrs.append(
+                {
+                    "key": attr.key,
+                    "label": attr.default_friendly_name,
+                    "category": attr.category,
+                    "enabled": bool(row["enabled"]) if row else False,
+                    "required": bool(row["required"]) if row else False,
+                    "mirror_from_idp": bool(row["mirror_from_idp"]) if row else True,
+                    "locked_for_users": bool(row["locked_for_users"]) if row else False,
+                    "send_to_sps_default": (bool(row["send_to_sps_default"]) if row else True),
+                    "allow_self_sourced_to_sp": (
+                        bool(row["allow_self_sourced_to_sp"]) if row else False
+                    ),
+                }
+            )
+        if category_attrs:
+            grouped.append(
+                {
+                    "key": category,
+                    "label": _CATEGORY_LABELS.get(category, category.title()),
+                    "attributes": category_attrs,
+                    "any_enabled": any(a["enabled"] for a in category_attrs),
+                }
+            )
+
+    return templates.TemplateResponse(
+        request,
+        "settings_user_attributes.html",
+        get_template_context(
+            request,
+            tenant_id,
+            categories=grouped,
+        ),
+    )
+
+
+# =============================================================================
+# Exports (User Audit Export)
+# =============================================================================
+
+
+@router.get(
+    "/exports",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_admin)],
+)
+def exports_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    success: str | None = None,
+):
+    """Display user audit export page."""
+    return templates.TemplateResponse(
+        request,
+        "admin_user_export.html",
+        get_template_context(
+            request,
+            tenant_id,
+            success=success,
+        ),
+    )
+
+
+@router.post(
+    "/exports",
+    dependencies=[Depends(require_admin)],
+)
+def trigger_user_export(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Trigger user audit XLSX export job."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        bg_tasks_service.create_user_export_task(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(url="/account/background-jobs?success=export_started", status_code=303)

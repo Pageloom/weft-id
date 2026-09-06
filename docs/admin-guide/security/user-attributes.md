@@ -4,7 +4,7 @@ WeftID supports a fixed catalog of 14 standard profile attributes beyond name an
 email. Each tenant chooses which attributes to collect, how strictly to enforce them,
 who can edit them, and which downstream service providers receive them.
 
-Navigate to **Settings > User attributes** (super admin only).
+Navigate to **Directory > Attributes** (super admin only).
 
 ## The attribute catalog
 
@@ -27,7 +27,7 @@ Each attribute has five independent flags. Each row saves on change (no Save but
   is hidden from profile pages, user creation, IdP mapping, and SP mapping. The other
   four flags are disabled until Enabled is on.
 * **Required.** Users must provide a value. Missing values flag the user in
-  **Todo > User attributes** and (when [force-completion](#force-profile-completion) is
+  **Directory > Requests > User Attributes** and (when [force-completion](#force-profile-completion) is
   on) block sign-in until the field is filled.
 * **Mirror from IdP.** When an upstream identity provider sends this attribute in a
   SAML assertion, copy the value into the user's profile on each sign-in. When off,
@@ -51,7 +51,7 @@ Where attributes can be edited depends on the locked-for-users flag and the
 | Unlocked, profile editing disabled | No | Yes |
 | Locked | No | Yes |
 
-Admins edit attributes on the user detail page (**Users > (user) > Profile**). Users
+Admins edit attributes on the user detail page (**Directory > Users > (user) > Profile**). Users
 edit their own attributes on **Account > Profile**.
 
 ## Force profile completion
@@ -59,7 +59,7 @@ edit their own attributes on **Account > Profile**.
 When required attributes go unfilled, admins can force users to complete their
 profile before they can use the rest of the site.
 
-1. Go to **Todo > User attributes**. Each row shows missing attributes split by
+1. Go to **Directory > Requests > User Attributes**. Each row shows missing attributes split by
    whether they can be filled by the user (unlocked) or only by an admin (locked).
 2. Select the users you want to gate. Users whose only missing values are locked
    cannot be selected (the gate would trap them; an admin must fill those fields
@@ -81,7 +81,7 @@ There are several paths for an attribute to acquire a value:
 1. **Pre-filled at user creation.** The user creation form lists enabled attributes;
    admins can populate any subset (including locked ones).
 2. **Mirrored from an IdP at sign-in.** Configure the attribute on
-   **Settings > Identity Providers > (IdP) > Attributes**. The first time the user
+   **Identity Providers > SAML > (IdP) > Attributes**. The first time the user
    signs in after the mapping is set, the value populates from the assertion.
 3. **Filled by the user on their profile.** Subject to the locked flag and the
    tenant edit-profile permission.

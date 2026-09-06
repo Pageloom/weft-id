@@ -282,7 +282,7 @@ def _admin_configure_attribute(page, idp_config, *, allow_self: bool) -> None:
 
     page.goto(f"{base_url}/dev/login?email={idp_config['admin_email']}")
     page.wait_for_url("**/dashboard**", timeout=10000)
-    page.goto(f"{base_url}/admin/settings/user-attributes")
+    page.goto(f"{base_url}/directory/attributes")
 
     row = page.locator(f"tr.attribute-row[data-key='{ATTR_KEY}']")
     row.wait_for(state="visible", timeout=10000)

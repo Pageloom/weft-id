@@ -4,7 +4,7 @@ WeftID can stand alone as your identity provider, or federate with an external S
 
 ## Create the connection
 
-1. Navigate to **Settings > Identity Providers**
+1. Navigate to **Identity Providers > SAML**
 2. Click **Add Identity Provider**
 3. Enter a display name (e.g., "Corporate Okta")
 4. Select the provider type: Okta, Azure AD, Google Workspace, or Generic SAML

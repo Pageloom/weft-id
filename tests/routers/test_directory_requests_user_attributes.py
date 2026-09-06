@@ -1,8 +1,9 @@
-"""Tests for the admin Todo > User Attributes routes."""
+"""Tests for the Directory > Requests > User Attributes routes."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
+from uuid import uuid4
 
 import database
 from fastapi.testclient import TestClient
@@ -41,7 +42,7 @@ def test_admin_todo_user_attributes_page_renders(test_admin_user, override_auth,
     _seed_required(test_user["tenant_id"], "job_title")
     override_auth(test_admin_user, level="admin")
     client = TestClient(app)
-    response = client.get("/admin/todo/user-attributes")
+    response = client.get("/directory/requests/user-attributes")
     assert response.status_code == 200
     assert "Incomplete user profiles" in response.text
     assert "job_title" in response.text
@@ -64,7 +65,7 @@ def test_admin_todo_user_attributes_excludes_users_with_all_required_set(
         )
     override_auth(test_admin_user, level="admin")
     client = TestClient(app)
-    response = client.get("/admin/todo/user-attributes")
+    response = client.get("/directory/requests/user-attributes")
     assert response.status_code == 200
     assert "No incomplete profiles" in response.text
 
@@ -75,7 +76,7 @@ def test_admin_todo_user_attributes_filter_by_key(test_admin_user, override_auth
     override_auth(test_admin_user, level="admin")
     client = TestClient(app)
     # Filter to job_title; department row should be excluded
-    response = client.get("/admin/todo/user-attributes?filter_key=job_title")
+    response = client.get("/directory/requests/user-attributes?filter_key=job_title")
     assert response.status_code == 200
     # Both attributes were missing but the GET handler filters the raw flat
     # rows before grouping, so department won't appear in the user's row.
@@ -87,12 +88,12 @@ def test_force_complete_bulk_action_flags_user(test_admin_user, override_auth, t
     override_auth(test_admin_user, level="admin")
     client = TestClient(app)
     response = client.post(
-        "/admin/todo/user-attributes/force-complete",
+        "/directory/requests/user-attributes/force-complete",
         data={"user_ids": [str(test_user["id"])]},
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "/admin/todo/user-attributes?success=" in response.headers["location"]
+    assert "/directory/requests/user-attributes?success=" in response.headers["location"]
 
     refreshed = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
     assert refreshed["force_profile_completion"] is True
@@ -106,7 +107,7 @@ def test_force_complete_success_banner_renders_parsed_counts(
     override_auth(test_admin_user, level="admin")
     client = TestClient(app)
     response = client.get(
-        "/admin/todo/user-attributes?success=flagged_3_skipped_locked_1_complete_0"
+        "/directory/requests/user-attributes?success=flagged_3_skipped_locked_1_complete_0"
     )
     assert response.status_code == 200
     body = response.text
@@ -122,7 +123,7 @@ def test_force_complete_bulk_action_no_selection_redirects_with_error(
     override_auth(test_admin_user, level="admin")
     client = TestClient(app)
     response = client.post(
-        "/admin/todo/user-attributes/force-complete",
+        "/directory/requests/user-attributes/force-complete",
         data={},
         follow_redirects=False,
     )
@@ -138,7 +139,7 @@ def test_force_complete_bulk_action_skips_locked_only_users(
     override_auth(test_admin_user, level="admin")
     client = TestClient(app)
     response = client.post(
-        "/admin/todo/user-attributes/force-complete",
+        "/directory/requests/user-attributes/force-complete",
         data={"user_ids": [str(test_user["id"])]},
         follow_redirects=False,
     )
@@ -153,8 +154,58 @@ def test_admin_todo_user_attributes_logs_event_on_flag(test_admin_user, override
     client = TestClient(app)
     with patch("services.users.attributes.log_event") as mock_log:
         client.post(
-            "/admin/todo/user-attributes/force-complete",
+            "/directory/requests/user-attributes/force-complete",
             data={"user_ids": [str(test_user["id"])]},
         )
     assert mock_log.call_count == 1
     assert mock_log.call_args.kwargs["event_type"] == "user_force_profile_completion_set"
+
+
+def test_requests_user_attributes_list_service_error(test_admin_user, override_auth, mocker):
+    """Test the list page renders an error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_list = mocker.patch("services.users.list_users_with_missing_required")
+    mock_error = mocker.patch("routers.directory.render_error_page")
+    mock_list.side_effect = ServiceError(message="Database error", code="db_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.get("/directory/requests/user-attributes")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_force_complete_service_error(test_admin_user, override_auth, mocker):
+    """Test the force-complete action renders an error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_bulk = mocker.patch("services.users.bulk_set_force_profile_completion")
+    mock_error = mocker.patch("routers.directory.render_error_page")
+    mock_bulk.side_effect = ServiceError(message="Database error", code="db_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/directory/requests/user-attributes/force-complete",
+        data={"user_ids": [str(uuid4())]},
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_parse_force_complete_success_returns_none_for_unmatched_suffix():
+    """A success value that isn't the flagged/skipped suffix parses to None."""
+    from routers.directory import _parse_force_complete_success
+
+    assert _parse_force_complete_success(None) is None
+    assert _parse_force_complete_success("approved") is None
+    assert _parse_force_complete_success("flagged_x_skipped_locked_y_complete_z") is None

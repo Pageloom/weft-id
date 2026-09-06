@@ -135,6 +135,10 @@ def create_connection(
     provider_type: Annotated[str, Form(max_length=50)],
     issuer: Annotated[str, Form(max_length=2048)] = "",
     discovery_url: Annotated[str, Form(max_length=2048)] = "",
+    authorization_endpoint: Annotated[str, Form(max_length=2048)] = "",
+    token_endpoint: Annotated[str, Form(max_length=2048)] = "",
+    userinfo_endpoint: Annotated[str, Form(max_length=2048)] = "",
+    jwks_uri: Annotated[str, Form(max_length=2048)] = "",
     client_id: Annotated[str, Form(max_length=255)] = "",
     client_secret: Annotated[str, Form(max_length=3000)] = "",
     scopes: Annotated[str, Form(max_length=500)] = "",
@@ -159,6 +163,10 @@ def create_connection(
             provider_type=provider_type,
             issuer=issuer.strip() or None,
             discovery_url=discovery_url.strip() or None,
+            authorization_endpoint=authorization_endpoint.strip() or None,
+            token_endpoint=token_endpoint.strip() or None,
+            userinfo_endpoint=userinfo_endpoint.strip() or None,
+            jwks_uri=jwks_uri.strip() or None,
             client_id=client_id.strip() or None,
             client_secret=client_secret or None,
             scopes=scopes.strip() or None,
@@ -450,6 +458,47 @@ def edit_connection_name(
         return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={str(e)}")
 
     return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?success=updated")
+
+
+@router.post(
+    "/admin/settings/oidc-identity-providers/{connection_id}/edit-endpoints",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_connection_endpoints(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+    authorization_endpoint: Annotated[str, Form(max_length=2048)] = "",
+    token_endpoint: Annotated[str, Form(max_length=2048)] = "",
+    userinfo_endpoint: Annotated[str, Form(max_length=2048)] = "",
+    jwks_uri: Annotated[str, Form(max_length=2048)] = "",
+):
+    """Set the four endpoints by hand for an IdP that publishes no discovery.
+
+    Mirrors the ``PATCH /api/v1/oidc-upstream/connections/{id}`` semantics: a
+    blank field leaves the stored value untouched. A later successful Test
+    Connection overwrites all four with the discovered values.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    data = OIDCConnectionUpdate(
+        authorization_endpoint=authorization_endpoint.strip() or None,
+        token_endpoint=token_endpoint.strip() or None,
+        userinfo_endpoint=userinfo_endpoint.strip() or None,
+        jwks_uri=jwks_uri.strip() or None,
+    )
+
+    try:
+        oidc_service.update_connection(
+            requesting_user, connection_id, data, tenant_base_url(request)
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as e:
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={str(e)}")
+
+    return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?success=endpoints_updated")
 
 
 @router.post(

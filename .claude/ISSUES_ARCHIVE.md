@@ -4,6 +4,53 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [PARITY] Manual OIDC endpoint configuration is API-only
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (oidc-upstream final review)
+**Severity:** Medium
+**Category:** Admin/API parity
+
+`authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, and `jwks_uri`
+existed on `oidc_idp_connections`, in the Pydantic schemas, and in the
+`PATCH /api/v1/oidc-upstream/connections/{id}` endpoint, but the admin
+create/edit form had no fields for them. An IdP that does not publish
+`/.well-known/openid-configuration` could only be configured through the API.
+
+**Resolution.**
+
+- **Create form:** an "Advanced: manual endpoints" collapsible section with the
+  four URL inputs, shown only for the Generic provider type (Google and Entra
+  always publish discovery). The create handler passes them through to the
+  existing `OIDCConnectionCreate` schema.
+- **Details tab:** an "Endpoints" heading with a pencil button (Generic only)
+  opening a modal that posts to the new
+  `POST /admin/settings/oidc-identity-providers/{id}/edit-endpoints` route. The
+  route reuses `update_connection`; a blank field keeps the stored value,
+  matching the API PATCH semantics.
+- **Service hardening:** `_validate_manual_endpoints` in
+  `services/oidc_upstream/connections.py` rejects any manually supplied endpoint
+  that is not `https` (http permitted in `IS_DEV`, mirroring the discovery
+  validator) on both create and update, so the form and the API PATCH share one
+  rule. Raises `ValidationError(code="oidc_endpoint_not_https")`.
+- **Docs:** the "Providers without discovery" section of
+  `docs/admin-guide/identity-providers/oidc-setup.md` now describes the form,
+  the https rule, and that a successful Test Connection overwrites manual values.
+
+**Tests:** 9 router tests (form renders fields, create persists endpoints,
+create rejects http outside dev, details tab shows/hides the editor by provider
+type, edit-endpoints success / insecure URL / not found / non-super-admin) and
+7 service tests (persist on create, per-field https rejection, schemeless
+rejection even in dev, http allowed in dev, update sets/rejects/leaves-unset).
+
+**Files changed:** `app/routers/oidc_upstream/admin.py`,
+`app/services/oidc_upstream/connections.py`, `app/templates/oidc_idp_form.html`,
+`app/templates/oidc_idp_tab_details.html`, `app/templates/oidc_idp_base.html`,
+`docs/admin-guide/identity-providers/oidc-setup.md`,
+`tests/routers/test_oidc_upstream_admin.py`, `tests/services/test_oidc_upstream.py`
+
+---
+
 ## [SECURITY] No shared redirect-target validation; 39 open CodeQL alerts
 
 **Fixed:** 2026-08-18 (PR #146).

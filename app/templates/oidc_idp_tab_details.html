@@ -42,6 +42,16 @@
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Issuer</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ connection.issuer }}</dd>
         </div>
+        {% if connection.provider_type == 'generic' %}
+        <div class="flex items-center justify-between">
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Endpoints</dt>
+            <button type="button" id="edit-endpoints-btn"
+                    class="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                    title="Edit endpoints">
+                {{ icon("pencil", class="w-4 h-4") }}
+            </button>
+        </div>
+        {% endif %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Authorization Endpoint</dt>
             <dd class="mt-1 text-sm text-gray-{% if connection.authorization_endpoint %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.authorization_endpoint or 'Not discovered' }}</dd>
@@ -211,6 +221,52 @@
     </div>
 </div>
 
+{# Edit Endpoints Modal (generic providers only) #}
+{% if connection.provider_type == 'generic' %}
+<div id="edit-endpoints-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Edit Endpoints</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            For a provider that does not publish a discovery document. Leave a field blank to keep
+            its current value. A successful Test Connection replaces all four with the discovered values.
+        </p>
+        <form method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/edit-endpoints">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label for="edit-authorization-endpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Authorization Endpoint</label>
+                <input type="url" id="edit-authorization-endpoint" name="authorization_endpoint" value="{{ connection.authorization_endpoint or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label for="edit-token-endpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Token Endpoint</label>
+                <input type="url" id="edit-token-endpoint" name="token_endpoint" value="{{ connection.token_endpoint or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label for="edit-userinfo-endpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Userinfo Endpoint</label>
+                <input type="url" id="edit-userinfo-endpoint" name="userinfo_endpoint" value="{{ connection.userinfo_endpoint or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label for="edit-jwks-uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">JWKS URI</label>
+                <input type="url" id="edit-jwks-uri" name="jwks_uri" value="{{ connection.jwks_uri or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-endpoints-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 <script nonce="{{ csp_nonce }}">
 (function() {
     const copyBtn = document.getElementById('copy-callback-url');
@@ -225,6 +281,8 @@
     }
     document.getElementById('edit-name-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-name-modal'); });
     document.getElementById('cancel-name-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-name-modal'); });
+    document.getElementById('edit-endpoints-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-endpoints-modal'); });
+    document.getElementById('cancel-endpoints-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-endpoints-modal'); });
 })();
 </script>
 {% endblock %}

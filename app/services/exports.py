@@ -100,7 +100,18 @@ def get_download(
 
     backend = storage.get_backend()
 
-    if export["storage_type"] == "spaces":
+    # Branch on the *active* backend, not the persisted storage_type: an
+    # export created under one backend may outlive a config change (e.g. the
+    # Spaces bucket being unset). If the file's backend no longer matches the
+    # one in use, it is not retrievable from the active backend, so surface a
+    # graceful 404 rather than calling the wrong backend's methods.
+    if export["storage_type"] != backend.storage_type:
+        raise NotFoundError(
+            message="Export file not found on disk",
+            code="export_file_missing",
+        )
+
+    if backend.storage_type == "spaces":
         url = backend.get_download_url(
             export["storage_path"],
             export["filename"],

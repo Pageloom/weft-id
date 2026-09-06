@@ -56,6 +56,7 @@ from services.exceptions import (
 )
 from services.settings.security import can_user_edit_profile
 from services.types import RequestingUser
+from utils import requests_badge
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -878,6 +879,10 @@ def bulk_set_force_profile_completion(
                 "missing_keys": [key for key, _locked in missing],
             },
         )
+
+    # The Requests badge's profile-completion count can change when a user is
+    # flagged; drop the cached count so the next render recomputes it.
+    requests_badge.invalidate(tenant_id)
 
     return {
         "flagged": flagged,

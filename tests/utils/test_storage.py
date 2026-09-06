@@ -52,6 +52,7 @@ def test_local_storage_init_creates_base_path(tmp_path, mocker):
 
     assert backend.base_path.exists()
     assert backend.base_path.is_dir()
+    assert backend.storage_type == "local"
 
 
 def test_local_storage_save_success(tmp_path, mocker):
@@ -224,6 +225,7 @@ def test_spaces_storage_init_success(spaces_env):
 
     assert backend.client == spaces_env["client"]
     assert backend.bucket == "mybucket"
+    assert backend.storage_type == "spaces"
     spaces_env["boto3"].client.assert_called_once()
 
 

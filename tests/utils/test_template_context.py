@@ -258,6 +258,7 @@ def test_requests_badge_count_swallows_forbidden_error(test_admin_user):
             "services.reactivation.count_pending_requests",
             side_effect=ForbiddenError(message="Admin required", code="admin_required"),
         ),
+        patch("utils.template_context.logger.exception"),
     ):
         context = get_template_context(request, test_admin_user["tenant_id"])
 
@@ -286,6 +287,7 @@ def test_requests_badge_count_swallows_generic_service_error(test_admin_user):
             "services.reactivation.count_pending_requests",
             side_effect=ValidationError(message="Bad input", code="validation_error"),
         ),
+        patch("utils.template_context.logger.exception"),
     ):
         context = get_template_context(request, test_admin_user["tenant_id"])
 
@@ -332,3 +334,86 @@ def test_requests_badge_count_absent_when_no_user():
 
     assert context["nav"] == {}
     assert "requests_badge_count" not in context["nav"]
+
+
+def test_requests_badge_count_cached_after_first_compute(test_admin_user):
+    """The summed count is cached per tenant; a second render skips the queries."""
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/directory/requests"
+    request.session = {"user_id": test_admin_user["id"]}
+
+    with (
+        patch(
+            "utils.template_context.get_navigation_context",
+            side_effect=lambda path, role: {"active_top_level": Mock(path="/directory")},
+        ),
+        patch("services.reactivation.count_pending_requests", return_value=2) as mock_reactivation,
+        patch(
+            "services.users.count_users_with_missing_required", return_value=3
+        ) as mock_attributes,
+    ):
+        context1 = get_template_context(request, test_admin_user["tenant_id"])
+        context2 = get_template_context(request, test_admin_user["tenant_id"])
+
+    assert context1["nav"]["requests_badge_count"] == 5
+    assert context2["nav"]["requests_badge_count"] == 5
+    mock_reactivation.assert_called_once()
+    mock_attributes.assert_called_once()
+
+
+def test_requests_badge_count_swallows_non_service_error(test_admin_user):
+    """A non-ServiceError (e.g. psycopg OperationalError) degrades to 0, not a 500.
+
+    The error page itself calls get_template_context, so a DB failure in the
+    count must not turn the error page into a 500.
+    """
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/directory/requests"
+    request.session = {"user_id": test_admin_user["id"]}
+
+    with (
+        patch(
+            "utils.template_context.get_navigation_context",
+            return_value={"active_top_level": Mock(path="/directory")},
+        ),
+        patch(
+            "services.reactivation.count_pending_requests",
+            side_effect=RuntimeError("db down"),
+        ),
+        patch("utils.template_context.logger.exception"),
+    ):
+        context = get_template_context(request, test_admin_user["tenant_id"])
+
+    assert context["nav"]["requests_badge_count"] == 0
+
+
+def test_requests_badge_count_failure_not_cached(test_admin_user):
+    """A failed count is not cached, so the next render retries the queries."""
+    from utils.template_context import get_template_context
+
+    request = Mock()
+    request.url.path = "/directory/requests"
+    request.session = {"user_id": test_admin_user["id"]}
+
+    with (
+        patch(
+            "utils.template_context.get_navigation_context",
+            side_effect=lambda path, role: {"active_top_level": Mock(path="/directory")},
+        ),
+        patch(
+            "services.reactivation.count_pending_requests",
+            side_effect=[RuntimeError("db down"), 2],
+        ) as mock_reactivation,
+        patch("services.users.count_users_with_missing_required", return_value=3),
+        patch("utils.template_context.logger.exception"),
+    ):
+        context1 = get_template_context(request, test_admin_user["tenant_id"])
+        context2 = get_template_context(request, test_admin_user["tenant_id"])
+
+    assert context1["nav"]["requests_badge_count"] == 0
+    assert context2["nav"]["requests_badge_count"] == 5
+    assert mock_reactivation.call_count == 2

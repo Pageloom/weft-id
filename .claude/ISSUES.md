@@ -10,11 +10,11 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 4 | File Structure (pre-existing); historical Spaces exports 500 under config drift; Requests badge runs uncached COUNTs on every Directory-section render; auth-coverage test passes vacuously |
+| Medium | 1 | File Structure (pre-existing) |
 | Low/Medium | 3 | `form-input-length` checker misses `= Form("")` syntax, 33 unbounded params (pre-existing); legacy 301s drop query strings; per-instance legacy URLs 404 instead of 301 |
 | Low | 9 | Upload-auth temp-file leak (warning-ignored, tracked); stale "Integrations" template copy; page headings out of step with new nav; Add User vs New Group verb split; Requests badge accessibility/reach; section index routes lack bare-path form; degenerate single-tab third-level nav; hardcoded role tuple in `users_list.html`; nav-restructure backlog item not archived |
 
-**Last code review:** 2026-09-06 (nav-restructure branch vs main, `/code-review`; 10 findings logged below under `[REVIEW]`)
+**Last code review:** 2026-09-06 (nav-restructure branch vs main, `/code-review`; 5 findings logged below under `[REVIEW]`)
 
 Note: the `[DEPS] pygments` entry was resolved in 1.11.0 (2026-07-12) — pymdown-extensions
 11.0.1 unblocked the 2.20.0 bump and the pin is gone; see ISSUES_ARCHIVE.md.
@@ -226,78 +226,6 @@ CLAUDE.md's rule 10).
 
 **Files Affected:** `dev/compliance_check.py` (checker), `app/routers/integrations.py`,
 `app/routers/saml_idp/admin.py`, `app/routers/saml_idp/sso.py`
-
----
-
-## [REVIEW] Historical Spaces exports 500 when local backend is selected
-
-**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
-**Severity:** Medium
-**Found in:** `app/utils/storage.py:63`, `app/services/exports.py:103-104`,
-`app/routers/account.py:643-647`, `app/routers/api/v1/exports.py:153`
-
-`LocalStorageBackend.get_download_url` now raises `NotImplementedError`. The exports service picks
-the backend from current config (`get_backend()`, `storage.py:166-170`, which silently falls back
-to the local backend when `SPACES_BUCKET` is unset) but branches on the persisted row's
-`storage_type`. An export created while `STORAGE_BACKEND=spaces` has `storage_type='spaces'`;
-if the bucket is later unset or the backend switched, Download on that export takes the `spaces`
-branch and calls `get_download_url()` on the local backend. Both routers catch only
-`ServiceError` and `main.py` has no catch-all handler, so the request is an unhandled 500. On
-`main` the same path returned a redirect to a dead `/admin/exports/file/...` URL (a graceful 404).
-
-**Suggested fix:** Check the backend type in `services/exports.py` before branching, or have the
-local backend return `None` and fall through to streaming.
-
-**Files Affected:** `app/utils/storage.py`, `app/services/exports.py`
-
----
-
-## [REVIEW] Requests badge runs two uncached COUNTs on every Directory-section render
-
-**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
-**Severity:** Medium
-**Found in:** `app/utils/template_context.py:34`, `app/utils/service_errors.py:79-85`
-
-`find_page_with_ancestors` uses prefix matching, so `/users/{id}/profile`,
-`/groups/{id}/membership`, and every other `/users/*`, `/groups/*`, `/directory/*` page resolves
-`active_top_level` to `/directory` and calls `_get_requests_badge_count`. That runs two COUNT
-queries plus two `track_activity` calls per HTML render. `count_users_with_missing_required` is a
-CROSS JOIN of `tenant_attribute_config` x `users` x `user_attributes` with `count(distinct)`; on a
-50k-user tenant with 8 required attributes that is a 400k-row scan on every user or group page.
-`render_error_page` also calls `get_template_context`, and only `ServiceError` is swallowed, so a
-psycopg `OperationalError` from the count turns the error page itself into a 500.
-
-The 2026-09-06 gating fix (noted under the Requests badge accessibility entry above) narrowed the
-cost from every admin page to every Directory-section page. It did not remove it.
-
-**Suggested fix:** Cache the per-tenant count in memcached with a short TTL, invalidated on
-approve/deny/force-complete. Fold both counts into one query. Catch `Exception` (log and return 0)
-rather than `ServiceError`.
-
-**Files Affected:** `app/utils/template_context.py`, `app/services/user_attributes.py` (or
-wherever the count queries live), `app/database/users/`
-
----
-
-## [REVIEW] `test_router_level_dependencies_are_set` passes vacuously after the move
-
-**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
-**Severity:** Medium
-**Found in:** `tests/test_auth_coverage.py:73`
-
-The test still filters on the retired `/admin/settings` prefix. Two problems compound:
-
-1. Under FastAPI 0.138 `app.routes` holds `_IncludedRouter` wrappers without `.path`, so the
-   `hasattr(r, 'path')` filter drops every real route. `account_routes`, `users_routes`, and
-   `settings_routes` are all empty and both tests pass with zero assertions exercised.
-2. If the walk is fixed, the 25 `/admin/settings*` matches are all `routers.legacy_redirects` 301
-   stubs with no auth deps (they would fail the admin-dep assertion), while the 10 `/settings*` and
-   11 `/security*` routes the test was meant to guard are never matched.
-
-**Suggested fix:** Update the prefix to `('/settings', '/security')` and walk `router.routes`
-(recursing into included routers) instead of `app.routes`.
-
-**Files Affected:** `tests/test_auth_coverage.py`
 
 ---
 

@@ -265,7 +265,6 @@ def setup(log: logging.Logger) -> dict:
             "user_email": OP_USER_EMAIL,
             "user_first_name": OP_USER_FIRST_NAME,
             "user_last_name": OP_USER_LAST_NAME,
-            "password": DEV_PASSWORD,
             "client_id": client["client_id"],
         },
         "rp": {

@@ -6,7 +6,7 @@
 **Created**: 2026-08-30
 **Revised**: 2026-08-30 (plan review -- re-split into 8 iterations, column set settled,
 cross-cutting concerns added)
-**Status**: In progress -- Iteration 9 of 9
+**Status**: Feature complete -- released as 1.12.0 (2026-09-06). Iteration 9 finished locally: docs + glossary, changelog + version bump, review findings logged to `.claude/ISSUES.md`, backlog item split and archived. The upstream-OIDC E2E test was split to its own backlog item rather than shipped here.
 
 ## Context
 
@@ -1114,7 +1114,16 @@ correctness bug plus several coverage gaps:
 ---
 
 ## Iteration 9 -- Docs, release prep, final review
-**Status**: Not started
+**Status**: Complete (2026-09-06, done locally rather than by the CI orchestrator
+after the 2026-09-01 run hit the model usage limit 8 minutes in)
+
+Done: `docs/admin-guide/identity-providers/{oidc-setup,oidc-google,oidc-entra}.md`,
+glossary entries (OIDC discovery, JWKS, UserInfo, correlation claim), identity-providers
+index + privileged-domains + mkdocs nav updates; CHANGELOG entry + version bump to
+1.12.0; review pass (`make quality-all` green including 62 E2E; 4 findings logged to
+`.claude/ISSUES.md`; the iteration-5 `test_password_api.py` rate-limit mocks verified
+legitimate). Split out: the upstream-OIDC E2E test, group claims, GitHub/Okta presets
+(all now standalone BACKLOG.md items); backlog item archived as complete-core-scope.
 
 ### Acceptance criteria
 - [ ] E2E test in `tests/e2e/` driving a real browser through an upstream OIDC login (deferred from

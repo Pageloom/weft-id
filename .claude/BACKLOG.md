@@ -397,112 +397,117 @@ Two related extensions also belong here: connector types that don't fit the "gen
 
 ---
 
-## OIDC Upstream IdP Support (with Entra, Google, GitHub, Okta Presets)
+## OIDC Upstream Group Claim Handling
 
 **User Story:**
-As a tenant admin whose upstream identity provider speaks OIDC (Entra ID, Google Workspace, GitHub, Okta, Keycloak, Auth0, or a custom IdP),
-I want to add it as an upstream IdP in WeftID using OIDC instead of SAML,
-So that I can federate to providers that prefer OIDC, use simpler client-secret configuration instead of certificate exchange, and reduce setup friction for tenants migrating off platforms that ship OIDC-only.
+As a tenant admin whose upstream OIDC provider carries group information,
+I want group claims from the provider mapped into WeftID groups,
+So that group-based app access follows the upstream directory without a separate sync.
 
 **Context:**
 
-WeftID currently accepts only SAML 2.0 as an upstream federation protocol. OIDC is the more modern and increasingly common federation standard, especially for newer SaaS platforms and developer-oriented IdPs.
+Split from **OIDC Upstream IdP Support** (shipped 1.12.0 without group claims; see
+BACKLOG_ARCHIVE.md). The connector already stores a reserved `group_claim_source`
+column (written by the admin form, read by nothing). Group claim shapes are
+per-vendor:
 
-The design choice is **one generic OIDC connector + thin vendor presets** rather than building each provider from scratch:
-- A spec-correct OIDC connector handles most real-world providers (Keycloak, Auth0, custom IdPs) with no per-vendor code.
-- Thin preset layers for Entra, Google, GitHub, and Okta cover the vendor-specific quirks (tenant-scoped authority URLs, hosted-domain restrictions, org/team claim handling) without forking the core connector.
-- Adding a new vendor preset later is a small per-vendor effort, not a re-architecture.
+- **Generic**: configurable claim name (`groups`, `roles`, custom) and value shape
+  (list of strings, list of objects)
+- **Entra**: `groups` claim emits directory GUIDs; resolving names needs
+  `Directory.Read.All` + Microsoft Graph, or the admin accepts GUID-keyed groups
+- **Okta**: native `groups` claim, admin enables it on the Okta authorization server
+- **Google**: no native group claim; custom-claim opt-in only
+- **GitHub**: orgs/teams via extra API calls after token exchange (belongs with the
+  GitHub preset)
 
-This is a peer protocol to the existing SAML IdP support, not a replacement. Both protocols share the same downstream user/group plumbing (JIT provisioning, attribute mirroring, group sync, privileged domain routing).
-
-**Design Notes:**
-
-- Auth flow: OIDC **authorization code with PKCE** as the only supported flow. No implicit, no hybrid. PKCE is required (not optional) since WeftID is a confidential client running server-side and PKCE adds defense-in-depth at near-zero cost.
-- IdP discovery: prefer the OIDC discovery endpoint (`/.well-known/openid-configuration`). Manual configuration of the four endpoints (authorization, token, userinfo, JWKS) is supported as a fallback for IdPs that don't publish discovery.
-- Client registration: per IdP connection, admin pastes client ID + client secret (encrypted at rest with the existing HKDF infrastructure). Some preset providers (GitHub, public IdPs) accept a client created in their console; others (Entra, Okta) require an app registration with specific redirect URIs and scopes.
-- Standard scopes requested: `openid profile email`. Additional scopes per preset (e.g. `read:org` for GitHub group/team claims, `Directory.Read.All` for Entra group claims where the admin wants that).
-- Claim → user attribute mapping: per-IdP configuration mapping OIDC claims (`given_name`, `family_name`, `email`, `picture`, `phone_number`, custom claims) to WeftID's standard user attribute registry. Reuses the attribute mirroring infrastructure shipped in 1.6.0.
-- Group claim handling: standardized per preset. Entra emits `groups` claim with GUIDs; Google has no built-in group claim (admin must opt in to a custom claim mapping or sync groups separately); GitHub uses `read:org` + `/user/orgs` and `/user/teams` API calls; Okta emits a configurable `groups` claim.
-- JIT provisioning: identical UX to SAML JIT. First-time login from an OIDC IdP creates the user; subsequent logins refresh mirrored attributes.
-- NameID equivalent: OIDC's `sub` claim is the stable subject identifier, persisted per (idp_id, sub) pair so users are correctly correlated across sessions even if their email changes.
-- Privileged domain routing: integrates with the existing privileged-domains feature. A domain bound to an OIDC IdP routes the user to that IdP at sign-in (parallel to the SAML behavior).
-- Per-IdP redirect URI: WeftID exposes `https://<tenant>.id.example.com/auth/oidc/<idp_slug>/callback`. The admin pastes this into the IdP's app registration.
+Groups arriving this way should behave like `idp`-type groups (read-only membership,
+synced on sign-in), mirroring the SAML group-assertion behavior.
 
 **Acceptance Criteria:**
 
-**Core OIDC connector:**
+- [ ] Generic connector reads `group_claim_source` and syncs membership on each sign-in
+- [ ] Value shapes: list of strings and list of objects (configurable name key)
+- [ ] Synced groups are `idp`-type: read-only in WeftID, membership updated on sign-in
+- [ ] Entra GUID handling: GUID-keyed groups work without Graph; optional Graph
+      name resolution documented as a follow-up decision, not silently required
+- [ ] Docs: group-claim section on the OIDC setup page + per-vendor notes
 
-- [ ] Migration adds `oidc_idp_connections` table (tenant-scoped, name, issuer URL, discovery URL or manual endpoint set, client ID, encrypted client secret, scopes, claim mapping JSON, group claim source, enabled flag)
-- [ ] Admin UI: parallel to SAML IdP setup — create connection, choose vendor preset (Generic / Entra / Google / GitHub / Okta), paste credentials, configure attribute mapping, test, enable
-- [ ] OIDC discovery endpoint parsing (`/.well-known/openid-configuration`) populates authorization / token / userinfo / JWKS endpoints; manual override path for IdPs without discovery
-- [ ] Authorization code with PKCE flow: code_verifier generated per request, stored in session, validated on callback; state parameter validated for CSRF
-- [ ] ID token validation: signature against the IdP's JWKS, issuer match, audience match, `nonce` claim match, expiry within tolerance
-- [ ] Standard `openid profile email` scopes always requested; per-preset additional scopes configurable
-- [ ] Claim → standard user attribute mapping reuses the attribute mirroring infrastructure from 1.6.0
-- [ ] Stable user correlation on `(idp_id, sub)` pair; email changes upstream do not create duplicate accounts
-- [ ] JIT provisioning on first login (parallel to SAML JIT)
-- [ ] Privileged domain routing supports OIDC IdPs as a binding target
+**Effort:** M
+**Value:** Medium-High (group-based access is the reason many tenants federate)
 
-**Vendor preset: Generic OIDC**
+**Dependencies:** OIDC Upstream IdP Support ✅ (shipped 1.12.0)
 
-- [ ] Spec-correct OIDC 2.0 client; works against any IdP exposing `/.well-known/openid-configuration`
-- [ ] Group claim source configurable: which claim name (`groups`, `roles`, custom), value shape (list of strings, list of objects)
-- [ ] Documentation page covers Keycloak, Auth0, and "custom IdP" setup walkthroughs
+---
 
-**Vendor preset: Entra ID OIDC**
+## GitHub and Okta OIDC Presets
 
-- [ ] Authority URL: `https://login.microsoftonline.com/<tenant_id>/v2.0` (admin enters tenant ID; WeftID composes the URL)
-- [ ] Default scopes: `openid profile email User.Read`
-- [ ] Group claim: requires `Directory.Read.All` scope and "groups claim" enabled in the Entra app registration; emits GUIDs that WeftID can map to local group names via Microsoft Graph (optional)
-- [ ] Documentation walkthrough: Entra app registration, redirect URI configuration, secret generation, admin consent
-- [ ] Quirk handling: Entra's `oid` claim used as `sub` for correlation (per Microsoft's guidance) when `sub` is per-app-anonymous
+**User Story:**
+As a tenant admin on GitHub or Okta,
+I want a preset for my provider in the OIDC connection form,
+So that setup is pre-filled instead of manual generic configuration.
 
-**Vendor preset: Google Workspace OIDC**
+**Context:**
 
-- [ ] Authority URL: `https://accounts.google.com`
-- [ ] Default scopes: `openid profile email`
-- [ ] Hosted-domain restriction: per-connection `hd` parameter on the authorization request enforces a Workspace customer domain (rejects personal Google accounts)
-- [ ] Group claim: not native to Google OIDC; admin can opt in to a custom-claim mapping or use the (separate) Google Workspace Directory Sync to populate groups
-- [ ] Documentation walkthrough: Google Cloud OAuth client setup, consent screen configuration, redirect URI registration, hosted-domain restriction
+Split from **OIDC Upstream IdP Support** (shipped 1.12.0 with Generic + Google +
+Entra; see BACKLOG_ARCHIVE.md). The preset registry
+(`app/services/oidc_upstream/presets.py`) makes a preset a set of defaults, not a
+code path, so each is a small addition -- except GitHub, which is not spec OIDC
+(no discovery document, no ID token; identity comes from `/user` +
+`/user/emails` API calls after token exchange) and needs a real adapter.
 
-**Vendor preset: GitHub**
+Okta was deferred because Okta tenants almost always work via SAML already;
+GitHub because it is developer-niche. Revisit when a customer asks.
 
-- [ ] Authority URL: `https://github.com` (uses OAuth 2.0 with OIDC-shaped userinfo via `/user`, `/user/emails`, `/user/orgs`, `/user/teams`)
-- [ ] Default scopes: `read:user user:email read:org` (last one only when group/team mapping enabled)
-- [ ] Group claim source: GitHub orgs and teams pulled via additional API calls after token exchange; mapped into WeftID groups via configurable rules (org → group, `org/team` → group)
-- [ ] Allowed orgs filter: per-connection allow-list of GitHub org slugs; users not in any allowed org are denied
-- [ ] Documentation walkthrough: GitHub OAuth app creation, scope grants, org-allow-list configuration
+**Acceptance Criteria:**
 
-**Vendor preset: Okta OIDC**
+- [ ] Okta preset: authority `https://<subdomain>.okta.com` (admin enters
+      subdomain or custom domain), scopes `openid profile email`, `sub` correlation
+- [ ] GitHub adapter: OAuth2 flow with userinfo synthesized from the GitHub API;
+      allowed-orgs filter (users outside listed orgs denied)
+- [ ] Docs: per-preset walkthrough pages, matching the Google/Entra pages
+- [ ] Recorded fixtures per preset; no live API calls in tests
 
-- [ ] Authority URL: `https://<okta_subdomain>.okta.com` or custom domain (admin enters)
-- [ ] Default scopes: `openid profile email groups`
-- [ ] Group claim: Okta-native `groups` claim; emit configuration depends on Okta authorization server (admin must enable the groups claim in Okta)
-- [ ] Documentation walkthrough: Okta app integration creation, redirect URI configuration, group claim setup
+**Effort:** M (GitHub is most of it)
+**Value:** Medium
 
-**Cross-cutting:**
+**Dependencies:** OIDC Upstream IdP Support ✅ (shipped 1.12.0). GitHub group
+mapping belongs to **OIDC Upstream Group Claim Handling**.
 
-- [ ] Audit events: `oidc_idp_connection_created`, `oidc_idp_connection_updated`, `oidc_idp_connection_deleted`, `oidc_login_started`, `oidc_login_completed`, `oidc_login_failed`, `oidc_user_jit_provisioned`
-- [ ] Test coverage with mocked IdP responses (no live API calls); recorded fixtures per preset covering discovery, code exchange, ID token validation, userinfo, group claim shapes
-- [ ] Documentation page `docs/admin-guide/identity-providers/oidc-setup.md` covering the generic connector; per-preset walkthroughs in subpages (`oidc-entra.md`, `oidc-google.md`, `oidc-github.md`, `oidc-okta.md`)
-- [ ] Glossary entries: OIDC, OpenID Connect, PKCE (cross-link from existing OAuth2 entry), authorization code flow with PKCE, OIDC discovery, JWKS, ID token, userinfo endpoint
-- [ ] Privileged-domain UI accepts OIDC IdPs as a binding target alongside SAML IdPs
+---
 
-**Effort:** XL (single largest backlog item; new protocol surface, five preset implementations, parallel admin UX to SAML)
-**Value:** High (modernizes WeftID's federation surface; opens the door to tenants whose upstream IdP ships OIDC-only or whose admins prefer OIDC's simpler credential model over SAML's certificate exchange)
-**Version impact:** Minor (additive: new tables, new endpoints, new admin section, new event types; no changes to SAML or existing flows)
+## Upstream OIDC Login E2E Test
 
-**Dependencies:**
-- Builds on **Standard user attributes** ✅ (shipped in 1.6.0): claim → attribute mapping reuses the attribute registry and mirroring infrastructure.
-- Builds on **Privileged domains** ✅: OIDC IdPs slot into the same binding surface as SAML IdPs.
-- Independent of **Inbound SCIM (Okta and Entra → WeftID)** and **Google Workspace Directory Sync** (inbound directions). These items cover different ways the same upstream provider can populate WeftID; admins pick whichever fits their stack.
+**User Story:**
+As a maintainer,
+I want a browser E2E test driving a full upstream OIDC login,
+So that the one flow unit tests cannot cover (real redirects, session cookies,
+callback handling end to end) is exercised before releases.
 
-**Suggested implementation order** (when this item is broken into iterations by `/lead`):
-1. Generic OIDC connector (the foundation; all presets sit on this)
-2. Entra ID preset (largest enterprise target)
-3. Google Workspace preset (parallel to Entra)
-4. GitHub preset (developer-tenant differentiator, requires the extra-API-call group source)
-5. Okta preset (last because Okta tenants typically already work via SAML)
+**Context:**
+
+Split from **OIDC Upstream IdP Support** (shipped 1.12.0; deferred twice during
+the /lead run, deliberately -- see `specs/oidc_upstream.md` iteration 8 decisions
+log). The natural approach is loopback: WeftID's own downstream OP
+(shipped 1.11.0) as the upstream IdP, following
+`tests/e2e/test_scim_loopback_e2e.py`. That needs a seed/testbed script wiring an
+OIDC-enabled App to an OIDC upstream connection in the dev fixture, and carries
+circularity risk (both directions share session state on the same host) that is
+exactly why it deserves focused work rather than a rushed bolt-on. Fallback:
+the Authentik testbed (`dev/scim-testbed.sh`) is already an OIDC OP on the
+SSRF dev allowlist.
+
+**Acceptance Criteria:**
+
+- [ ] E2E test in `tests/e2e/`: login via upstream OIDC, JIT provisioning on
+      first sign-in, second sign-in correlates on the same subject (no duplicate)
+- [ ] Runs under `make e2e` with the standard dev services; skipped cleanly when
+      services are absent
+- [ ] Testbed/seed wiring documented or scripted
+
+**Effort:** S-M
+**Value:** Medium (closes the one untested flow in the 1.12.0 surface)
+
+**Dependencies:** OIDC Upstream IdP Support ✅, OIDC Provider ✅
 
 ---
 

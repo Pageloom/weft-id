@@ -26,10 +26,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
-      memcached:
-        image: memcached:1.6-alpine
-        ports:
-          - 11211:11211
 
     steps:
       - uses: actions/checkout@v7
@@ -68,5 +64,4 @@ jobs:
           POSTGRES_USER: appuser
           POSTGRES_PASSWORD: apppass
           POSTGRES_DB: appdb
-          MEMCACHED_HOST: localhost
         run: poetry run python -m pytest

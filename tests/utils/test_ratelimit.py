@@ -248,3 +248,58 @@ class TestRateLimitErrorException:
         """Should use message for string representation."""
         exc = RateLimitError(message="Custom message")
         assert str(exc) == "Custom message"
+
+
+class TestRateLimiterCounting:
+    """End-to-end against the in-memory backend: no mocks, real counting.
+
+    These guard the property the suite relies on: a rate limit that is
+    configured actually trips under test, instead of failing open because
+    Memcached is unreachable.
+    """
+
+    def test_prevent_trips_past_limit(self):
+        limiter = RateLimiter()
+        for _ in range(5):
+            limiter.prevent("count:{k}", limit=5, timespan=60, k="a")
+        with pytest.raises(RateLimitError):
+            limiter.prevent("count:{k}", limit=5, timespan=60, k="a")
+
+    def test_keys_are_independent(self):
+        limiter = RateLimiter()
+        for _ in range(5):
+            limiter.prevent("count:{k}", limit=5, timespan=60, k="a")
+        # A different key has its own bucket.
+        assert limiter.prevent("count:{k}", limit=5, timespan=60, k="b") == 1
+
+    def test_window_expiry_resets_counter(self, memory_cache):
+        base = memory_cache.clock()
+        memory_cache.clock = lambda: base
+        limiter = RateLimiter()
+        for _ in range(5):
+            limiter.prevent("count:{k}", limit=5, timespan=60, k="a")
+        with pytest.raises(RateLimitError):
+            limiter.prevent("count:{k}", limit=5, timespan=60, k="a")
+
+        memory_cache.clock = lambda: base + 60
+        assert limiter.prevent("count:{k}", limit=5, timespan=60, k="a") == 1
+
+    def test_check_and_reset(self):
+        limiter = RateLimiter()
+        limiter.prevent("count:{k}", limit=5, timespan=60, k="a")
+        limiter.prevent("count:{k}", limit=5, timespan=60, k="a")
+        assert limiter.check("count:{k}", limit=5, k="a") == (2, False)
+        assert limiter.reset("count:{k}", k="a") is True
+        assert limiter.check("count:{k}", limit=5, k="a") == (0, False)
+
+    def test_log_reports_exceeded(self):
+        limiter = RateLimiter()
+        for _ in range(3):
+            limiter.log("soft:{k}", limit=3, timespan=60, k="a")
+        assert limiter.log("soft:{k}", limit=3, timespan=60, k="a") == (4, True)
+
+    def test_state_does_not_leak_between_tests(self):
+        """Each test gets a fresh backend, so this bucket starts at zero."""
+        limiter = RateLimiter()
+        assert limiter.check("count:{k}", limit=5, k="a") == (0, False)
+        assert limiter.prevent("count:{k}", limit=5, timespan=60, k="a") == 1

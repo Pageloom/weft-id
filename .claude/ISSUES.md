@@ -10,8 +10,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 2 | File Structure (pre-existing), Test infrastructure (rate limiting untestable from host) |
-| Low | 3 | Upload-auth temp-file leak (warning-ignored, tracked), Missing OIDC rate-limit tests, Dead code (`list_user_oidc_links`) |
+| Medium | 1 | File Structure (pre-existing) |
+| Low | 2 | Upload-auth temp-file leak (warning-ignored, tracked), Dead code (`list_user_oidc_links`) |
 
 Note: the `[DEPS] pygments` entry was resolved in 1.11.0 (2026-07-12) — pymdown-extensions
 11.0.1 unblocked the 2.20.0 bump and the pin is gone; see ISSUES_ARCHIVE.md.
@@ -42,58 +42,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last service refactor:** 2026-03-21 (settings.py split into package, branding routes extracted, logo duplication removed)
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [TEST-INFRA] Rate limiting fails open in every host-run test
-
-**Discovered:** 2026-09-06 (oidc-upstream final review, while triaging the
-`test_password_api.py` rate-limit mocks)
-**Severity:** Medium
-**Category:** Test infrastructure
-
-`utils.ratelimit` fails open by design when Memcached is unreachable
-(`prevent()` logs "Rate limit check failed (cache unavailable)" and returns 0).
-When the suite runs on the host via `make test`, the Memcached hostname does not
-resolve (it is a Docker service name), so **every** rate limit in the codebase
-is inert during host-run tests. Verified directly: 8 calls against a
-`limit=5` key never tripped.
-
-**Why it matters:** No rate-limit behavior is ever exercised by a local
-`make test` run. A regression that drops or misconfigures a limit
-(wrong key pattern, wrong window, guard removed) passes the suite silently.
-Inside CI containers Memcached IS reachable, which is why the
-`test_password_api.py` tests needed `ratelimit.prevent` mocks there -- the two
-environments diverge.
-
-**Suggested fix:** A test fixture providing a deterministic in-memory counter
-backend for `utils.cache` (or a `ratelimit` test double that actually counts),
-so limits can be asserted without Memcached and behave identically on host and
-CI. Then add regression tests for the key limits (login, password change, OIDC
-login/callback, SAML ACS).
-
-**Files affected:** `app/utils/ratelimit.py`, `app/utils/cache.py`,
-`tests/conftest.py`
-
----
-
-## [TEST] OIDC login/callback rate limiting has no tests despite spec claiming them
-
-**Discovered:** 2026-09-06 (oidc-upstream final review)
-**Severity:** Low
-**Category:** Test coverage
-
-Iteration 3 of `specs/oidc_upstream.md` lists rate limiting among its test
-acceptance criteria and marks the criterion `[x]`, but
-`tests/routers/test_oidc_upstream_authentication.py` contains no rate-limit
-test. The routes DO rate-limit (`ratelimit.prevent` on both
-`/auth/oidc/{id}/login` and `/callback`) -- the feature is present, the test is
-missing, and the spec over-claims.
-
-Blocked in practice by the [TEST-INFRA] issue above: a meaningful test needs a
-counting backend. Fix together.
-
-**Files affected:** `tests/routers/test_oidc_upstream_authentication.py`
 
 ---
 

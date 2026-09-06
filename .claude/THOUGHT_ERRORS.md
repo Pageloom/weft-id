@@ -545,3 +545,8 @@ validated nothing.
 Also: always drive compose through the `make` targets. `$(COMPOSE)` is
 `docker compose --project-directory . -f dev/docker-compose.yml`; running `docker compose`
 from inside `dev/` resolves build contexts and the env file against the wrong root.
+
+## Rate Limits Count in Tests
+
+**Wrong:** Assuming rate limits fail open under `make test` (Memcached is unreachable on the host) and either ignoring them or mocking `ratelimit.prevent` "just in case".
+**Right:** Every test gets a fresh in-memory cache backend (`memory_cache` autouse fixture in `tests/conftest.py` installing `utils.cache.MemoryCache`), so limits count for real and reset per test. A test that sends more requests than a route's limit will get the rate-limited response; that is a signal about the test, not a flake. Mock `ratelimit.prevent` only to force the exceeded branch cheaply, and request `memory_cache` to advance its `clock` when you need a window to expire. Real-count regression tests live in `tests/routers/test_rate_limit_enforcement.py`.

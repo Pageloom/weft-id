@@ -52,10 +52,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
-      memcached:
-        image: memcached:1.6-alpine
-        ports:
-          - 11211:11211
       maildev:
         image: maildev/maildev
         ports:
@@ -108,7 +104,6 @@ jobs:
           POSTGRES_USER: appuser
           POSTGRES_PASSWORD: apppass
           POSTGRES_DB: appdb
-          MEMCACHED_HOST: localhost
         run: |
           python3 .github/scripts/lead_agent.py "${{ inputs.slug }}" \
             --branch "${{ inputs.branch }}" \

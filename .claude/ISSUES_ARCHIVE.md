@@ -4,6 +4,71 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST-INFRA] Rate limiting fails open in every host-run test
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (oidc-upstream final review)
+**Severity:** Medium
+**Category:** Test infrastructure
+
+`utils.ratelimit` fails open when Memcached is unreachable. On the host the
+Memcached hostname is a Docker service name that does not resolve, so every
+rate limit in the codebase was inert under `make test`. In CI a Memcached
+service was reachable, but its counters were shared across all tests and
+xdist workers, which is why router tests carried an autouse
+`bypass_saml_acs_ratelimit` mock and why the two environments diverged.
+
+**Resolution.**
+
+- `utils.cache.MemoryCache`: an in-process backend with pymemcache-compatible
+  `get`/`set`/`delete`/`incr`/`add` semantics (incr on a missing key returns
+  None, add only when absent, `expire=0` never expires), lazy TTL expiry
+  against a swappable `clock`, and one lock so increments are atomic across
+  the TestClient's worker thread.
+- `tests/conftest.py` `memory_cache` autouse fixture installs a fresh
+  `MemoryCache` as `utils.cache._client` for every test. Each xdist worker is
+  its own process, so nothing leaks between tests or workers, on the host or
+  in CI. Tests request the fixture to inspect the store or move its clock past
+  a window.
+- Removed the `bypass_saml_acs_ratelimit` autouse mock from
+  `tests/routers/conftest.py` (its reason, shared CI counters, is gone) and
+  the now-unused Memcached service from `tests.yml` and `lead-agent.yml`.
+  Existing `ratelimit.prevent` mocks that force the exceeded branch are
+  unchanged.
+- Regression tests with real counting in
+  `tests/routers/test_rate_limit_enforcement.py`: login hard block (20/15min,
+  normalized email key), direct-routing send-code (30/5min), email send per
+  address (5/10min), password change (5/user/hour, shared by API and web
+  form), OIDC login and callback (20/5min each, independent buckets, window
+  expiry via the clock), SAML ACS (20/5min shared by per-IdP and legacy
+  routes, admin test flow bypass). Plus `MemoryCache` unit tests and
+  mock-free `RateLimiter` counting tests.
+
+**Files changed:** `app/utils/cache.py`, `tests/conftest.py`,
+`tests/routers/conftest.py`, `tests/routers/test_rate_limit_enforcement.py`,
+`tests/utils/test_cache.py`, `tests/utils/test_ratelimit.py`,
+`.github/workflows/tests.yml`, `.github/workflows/lead-agent.yml`
+
+---
+
+## [TEST] OIDC login/callback rate limiting has no tests despite spec claiming them
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (oidc-upstream final review)
+**Severity:** Low
+**Category:** Test coverage
+
+Iteration 3 of `specs/oidc_upstream.md` marked rate limiting as tested, but no
+test exercised it. Resolved together with the [TEST-INFRA] item above:
+`test_oidc_login_limit` and `test_oidc_callback_limit` in
+`tests/routers/test_rate_limit_enforcement.py` drive 21 real requests through
+each route, assert the 21st is refused with `too_many_requests`, that the two
+routes have independent buckets, that the limit runs before the connection
+lookup (no enumeration oracle), and that the bucket expires after the 5 minute
+window. The spec claim is now true.
+
+---
+
 ## [PARITY] Manual OIDC endpoint configuration is API-only
 
 **Fixed:** 2026-09-06

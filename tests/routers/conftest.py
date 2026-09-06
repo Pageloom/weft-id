@@ -14,18 +14,6 @@ def _is_valid_uuid(value: str) -> bool:
 
 
 @pytest.fixture(autouse=True)
-def bypass_saml_acs_ratelimit(mocker):
-    """Bypass SAML ACS rate limiting for all router tests.
-
-    Tests run in parallel and share the 'testclient' IP. In CI where Memcached
-    is available, the shared counter exhausts the 20-request limit and unrelated
-    tests start receiving 429. Tests that specifically test rate limiting override
-    this by patching the entire `ratelimit` object with @patch(...ratelimit).
-    """
-    mocker.patch("routers.saml.authentication.ratelimit.prevent", return_value=1)
-
-
-@pytest.fixture(autouse=True)
 def _guard_db_calls_with_fake_ids(mocker):
     """Block database calls with invalid or non-existent IDs.
 

@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 def test_get_returns_none_when_client_unavailable():
     """Test that get returns None when Memcached client is unavailable."""
@@ -285,3 +287,107 @@ def test_get_client_returns_none_on_import_failure():
                 assert result is None
     finally:
         cache._client = original_client
+
+
+# =============================================================================
+# MemoryCache (in-process backend used by the test suite)
+# =============================================================================
+
+
+class TestMemoryCache:
+    def _cache(self, start: float = 1000.0):
+        from utils.cache import MemoryCache
+
+        now = {"t": start}
+        backend = MemoryCache(clock=lambda: now["t"])
+        return backend, now
+
+    def test_set_get_delete(self):
+        backend, _ = self._cache()
+        assert backend.get("k") is None
+        assert backend.set("k", b"v") is True
+        assert backend.get("k") == b"v"
+        assert backend.delete("k") is True
+        assert backend.get("k") is None
+        assert backend.delete("k") is False
+
+    def test_set_coerces_to_bytes(self):
+        backend, _ = self._cache()
+        backend.set("k", "text")
+        assert backend.get("k") == b"text"
+        backend.set("n", 7)
+        assert backend.get("n") == b"7"
+
+    def test_incr_missing_key_returns_none(self):
+        backend, _ = self._cache()
+        assert backend.incr("counter") is None
+
+    def test_incr_counts(self):
+        backend, _ = self._cache()
+        backend.add("counter", b"1")
+        assert backend.incr("counter") == 2
+        assert backend.incr("counter", 5) == 7
+        assert backend.get("counter") == b"7"
+
+    def test_incr_non_numeric_raises(self):
+        backend, _ = self._cache()
+        backend.set("k", b"text")
+        with pytest.raises(ValueError):
+            backend.incr("k")
+
+    def test_add_only_when_absent(self):
+        backend, _ = self._cache()
+        assert backend.add("k", b"1") is True
+        assert backend.add("k", b"2") is False
+        assert backend.get("k") == b"1"
+
+    def test_expiry(self):
+        backend, now = self._cache()
+        backend.add("k", b"1", expire=60)
+        now["t"] += 59
+        assert backend.get("k") == b"1"
+        now["t"] += 1
+        assert backend.get("k") is None
+        # Once expired, add succeeds again and incr sees no counter.
+        assert backend.incr("k") is None
+        assert backend.add("k", b"1", expire=60) is True
+
+    def test_incr_preserves_expiry(self):
+        backend, now = self._cache()
+        backend.add("k", b"1", expire=60)
+        now["t"] += 30
+        backend.incr("k")
+        now["t"] += 30
+        assert backend.get("k") is None
+
+    def test_zero_expire_never_expires(self):
+        backend, now = self._cache()
+        backend.set("k", b"v", expire=0)
+        now["t"] += 10**9
+        assert backend.get("k") == b"v"
+
+    def test_clear(self):
+        backend, _ = self._cache()
+        backend.set("a", b"1")
+        backend.set("b", b"2")
+        backend.clear()
+        assert backend.get("a") is None
+        assert backend.get("b") is None
+
+    def test_module_functions_use_installed_backend(self, memory_cache):
+        """The autouse fixture wires MemoryCache into utils.cache."""
+        from utils import cache
+
+        assert cache.get_client() is memory_cache
+        assert cache.add("k", b"1", ttl=10) is True
+        assert cache.incr("k") == 2
+        assert cache.get("k") == b"2"
+        assert cache.set("k", b"9") is True
+        assert cache.delete("k") is True
+        assert cache.get("k") is None
+
+    def test_module_incr_non_numeric_fails_soft(self, memory_cache):
+        from utils import cache
+
+        cache.set("k", b"text")
+        assert cache.incr("k") is None

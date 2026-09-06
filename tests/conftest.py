@@ -78,6 +78,24 @@ def fast_sp_certificate(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def memory_cache(monkeypatch):
+    """Give every test its own in-memory cache backend.
+
+    Memcached is a Docker service name that does not resolve on the host, so
+    without this ``utils.cache`` fails open and every rate limit in the app is
+    inert. A fresh :class:`utils.cache.MemoryCache` per test makes limits count
+    deterministically on the host and in CI alike, and nothing leaks between
+    tests or xdist workers. Request the fixture to inspect the store or to
+    advance its ``clock`` past a rate-limit window.
+    """
+    from utils import cache
+
+    backend = cache.MemoryCache()
+    monkeypatch.setattr(cache, "_client", backend)
+    return backend
+
+
+@pytest.fixture(autouse=True)
 def clear_dependency_overrides():
     """Clear dependency overrides after each test to prevent state leakage."""
     yield

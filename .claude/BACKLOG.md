@@ -1038,3 +1038,94 @@ Raw REST is a friction tax on adoption. Every comparable platform (WorkOS, Auth0
 - Tracks the **Organizations API** (#1), **Platform keys** (#2), **Webhooks** (#3), and **OIDC Provider** surfaces.
 
 ---
+
+## Restructure Admin Navigation Around Concepts, Not Permissions
+
+**User Story:**
+As a first-time tenant administrator
+I want the navigation grouped by what things *are* (people, where identity comes from, where it goes, rules, history, appearance)
+So that I can predict where a page lives without knowing WeftID's protocol vocabulary or history
+
+**Problem (current tree):**
+
+```
+Dashboard
+Users            → User List | Add User
+Admin
+  Settings       → Security (5 tabs) | Privileged Domains | Identity Providers | OIDC Identity Providers
+                   | Service Providers | Protected Domains | Proxy Apps | User attributes | Branding | About
+  Groups         → All Groups | Add Group
+  Todo           → Reactivation | User Attributes
+  Audit          → Event Log | SAML Debug Log | User Export
+  Integrations   → Apps | B2B
+```
+
+Specific drift, in priority order:
+
+1. **Settings is a junk drawer.** Eleven siblings mixing three unrelated concerns: upstream identity (IdPs, OIDC IdPs, Privileged Domains), downstream applications (Service Providers, Protected Domains, Proxy Apps), and tenant policy (Security, User attributes, Branding, About). It renders as an 11-item third-level bar in `text-xs`.
+2. **Downstream apps are split by protocol across two sections.** SAML SPs and forward-auth apps live in Settings; OAuth2/OIDC apps live in Integrations. "How do I connect my app?" requires knowing the protocol before finding the page.
+3. **Upstream providers are split by protocol with asymmetric names.** "Identity Providers" (unqualified) means SAML; "OIDC Identity Providers" is the sibling.
+4. **"Privileged Domains" and "Protected Domains" are adjacent near-synonyms for unrelated things** (email-domain routing vs. DNS-verified forward-auth domains). The docs carry a warning callout about the confusion, which is a symptom of the nav, not of the docs.
+5. **Protected Domains + Proxy Apps are one feature (forward auth)** presented as two unrelated siblings; both point at the same docs page.
+6. **Users and Groups are split by permission, not concept.** Users is top-level, Groups is under Admin. Admins look for Groups next to Users.
+7. **"Admin" is a permission label, not a category.** Top level carries almost no information (3 items) while level 3 carries 11. Role gating already hides pages from non-admins, so the wrapper adds a click and a level without adding meaning.
+8. **"User Attributes" appears twice** with different meanings (Settings = profile schema config; Todo = pending profile completion). "Todo" itself is vague for what is an approvals/requests queue.
+9. **Audit > User Export is not audit**; it is a directory export.
+10. **Minor:** "Add User" / "Add Group" are actions rendered as nav items; "User attributes" vs "User Attributes" casing; Security > Permissions mixes a self-service toggle with the SAML group-assertion default.
+
+**Proposed tree (recommended):**
+
+Order follows the first-run setup journey left to right: people, where they sign in from, what they sign in to, rules, history, appearance.
+
+```
+Dashboard
+Directory           (authenticated; children role-gated)
+  Users             (list; Add User becomes a button on the list page)
+  Groups            (list; Add Group becomes a button)
+  Requests          (was Todo: Reactivation | Profile Completion; badge count in nav)
+  Attributes        (was Settings > User attributes: the profile schema)
+  Exports           (was Audit > User Export)
+Identity Providers  (super admin)  "where users come from"
+  SAML              (was Identity Providers)
+  OIDC              (was OIDC Identity Providers)
+  Domain Routing    (was Privileged Domains)
+Applications        (super admin)  "where users go"
+  SAML              (was Service Providers)
+  OAuth2 / OIDC     (was Integrations > Apps)
+  Forward Auth      (Domains | Apps as tabs; was Protected Domains + Proxy Apps)
+  Service Accounts  (was Integrations > B2B)
+Security            (super admin; was Settings > Security, promoted)
+  Authentication | Passwords | Sessions | Certificates | Permissions
+Audit               (admin)
+  Event Log | SAML Debug Log
+Settings            (admin)  tenant-level, non-policy
+  Branding (Global | Groups) | About
+```
+
+Seven top-level items, maximum depth three, and every level-2 bar has at most five entries. "Applications" matches the vocabulary Okta, Entra, and Google admins already use, and matches the existing "Applications" tab on group detail pages.
+
+**Conservative fallback (if dropping the Admin wrapper is too disruptive):** keep `Admin` and split Settings into `Identity Providers | Applications | Security | Settings` alongside `Groups | Todo | Audit`. Same width, one level deeper. Not recommended, but a smaller change.
+
+**Open decisions (resolve during grooming):**
+- Keep or drop the `Admin` wrapper (recommendation: drop).
+- Single unified Identity Providers list with a Protocol column and a protocol picker on Add, vs. SAML/OIDC as sibling tabs (recommendation: tabs now, unified list as a follow-up item).
+- Whether B2B service accounts belong under Applications or under Settings as "API Access" (recommendation: Applications; they are OAuth2 clients and share code with Apps).
+- Name for the Todo section: Requests, Approvals, or Inbox (recommendation: Requests).
+
+**Acceptance Criteria:**
+- [ ] `app/pages.py` reflects the new tree; no visible nav bar has more than seven entries at level 1 or five at levels 2 and 3
+- [ ] Every old URL under `/admin/settings/*`, `/admin/integrations/*`, `/admin/todo/*`, and `/admin/audit/user-export` returns a 301 to its new location (bookmarks and docs links keep working)
+- [ ] Section pages have redirect routes to their first accessible child (see THOUGHT_ERRORS: section pages need redirect routes)
+- [ ] Protected Domains and Proxy Apps render as tabs of one Forward Auth page
+- [ ] SAML and OIDC identity providers render as sibling tabs with symmetric names
+- [ ] "Add User" and "Add Group" are removed from nav and exist as buttons on their list pages
+- [ ] Requests section shows a pending-count badge in the nav
+- [ ] `docs_path` values updated; every "Navigate to **Settings > X**" and "**Admin > X**" instruction in `docs/` updated to the new location
+- [ ] E2E tests and route tests updated; `make quality-all` passes
+- [ ] CHANGELOG entry under Changed listing old to new path mapping
+
+**Effort:** L (M for pages.py regrouping + redirects; the rest is docs, tests, and template tab merges)
+**Value:** High (first-run experience and predictability; directly supports the embedder positioning where admins are non-specialists)
+**Version impact:** Minor. Admin UI paths change but old paths redirect; no API, SAML, schema, or env var changes.
+
+---

@@ -257,7 +257,7 @@ PAGES = [
                     ),
                     Page(
                         path="/directory/requests/user-attributes",
-                        title="User Attributes",
+                        title="Profile Completion",
                         permission=PagePermission.ADMIN,
                         show_in_nav=True,
                         docs_path="/docs/admin-guide/users/user-lifecycle/#forced-profile-completion",
@@ -298,14 +298,14 @@ PAGES = [
                 children=[
                     Page(
                         path="/identity-providers/saml/new",
-                        title="Add Identity Provider",
+                        title="Add SAML Provider",
                         permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=False,
                         creates_nav_level=False,
                     ),
                     Page(
                         path="/identity-providers/saml/idp",
-                        title="Identity Provider Details",
+                        title="SAML Provider Details",
                         permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=False,
                         creates_nav_level=False,
@@ -977,6 +977,15 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
                 # Determine active sub-sub-level
                 if len(nav_chain) > 2:
                     active_sub_sub_level = nav_chain[2]
+
+    # A nav level with a single entry is a degenerate strip: it adds a
+    # redundant click without information (e.g. /users/list is the only
+    # visible child of /users after Add User moved to a button). Suppress it
+    # so the level collapses and the section index redirect handles the hop.
+    if len(sub_nav_items) < 2:
+        sub_nav_items = []
+    if len(sub_sub_nav_items) < 2:
+        sub_sub_nav_items = []
 
     # Resolve docs_path: current page's own, or nearest ancestor's
     docs_path = None

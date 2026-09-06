@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
+from pages import has_page_access
 from utils.static_assets import static_url
 
 _TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
@@ -18,6 +19,7 @@ _ICONS_DIR = _TEMPLATES_DIR / "icons"
 
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 templates.env.globals["static_url"] = static_url
+templates.env.globals["has_page_access"] = has_page_access
 
 
 @lru_cache(maxsize=64)

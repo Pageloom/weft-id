@@ -704,3 +704,14 @@ def test_index_redirects_admin_to_domain_routing(test_admin_user, override_auth)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/identity-providers/domain-routing"
+
+
+def test_index_works_without_trailing_slash(test_super_admin_user, override_auth):
+    """Test the /identity-providers index (no trailing slash) redirects to SAML."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    client = TestClient(app)
+    response = client.get("/identity-providers", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/identity-providers/saml"

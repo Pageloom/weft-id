@@ -36,6 +36,7 @@ router = APIRouter(
 
 
 @router.get("/", response_class=HTMLResponse)
+@router.get("", response_class=HTMLResponse)
 def security_index(
     request: Request,
     user: Annotated[dict, Depends(get_current_user)],

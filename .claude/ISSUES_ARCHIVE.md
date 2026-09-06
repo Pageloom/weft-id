@@ -4,6 +4,255 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REVIEW] Legacy 301 handlers drop query strings
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low/Medium
+**Category:** Correctness
+
+The 45 per-path handlers in `app/routers/legacy_redirects.py` took no `Request`
+and redirected to a fixed literal, so query strings the old routes honored
+(filters, pagination, flash params) were silently dropped: `GET
+/admin/audit/events?tiers=security&page=3&size=100` landed on `/audit/events`
+with default filters.
+
+**Resolution.** Replaced the 45 stubs with a single catch-all
+`@router.get("/admin/{rest:path}")` that rewrites against a
+longest-prefix-first `LEGACY_PREFIX_MAP`, re-appends `request.url.query`, and
+returns `safe_redirect(new_path, default="/dashboard", status_code=301)`. The
+module docstring's claim that the compliance check forces literal
+`RedirectResponse` targets was a misreading: `redirect-validation` only
+inspects `RedirectResponse` calls, so `safe_redirect` is permitted (the same
+pattern `routers/groups/members.py` already used).
+
+**Files changed:** `app/routers/legacy_redirects.py`,
+`tests/routers/test_legacy_redirects.py`
+
+---
+
+## [REVIEW] Per-instance legacy URLs 404 instead of 301
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low/Medium
+**Category:** Correctness
+
+`legacy_redirects.py` contained no `{` path parameter, so every old per-instance
+URL that rendered on `main` 404'd: `/admin/audit/events/<uuid>`,
+`/admin/groups/<gid>/membership`, `/admin/settings/identity-providers/<idp>/certificates`,
+`/admin/settings/service-providers/<sp>/groups`, `/admin/integrations/apps/<client_id>`,
+and the OIDC, proxy-app, and SAML-debug detail pages. Iterations 1-3 had
+deliberately deferred these (a UUID-bearing path can't be a compile-time
+literal), but the backlog acceptance criterion read "Every old URL under
+`/admin/settings/*`, `/admin/integrations/*`, `/admin/todo/*` ... returns a 301".
+
+**Resolution.** The catch-all prefix rewrite (see the query-string entry above)
+preserves the remainder of the path after the matched prefix, so per-instance
+IDs and sub-tabs survive the hop: `/admin/settings/identity-providers/idp-1/certificates`
+301s to `/identity-providers/saml/idp-1/certificates`. The `LEGACY_INSTANCE_REDIRECTS`
+test table covers the detail-page shapes, and the target-resolution test now
+matches parameterized route patterns.
+
+**Files changed:** `app/routers/legacy_redirects.py`,
+`tests/routers/test_legacy_redirects.py`
+
+---
+
+## [REVIEW] Section index routes register only the trailing-slash form
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low
+**Category:** Routing
+
+Enumerating app routes yielded only `/audit/`, `/security/`, `/identity-providers/`,
+`/settings/` (no bare form), where `main`'s `admin.py` registered both. `base.html`
+emits `href="{{ page.path }}"` (bare) and the legacy redirects 301 to bare paths,
+so `GET /admin/audit` was three hops: 301 to `/audit`, implicit 307 to `/audit/`,
+303 to `/audit/events`.
+
+**Resolution.** Registered `@router.get("")` alongside `@router.get("/")` on the
+index route of each section router (`audit.py`, `security.py`,
+`identity_providers.py`, `settings.py`), matching the pattern `directory.py` and
+`integrations.py` already used. Restored a bare-path test for each section.
+
+**Files changed:** `app/routers/audit.py`, `app/routers/security.py`,
+`app/routers/identity_providers.py`, `app/routers/settings.py`,
+`tests/routers/test_audit.py`, `tests/routers/test_security.py`,
+`tests/routers/test_identity_providers.py`, `tests/routers/test_settings.py`
+
+---
+
+## [REVIEW] Degenerate single-tab third-level nav on user and group pages
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low
+**Category:** Navigation
+
+Hiding `/users/new` and `/groups/new` from nav left `/users` and `/groups` with
+exactly one visible child, so a full-width strip containing only "User List"
+(or "Group List") rendered under the Directory sub-nav on every user and group
+page. On `main` the list was empty for these paths.
+
+**Resolution.** `get_navigation_context` now suppresses any nav level with fewer
+than two entries (`sub_nav_items` and `sub_sub_nav_items`), so a lone tab
+collapses and the section index redirect handles the hop. The permission-filter
+test moved to a multi-item level (`/directory/requests/reactivation`) and a new
+test asserts the single-item levels for `/users/list` and `/groups/list` are
+suppressed.
+
+**Files changed:** `app/pages.py`, `tests/test_pages.py`
+
+---
+
+## [REVIEW] Hardcoded role tuple in `users_list.html` duplicates `pages.py`
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low
+**Category:** Single source of truth
+
+The Add User button was gated by `user.role in ('admin', 'super_admin')` inline
+in the template -- the only role-tuple gate in any template. `pages.py`, the
+declared single source of truth for page access, already assigns
+`PagePermission.ADMIN` to `/users/new`; if that changed or a role was added, the
+button and the route would diverge silently.
+
+**Resolution.** Registered `has_page_access` as a Jinja global in
+`app/utils/templates.py` and rewrote the gate as
+`{% if has_page_access('/users/new', user.role) %}`. Applied the same to the
+Add Group button in `groups_list.html` (which previously had no gate at all).
+
+**Files changed:** `app/utils/templates.py`, `app/templates/users_list.html`,
+`app/templates/groups_list.html`
+
+---
+
+## [COPY] Stale "Integrations" page titles after the nav restructure
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, copy review)
+**Severity:** Low
+**Category:** Copy
+
+The nav restructure removed the `Integrations` top-level container entirely --
+these pages now live at `Applications > OAuth2 / OIDC` and `Applications >
+Service Accounts` -- but the `<title>` blocks on all four `integrations_*.html`
+templates still read `... - Integrations - {{ site_title }}`.
+
+**Resolution.** Dropped "Integrations" from all four `<title>` blocks (`Apps -
+{{ site_title }}`, `B2B - {{ site_title }}`, and the detail variants). The
+on-page "B2B" copy was kept as the underlying technical term, matching the
+precedent already set for "Privileged Domains" and "Protected Domains" (see
+`.claude/ITERATION_nav_restructure.md` decision logs).
+
+**Files changed:** `app/templates/integrations_apps.html`,
+`app/templates/integrations_app_detail.html`,
+`app/templates/integrations_b2b.html`,
+`app/templates/integrations_b2b_detail.html`
+
+---
+
+## [COPY] Page headings and buttons still use pre-restructure section names
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, copy review)
+**Severity:** Low
+**Category:** Copy
+
+Iterations 2 and 3 made the SAML/OIDC list `<h1>`s symmetric but left the
+buttons, empty states, form headings, detail titles, and `pages.py` titles
+using pre-restructure names: "Add Identity Provider" next to OIDC's "Add OIDC
+Provider", "Security Settings" for a top-level Security section, "Service
+Providers (apps)" under a section literally named Applications, and a Requests
+child labelled "User Attributes" two rows from the Directory > Attributes
+catalog page.
+
+**Resolution.** Renamed to match the new nav labels: "Add SAML Provider" /
+"Create SAML Provider" / "SAML Provider Details" (symmetric with OIDC),
+"Security - {{ site_title }}", "Service Providers" (dropped the parenthetical),
+and the Requests child "User Attributes" -> "Profile Completion" (matching the
+page's own `<h1>` and disambiguating from the catalog). "Privileged Domains"
+kept its on-page copy per the decision-log precedent.
+
+**Files changed:** `app/templates/settings_security_base.html`,
+`app/templates/saml_idp_sp_list.html`, `app/templates/saml_idp_list.html`,
+`app/templates/saml_idp_form.html`, `app/templates/saml_idp_base.html`,
+`app/pages.py`, `tests/e2e/test_admin_setup.py`,
+`tests/e2e/test_idp_setup_variants.py`, `tests/e2e/test_sp_setup_variants.py`
+(the three E2E tests that clicked the renamed "Create Identity Provider" button
+now click "Create SAML Provider")
+
+---
+
+## [COPY] "Add User" and "+ New Group" use different verbs for the same action
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, copy review)
+**Severity:** Low
+**Category:** Copy
+
+The new Users button said "Add User" while the pre-existing Groups button said
+"+ New Group" -- adjacent tabs in the same Directory section. Groups was
+internally inconsistent on its own: `pages.py` called the page "Add Group",
+`groups_new.html` titled it "New Group", its `<h1>` was "Create New Group", and
+its submit button was "Create Group".
+
+**Resolution.** Standardised on "Add X" throughout, matching the rest of the app
+("Add Service Provider", "Add OIDC Provider", "Add Members"): button "Add
+Group", page title "Add Group", `<h1>` "Add Group", submit "Add Group", and the
+list-page modal heading "Add Group". Dropped the leading "+".
+
+**Files changed:** `app/templates/groups_list.html`,
+`app/templates/groups_new.html`
+
+---
+
+## [COPY] Requests badge has no text alternative and is invisible outside Directory
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, copy review)
+**Severity:** Low
+**Category:** Accessibility
+
+The pending-count badge was a bare number with no accessible name: a screen
+reader announced "Requests 3" with no indication of what the 3 counts. (The
+separate observation that the badge was invisible outside Directory was already
+resolved 2026-09-06 by gating the count computation on the active top-level
+section; this entry's remaining scope was the text alternative.)
+
+**Resolution.** Added `title` and `aria-label` to the badge span with proper
+pluralisation: "N pending request(s)". The badge still renders only inside the
+Directory sub-nav strip; surfacing it on the top-level Directory item was left
+as a product decision, not a copy fix.
+
+**Files changed:** `app/templates/base.html`
+
+---
+
+## [HOUSEKEEPING] Nav-restructure backlog item not archived
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low
+**Category:** Process
+
+The "Restructure Admin Navigation Around Concepts, Not Permissions" item still
+sat in `BACKLOG.md` with every acceptance criterion unchecked even though all 5
+iterations were complete and `make quality-all` was green.
+
+**Resolution.** Archived the item to `BACKLOG_ARCHIVE.md` marked Complete with
+all acceptance criteria checked. The one open criterion -- per-instance legacy
+URLs 404 by design -- was resolved first by the catch-all prefix rewrite (see
+the per-instance redirect entry above), so the archive entry is accurate rather
+than noting a deviation.
+
+**Files changed:** `.claude/BACKLOG.md`, `.claude/BACKLOG_ARCHIVE.md`
+
+---
+
 ## [REVIEW] Historical Spaces exports 500 when local backend is selected
 
 **Fixed:** 2026-09-06

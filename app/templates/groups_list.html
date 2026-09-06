@@ -9,9 +9,11 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Groups</h1>
+            {% if has_page_access('/groups/new', user.role) %}
             <a href="/groups/new" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                + New Group
+                Add Group
             </a>
+            {% endif %}
         </div>
 
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
@@ -162,7 +164,7 @@
         <!-- New Group Modal -->
         <div id="new-group-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-70 hidden items-center justify-center z-[10050]">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">New Group</h3>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Add Group</h3>
                 <div class="space-y-4">
                     <div>
                         <label for="new-group-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>

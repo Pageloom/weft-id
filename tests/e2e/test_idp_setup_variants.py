@@ -50,7 +50,7 @@ class TestIdpRegistrationViaUrl:
         idp_name = f"URL Import Test IdP {run_id}"
         page.locator("#name").fill(idp_name)
         page.locator("#provider_type").select_option("generic")
-        page.get_by_role("button", name="Create Identity Provider").click()
+        page.get_by_role("button", name="Create SAML Provider").click()
 
         page.wait_for_url(
             "**/identity-providers/saml/*/details**success=created**",

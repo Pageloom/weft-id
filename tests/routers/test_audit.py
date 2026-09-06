@@ -46,6 +46,20 @@ def test_section_index_fallback_to_dashboard(test_admin_user, override_auth):
         assert response.headers["location"] == "/dashboard"
 
 
+def test_audit_index_works_without_trailing_slash(test_admin_user, override_auth):
+    """Audit index works without a trailing slash (no 307 hop)."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch("routers.audit.get_first_accessible_child") as mock_first_child:
+        mock_first_child.return_value = "/audit/events"
+
+        client = TestClient(app)
+        response = client.get("/audit", follow_redirects=False)
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/audit/events"
+
+
 # =============================================================================
 # Event Log Routes Tests
 # =============================================================================

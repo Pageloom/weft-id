@@ -1,308 +1,92 @@
 """301 redirects from pre-restructure admin nav paths to their new homes.
 
-The admin navigation is being restructured around concepts rather than
-permissions (see ``.claude/ITERATION_nav_restructure.md``). Every page that
-moves gets its own redirect handler here so old bookmarks, emailed links,
-and stale documentation keep working. Each handler uses a literal-string
-``RedirectResponse`` target -- ``dev/compliance_check.py``'s
-``redirect-validation`` check requires the ``url`` argument to be a literal,
-so this module is written out one handler per old path rather than built
-from a loop over an old->new path table.
+The admin navigation was restructured around concepts rather than permissions
+(see ``.claude/ITERATION_nav_restructure.md``). Every old path under
+``/admin/*`` -- static index/list/new pages, per-instance detail pages, and
+query strings -- is rewritten here so old bookmarks, emailed links, and stale
+documentation keep working.
 
-This module grows across Iterations 1-4 of the restructure as each section
-moves; Iteration 5 audits it for completeness against the full old->new map.
+A single catch-all handler rewrites against a longest-prefix-first table: the
+old prefix is replaced with its new prefix, the remainder of the path
+(per-instance IDs, sub-tabs) is preserved, and the original query string is
+re-appended so filters, pagination, and flash params survive the hop.
+``safe_redirect`` validates the result -- the ``redirect-validation``
+compliance check only inspects ``RedirectResponse`` calls, and
+``safe_redirect`` is the sanctioned same-origin builder (see
+``routers/groups/members.py`` for the same pattern).
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
+from utils.redirects import safe_redirect
 
 router = APIRouter(tags=["legacy-redirects"], include_in_schema=False)
 
-
-# =============================================================================
-# Directory: Groups (moved from /admin/groups)
-# =============================================================================
-
-
-@router.get("/admin/groups")
-@router.get("/admin/groups/")
-def redirect_admin_groups() -> RedirectResponse:
-    return RedirectResponse(url="/groups", status_code=301)
-
-
-@router.get("/admin/groups/list")
-def redirect_admin_groups_list() -> RedirectResponse:
-    return RedirectResponse(url="/groups/list", status_code=301)
-
-
-@router.get("/admin/groups/new")
-def redirect_admin_groups_new() -> RedirectResponse:
-    return RedirectResponse(url="/groups/new", status_code=301)
-
-
-# =============================================================================
-# Directory: Requests (moved from /admin/todo, renamed)
-# =============================================================================
-
-
-@router.get("/admin/todo")
-@router.get("/admin/todo/")
-def redirect_admin_todo() -> RedirectResponse:
-    return RedirectResponse(url="/directory/requests", status_code=301)
-
-
-@router.get("/admin/todo/reactivation")
-def redirect_admin_todo_reactivation() -> RedirectResponse:
-    return RedirectResponse(url="/directory/requests/reactivation", status_code=301)
-
-
-@router.get("/admin/todo/reactivation/history")
-def redirect_admin_todo_reactivation_history() -> RedirectResponse:
-    return RedirectResponse(url="/directory/requests/reactivation/history", status_code=301)
-
-
-@router.get("/admin/todo/user-attributes")
-def redirect_admin_todo_user_attributes() -> RedirectResponse:
-    return RedirectResponse(url="/directory/requests/user-attributes", status_code=301)
-
-
-# =============================================================================
-# Directory: Attributes (moved from /admin/settings/user-attributes)
-# =============================================================================
-
-
-@router.get("/admin/settings/user-attributes")
-def redirect_admin_settings_user_attributes() -> RedirectResponse:
-    return RedirectResponse(url="/directory/attributes", status_code=301)
-
-
-# =============================================================================
-# Directory: Exports (moved from /admin/audit/user-export)
-# =============================================================================
-
-
-@router.get("/admin/audit/user-export")
-def redirect_admin_audit_user_export() -> RedirectResponse:
-    return RedirectResponse(url="/directory/exports", status_code=301)
-
-
-# =============================================================================
-# Identity Providers: SAML (moved from /admin/settings/identity-providers)
-#
-# Per-instance detail-page bookmarks (e.g. a specific IdP's certificate tab)
-# are not individually redirected, matching the precedent set for Groups'
-# per-group detail pages in Iteration 1 -- only the static index/list/new
-# paths get a redirect.
-# =============================================================================
-
-
-@router.get("/admin/settings/identity-providers")
-@router.get("/admin/settings/identity-providers/")
-def redirect_admin_settings_identity_providers() -> RedirectResponse:
-    return RedirectResponse(url="/identity-providers/saml", status_code=301)
-
-
-@router.get("/admin/settings/identity-providers/new")
-def redirect_admin_settings_identity_providers_new() -> RedirectResponse:
-    return RedirectResponse(url="/identity-providers/saml/new", status_code=301)
-
-
-# =============================================================================
-# Identity Providers: OIDC (moved from /admin/settings/oidc-identity-providers)
-# =============================================================================
-
-
-@router.get("/admin/settings/oidc-identity-providers")
-@router.get("/admin/settings/oidc-identity-providers/")
-def redirect_admin_settings_oidc_identity_providers() -> RedirectResponse:
-    return RedirectResponse(url="/identity-providers/oidc", status_code=301)
-
-
-@router.get("/admin/settings/oidc-identity-providers/new")
-def redirect_admin_settings_oidc_identity_providers_new() -> RedirectResponse:
-    return RedirectResponse(url="/identity-providers/oidc/new", status_code=301)
-
-
-# =============================================================================
-# Identity Providers: Domain Routing (moved from
-# /admin/settings/privileged-domains, renamed)
-# =============================================================================
-
-
-@router.get("/admin/settings/privileged-domains")
-def redirect_admin_settings_privileged_domains() -> RedirectResponse:
-    return RedirectResponse(url="/identity-providers/domain-routing", status_code=301)
-
-
-# =============================================================================
-# Applications: SAML (moved from /admin/settings/service-providers)
-#
-# Per-instance detail-page bookmarks are not individually redirected, matching
-# the precedent set for Groups' and Identity Providers' per-instance detail
-# pages -- only the static index/new paths get a redirect.
-# =============================================================================
-
-
-@router.get("/admin/settings/service-providers")
-@router.get("/admin/settings/service-providers/")
-def redirect_admin_settings_service_providers() -> RedirectResponse:
-    return RedirectResponse(url="/applications/saml", status_code=301)
-
-
-@router.get("/admin/settings/service-providers/new")
-def redirect_admin_settings_service_providers_new() -> RedirectResponse:
-    return RedirectResponse(url="/applications/saml/new", status_code=301)
-
-
-# =============================================================================
-# Applications: OAuth2 / OIDC (moved from /admin/integrations/apps)
-# =============================================================================
-
-
-@router.get("/admin/integrations/apps")
-def redirect_admin_integrations_apps() -> RedirectResponse:
-    return RedirectResponse(url="/applications/oauth", status_code=301)
-
-
-# =============================================================================
-# Applications: Forward Auth (moved from /admin/settings/protected-domains
-# and /admin/settings/proxy-apps, merged as Domains | Apps tabs)
-# =============================================================================
-
-
-@router.get("/admin/settings/protected-domains")
-def redirect_admin_settings_protected_domains() -> RedirectResponse:
-    return RedirectResponse(url="/applications/forward-auth/domains", status_code=301)
-
-
-@router.get("/admin/settings/proxy-apps")
-def redirect_admin_settings_proxy_apps() -> RedirectResponse:
-    return RedirectResponse(url="/applications/forward-auth/apps", status_code=301)
-
-
-# =============================================================================
-# Applications: Service Accounts (moved from /admin/integrations/b2b, renamed)
-# =============================================================================
-
-
-@router.get("/admin/integrations/b2b")
-def redirect_admin_integrations_b2b() -> RedirectResponse:
-    return RedirectResponse(url="/applications/service-accounts", status_code=301)
-
-
-# =============================================================================
-# Applications: bare /admin/integrations container (removed as a concept)
-# =============================================================================
-
-
-@router.get("/admin/integrations")
-@router.get("/admin/integrations/")
-def redirect_admin_integrations() -> RedirectResponse:
-    return RedirectResponse(url="/applications", status_code=301)
-
-
-# =============================================================================
-# Security (promoted to top-level from /admin/settings/security)
-# =============================================================================
-
-
-@router.get("/admin/settings/security")
-def redirect_admin_settings_security() -> RedirectResponse:
-    return RedirectResponse(url="/security", status_code=301)
-
-
-@router.get("/admin/settings/security/sessions")
-def redirect_admin_settings_security_sessions() -> RedirectResponse:
-    return RedirectResponse(url="/security/sessions", status_code=301)
-
-
-@router.get("/admin/settings/security/certificates")
-def redirect_admin_settings_security_certificates() -> RedirectResponse:
-    return RedirectResponse(url="/security/certificates", status_code=301)
-
-
-@router.get("/admin/settings/security/passwords")
-def redirect_admin_settings_security_passwords() -> RedirectResponse:
-    return RedirectResponse(url="/security/passwords", status_code=301)
-
-
-@router.get("/admin/settings/security/permissions")
-def redirect_admin_settings_security_permissions() -> RedirectResponse:
-    return RedirectResponse(url="/security/permissions", status_code=301)
-
-
-@router.get("/admin/settings/security/authentication")
-def redirect_admin_settings_security_authentication() -> RedirectResponse:
-    return RedirectResponse(url="/security/authentication", status_code=301)
-
-
-# =============================================================================
-# Audit (promoted to top-level from /admin/audit)
-#
-# The per-instance dynamic detail routes (event log entry, SAML debug entry)
-# are not individually redirected, matching the precedent set for Groups',
-# Identity Providers', and Applications' per-instance detail pages -- only
-# the static index/list paths get a redirect.
-# =============================================================================
-
-
-@router.get("/admin/audit")
-@router.get("/admin/audit/")
-def redirect_admin_audit() -> RedirectResponse:
-    return RedirectResponse(url="/audit", status_code=301)
-
-
-@router.get("/admin/audit/events")
-def redirect_admin_audit_events() -> RedirectResponse:
-    return RedirectResponse(url="/audit/events", status_code=301)
-
-
-@router.get("/admin/audit/saml-debug")
-def redirect_admin_audit_saml_debug() -> RedirectResponse:
-    return RedirectResponse(url="/audit/saml-debug", status_code=301)
-
-
-# =============================================================================
-# Settings (narrowed to Branding + About, promoted to top-level from
-# /admin/settings)
-# =============================================================================
-
-
-@router.get("/admin/settings")
-@router.get("/admin/settings/")
-def redirect_admin_settings() -> RedirectResponse:
-    return RedirectResponse(url="/settings", status_code=301)
-
-
-@router.get("/admin/settings/branding")
-def redirect_admin_settings_branding() -> RedirectResponse:
-    return RedirectResponse(url="/settings/branding", status_code=301)
-
-
-@router.get("/admin/settings/branding/global")
-def redirect_admin_settings_branding_global() -> RedirectResponse:
-    return RedirectResponse(url="/settings/branding/global", status_code=301)
-
-
-@router.get("/admin/settings/branding/groups")
-def redirect_admin_settings_branding_groups() -> RedirectResponse:
-    return RedirectResponse(url="/settings/branding/groups", status_code=301)
-
-
-@router.get("/admin/settings/about")
-def redirect_admin_settings_about() -> RedirectResponse:
-    return RedirectResponse(url="/settings/about", status_code=301)
-
-
-# =============================================================================
-# /admin itself: the top-level wrapper is retired as a concept. Bare /admin
-# always redirects to /dashboard regardless of role -- unlike the section
-# index redirects above (which are role-dependent and use safe_redirect()),
-# this target is fixed, so a literal RedirectResponse is correct here.
-# =============================================================================
+# (old_prefix, new_prefix) -- longest prefix first so a more specific mapping
+# (e.g. /admin/integrations/apps) wins over its container (/admin/integrations)
+# and a renamed leaf (e.g. /admin/audit/user-export) wins over its section
+# (/admin/audit). The remainder of the path after the old prefix is preserved.
+# The bare /admin wrapper is terminal: any path that falls through to it lands
+# on the dashboard, not on /dashboard/<leftover>.
+LEGACY_PREFIX_MAP = [
+    ("/admin/settings/oidc-identity-providers", "/identity-providers/oidc"),
+    ("/admin/settings/identity-providers", "/identity-providers/saml"),
+    ("/admin/settings/privileged-domains", "/identity-providers/domain-routing"),
+    ("/admin/settings/service-providers", "/applications/saml"),
+    ("/admin/settings/protected-domains", "/applications/forward-auth/domains"),
+    ("/admin/settings/user-attributes", "/directory/attributes"),
+    ("/admin/settings/proxy-apps", "/applications/forward-auth/apps"),
+    ("/admin/audit/user-export", "/directory/exports"),
+    ("/admin/settings/security", "/security"),
+    ("/admin/integrations/apps", "/applications/oauth"),
+    ("/admin/settings/branding", "/settings/branding"),
+    ("/admin/integrations/b2b", "/applications/service-accounts"),
+    ("/admin/integrations", "/applications"),
+    ("/admin/settings", "/settings"),
+    ("/admin/groups", "/groups"),
+    ("/admin/audit", "/audit"),
+    ("/admin/todo", "/directory/requests"),
+    ("/admin", "/dashboard"),
+]
+
+
+def _rewrite_legacy_path(path: str) -> str | None:
+    """Return the new path for a pre-restructure ``/admin`` path, else None.
+
+    The longest matching prefix is replaced with its new prefix and the
+    remainder (per-instance IDs, sub-tabs) is preserved. A trailing slash on
+    the remainder is stripped so ``/admin/groups/`` lands on the canonical
+    ``/groups`` rather than ``/groups/``.
+    """
+    for old_prefix, new_prefix in LEGACY_PREFIX_MAP:
+        if path == old_prefix or path.startswith(old_prefix + "/"):
+            if old_prefix == "/admin":
+                # The retired wrapper is terminal: an unknown or removed page
+                # under /admin lands on the dashboard, not /dashboard/<leftover>.
+                return "/dashboard"
+            remainder = path[len(old_prefix) :].rstrip("/")
+            return new_prefix + remainder
+    return None
+
+
+@router.get("/admin/{rest:path}")
+def redirect_legacy_admin_path(request: Request, rest: str) -> RedirectResponse:
+    """301 a pre-restructure ``/admin`` path to its new home.
+
+    ``rest`` is the path after ``/admin`` (e.g. ``groups/123/membership``).
+    The original query string is re-appended so filters, pagination, and flash
+    params survive the hop. Unknown paths fall back to ``/dashboard``.
+    """
+    path = f"/admin/{rest}" if rest else "/admin"
+    new_path = _rewrite_legacy_path(path) or "/dashboard"
+
+    qs = request.url.query
+    if qs:
+        new_path += f"?{qs}"
+    return safe_redirect(new_path, default="/dashboard", status_code=301)
 
 
 @router.get("/admin")
-@router.get("/admin/")
 def redirect_admin() -> RedirectResponse:
-    return RedirectResponse(url="/dashboard", status_code=301)
+    """Bare ``/admin`` (the retired top-level wrapper) always goes to dashboard."""
+    return safe_redirect("/dashboard", status_code=301)

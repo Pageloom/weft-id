@@ -33,6 +33,7 @@ router = APIRouter(
 
 
 @router.get("/", response_class=HTMLResponse)
+@router.get("", response_class=HTMLResponse)
 def settings_index(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],

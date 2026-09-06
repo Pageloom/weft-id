@@ -4,6 +4,47 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Restructure Admin Navigation Around Concepts, Not Permissions
+
+**Status:** Complete (2026-09-06, branch `nav-restructure`, 5 iterations)
+
+**What shipped:** the admin nav was regrouped from a permission-shaped tree (an 11-item
+"Settings" junk drawer, "Admin" wrapper, "Todo", "Integrations") into a concept-shaped one
+ordered by the first-run journey: **Directory** (Users, Groups, Requests, Attributes, Exports),
+**Identity Providers** (SAML, OIDC, Domain Routing), **Applications** (SAML, OAuth2 / OIDC,
+Forward Auth with Domains | Apps tabs, Service Accounts), **Security**, **Audit**, **Settings**
+(Branding, About). The `Admin` wrapper was dropped; "Add User" / "Add Group" moved from nav to
+list-page buttons; "Todo" became "Requests" with a pending-count badge; Protected Domains and
+Proxy Apps merged into Forward Auth tabs; B2B became Service Accounts. Every old `/admin/*` path
+301s to its new home via `app/routers/legacy_redirects.py` -- a single catch-all handler that
+rewrites against a longest-prefix-first table, preserving per-instance IDs, sub-tabs, and query
+strings (the per-instance detail-page redirects that iterations 1-3 had deliberately deferred
+were added in the final review pass, closing the one open acceptance criterion). Docs under
+`docs/` and `mkdocs.yml` were updated to the new paths and labels.
+
+**Acceptance Criteria:**
+
+- [x] `app/pages.py` reflects the new tree; no visible nav bar has more than seven entries at
+      level 1 or five at levels 2 and 3
+- [x] Every old URL under `/admin/settings/*`, `/admin/integrations/*`, `/admin/todo/*`, and
+      `/admin/audit/user-export` returns a 301 to its new location (bookmarks and docs links keep
+      working) -- including per-instance detail pages, via the catch-all prefix rewrite
+- [x] Section pages have redirect routes to their first accessible child (see THOUGHT_ERRORS:
+      section pages need redirect routes)
+- [x] Protected Domains and Proxy Apps render as tabs of one Forward Auth page
+- [x] SAML and OIDC identity providers render as sibling tabs with symmetric names
+- [x] "Add User" and "Add Group" are removed from nav and exist as buttons on their list pages
+- [x] Requests section shows a pending-count badge in the nav
+- [x] `docs_path` values updated; every "Navigate to **Settings > X**" and "**Admin > X**"
+      instruction in `docs/` updated to the new location
+- [x] E2E tests and route tests updated; `make quality-all` passes
+- [x] CHANGELOG entry under Changed listing old to new path mapping
+
+**Effort:** L (M for pages.py regrouping + redirects; the rest is docs, tests, and template tab merges)
+**Value:** High (first-run experience and predictability; directly supports the embedder positioning where admins are non-specialists)
+
+---
+
 ## Upstream OIDC Login E2E Test
 
 **Status:** Complete (2026-09-06, branch `oidc-upstream`)

@@ -29,6 +29,17 @@ def test_tenant_security_redirects_to_sessions(test_super_admin_user, override_a
     assert response.headers["location"] == "/security/sessions"
 
 
+def test_tenant_security_index_works_without_trailing_slash(test_super_admin_user, override_auth):
+    """Test /security (no trailing slash) redirects to /security/sessions."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    client = TestClient(app)
+    response = client.get("/security", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/security/sessions"
+
+
 def test_tenant_security_sessions_page(test_super_admin_user, override_auth, mocker):
     """Test tenant security sessions tab page."""
     override_auth(test_super_admin_user, level="super_admin")

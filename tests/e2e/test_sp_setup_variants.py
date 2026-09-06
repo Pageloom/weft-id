@@ -35,30 +35,30 @@ class TestSpRegistrationViaUrl:
         # Creating an IdP auto-generates a per-IdP SP certificate, so the
         # metadata endpoint serves valid XML immediately.
         login(mid_base, mid_config["admin_email"])
-        page.goto(f"{mid_base}/admin/settings/identity-providers/new")
+        page.goto(f"{mid_base}/identity-providers/saml/new")
         page.locator("#name").fill(f"URL Import Source IdP {uuid4().hex[:8]}")
         page.locator("#provider_type").select_option("generic")
         page.get_by_role("button", name="Create Identity Provider").click()
 
         page.wait_for_url(
-            "**/admin/settings/identity-providers/*/details**",
+            "**/identity-providers/saml/*/details**",
             timeout=10000,
         )
 
         # Extract IdP ID from redirect URL to build per-IdP SP metadata URL
         idp_detail_url = page.url
-        new_idp_id = idp_detail_url.split("/identity-providers/")[1].split("/")[0]
+        new_idp_id = idp_detail_url.split("/identity-providers/saml/")[1].split("/")[0]
         sp_metadata_url = f"{mid_base}/saml/metadata/{new_idp_id}"
 
         # Step 2: At IdP tenant, create a new SP and import from that URL
         login(idp_base, idp_config["admin_email"])
-        page.goto(f"{idp_base}/admin/settings/service-providers/new")
+        page.goto(f"{idp_base}/applications/saml/new")
         sp_name = f"SP Metadata Import Test {uuid4().hex[:8]}"
         page.locator("#sp-name").fill(sp_name)
         page.get_by_role("button", name="Create").click()
 
         page.wait_for_url(
-            "**/admin/settings/service-providers/*/details**success=created**",
+            "**/applications/saml/*/details**success=created**",
             timeout=10000,
         )
 
@@ -69,13 +69,13 @@ class TestSpRegistrationViaUrl:
 
         # Verify trust established: URN entity_id visible on details page
         page.wait_for_url(
-            "**/admin/settings/service-providers/*/details**",
+            "**/applications/saml/*/details**",
             timeout=10000,
         )
         page.get_by_text("urn:weftid:").first.wait_for(timeout=5000)
 
         # Verify SP appears in the list
-        page.goto(f"{idp_base}/admin/settings/service-providers")
+        page.goto(f"{idp_base}/applications/saml")
         assert page.locator(f"text={sp_name}").is_visible()
 
 
@@ -94,13 +94,13 @@ class TestSpManualConfiguration:
         login(idp_base, idp_config["admin_email"])
 
         # Step 1: Create SP with name only
-        page.goto(f"{idp_base}/admin/settings/service-providers/new")
+        page.goto(f"{idp_base}/applications/saml/new")
         sp_name = f"Manual Config Test SP {uuid4().hex[:8]}"
         page.locator("#sp-name").fill(sp_name)
         page.get_by_role("button", name="Create").click()
 
         page.wait_for_url(
-            "**/admin/settings/service-providers/*/details**success=created**",
+            "**/applications/saml/*/details**success=created**",
             timeout=10000,
         )
 
@@ -112,11 +112,11 @@ class TestSpManualConfiguration:
 
         # Verify trust established: Entity ID visible on the details page
         page.wait_for_url(
-            "**/admin/settings/service-providers/*/details**",
+            "**/applications/saml/*/details**",
             timeout=10000,
         )
         page.get_by_text(_MANUAL_ENTITY_ID).first.wait_for(timeout=5000)
 
         # Verify SP appears in the list
-        page.goto(f"{idp_base}/admin/settings/service-providers")
+        page.goto(f"{idp_base}/applications/saml")
         assert page.locator(f"text={sp_name}").is_visible()

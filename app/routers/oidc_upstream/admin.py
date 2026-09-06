@@ -34,13 +34,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-CONNECTION_LIST_URL = "/admin/settings/oidc-identity-providers"
+CONNECTION_LIST_URL = "/identity-providers/oidc"
 
 # The page keys used for the per-connection detail tabs (registered in pages.py).
-_PAGE_CONNECTION = "/admin/settings/oidc-identity-providers/connection"
-_PAGE_DETAILS = "/admin/settings/oidc-identity-providers/connection/details"
-_PAGE_CLAIM_MAPPING = "/admin/settings/oidc-identity-providers/connection/claim-mapping"
-_PAGE_DANGER = "/admin/settings/oidc-identity-providers/connection/danger"
+_PAGE_CONNECTION = "/identity-providers/oidc/connection"
+_PAGE_DETAILS = "/identity-providers/oidc/connection/details"
+_PAGE_CLAIM_MAPPING = "/identity-providers/oidc/connection/claim-mapping"
+_PAGE_DANGER = "/identity-providers/oidc/connection/danger"
 
 
 def _load_connection_common(request: Request, tenant_id: str, user: dict, connection_id: str):
@@ -66,7 +66,7 @@ def _preset_defaults() -> dict[str, dict]:
 
 
 @router.get(
-    "/admin/settings/oidc-identity-providers",
+    "/identity-providers/oidc",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -101,7 +101,7 @@ def list_connections(
 
 
 @router.get(
-    "/admin/settings/oidc-identity-providers/new",
+    "/identity-providers/oidc/new",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -124,7 +124,7 @@ def new_connection_form(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/new",
+    "/identity-providers/oidc/new",
     dependencies=[Depends(require_super_admin)],
 )
 def create_connection(
@@ -199,7 +199,7 @@ def create_connection(
 
 
 @router.get(
-    "/admin/settings/oidc-identity-providers/{connection_id}",
+    "/identity-providers/oidc/{connection_id}",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -217,7 +217,7 @@ def connection_detail_redirect(
 
 
 @router.get(
-    "/admin/settings/oidc-identity-providers/{connection_id}/details",
+    "/identity-providers/oidc/{connection_id}/details",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -253,7 +253,7 @@ def connection_tab_details(
 
 
 @router.get(
-    "/admin/settings/oidc-identity-providers/{connection_id}/claim-mapping",
+    "/identity-providers/oidc/{connection_id}/claim-mapping",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -315,7 +315,7 @@ def connection_tab_claim_mapping(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/{connection_id}/edit-claim-mapping",
+    "/identity-providers/oidc/{connection_id}/edit-claim-mapping",
     dependencies=[Depends(require_super_admin)],
 )
 async def edit_claim_mapping(
@@ -377,7 +377,7 @@ async def edit_claim_mapping(
 
 
 @router.get(
-    "/admin/settings/oidc-identity-providers/{connection_id}/danger",
+    "/identity-providers/oidc/{connection_id}/danger",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -432,7 +432,7 @@ def connection_tab_danger(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/{connection_id}/edit",
+    "/identity-providers/oidc/{connection_id}/edit",
     dependencies=[Depends(require_super_admin)],
 )
 def edit_connection_name(
@@ -461,7 +461,7 @@ def edit_connection_name(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/{connection_id}/edit-endpoints",
+    "/identity-providers/oidc/{connection_id}/edit-endpoints",
     dependencies=[Depends(require_super_admin)],
 )
 def edit_connection_endpoints(
@@ -502,7 +502,7 @@ def edit_connection_endpoints(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/{connection_id}/edit-settings",
+    "/identity-providers/oidc/{connection_id}/edit-settings",
     dependencies=[Depends(require_super_admin)],
 )
 def edit_connection_settings(
@@ -550,7 +550,7 @@ def edit_connection_settings(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/{connection_id}/toggle",
+    "/identity-providers/oidc/{connection_id}/toggle",
     dependencies=[Depends(require_super_admin)],
 )
 def toggle_connection(
@@ -578,7 +578,7 @@ def toggle_connection(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/{connection_id}/set-default",
+    "/identity-providers/oidc/{connection_id}/set-default",
     dependencies=[Depends(require_super_admin)],
 )
 def set_default_connection(
@@ -603,7 +603,7 @@ def set_default_connection(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/{connection_id}/delete",
+    "/identity-providers/oidc/{connection_id}/delete",
     dependencies=[Depends(require_super_admin)],
 )
 def delete_connection(
@@ -626,7 +626,7 @@ def delete_connection(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/{connection_id}/unlink-user/{user_id}",
+    "/identity-providers/oidc/{connection_id}/unlink-user/{user_id}",
     dependencies=[Depends(require_super_admin)],
 )
 def unlink_user_from_connection(
@@ -650,7 +650,7 @@ def unlink_user_from_connection(
 
 
 @router.post(
-    "/admin/settings/oidc-identity-providers/{connection_id}/test-connection",
+    "/identity-providers/oidc/{connection_id}/test-connection",
     dependencies=[Depends(require_super_admin)],
 )
 def test_connection(

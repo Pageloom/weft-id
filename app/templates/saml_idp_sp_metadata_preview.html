@@ -5,7 +5,7 @@
 {% block content %}
 <div class="max-w-4xl">
     <div class="mb-4">
-        <a href="/admin/settings/service-providers/{{ preview.sp_id }}"
+        <a href="/applications/saml/{{ preview.sp_id }}"
            class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to {{ preview.sp_name }}</a>
     </div>
 
@@ -40,7 +40,7 @@
         </table>
 
         {% if preview.source == 'url' %}
-        <form method="post" action="/admin/settings/service-providers/{{ preview.sp_id }}/refresh-metadata-apply" class="inline">
+        <form method="post" action="/applications/saml/{{ preview.sp_id }}/refresh-metadata-apply" class="inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit"
                     class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -50,7 +50,7 @@
             </button>
         </form>
         {% else %}
-        <form method="post" action="/admin/settings/service-providers/{{ preview.sp_id }}/reimport-metadata-apply" class="inline">
+        <form method="post" action="/applications/saml/{{ preview.sp_id }}/reimport-metadata-apply" class="inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <textarea name="metadata_xml" class="hidden">{{ metadata_xml }}</textarea>
             <button type="submit"
@@ -61,7 +61,7 @@
             </button>
         </form>
         {% endif %}
-        <a href="/admin/settings/service-providers/{{ preview.sp_id }}"
+        <a href="/applications/saml/{{ preview.sp_id }}"
            class="ml-3 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
             Cancel
         </a>
@@ -70,7 +70,7 @@
             <p class="text-sm text-green-800 dark:text-green-300">No changes detected. The stored metadata matches the source.</p>
         </div>
         <div class="mt-4">
-            <a href="/admin/settings/service-providers/{{ preview.sp_id }}"
+            <a href="/applications/saml/{{ preview.sp_id }}"
                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                 Back to SP Detail
             </a>

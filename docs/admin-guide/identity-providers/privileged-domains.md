@@ -8,11 +8,15 @@ Privileged domains let you route users to a specific identity provider and auto-
     [protected domain](../service-providers/forward-auth.md), which is a DNS/web
     domain proven with a DNS-TXT challenge so WeftID can gate HTTP apps behind it
     with forward auth. The same string can be registered as both; they are
-    independent concepts.
+    independent concepts. The two live in different top-level sections of the
+    app -- this page is under **Identity Providers > Domain Routing**; protected
+    domains are under **Applications > Forward Auth > Domains** -- so they no
+    longer sit side by side in the navigation, but the names are still easy to
+    mix up in conversation.
 
 ## Adding a domain
 
-1. Navigate to **Settings > Privileged Domains**
+1. Navigate to **Identity Providers > Domain Routing**
 2. Click **Add Domain**
 3. Enter the email domain (e.g., `acme.com`)
 4. Click **Add**

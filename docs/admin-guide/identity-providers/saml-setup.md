@@ -4,7 +4,7 @@ Connect a SAML 2.0 identity provider to WeftID. This enables users to sign in wi
 
 ## Step 1: Create the connection
 
-1. Navigate to **Settings > Identity Providers**
+1. Navigate to **Identity Providers > SAML**
 2. Click **Add Identity Provider**
 3. Enter a display name
 4. Select the provider type (Okta, Azure AD, Google Workspace, or Generic SAML)
@@ -97,7 +97,7 @@ If your IdP has a metadata URL configured, you can refresh it to pick up certifi
 
 ## SAML debug log
 
-When authentication failures occur, WeftID logs detailed diagnostics. Super admins can view these at **Audit > SAML Debug**. Each entry includes the error type, the raw SAML response XML, parsed attributes, and request metadata (IP address, user agent). Use this to troubleshoot signature errors, certificate mismatches, and attribute mapping issues.
+When authentication failures occur, WeftID logs detailed diagnostics. Super admins can view these at **Audit > SAML Debug Log**. Each entry includes the error type, the raw SAML response XML, parsed attributes, and request metadata (IP address, user agent). Use this to troubleshoot signature errors, certificate mismatches, and attribute mapping issues.
 
 To enable logging for successful assertions (for temporary debugging), toggle **Verbose logging** on the IdP detail page.
 

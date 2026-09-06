@@ -15,7 +15,7 @@
         <code>mirror_from_idp</code> is on.
     </p>
 
-    <form id="claim-map-form" method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/edit-claim-mapping">
+    <form id="claim-map-form" method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-claim-mapping">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <table class="w-full text-sm mb-4">

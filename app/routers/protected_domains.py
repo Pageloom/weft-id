@@ -1,6 +1,8 @@
 """Admin UI routes for protected-domain (forward-auth) management.
 
-Lives under the Service Providers section. Lets an admin register a domain to
+Lives under Applications > Forward Auth (Domains tab), moved from
+/admin/settings/protected-domains as part of the nav restructure -- see
+.claude/ITERATION_nav_restructure.md. Lets an admin register a domain to
 protect with forward auth, see the DNS-TXT setup instructions and portal-host
 requirement, re-run verification, and delete a domain.
 """
@@ -28,13 +30,13 @@ from utils.templates import templates
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/admin/settings/protected-domains",
+    prefix="/applications/forward-auth/domains",
     tags=["protected-domains"],
     dependencies=[Depends(require_super_admin)],
     include_in_schema=False,
 )
 
-LIST_URL = "/admin/settings/protected-domains"
+LIST_URL = "/applications/forward-auth/domains"
 
 
 @router.get("", response_class=HTMLResponse)

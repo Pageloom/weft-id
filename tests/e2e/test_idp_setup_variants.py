@@ -28,32 +28,32 @@ class TestIdpRegistrationViaUrl:
 
         # --- Step 1: Create a new SP at upstream tenant to get a metadata URL ---
         login(upstream_base, upstream_config["admin_email"])
-        page.goto(f"{upstream_base}/admin/settings/service-providers/new")
+        page.goto(f"{upstream_base}/applications/saml/new")
         run_id = uuid4().hex[:8]
         page.locator("#sp-name").fill(f"URL Import Test SP {run_id}")
         page.get_by_role("button", name="Create").click()
 
         # Extract SP ID from redirect URL
         page.wait_for_url(
-            "**/admin/settings/service-providers/*/details**",
+            "**/applications/saml/*/details**",
             timeout=10000,
         )
         sp_detail_url = page.url
-        sp_id = sp_detail_url.split("/service-providers/")[1].split("/")[0]
+        sp_id = sp_detail_url.split("/applications/saml/")[1].split("/")[0]
 
         # The per-SP IdP metadata URL (serves IDPSSODescriptor XML)
         metadata_url = f"{upstream_base}/saml/idp/metadata/{sp_id}"
 
         # --- Step 2: Create a new IdP at SP tenant and import from URL ---
         login(sp_base, sp_config["admin_email"])
-        page.goto(f"{sp_base}/admin/settings/identity-providers/new")
+        page.goto(f"{sp_base}/identity-providers/saml/new")
         idp_name = f"URL Import Test IdP {run_id}"
         page.locator("#name").fill(idp_name)
         page.locator("#provider_type").select_option("generic")
         page.get_by_role("button", name="Create Identity Provider").click()
 
         page.wait_for_url(
-            "**/admin/settings/identity-providers/*/details**success=created**",
+            "**/identity-providers/saml/*/details**success=created**",
             timeout=10000,
         )
 
@@ -64,13 +64,13 @@ class TestIdpRegistrationViaUrl:
 
         # Verify trust established
         page.wait_for_url(
-            "**/admin/settings/identity-providers/*/details**",
+            "**/identity-providers/saml/*/details**",
             timeout=10000,
         )
         page.locator("text=Trust established").wait_for(timeout=5000)
 
         # Verify IdP appears in the list
-        page.goto(f"{sp_base}/admin/settings/identity-providers")
+        page.goto(f"{sp_base}/identity-providers/saml")
         assert page.locator(f"text={idp_name}").is_visible()
 
 

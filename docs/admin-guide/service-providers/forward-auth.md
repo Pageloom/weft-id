@@ -64,13 +64,17 @@ not a defect.
     infrastructure (portal host, cookies, TLS), proven with a DNS-TXT challenge.
     It is unrelated to a [privileged domain](../identity-providers/privileged-domains.md),
     which is an **email** domain used for identity routing. The same string can be
-    registered as both; they are independent concepts.
+    registered as both; they are independent concepts. The two live in different
+    top-level sections of the app -- protected domains are the **Domains** tab
+    under **Applications > Forward Auth**; privileged domains are under
+    **Identity Providers > Domain Routing** -- so they no longer sit side by side
+    in the navigation, but the names are still easy to mix up in conversation.
 
 ## Setup
 
 ### 1. Register and verify the protected domain
 
-In **Service Providers → Protected Domains**, register the domain (for example
+In **Applications > Forward Auth > Domains**, register the domain (for example
 `acme-corp.com`) and its portal host (`auth.acme-corp.com`). WeftID issues a
 DNS-TXT challenge:
 
@@ -88,7 +92,7 @@ WeftID instance's public IP. WeftID obtains a TLS certificate for it on demand
 
 ### 3. Create the proxy app
 
-In **Service Providers → Proxy Apps**, create an app under the verified domain:
+In **Applications > Forward Auth > Apps**, create an app under the verified domain:
 
 - **External URL** — where the app actually runs, under the protected domain
   (`https://grafana.acme-corp.com`).

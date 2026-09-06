@@ -5,7 +5,7 @@
 {% block content %}
 <div class="max-w-4xl">
     <div class="mb-4">
-        <a href="/admin/settings/service-providers"
+        <a href="/applications/saml"
            class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to Service Providers</a>
     </div>
 
@@ -56,7 +56,7 @@
         <p class="text-sm text-amber-800 dark:text-amber-300">
             No users have access to this application.
         </p>
-        <a href="/admin/settings/service-providers/{{ sp.id }}/groups"
+        <a href="/applications/saml/{{ sp.id }}/groups"
            class="text-sm font-medium text-amber-700 dark:text-amber-400 hover:underline">Set up access</a>
     </div>
     {% endif %}
@@ -77,27 +77,27 @@
     {# Tab Bar (only shown when trust is established) #}
     <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
         <nav class="flex space-x-6">
-            <a href="/admin/settings/service-providers/{{ sp.id }}/details"
+            <a href="/applications/saml/{{ sp.id }}/details"
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'details' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 Details</a>
-            <a href="/admin/settings/service-providers/{{ sp.id }}/attributes"
+            <a href="/applications/saml/{{ sp.id }}/attributes"
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'attributes' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 Attributes</a>
-            <a href="/admin/settings/service-providers/{{ sp.id }}/groups"
+            <a href="/applications/saml/{{ sp.id }}/groups"
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'groups' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 Groups ({{ group_count }})</a>
-            <a href="/admin/settings/service-providers/{{ sp.id }}/scim"
+            <a href="/applications/saml/{{ sp.id }}/scim"
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'scim' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 SCIM</a>
-            <a href="/admin/settings/service-providers/{{ sp.id }}/certificates"
+            <a href="/applications/saml/{{ sp.id }}/certificates"
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'certificates' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 Certificates</a>
             {% if sp.metadata_url or sp.metadata_xml %}
-            <a href="/admin/settings/service-providers/{{ sp.id }}/metadata"
+            <a href="/applications/saml/{{ sp.id }}/metadata"
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'metadata' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 Metadata</a>
             {% endif %}
-            <a href="/admin/settings/service-providers/{{ sp.id }}/danger"
+            <a href="/applications/saml/{{ sp.id }}/danger"
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'danger' %}border-red-500 text-red-500 dark:border-red-400 dark:text-red-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 Disable/Delete</a>
         </nav>

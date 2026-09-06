@@ -93,7 +93,7 @@ class TestScimAdminCreateToken:
         login(idp_base, idp_config["admin_email"])
 
         # Navigate to the SCIM tab for the existing registered SP.
-        scim_url = f"{idp_base}/admin/settings/service-providers/{sp_id}/scim"
+        scim_url = f"{idp_base}/applications/saml/{sp_id}/scim"
         page.goto(scim_url)
         page.wait_for_url("**/scim**", timeout=10000)
 
@@ -157,7 +157,7 @@ class TestScimAdminRotateToken:
         # Go to the SCIM tab and create an initial token (the pre-rotate
         # credential). Reloading after Done leaves us on the tab with one
         # active credential row.
-        page.goto(f"{idp_base}/admin/settings/service-providers/{sp_id}/scim")
+        page.goto(f"{idp_base}/applications/saml/{sp_id}/scim")
         page.wait_for_selector("#scim-create-token", timeout=10000)
         page.locator("#scim-create-token").click()
         page.wait_for_selector("#scim-plaintext-display:not(.hidden)", timeout=10000)
@@ -225,7 +225,7 @@ class TestScimAdminRevokeToken:
         _delete_credentials_for_sp(sp_id)
 
         login(idp_base, idp_config["admin_email"])
-        page.goto(f"{idp_base}/admin/settings/service-providers/{sp_id}/scim")
+        page.goto(f"{idp_base}/applications/saml/{sp_id}/scim")
         page.wait_for_selector("#scim-create-token", timeout=10000)
 
         # Create a token (test fixture), then dismiss the plaintext box.
@@ -285,7 +285,7 @@ class TestScimAdminRetryDeadLettered:
         _seed_dead_letter_queue_row(tenant_id=tenant_id, sp_id=sp_id)
 
         login(idp_base, idp_config["admin_email"])
-        page.goto(f"{idp_base}/admin/settings/service-providers/{sp_id}/scim")
+        page.goto(f"{idp_base}/applications/saml/{sp_id}/scim")
         page.wait_for_selector("#scim-queue-dead", timeout=10000)
 
         # Sanity: the dead counter shows 1 and the Retry button is visible.

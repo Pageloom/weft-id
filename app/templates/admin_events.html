@@ -65,7 +65,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="flex justify-between items-start mb-6">
             <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Event Log</h1>
-            <form method="post" action="/admin/audit/events/export" class="flex items-end gap-3">
+            <form method="post" action="/audit/events/export" class="flex items-end gap-3">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div>
                     <label for="start_date" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From</label>
@@ -156,7 +156,7 @@
                     {% for event in events %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <a href="/admin/audit/events/{{ event.id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300" title="{{ event.event_description }}">
+                            <a href="/audit/events/{{ event.id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300" title="{{ event.event_description }}">
                                 {{ event.event_type }}
                             </a>
                         </td>

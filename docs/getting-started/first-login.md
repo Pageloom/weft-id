@@ -15,13 +15,14 @@ Use a password manager to generate a strong, unique password. Do not reuse a pas
 ## Explore the dashboard
 
 The dashboard shows your name, email, role, and last sign-in time. As a super admin, you have access to all
-administrative settings:
+administrative sections of the navigation bar:
 
-- **Users** -- Create and manage user accounts
-- **Groups** -- Organize users into groups
-- **Identity Providers** -- Connect upstream SAML identity providers
-- **Service Providers** -- Register downstream applications for SSO
-- **Settings** -- Security, branding, privileged domains, and audit
+- **Directory** -- Users, groups, pending requests, the profile attribute catalog, and user exports
+- **Identity Providers** -- Connect upstream SAML and OIDC identity providers, and route users to them by email domain
+- **Applications** -- Register downstream applications for SSO: SAML, OAuth2/OIDC, forward auth, and service accounts
+- **Security** -- Sessions, certificates, passwords, permissions, and authentication policy
+- **Audit** -- Event log and SAML debug log
+- **Settings** -- Branding and tenant display settings
 
 Look for the information icon in the top-right corner of the navigation bar. It links to the documentation page for whichever screen you're on.
 

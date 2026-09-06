@@ -69,7 +69,7 @@ def test_create_idp_validation_error(
     mock_create.side_effect = ValidationError("Invalid certificate format")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/new",
+        "/identity-providers/saml/new",
         data=test_idp_data,
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -77,7 +77,7 @@ def test_create_idp_validation_error(
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/new" in location
+    assert "/identity-providers/saml/new" in location
     assert "error=" in location
 
 
@@ -89,7 +89,7 @@ def test_create_idp_service_error(
     mock_create.side_effect = ServiceError("Database connection failed")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/new",
+        "/identity-providers/saml/new",
         data=test_idp_data,
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -97,7 +97,7 @@ def test_create_idp_service_error(
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/new" in location
+    assert "/identity-providers/saml/new" in location
     assert "error=" in location
 
 
@@ -112,7 +112,7 @@ def test_import_from_url_validation_error(mock_import, super_admin_session, test
     mock_import.side_effect = ValidationError("Invalid metadata URL")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/import-metadata",
+        "/identity-providers/saml/import-metadata",
         data={
             "metadata_url": "https://idp.example.com/metadata",
             "provider_type": "okta",
@@ -124,7 +124,7 @@ def test_import_from_url_validation_error(mock_import, super_admin_session, test
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/new" in location
+    assert "/identity-providers/saml/new" in location
     assert "error=" in location
 
 
@@ -134,7 +134,7 @@ def test_import_from_url_service_error(mock_import, super_admin_session, test_te
     mock_import.side_effect = ServiceError("Failed to fetch metadata")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/import-metadata",
+        "/identity-providers/saml/import-metadata",
         data={
             "metadata_url": "https://idp.example.com/metadata",
             "provider_type": "okta",
@@ -146,7 +146,7 @@ def test_import_from_url_service_error(mock_import, super_admin_session, test_te
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/new" in location
+    assert "/identity-providers/saml/new" in location
     assert "error=" in location
 
 
@@ -161,7 +161,7 @@ def test_import_from_xml_validation_error(mock_import, super_admin_session, test
     mock_import.side_effect = ValidationError("Invalid XML format")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/import-metadata-xml",
+        "/identity-providers/saml/import-metadata-xml",
         data={
             "metadata_xml": "<invalid>xml</invalid>",
             "provider_type": "okta",
@@ -173,7 +173,7 @@ def test_import_from_xml_validation_error(mock_import, super_admin_session, test
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/new" in location
+    assert "/identity-providers/saml/new" in location
     assert "error=" in location
 
 
@@ -183,7 +183,7 @@ def test_import_from_xml_service_error(mock_import, super_admin_session, test_te
     mock_import.side_effect = ServiceError("Failed to parse metadata")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/import-metadata-xml",
+        "/identity-providers/saml/import-metadata-xml",
         data={
             "metadata_xml": "<EntityDescriptor>...</EntityDescriptor>",
             "provider_type": "okta",
@@ -195,7 +195,7 @@ def test_import_from_xml_service_error(mock_import, super_admin_session, test_te
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/new" in location
+    assert "/identity-providers/saml/new" in location
     assert "error=" in location
 
 
@@ -210,14 +210,14 @@ def test_edit_idp_form_not_found(mock_get, super_admin_session, test_tenant_host
     mock_get.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/non-existent-id/details",
+        "/identity-providers/saml/non-existent-id/details",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=not_found" in location
 
 
@@ -227,14 +227,14 @@ def test_edit_idp_form_service_error(mock_get, super_admin_session, test_tenant_
     mock_get.side_effect = ServiceError("Database error")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/some-id/details",
+        "/identity-providers/saml/some-id/details",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=" in location
 
 
@@ -249,7 +249,7 @@ def test_update_idp_name_not_found(mock_update, super_admin_session, test_tenant
     mock_update.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/non-existent-id/edit",
+        "/identity-providers/saml/non-existent-id/edit",
         data={"name": "New Name"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -257,7 +257,7 @@ def test_update_idp_name_not_found(mock_update, super_admin_session, test_tenant
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=not_found" in location
 
 
@@ -267,7 +267,7 @@ def test_update_idp_name_service_error(mock_update, super_admin_session, test_te
     mock_update.side_effect = ServiceError("Update failed")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/edit",
+        "/identity-providers/saml/some-id/edit",
         data={"name": "New Name"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -275,7 +275,7 @@ def test_update_idp_name_service_error(mock_update, super_admin_session, test_te
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/some-id/details" in location
+    assert "/identity-providers/saml/some-id/details" in location
     assert "error=" in location
 
 
@@ -285,7 +285,7 @@ def test_update_idp_attributes_not_found(mock_update, super_admin_session, test_
     mock_update.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/non-existent-id/edit-attributes",
+        "/identity-providers/saml/non-existent-id/edit-attributes",
         data={"attr_email": "email", "attr_first_name": "fn", "attr_last_name": "ln"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -293,7 +293,7 @@ def test_update_idp_attributes_not_found(mock_update, super_admin_session, test_
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=not_found" in location
 
 
@@ -303,7 +303,7 @@ def test_update_idp_attributes_service_error(mock_update, super_admin_session, t
     mock_update.side_effect = ServiceError("Update failed")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/edit-attributes",
+        "/identity-providers/saml/some-id/edit-attributes",
         data={"attr_email": "email", "attr_first_name": "fn", "attr_last_name": "ln"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -311,7 +311,7 @@ def test_update_idp_attributes_service_error(mock_update, super_admin_session, t
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/some-id/attributes" in location
+    assert "/identity-providers/saml/some-id/attributes" in location
     assert "error=" in location
 
 
@@ -326,14 +326,14 @@ def test_toggle_idp_not_found(mock_get, super_admin_session, test_tenant_host):
     mock_get.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/non-existent-id/toggle",
+        "/identity-providers/saml/non-existent-id/toggle",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=not_found" in location
 
 
@@ -349,14 +349,14 @@ def test_toggle_idp_service_error(mock_set, mock_get, super_admin_session, test_
     mock_set.side_effect = ServiceError("Toggle failed")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/toggle",
+        "/identity-providers/saml/some-id/toggle",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=" in location
 
 
@@ -371,14 +371,14 @@ def test_set_default_idp_not_found(mock_set, super_admin_session, test_tenant_ho
     mock_set.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/non-existent-id/set-default",
+        "/identity-providers/saml/non-existent-id/set-default",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=not_found" in location
 
 
@@ -388,14 +388,14 @@ def test_set_default_idp_service_error(mock_set, super_admin_session, test_tenan
     mock_set.side_effect = ServiceError("Set default failed")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/set-default",
+        "/identity-providers/saml/some-id/set-default",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=" in location
 
 
@@ -410,14 +410,14 @@ def test_refresh_metadata_not_found(mock_refresh, super_admin_session, test_tena
     mock_refresh.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/non-existent-id/refresh-metadata",
+        "/identity-providers/saml/non-existent-id/refresh-metadata",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=not_found" in location
 
 
@@ -427,14 +427,14 @@ def test_refresh_metadata_validation_error(mock_refresh, super_admin_session, te
     mock_refresh.side_effect = ValidationError("No metadata URL configured")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/refresh-metadata",
+        "/identity-providers/saml/some-id/refresh-metadata",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/some-id/metadata" in location
+    assert "/identity-providers/saml/some-id/metadata" in location
     assert "error=" in location
 
 
@@ -444,14 +444,14 @@ def test_refresh_metadata_service_error(mock_refresh, super_admin_session, test_
     mock_refresh.side_effect = ServiceError("Failed to fetch metadata")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/refresh-metadata",
+        "/identity-providers/saml/some-id/refresh-metadata",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/some-id/metadata" in location
+    assert "/identity-providers/saml/some-id/metadata" in location
     assert "error=" in location
 
 
@@ -469,14 +469,14 @@ def test_delete_enabled_idp_conflict_error(mock_delete, super_admin_session, tes
     )
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/delete",
+        "/identity-providers/saml/some-id/delete",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=" in location
 
 
@@ -486,14 +486,14 @@ def test_delete_idp_not_found(mock_delete, super_admin_session, test_tenant_host
     mock_delete.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/non-existent-id/delete",
+        "/identity-providers/saml/non-existent-id/delete",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=not_found" in location
 
 
@@ -503,14 +503,14 @@ def test_delete_idp_service_error(mock_delete, super_admin_session, test_tenant_
     mock_delete.side_effect = ServiceError("Cannot delete IdP with active users")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/delete",
+        "/identity-providers/saml/some-id/delete",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=" in location
 
 
@@ -525,7 +525,7 @@ def test_test_idp_connection_not_found(mock_build, super_admin_session, test_ten
     mock_build.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/non-existent-id/test",
+        "/identity-providers/saml/non-existent-id/test",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -540,7 +540,7 @@ def test_test_idp_connection_service_error(mock_build, super_admin_session, test
     mock_build.side_effect = ServiceError("SAML configuration error")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/some-id/test",
+        "/identity-providers/saml/some-id/test",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -560,7 +560,7 @@ def test_list_idps_service_error(mock_list, super_admin_session, test_tenant_hos
     mock_list.side_effect = ServiceError("Database connection failed")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers",
+        "/identity-providers/saml",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -589,7 +589,7 @@ def test_edit_settings_enables_idp(
     mock_get.return_value = mock_idp
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/edit-settings",
+        "/identity-providers/saml/some-id/edit-settings",
         data={"is_enabled": "true", "require_platform_mfa": "true"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -619,7 +619,7 @@ def test_edit_settings_disables_idp(
     mock_get.return_value = mock_idp
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/edit-settings",
+        "/identity-providers/saml/some-id/edit-settings",
         data={},  # No is_enabled checkbox = False
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -645,7 +645,7 @@ def test_edit_settings_no_change_skips_toggle(
     mock_get.return_value = mock_idp
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/edit-settings",
+        "/identity-providers/saml/some-id/edit-settings",
         data={"is_enabled": "true"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -670,7 +670,7 @@ def test_edit_settings_sets_default(
     mock_get.return_value = mock_idp
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/edit-settings",
+        "/identity-providers/saml/some-id/edit-settings",
         data={"is_enabled": "true", "is_default": "true"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -695,7 +695,7 @@ def test_edit_settings_skips_default_when_already_default(
     mock_get.return_value = mock_idp
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/edit-settings",
+        "/identity-providers/saml/some-id/edit-settings",
         data={"is_enabled": "true", "is_default": "true"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -711,7 +711,7 @@ def test_edit_settings_not_found(mock_get, super_admin_session, test_tenant_host
     mock_get.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/non-existent-id/edit-settings",
+        "/identity-providers/saml/non-existent-id/edit-settings",
         data={"is_enabled": "true"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -719,7 +719,7 @@ def test_edit_settings_not_found(mock_get, super_admin_session, test_tenant_host
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers" in location
+    assert "/identity-providers/saml" in location
     assert "error=not_found" in location
 
 
@@ -738,7 +738,7 @@ def test_edit_settings_service_error_on_toggle(
     mock_set_enabled.side_effect = ServiceError("Cannot enable")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id/edit-settings",
+        "/identity-providers/saml/some-id/edit-settings",
         data={"is_enabled": "true"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,

@@ -9,7 +9,7 @@
 
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
             Register an HTTP app behind a
-            <a href="/admin/settings/protected-domains" class="text-blue-600 dark:text-blue-400 hover:underline">verified protected domain</a>
+            <a href="/applications/forward-auth/domains" class="text-blue-600 dark:text-blue-400 hover:underline">verified protected domain</a>
             so WeftID can gate it with forward auth. WeftID answers your reverse proxy's auth
             subrequest and injects <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">X-Forwarded-*</code>
             identity headers on allow.
@@ -39,7 +39,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex-1">
                             <div class="flex items-center gap-3">
-                                <a href="/admin/settings/proxy-apps/detail/{{ app.id }}"
+                                <a href="/applications/forward-auth/apps/detail/{{ app.id }}"
                                    class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
                                     {{ app.name }}
                                 </a>
@@ -58,9 +58,9 @@
                             </p>
                         </div>
                         <div class="flex items-center gap-3">
-                            <a href="/admin/settings/proxy-apps/detail/{{ app.id }}"
+                            <a href="/applications/forward-auth/apps/detail/{{ app.id }}"
                                class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">Edit</a>
-                            <form method="post" action="/admin/settings/proxy-apps/delete/{{ app.id }}">
+                            <form method="post" action="/applications/forward-auth/apps/delete/{{ app.id }}">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
                                         class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
@@ -83,7 +83,7 @@
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Add a Proxy App</h2>
 
             {% if verified_domains %}
-            <form method="post" action="/admin/settings/proxy-apps/add" class="space-y-4">
+            <form method="post" action="/applications/forward-auth/apps/add" class="space-y-4">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div>
                     <label for="protected_domain_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Protected domain</label>
@@ -123,7 +123,7 @@
             {% else %}
             <p class="text-sm text-gray-500 dark:text-gray-400">
                 You need a
-                <a href="/admin/settings/protected-domains" class="text-blue-600 dark:text-blue-400 hover:underline">verified protected domain</a>
+                <a href="/applications/forward-auth/domains" class="text-blue-600 dark:text-blue-400 hover:underline">verified protected domain</a>
                 before you can add a proxy app.
                 {% if has_unverified %}You have domains pending verification.{% endif %}
             </p>

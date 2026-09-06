@@ -85,14 +85,14 @@ class TestIdpAdminRegistersSp:
         login(idp_base, idp_config["admin_email"])
 
         # Step 1: Create SP with name only
-        page.goto(f"{idp_base}/admin/settings/service-providers/new")
+        page.goto(f"{idp_base}/applications/saml/new")
         sp_name = f"E2E Test SP (XML Import) {uuid4().hex[:8]}"
         page.locator("#sp-name").fill(sp_name)
         page.get_by_role("button", name="Create").click()
 
         # Should redirect to the new SP's details page (pending trust)
         page.wait_for_url(
-            "**/admin/settings/service-providers/*/details**success=created**",
+            "**/applications/saml/*/details**success=created**",
             timeout=10000,
         )
 
@@ -103,7 +103,7 @@ class TestIdpAdminRegistersSp:
 
         # Should redirect back to details with trust established
         page.wait_for_url(
-            "**/admin/settings/service-providers/*/details**",
+            "**/applications/saml/*/details**",
             timeout=10000,
         )
 
@@ -114,7 +114,7 @@ class TestIdpAdminRegistersSp:
         )
 
         # Verify the SP appears in the list
-        page.goto(f"{idp_base}/admin/settings/service-providers")
+        page.goto(f"{idp_base}/applications/saml")
         assert page.locator(f"text={sp_name}").is_visible()
 
 
@@ -133,7 +133,7 @@ class TestSpAdminRegistersIdp:
         login(sp_base, sp_config["admin_email"])
 
         # Step 1: Create IdP with name and provider type
-        page.goto(f"{sp_base}/admin/settings/identity-providers/new")
+        page.goto(f"{sp_base}/identity-providers/saml/new")
         idp_name = f"E2E Test IdP (XML Import) {uuid4().hex[:8]}"
         page.locator("#name").fill(idp_name)
         page.locator("#provider_type").select_option("generic")
@@ -141,7 +141,7 @@ class TestSpAdminRegistersIdp:
 
         # Should redirect to the new IdP's details page (pending trust)
         page.wait_for_url(
-            "**/admin/settings/identity-providers/*/details**success=created**",
+            "**/identity-providers/saml/*/details**success=created**",
             timeout=10000,
         )
 
@@ -152,7 +152,7 @@ class TestSpAdminRegistersIdp:
 
         # Should redirect back to details with trust established
         page.wait_for_url(
-            "**/admin/settings/identity-providers/*/details**",
+            "**/identity-providers/saml/*/details**",
             timeout=10000,
         )
 
@@ -160,5 +160,5 @@ class TestSpAdminRegistersIdp:
         page.locator("text=Trust established").wait_for(timeout=5000)
 
         # Verify the IdP appears in the list
-        page.goto(f"{sp_base}/admin/settings/identity-providers")
+        page.goto(f"{sp_base}/identity-providers/saml")
         assert page.locator(f"text={idp_name}").is_visible()

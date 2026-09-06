@@ -92,7 +92,7 @@
 {# Settings #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Settings</h2>
-    <form method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/edit-settings">
+    <form method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-settings">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="space-y-4">
             <div class="flex items-start">
@@ -186,7 +186,7 @@
     </div>
     {% endif %}
 
-    <form method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/test-connection">
+    <form method="post" action="/identity-providers/oidc/{{ connection.id }}/test-connection">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit"
                 class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -200,7 +200,7 @@
 <div id="edit-name-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Name</h3>
-        <form method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/edit">
+        <form method="post" action="/identity-providers/oidc/{{ connection.id }}/edit">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-4">
                 <label for="edit-name-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
@@ -230,7 +230,7 @@
             For a provider that does not publish a discovery document. Leave a field blank to keep
             its current value. A successful Test Connection replaces all four with the discovered values.
         </p>
-        <form method="post" action="/admin/settings/oidc-identity-providers/{{ connection.id }}/edit-endpoints">
+        <form method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-endpoints">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-4">
                 <label for="edit-authorization-endpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Authorization Endpoint</label>

@@ -2,6 +2,8 @@
 
 Register downstream applications as SAML service providers. WeftID acts as the identity provider, issuing SAML assertions so users can access their applications with single sign-on.
 
+This is the **SAML** tab of [Applications](../applications/index.md).
+
 - [Registering a Service Provider](registering-an-sp.md) — Add a new application
 - [Signing Certificates](sp-certificates.md) — Per-SP signing certificates and rotation
 - [Attribute Mapping](attribute-mapping.md) — Configure SAML assertion attributes and encryption

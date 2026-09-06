@@ -119,7 +119,7 @@ class TestCertificateRotation:
         assert "/dashboard" in page.url
 
         # Step 2: Rotate the per-SP signing certificate via IdP admin UI
-        page.goto(f"{idp_base}/admin/settings/service-providers/{sp_id}/certificates")
+        page.goto(f"{idp_base}/applications/saml/{sp_id}/certificates")
         page.wait_for_load_state("networkidle")
 
         # Click the Rotate Certificate button

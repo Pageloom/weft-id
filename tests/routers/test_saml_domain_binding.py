@@ -41,7 +41,7 @@ def test_bind_domain_success(mock_bind, super_admin_session, test_tenant_host):
     mock_bind.return_value = None  # Success returns nothing
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/idp-123/bind-domain",
+        "/identity-providers/saml/idp-123/bind-domain",
         data={"domain_id": "domain-456"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -49,7 +49,7 @@ def test_bind_domain_success(mock_bind, super_admin_session, test_tenant_host):
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/idp-123" in location
+    assert "/identity-providers/saml/idp-123" in location
     assert "success=domain_bound" in location
     mock_bind.assert_called_once()
 
@@ -68,7 +68,7 @@ def test_bind_domain_error(mock_bind, super_admin_session, test_tenant_host, exc
     mock_bind.side_effect = exception(message)
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/idp-123/bind-domain",
+        "/identity-providers/saml/idp-123/bind-domain",
         data={"domain_id": "domain-456"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -76,7 +76,7 @@ def test_bind_domain_error(mock_bind, super_admin_session, test_tenant_host, exc
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/idp-123" in location
+    assert "/identity-providers/saml/idp-123" in location
     assert "error=" in location
 
 
@@ -91,14 +91,14 @@ def test_unbind_domain_success(mock_unbind, super_admin_session, test_tenant_hos
     mock_unbind.return_value = None  # Success returns nothing
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/idp-123/unbind-domain/domain-456",
+        "/identity-providers/saml/idp-123/unbind-domain/domain-456",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/idp-123" in location
+    assert "/identity-providers/saml/idp-123" in location
     assert "success=domain_unbound" in location
     mock_unbind.assert_called_once()
 
@@ -119,12 +119,12 @@ def test_unbind_domain_error(
     mock_unbind.side_effect = exception(message)
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/idp-123/unbind-domain/domain-456",
+        "/identity-providers/saml/idp-123/unbind-domain/domain-456",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/idp-123" in location
+    assert "/identity-providers/saml/idp-123" in location
     assert "error=" in location

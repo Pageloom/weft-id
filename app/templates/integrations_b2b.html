@@ -57,7 +57,7 @@
                     {% for client in clients %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {% if not client.is_active %}opacity-60{% endif %}">
                         <td class="px-4 py-4">
-                            <a href="/admin/integrations/b2b/{{ client.client_id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">{{ client.name }}</a>
+                            <a href="/applications/service-accounts/{{ client.client_id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">{{ client.name }}</a>
                             {% if client.description %}
                             <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ client.description }}</div>
                             {% endif %}
@@ -111,7 +111,7 @@
 <div id="create-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-70 hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Create B2B Client</h3>
-        <form method="post" action="/admin/integrations/b2b/create">
+        <form method="post" action="/applications/service-accounts/create">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="space-y-4">

@@ -155,7 +155,7 @@ class TestAttributesTabWithoutMetadata:
         """Single table shown, no 'Advertised by IdP' column, amber notice, no datalist."""
         with _mock_idp_common(sample_idp_config):
             response = idp_admin_session.get(
-                f"/admin/settings/identity-providers/{sample_idp_config.id}/attributes",
+                f"/identity-providers/saml/{sample_idp_config.id}/attributes",
                 headers={"Host": idp_host},
             )
 
@@ -182,7 +182,7 @@ class TestAttributesTabWithoutMetadata:
         """Form inputs contain current mapping values."""
         with _mock_idp_common(sample_idp_config):
             response = idp_admin_session.get(
-                f"/admin/settings/identity-providers/{sample_idp_config.id}/attributes",
+                f"/identity-providers/saml/{sample_idp_config.id}/attributes",
                 headers={"Host": idp_host},
             )
 
@@ -200,7 +200,7 @@ class TestAttributesTabWithoutMetadata:
         """Presets link text includes provider type."""
         with _mock_idp_common(sample_idp_config):
             response = idp_admin_session.get(
-                f"/admin/settings/identity-providers/{sample_idp_config.id}/attributes",
+                f"/identity-providers/saml/{sample_idp_config.id}/attributes",
                 headers={"Host": idp_host},
             )
 
@@ -232,7 +232,7 @@ class TestAttributesTabStandardAttributes:
             ),
         ):
             response = idp_admin_session.get(
-                f"/admin/settings/identity-providers/{sample_idp_config.id}/attributes",
+                f"/identity-providers/saml/{sample_idp_config.id}/attributes",
                 headers={"Host": idp_host},
             )
 
@@ -265,7 +265,7 @@ class TestAttributesTabStandardAttributes:
             ),
         ):
             response = idp_admin_session.get(
-                f"/admin/settings/identity-providers/{sample_idp_config.id}/attributes",
+                f"/identity-providers/saml/{sample_idp_config.id}/attributes",
                 headers={"Host": idp_host},
             )
 
@@ -292,7 +292,7 @@ class TestAttributesTabWithAdvertisedAttributes:
             ),
         ):
             response = idp_admin_session.get(
-                f"/admin/settings/identity-providers/{sample_idp_with_metadata.id}/attributes",
+                f"/identity-providers/saml/{sample_idp_with_metadata.id}/attributes",
                 headers={"Host": idp_host},
             )
 
@@ -328,7 +328,7 @@ class TestAttributesTabWithAdvertisedAttributes:
             ),
         ):
             response = idp_admin_session.get(
-                f"/admin/settings/identity-providers/{sample_idp_with_metadata.id}/attributes",
+                f"/identity-providers/saml/{sample_idp_with_metadata.id}/attributes",
                 headers={"Host": idp_host},
             )
 
@@ -354,7 +354,7 @@ class TestAttributesTabWithAdvertisedAttributes:
             ),
         ):
             response = idp_admin_session.get(
-                f"/admin/settings/identity-providers/{sample_idp_with_metadata.id}/attributes",
+                f"/identity-providers/saml/{sample_idp_with_metadata.id}/attributes",
                 headers={"Host": idp_host},
             )
 

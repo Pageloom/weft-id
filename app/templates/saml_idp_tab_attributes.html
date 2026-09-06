@@ -44,7 +44,7 @@
     </datalist>
     {% endif %}
 
-    <form id="attr-form" method="post" action="/admin/settings/identity-providers/{{ idp.id }}/edit-attributes">
+    <form id="attr-form" method="post" action="/identity-providers/saml/{{ idp.id }}/edit-attributes">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <table class="w-full text-sm mb-4">

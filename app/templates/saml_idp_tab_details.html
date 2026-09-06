@@ -87,7 +87,7 @@
 
     {# Tab Content: Import from URL #}
     <div id="trust-content-url" class="trust-tab-content">
-        <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/establish-trust-url" class="space-y-4">
+        <form method="post" action="/identity-providers/saml/{{ idp.id }}/establish-trust-url" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label for="trust-metadata-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -109,7 +109,7 @@
 
     {# Tab Content: Paste XML #}
     <div id="trust-content-xml" class="trust-tab-content hidden">
-        <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/establish-trust-xml" class="space-y-4">
+        <form method="post" action="/identity-providers/saml/{{ idp.id }}/establish-trust-xml" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label for="trust-metadata-xml" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -131,7 +131,7 @@
 
     {# Tab Content: Manual #}
     <div id="trust-content-manual" class="trust-tab-content hidden">
-        <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/establish-trust-manual" class="space-y-4">
+        <form method="post" action="/identity-providers/saml/{{ idp.id }}/establish-trust-manual" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label for="trust-entity-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -251,7 +251,7 @@
 {# Settings #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Settings</h2>
-    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/edit-settings">
+    <form method="post" action="/identity-providers/saml/{{ idp.id }}/edit-settings">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="space-y-4">
             <div class="flex items-start">
@@ -351,7 +351,7 @@
             </p>
         </div>
     </div>
-    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/verbose-logging">
+    <form method="post" action="/identity-providers/saml/{{ idp.id }}/verbose-logging">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="disable">
         <button type="submit"
@@ -360,7 +360,7 @@
         </button>
     </form>
     {% else %}
-    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/verbose-logging">
+    <form method="post" action="/identity-providers/saml/{{ idp.id }}/verbose-logging">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="enable">
         <button type="submit"
@@ -387,7 +387,7 @@
         {% for binding in domain_bindings %}
         <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
             <span class="text-sm text-gray-900 dark:text-gray-100 font-medium">{{ binding.domain_name }}</span>
-            <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/unbind-domain/{{ binding.domain_id }}" class="inline">
+            <form method="post" action="/identity-providers/saml/{{ idp.id }}/unbind-domain/{{ binding.domain_id }}" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="confirm-btn text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
@@ -404,7 +404,7 @@
     {% endif %}
 
     {% if unbound_domains %}
-    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/bind-domain" class="flex items-end gap-3">
+    <form method="post" action="/identity-providers/saml/{{ idp.id }}/bind-domain" class="flex items-end gap-3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="flex-1">
             <label for="domain_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bind a domain</label>
@@ -427,7 +427,7 @@
 <div id="edit-name-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Name</h3>
-        <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/edit">
+        <form method="post" action="/identity-providers/saml/{{ idp.id }}/edit">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-4">
                 <label for="edit-name-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
@@ -452,7 +452,7 @@
 <div id="edit-slo-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit SLO URL</h3>
-        <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/edit-slo-url">
+        <form method="post" action="/identity-providers/saml/{{ idp.id }}/edit-slo-url">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-4">
                 <label for="edit-slo-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Single Logout Service URL</label>
@@ -522,7 +522,7 @@
     document.getElementById('edit-slo-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-slo-modal'); });
     document.getElementById('cancel-slo-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-slo-modal'); });
     document.getElementById('test-connection-btn')?.addEventListener('click', () => {
-        window.open(`/admin/settings/identity-providers/${idpId}/test`, 'saml_test', 'width=600,height=700');
+        window.open(`/identity-providers/saml/${idpId}/test`, 'saml_test', 'width=600,height=700');
     });
     document.getElementById('copy-trust-url')?.addEventListener('click', () => {
         const el = document.getElementById('trust-page-url');

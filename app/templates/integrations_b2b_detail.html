@@ -7,7 +7,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <!-- Header with back link -->
         <div class="mb-6">
-            <a href="/admin/integrations/b2b" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+            <a href="/applications/service-accounts" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
                 &larr; Back to B2B
             </a>
         </div>
@@ -80,7 +80,7 @@
         {% endif %}
 
         <!-- Edit Form (Name & Description) -->
-        <form method="post" action="/admin/integrations/b2b/{{ client.client_id }}/edit" class="space-y-6">
+        <form method="post" action="/applications/service-accounts/{{ client.client_id }}/edit" class="space-y-6">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div>
@@ -110,7 +110,7 @@
                 The service role determines what API operations this B2B client can perform.
             </p>
 
-            <form method="post" action="/admin/integrations/b2b/{{ client.client_id }}/role" class="flex items-end gap-4">
+            <form method="post" action="/applications/service-accounts/{{ client.client_id }}/role" class="flex items-end gap-4">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="flex-1 max-w-xs">
                     <label for="role" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
@@ -161,7 +161,7 @@
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Reactivate B2B Client</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Allow this client to request tokens again.</p>
                     </div>
-                    <form method="post" action="/admin/integrations/b2b/{{ client.client_id }}/reactivate" class="inline">
+                    <form method="post" action="/applications/service-accounts/{{ client.client_id }}/reactivate" class="inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit"
                                 class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700">
@@ -202,7 +202,7 @@
                     class="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cancel
             </button>
-            <form method="post" action="/admin/integrations/b2b/{{ client.client_id }}/regenerate-secret" class="inline">
+            <form method="post" action="/applications/service-accounts/{{ client.client_id }}/regenerate-secret" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
@@ -225,7 +225,7 @@
                     class="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cancel
             </button>
-            <form method="post" action="/admin/integrations/b2b/{{ client.client_id }}/deactivate" class="inline">
+            <form method="post" action="/applications/service-accounts/{{ client.client_id }}/deactivate" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700">

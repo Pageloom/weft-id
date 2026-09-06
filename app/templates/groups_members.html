@@ -30,13 +30,13 @@
         </div>
     </div>
     <div class="flex items-center gap-2">
-        <a href="{% if pagination.has_previous %}/admin/groups/{{ group.id }}/members?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
+        <a href="{% if pagination.has_previous %}/groups/{{ group.id }}/members?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
             {% if not pagination.has_previous %}aria-disabled="true"{% endif %}>Previous</a>
         <span class="text-sm text-gray-700 dark:text-gray-300">
             Page <span class="font-medium">{{ pagination.page }}</span> of <span class="font-medium">{{ pagination.total_pages }}</span>
         </span>
-        <a href="{% if pagination.has_next %}/admin/groups/{{ group.id }}/members?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
+        <a href="{% if pagination.has_next %}/groups/{{ group.id }}/members?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
             {% if not pagination.has_next %}aria-disabled="true"{% endif %}>Next</a>
     </div>
@@ -50,14 +50,14 @@
         <div class="flex items-center justify-between mb-6">
             <div>
                 <div class="flex items-center gap-3 mb-1">
-                    <a href="/admin/groups/{{ group.id }}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">&larr; Back to Group</a>
+                    <a href="/groups/{{ group.id }}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">&larr; Back to Group</a>
                 </div>
                 <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
                     Members of {{ group.name }}
                 </h1>
             </div>
             {% if group.group_type == 'weftid' %}
-            <a href="/admin/groups/{{ group.id }}/members/add"
+            <a href="/groups/{{ group.id }}/members/add"
                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition duration-150">
                 Add Members
             </a>
@@ -97,7 +97,7 @@
 
         <!-- Search Form -->
         <div class="mb-6">
-            <form method="get" action="/admin/groups/{{ group.id }}/members" class="flex gap-2">
+            <form method="get" action="/groups/{{ group.id }}/members" class="flex gap-2">
                 <input type="hidden" name="sort" value="{{ sort_field }}">
                 <input type="hidden" name="order" value="{{ sort_order }}">
                 <input type="hidden" name="size" value="{{ pagination.page_size }}">
@@ -107,7 +107,7 @@
                     class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                 <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Search</button>
                 {% if search %}
-                <a href="/admin/groups/{{ group.id }}/members?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{{ filter_params() }}"
+                <a href="/groups/{{ group.id }}/members?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{{ filter_params() }}"
                     class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Clear</a>
                 {% endif %}
             </form>
@@ -123,7 +123,7 @@
                 </button>
                 {% if roles or statuses %}
                 <span class="text-sm text-blue-600 dark:text-blue-400 font-medium">Filtered results</span>
-                <a href="/admin/groups/{{ group.id }}/members?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
+                <a href="/groups/{{ group.id }}/members?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
                     id="clear-filters-link" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">Clear filters</a>
                 {% endif %}
             </div>
@@ -174,7 +174,7 @@
                         <button type="button" id="apply-filters-btn"
                             class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Apply Filters</button>
                         {% if roles or statuses %}
-                        <a href="/admin/groups/{{ group.id }}/members?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
+                        <a href="/groups/{{ group.id }}/members?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
                             class="clear-filters-action px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Clear Filters</a>
                         {% endif %}
                     </div>
@@ -212,7 +212,7 @@
 
         <!-- Bulk Remove Form wraps the table -->
         {% if group.group_type == 'weftid' %}
-        <form id="bulk-remove-form" method="post" action="/admin/groups/{{ group.id }}/members/bulk-remove">
+        <form id="bulk-remove-form" method="post" action="/groups/{{ group.id }}/members/bulk-remove">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {% endif %}
 
@@ -229,7 +229,7 @@
 
                         {% macro sort_header(field, label, width_class="") %}
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider {{ width_class }}">
-                            <a href="/admin/groups/{{ group.id }}/members?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
+                            <a href="/groups/{{ group.id }}/members?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
                                class="group inline-flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-300">
                                 <span>{{ label }}</span>
                                 {% if sort_field == field %}
@@ -335,7 +335,7 @@
 {
   "tenantId": {{ user.tenant_id | string | tojson }},
   "groupId": {{ group.id | tojson }},
-  "baseUrl": {{ ('/admin/groups/' ~ group.id ~ '/members') | tojson }},
+  "baseUrl": {{ ('/groups/' ~ group.id ~ '/members') | tojson }},
   "filtersActive": {{ 'true' if (roles or statuses) else 'false' }},
   "search": {{ search | tojson if search else 'null' }},
   "sortField": {{ sort_field | tojson }},

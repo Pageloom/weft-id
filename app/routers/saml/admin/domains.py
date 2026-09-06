@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/bind-domain",
+    "/identity-providers/saml/{idp_id}/bind-domain",
     dependencies=[Depends(require_super_admin)],
 )
 def bind_domain(
@@ -33,17 +33,15 @@ def bind_domain(
     try:
         saml_service.bind_domain_to_idp(requesting_user, idp_id, domain_id)
     except NotFoundError as e:
-        return safe_redirect(f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}")
+        return safe_redirect(f"/identity-providers/saml/{idp_id}/details?error={str(e)}")
     except ServiceError as e:
-        return safe_redirect(f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}")
+        return safe_redirect(f"/identity-providers/saml/{idp_id}/details?error={str(e)}")
 
-    return safe_redirect(
-        f"/admin/settings/identity-providers/{idp_id}/details?success=domain_bound"
-    )
+    return safe_redirect(f"/identity-providers/saml/{idp_id}/details?success=domain_bound")
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}/unbind-domain/{domain_id}",
+    "/identity-providers/saml/{idp_id}/unbind-domain/{domain_id}",
     dependencies=[Depends(require_super_admin)],
 )
 def unbind_domain(
@@ -59,10 +57,8 @@ def unbind_domain(
     try:
         saml_service.unbind_domain_from_idp(requesting_user, domain_id)
     except NotFoundError as e:
-        return safe_redirect(f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}")
+        return safe_redirect(f"/identity-providers/saml/{idp_id}/details?error={str(e)}")
     except ServiceError as e:
-        return safe_redirect(f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}")
+        return safe_redirect(f"/identity-providers/saml/{idp_id}/details?error={str(e)}")
 
-    return safe_redirect(
-        f"/admin/settings/identity-providers/{idp_id}/details?success=domain_unbound"
-    )
+    return safe_redirect(f"/identity-providers/saml/{idp_id}/details?success=domain_unbound")

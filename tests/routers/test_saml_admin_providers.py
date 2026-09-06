@@ -76,7 +76,7 @@ def test_idp_tab_details_renders(
     mock_template.return_value = HTMLResponse(content="<html>details</html>")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/test-idp-id/details",
+        "/identity-providers/saml/test-idp-id/details",
         headers={"Host": test_tenant_host},
     )
     assert response.status_code == 200
@@ -102,7 +102,7 @@ def test_idp_tab_certificates_renders(
     mock_template.return_value = HTMLResponse(content="<html>certificates</html>")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/test-idp-id/certificates",
+        "/identity-providers/saml/test-idp-id/certificates",
         headers={"Host": test_tenant_host},
     )
     assert response.status_code == 200
@@ -122,7 +122,7 @@ def test_idp_tab_attributes_renders(
     mock_template.return_value = HTMLResponse(content="<html>attributes</html>")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/test-idp-id/attributes",
+        "/identity-providers/saml/test-idp-id/attributes",
         headers={"Host": test_tenant_host},
     )
     assert response.status_code == 200
@@ -142,7 +142,7 @@ def test_idp_tab_metadata_renders(
     mock_template.return_value = HTMLResponse(content="<html>metadata</html>")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/test-idp-id/metadata",
+        "/identity-providers/saml/test-idp-id/metadata",
         headers={"Host": test_tenant_host},
     )
     assert response.status_code == 200
@@ -165,7 +165,7 @@ def test_idp_tab_danger_renders(
     mock_template.return_value = HTMLResponse(content="<html>danger</html>")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/test-idp-id/danger",
+        "/identity-providers/saml/test-idp-id/danger",
         headers={"Host": test_tenant_host},
     )
     assert response.status_code == 200
@@ -179,12 +179,12 @@ def test_idp_tab_danger_renders(
 @pytest.mark.parametrize(
     "tab_path,page_key",
     [
-        ("test-idp-id", "/admin/settings/identity-providers/idp"),
-        ("test-idp-id/details", "/admin/settings/identity-providers/idp/details"),
-        ("test-idp-id/certificates", "/admin/settings/identity-providers/idp/certificates"),
-        ("test-idp-id/attributes", "/admin/settings/identity-providers/idp/attributes"),
-        ("test-idp-id/metadata", "/admin/settings/identity-providers/idp/metadata"),
-        ("test-idp-id/danger", "/admin/settings/identity-providers/idp/danger"),
+        ("test-idp-id", "/identity-providers/saml/idp"),
+        ("test-idp-id/details", "/identity-providers/saml/idp/details"),
+        ("test-idp-id/certificates", "/identity-providers/saml/idp/certificates"),
+        ("test-idp-id/attributes", "/identity-providers/saml/idp/attributes"),
+        ("test-idp-id/metadata", "/identity-providers/saml/idp/metadata"),
+        ("test-idp-id/danger", "/identity-providers/saml/idp/danger"),
     ],
 )
 @patch("routers.saml.admin.providers.has_page_access")
@@ -199,7 +199,7 @@ def test_tab_access_denied_redirects_to_dashboard(
     mock_access.return_value = False
 
     response = super_admin_session.get(
-        f"/admin/settings/identity-providers/{tab_path}",
+        f"/identity-providers/saml/{tab_path}",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -228,7 +228,7 @@ def test_tab_not_found_redirects(
     mock_get.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.get(
-        f"/admin/settings/identity-providers/nonexistent/{tab}",
+        f"/identity-providers/saml/nonexistent/{tab}",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -257,7 +257,7 @@ def test_tab_service_error_redirects(
     mock_get.side_effect = ServiceError("Database error")
 
     response = super_admin_session.get(
-        f"/admin/settings/identity-providers/some-id/{tab}",
+        f"/identity-providers/saml/some-id/{tab}",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -291,7 +291,7 @@ def test_certificates_tab_sp_cert_error_silenced(
     mock_template.return_value = HTMLResponse(content="<html>certificates</html>")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/test-idp-id/certificates",
+        "/identity-providers/saml/test-idp-id/certificates",
         headers={"Host": test_tenant_host},
     )
     assert response.status_code == 200
@@ -322,7 +322,7 @@ def test_reimport_metadata_success(
     mock_parse.return_value = mock_parsed
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/reimport-metadata",
+        "/identity-providers/saml/test-idp-id/reimport-metadata",
         data={"metadata_xml": "<EntityDescriptor>...</EntityDescriptor>"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -342,7 +342,7 @@ def test_reimport_metadata_not_found(
     mock_get.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/nonexistent/reimport-metadata",
+        "/identity-providers/saml/nonexistent/reimport-metadata",
         data={"metadata_xml": "<xml>"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -366,7 +366,7 @@ def test_reimport_metadata_validation_error(
     mock_parse.side_effect = ValidationError("Invalid XML format")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/reimport-metadata",
+        "/identity-providers/saml/test-idp-id/reimport-metadata",
         data={"metadata_xml": "<bad>xml</bad>"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -391,7 +391,7 @@ def test_reimport_metadata_service_error(
     mock_parse.side_effect = ServiceError("Parse failed")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/reimport-metadata",
+        "/identity-providers/saml/test-idp-id/reimport-metadata",
         data={"metadata_xml": "<xml>"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -415,7 +415,7 @@ def test_establish_trust_url_success(
 ):
     """Test establish trust via URL success."""
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/establish-trust-url",
+        "/identity-providers/saml/test-idp-id/establish-trust-url",
         data={"metadata_url": "https://idp.example.com/metadata"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -436,7 +436,7 @@ def test_establish_trust_url_validation_error(
     mock_import.side_effect = ValidationError("Invalid URL")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/establish-trust-url",
+        "/identity-providers/saml/test-idp-id/establish-trust-url",
         data={"metadata_url": "not-a-url"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -457,7 +457,7 @@ def test_establish_trust_url_service_error(
     mock_import.side_effect = ServiceError("Fetch failed")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/establish-trust-url",
+        "/identity-providers/saml/test-idp-id/establish-trust-url",
         data={"metadata_url": "https://idp.example.com/metadata"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -476,7 +476,7 @@ def test_establish_trust_xml_success(
 ):
     """Test establish trust via XML paste success."""
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/establish-trust-xml",
+        "/identity-providers/saml/test-idp-id/establish-trust-xml",
         data={"metadata_xml": "<EntityDescriptor>...</EntityDescriptor>"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -497,7 +497,7 @@ def test_establish_trust_xml_validation_error(
     mock_import.side_effect = ValidationError("Invalid XML")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/establish-trust-xml",
+        "/identity-providers/saml/test-idp-id/establish-trust-xml",
         data={"metadata_xml": "<bad>"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -516,7 +516,7 @@ def test_establish_trust_manual_success(
 ):
     """Test establish trust via manual config success."""
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/establish-trust-manual",
+        "/identity-providers/saml/test-idp-id/establish-trust-manual",
         data={
             "entity_id": "https://idp.example.com",
             "sso_url": "https://idp.example.com/sso",
@@ -541,7 +541,7 @@ def test_establish_trust_manual_validation_error(
     mock_establish.side_effect = ValidationError("Invalid certificate")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/establish-trust-manual",
+        "/identity-providers/saml/test-idp-id/establish-trust-manual",
         data={
             "entity_id": "https://idp.example.com",
             "sso_url": "https://idp.example.com/sso",
@@ -566,7 +566,7 @@ def test_establish_trust_manual_service_error(
     mock_establish.side_effect = ServiceError("Database error")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/establish-trust-manual",
+        "/identity-providers/saml/test-idp-id/establish-trust-manual",
         data={
             "entity_id": "https://idp.example.com",
             "sso_url": "https://idp.example.com/sso",
@@ -594,7 +594,7 @@ def test_rotate_sp_certificate_success(
 ):
     """Test SP certificate rotation success."""
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/rotate-sp-certificate",
+        "/identity-providers/saml/test-idp-id/rotate-sp-certificate",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -614,7 +614,7 @@ def test_rotate_sp_certificate_not_found(
     mock_rotate.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/nonexistent/rotate-sp-certificate",
+        "/identity-providers/saml/nonexistent/rotate-sp-certificate",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -634,7 +634,7 @@ def test_rotate_sp_certificate_service_error(
     mock_rotate.side_effect = ServiceError("Rotation failed")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/test-idp-id/rotate-sp-certificate",
+        "/identity-providers/saml/test-idp-id/rotate-sp-certificate",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -657,7 +657,7 @@ def test_import_from_metadata_url_success(
 ):
     """Test import from metadata URL success."""
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/import-metadata",
+        "/identity-providers/saml/import-metadata",
         data={
             "metadata_url": "https://idp.example.com/metadata",
             "provider_type": "okta",
@@ -679,7 +679,7 @@ def test_import_from_metadata_xml_success(
 ):
     """Test import from metadata XML success."""
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/import-metadata-xml",
+        "/identity-providers/saml/import-metadata-xml",
         data={
             "metadata_xml": "<EntityDescriptor>...</EntityDescriptor>",
             "provider_type": "okta",

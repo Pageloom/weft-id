@@ -28,7 +28,7 @@
         {{ domain_count }} domain{{ 's' if domain_count != 1 else '' }} bound. Unbind them first.
     </p>
     {% endif %}
-    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/delete" class="mt-2">
+    <form method="post" action="/identity-providers/saml/{{ idp.id }}/delete" class="mt-2">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label class="flex items-start gap-2 mb-3 text-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" name="scrub_mirrored" value="on" checked

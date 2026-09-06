@@ -64,7 +64,7 @@ def _make_connection(test_tenant, test_super_admin_user, **overrides):
 
 def test_list_connections_as_super_admin(super_admin_session, test_tenant_host):
     response = super_admin_session.get(
-        "/admin/settings/oidc-identity-providers",
+        "/identity-providers/oidc",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -73,7 +73,7 @@ def test_list_connections_as_super_admin(super_admin_session, test_tenant_host):
 
 def test_list_connections_as_admin_forbidden(admin_session, test_tenant_host):
     response = admin_session.get(
-        "/admin/settings/oidc-identity-providers",
+        "/identity-providers/oidc",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -82,7 +82,7 @@ def test_list_connections_as_admin_forbidden(admin_session, test_tenant_host):
 
 def test_new_connection_form_as_super_admin(super_admin_session, test_tenant_host):
     response = super_admin_session.get(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -95,7 +95,7 @@ def test_new_connection_form_as_super_admin(super_admin_session, test_tenant_hos
 
 def test_new_connection_form_as_admin_forbidden(admin_session, test_tenant_host):
     response = admin_session.get(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -109,7 +109,7 @@ def test_new_connection_form_as_admin_forbidden(admin_session, test_tenant_host)
 
 def test_create_connection_success(super_admin_session, test_tenant_host):
     response = super_admin_session.post(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         data={
             "name": "New OIDC",
             "provider_type": "generic",
@@ -126,7 +126,7 @@ def test_create_connection_success(super_admin_session, test_tenant_host):
 
 def test_create_connection_entra_composes_issuer(super_admin_session, test_tenant_host):
     response = super_admin_session.post(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         data={
             "name": "Entra OIDC",
             "provider_type": "entra",
@@ -142,7 +142,7 @@ def test_create_connection_entra_composes_issuer(super_admin_session, test_tenan
 
 def test_create_connection_missing_name(super_admin_session, test_tenant_host):
     response = super_admin_session.post(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         data={"provider_type": "generic", "issuer": "https://idp.example.com"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -153,7 +153,7 @@ def test_create_connection_missing_name(super_admin_session, test_tenant_host):
 
 def test_create_connection_invalid_provider_type(super_admin_session, test_tenant_host):
     response = super_admin_session.post(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         data={
             "name": "Evil OIDC",
             "provider_type": "evil",
@@ -169,7 +169,7 @@ def test_create_connection_invalid_provider_type(super_admin_session, test_tenan
 
 def test_create_connection_empty_issuer(super_admin_session, test_tenant_host):
     response = super_admin_session.post(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         data={
             "name": "No Issuer",
             "provider_type": "generic",
@@ -187,7 +187,7 @@ def test_create_connection_empty_issuer(super_admin_session, test_tenant_host):
 
 def test_new_connection_form_prefills_google_issuer(super_admin_session, test_tenant_host):
     response = super_admin_session.get(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -206,15 +206,12 @@ def test_detail_redirects_to_details_tab(
 ):
     conn = _make_connection(test_tenant, test_super_admin_user)
     response = super_admin_session.get(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}",
+        f"/identity-providers/oidc/{conn['id']}",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert (
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/details"
-        in response.headers["location"]
-    )
+    assert f"/identity-providers/oidc/{conn['id']}/details" in response.headers["location"]
 
 
 def test_details_tab_renders_and_hides_secret(
@@ -228,7 +225,7 @@ def test_details_tab_renders_and_hides_secret(
         client_secret_enc=_encrypt_secret("super-secret-value"),
     )
     response = super_admin_session.get(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/details",
+        f"/identity-providers/oidc/{conn['id']}/details",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -244,7 +241,7 @@ def test_danger_tab_renders(
 ):
     conn = _make_connection(test_tenant, test_super_admin_user)
     response = super_admin_session.get(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/danger",
+        f"/identity-providers/oidc/{conn['id']}/danger",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -269,7 +266,7 @@ def test_danger_tab_surfaces_linked_user_listing_failure(
         side_effect=ServiceError(message="boom", code="boom"),
     ):
         response = super_admin_session.get(
-            f"/admin/settings/oidc-identity-providers/{conn['id']}/danger",
+            f"/identity-providers/oidc/{conn['id']}/danger",
             headers={"Host": test_tenant_host},
             follow_redirects=False,
         )
@@ -282,7 +279,7 @@ def test_details_tab_not_found_redirects(super_admin_session, test_tenant_host):
     import uuid
 
     response = super_admin_session.get(
-        f"/admin/settings/oidc-identity-providers/{uuid.uuid4()}/details",
+        f"/identity-providers/oidc/{uuid.uuid4()}/details",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -298,7 +295,7 @@ def test_details_tab_not_found_redirects(super_admin_session, test_tenant_host):
 def test_edit_name(super_admin_session, test_tenant_host, test_tenant, test_super_admin_user):
     conn = _make_connection(test_tenant, test_super_admin_user)
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/edit",
+        f"/identity-providers/oidc/{conn['id']}/edit",
         data={"name": "Renamed OIDC"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -310,7 +307,7 @@ def test_edit_name(super_admin_session, test_tenant_host, test_tenant, test_supe
 def test_edit_settings(super_admin_session, test_tenant_host, test_tenant, test_super_admin_user):
     conn = _make_connection(test_tenant, test_super_admin_user)
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/edit-settings",
+        f"/identity-providers/oidc/{conn['id']}/edit-settings",
         data={"is_enabled": "on", "jit_provisioning": "on"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -324,7 +321,7 @@ def test_toggle_connection(
 ):
     conn = _make_connection(test_tenant, test_super_admin_user)
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/toggle",
+        f"/identity-providers/oidc/{conn['id']}/toggle",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -335,7 +332,7 @@ def test_toggle_connection(
 def test_set_default(super_admin_session, test_tenant_host, test_tenant, test_super_admin_user):
     conn = _make_connection(test_tenant, test_super_admin_user)
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/set-default",
+        f"/identity-providers/oidc/{conn['id']}/set-default",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -348,7 +345,7 @@ def test_delete_connection(
 ):
     conn = _make_connection(test_tenant, test_super_admin_user)
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/delete",
+        f"/identity-providers/oidc/{conn['id']}/delete",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -361,7 +358,7 @@ def test_delete_enabled_connection_conflict(
 ):
     conn = _make_connection(test_tenant, test_super_admin_user, is_enabled=True)
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/delete",
+        f"/identity-providers/oidc/{conn['id']}/delete",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -385,7 +382,7 @@ def test_test_connection_success(
     conn = _make_connection(test_tenant, test_super_admin_user)
     mock_discovery.return_value = {}
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/test-connection",
+        f"/identity-providers/oidc/{conn['id']}/test-connection",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -407,7 +404,7 @@ def test_test_connection_failure(
     conn = _make_connection(test_tenant, test_super_admin_user)
     mock_discovery.side_effect = DiscoveryError("boom")
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/test-connection",
+        f"/identity-providers/oidc/{conn['id']}/test-connection",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -422,7 +419,7 @@ def test_test_connection_failure(
 
 def test_new_connection_form_renders_manual_endpoint_fields(super_admin_session, test_tenant_host):
     response = super_admin_session.get(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -438,7 +435,7 @@ def test_create_connection_with_manual_endpoints(
     import database
 
     response = super_admin_session.post(
-        "/admin/settings/oidc-identity-providers/new",
+        "/identity-providers/oidc/new",
         data={
             "name": "No Discovery IdP",
             "provider_type": "generic",
@@ -456,7 +453,7 @@ def test_create_connection_with_manual_endpoints(
     location = response.headers["location"]
     assert "success=created" in location
 
-    connection_id = location.split("/oidc-identity-providers/")[1].split("/")[0]
+    connection_id = location.split("/identity-providers/oidc/")[1].split("/")[0]
     row = database.oidc_upstream.get_connection(test_tenant["id"], connection_id)
     assert row["authorization_endpoint"] == "https://idp.example.com/authorize"
     assert row["token_endpoint"] == "https://idp.example.com/token"
@@ -467,7 +464,7 @@ def test_create_connection_with_manual_endpoints(
 def test_create_connection_rejects_insecure_manual_endpoint(super_admin_session, test_tenant_host):
     with patch("services.oidc_upstream.connections.settings.IS_DEV", False):
         response = super_admin_session.post(
-            "/admin/settings/oidc-identity-providers/new",
+            "/identity-providers/oidc/new",
             data={
                 "name": "Plaintext IdP",
                 "provider_type": "generic",
@@ -491,7 +488,7 @@ def test_details_tab_shows_endpoint_editor_for_generic(
         authorization_endpoint="https://idp.example.com/authorize",
     )
     response = super_admin_session.get(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/details",
+        f"/identity-providers/oidc/{conn['id']}/details",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -518,7 +515,7 @@ def test_details_tab_hides_endpoint_editor_for_google(
         is_enabled=False,
     )
     response = super_admin_session.get(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/details",
+        f"/identity-providers/oidc/{conn['id']}/details",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -536,7 +533,7 @@ def test_edit_endpoints(super_admin_session, test_tenant_host, test_tenant, test
         userinfo_endpoint="https://idp.example.com/userinfo",
     )
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/edit-endpoints",
+        f"/identity-providers/oidc/{conn['id']}/edit-endpoints",
         data={
             "authorization_endpoint": "https://idp.example.com/authorize",
             "token_endpoint": "https://idp.example.com/token",
@@ -565,7 +562,7 @@ def test_edit_endpoints_rejects_insecure_url(
     conn = _make_connection(test_tenant, test_super_admin_user)
     with patch("services.oidc_upstream.connections.settings.IS_DEV", False):
         response = super_admin_session.post(
-            f"/admin/settings/oidc-identity-providers/{conn['id']}/edit-endpoints",
+            f"/identity-providers/oidc/{conn['id']}/edit-endpoints",
             data={"jwks_uri": "http://idp.example.com/keys"},
             headers={"Host": test_tenant_host},
             follow_redirects=False,
@@ -581,7 +578,7 @@ def test_edit_endpoints_not_found(super_admin_session, test_tenant_host):
     from uuid import uuid4
 
     response = super_admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{uuid4()}/edit-endpoints",
+        f"/identity-providers/oidc/{uuid4()}/edit-endpoints",
         data={"jwks_uri": "https://idp.example.com/keys"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -595,7 +592,7 @@ def test_edit_endpoints_as_admin_forbidden(
 ):
     conn = _make_connection(test_tenant, test_super_admin_user)
     response = admin_session.post(
-        f"/admin/settings/oidc-identity-providers/{conn['id']}/edit-endpoints",
+        f"/identity-providers/oidc/{conn['id']}/edit-endpoints",
         data={"jwks_uri": "https://idp.example.com/keys"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,

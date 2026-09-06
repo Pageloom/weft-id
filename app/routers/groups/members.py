@@ -23,7 +23,7 @@ from utils.template_context import get_template_context
 from utils.templates import templates
 
 router = APIRouter(
-    prefix="/admin/groups",
+    prefix="/groups",
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
 )
@@ -92,7 +92,7 @@ def member_list(
 ):
     """Redirect to the membership tab (members management is now inline)."""
     qs = request.url.query
-    location = f"/admin/groups/{quote(group_id, safe='')}/membership"
+    location = f"/groups/{quote(group_id, safe='')}/membership"
     if qs:
         location += f"?{qs}"
     return safe_redirect(location, status_code=301)
@@ -193,9 +193,7 @@ def add_members_submit(
     try:
         count = groups_service.bulk_add_members(requesting_user, group_id, user_ids)
     except (NotFoundError, ForbiddenError) as exc:
-        return safe_redirect(
-            f"/admin/groups/{quote(group_id, safe='')}/membership?error={exc.code}"
-        )
+        return safe_redirect(f"/groups/{quote(group_id, safe='')}/membership?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -216,7 +214,7 @@ def add_members_submit(
         params["role"] = return_role
     if return_status:
         params["status"] = return_status
-    path = f"/admin/groups/{quote(group_id, safe='')}/members/add"
+    path = f"/groups/{quote(group_id, safe='')}/members/add"
     return safe_redirect(f"{path}?{urlencode(params)}")
 
 
@@ -234,15 +232,11 @@ def bulk_remove_members(
     try:
         count = groups_service.bulk_remove_members(requesting_user, group_id, user_ids)
     except (NotFoundError, ForbiddenError) as exc:
-        return safe_redirect(
-            f"/admin/groups/{quote(group_id, safe='')}/membership?error={exc.code}"
-        )
+        return safe_redirect(f"/groups/{quote(group_id, safe='')}/membership?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return safe_redirect(
-        f"/admin/groups/{group_id}/membership?success=members_removed&count={count}"
-    )
+    return safe_redirect(f"/groups/{group_id}/membership?success=members_removed&count={count}")
 
 
 @router.post("/{group_id}/members/{user_id}/remove")
@@ -259,10 +253,8 @@ def remove_member(
     try:
         groups_service.remove_member(requesting_user, group_id, user_id)
     except NotFoundError as exc:
-        return safe_redirect(
-            f"/admin/groups/{quote(group_id, safe='')}/membership?error={exc.code}"
-        )
+        return safe_redirect(f"/groups/{quote(group_id, safe='')}/membership?error={exc.code}")
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return safe_redirect(f"/admin/groups/{group_id}/membership?success=member_removed")
+    return safe_redirect(f"/groups/{group_id}/membership?success=member_removed")

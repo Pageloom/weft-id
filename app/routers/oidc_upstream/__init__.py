@@ -16,6 +16,6 @@ from routers.oidc_upstream.authentication import router as auth_router
 router = APIRouter(tags=["oidc_upstream"], include_in_schema=False)
 
 # Include the auth router first (public /auth/oidc/* routes), then the admin
-# router (/admin/settings/oidc-identity-providers/*).
+# router (/identity-providers/oidc/*).
 router.include_router(auth_router)
 router.include_router(admin_router)

@@ -2,8 +2,8 @@
 
 ## Manual creation
 
-1. Navigate to **Users**
-2. Click **Create User**
+1. Navigate to **Directory > Users**
+2. Click **Add User**
 3. Enter the user's first name, last name, and email address
 4. Select a role: super admin, admin, or user
 5. Optionally fill in any

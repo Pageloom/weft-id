@@ -13,7 +13,7 @@ router = APIRouter()
 # The debug router includes /debug which must match before /{idp_id} in providers
 # So debug_router MUST be included BEFORE providers_router
 router.include_router(debug_router)
-# inbound_scim adds /admin/settings/identity-providers/{idp_id}/scim. Include it
+# inbound_scim adds /identity-providers/saml/{idp_id}/scim. Include it
 # before providers so the literal /scim segment is matched before any wildcard
 # `{idp_id}/...` route in providers.py could shadow it.
 router.include_router(inbound_scim_router)

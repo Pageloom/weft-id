@@ -152,3 +152,34 @@ def list_missing_required_for_tenant(tenant_id: TenantArg) -> list[dict]:
         """,
         {},
     )
+
+
+def count_users_with_missing_required(tenant_id: TenantArg) -> int:
+    """Count distinct users with at least one missing required attribute.
+
+    Same eligibility rules as ``list_missing_required_for_tenant`` (active,
+    non-anonymized, non-service users) but returns a single count instead of
+    one row per (user, attribute) pair. Used for the Requests nav badge.
+    """
+    row = fetchone(
+        tenant_id,
+        """
+        select count(distinct u.id) as missing_count
+          from tenant_attribute_config c
+          cross join users u
+          left join user_attributes ua
+                 on ua.user_id = u.id
+                and ua.attribute_key = c.attribute_key
+         where c.enabled = true
+           and c.required = true
+           and u.is_inactivated = false
+           and u.is_anonymized = false
+           and not exists (
+               select 1 from oauth2_clients oc
+                where oc.service_user_id = u.id
+           )
+           and (ua.value is null or btrim(ua.value) = '')
+        """,
+        {},
+    )
+    return int(row["missing_count"]) if row else 0

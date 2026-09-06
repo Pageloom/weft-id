@@ -33,7 +33,7 @@ Note that Entra shows both a secret **value** and a secret **ID**. WeftID needs 
 
 ## Step 2: Configure the WeftID connection
 
-1. In WeftID, go to **Settings > OIDC Identity Providers** and create a connection with provider type **Entra**
+1. In WeftID, go to **Identity Providers > OIDC** and create a connection with provider type **Entra**
 2. Enter the **directory (tenant) ID** — WeftID composes the authority URL from it
 3. Paste the client ID and the client secret value
 4. Click **Test connection**, then enable it

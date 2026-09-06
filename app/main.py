@@ -22,18 +22,22 @@ from middleware.session import DynamicSessionMiddleware  # noqa: E402
 from middleware.tenant_guard import TenantGuardMiddleware  # noqa: E402
 from routers import account as account_router  # noqa: E402
 from routers import account_passkeys as account_passkeys_router  # noqa: E402
-from routers import admin as admin_router  # noqa: E402
+from routers import audit as audit_router  # noqa: E402
 from routers import auth, mfa, oauth2, saml, tenants, users  # noqa: E402
 from routers import branding as branding_router  # noqa: E402
+from routers import directory as directory_router  # noqa: E402
 from routers import forward_auth as forward_auth_router  # noqa: E402
 from routers import groups as groups_router  # noqa: E402
 from routers import health as health_router  # noqa: E402
+from routers import identity_providers as identity_providers_router  # noqa: E402
 from routers import integrations as integrations_router  # noqa: E402
+from routers import legacy_redirects as legacy_redirects_router  # noqa: E402
 from routers import oidc as oidc_router  # noqa: E402
 from routers import oidc_upstream as oidc_upstream_router  # noqa: E402
 from routers import protected_domains as protected_domains_router  # noqa: E402
 from routers import proxy_apps as proxy_apps_router  # noqa: E402
 from routers import saml_idp as saml_idp_router  # noqa: E402
+from routers import security as security_router  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
 from routers import settings_branding as settings_branding_router  # noqa: E402
 from routers.api.v1 import account_passkeys as account_passkeys_api  # noqa: E402
@@ -147,12 +151,16 @@ app.include_router(auth.router)
 app.include_router(mfa.router)
 app.include_router(account_router.router)
 app.include_router(account_passkeys_router.router)
-app.include_router(admin_router.router)
+app.include_router(audit_router.router)
+app.include_router(directory_router.router)
 app.include_router(groups_router.router)
+app.include_router(identity_providers_router.router)
 app.include_router(integrations_router.router)
+app.include_router(legacy_redirects_router.router)
 app.include_router(protected_domains_router.router)
 app.include_router(proxy_apps_router.router)
 app.include_router(saml_idp_router.router)
+app.include_router(security_router.router)
 app.include_router(settings_router.router)
 app.include_router(settings_branding_router.router)
 app.include_router(tenants.router)

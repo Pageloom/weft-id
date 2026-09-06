@@ -2,7 +2,7 @@
 
 Control what users can do in their own accounts. Super admins are exempt from these restrictions.
 
-Navigate to **Settings > Security > Permissions**.
+Navigate to **Security > Permissions**.
 
 ## Allow users to edit their profile
 

@@ -1,4 +1,18 @@
-"""Integration management routes for OAuth2 clients (Apps and B2B)."""
+"""Applications routes: index redirects, OAuth2/OIDC apps, B2B service accounts.
+
+Named ``integrations.py`` for historical reasons -- this module covered
+``/admin/integrations`` before the nav restructure (see
+``.claude/ITERATION_nav_restructure.md``). Apps moved to
+``/applications/oauth`` (renamed "OAuth2 / OIDC") and B2B clients moved to
+``/applications/service-accounts`` (renamed "Service Accounts"); the old
+``/admin/integrations`` container no longer exists. SAML service providers
+live in ``routers.saml_idp.admin``; forward-auth (protected domains + proxy
+apps, tabbed as "Domains" / "Apps" under Applications > Forward Auth) lives
+in ``routers.protected_domains`` / ``routers.proxy_apps``. This module also
+owns the ``/applications`` and ``/applications/forward-auth`` index
+redirects since it is the closest thing the Applications section has to a
+"home" module.
+"""
 
 import logging
 from typing import Annotated
@@ -22,33 +36,59 @@ from utils.urls import tenant_base_url
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(
-    prefix="/admin/integrations",
-    tags=["integrations"],
+top_router = APIRouter(
+    prefix="/applications",
+    tags=["applications"],
+    dependencies=[Depends(require_admin)],
+    include_in_schema=False,
+)
+
+apps_router = APIRouter(
+    prefix="/applications/oauth",
+    tags=["applications-oauth"],
+    dependencies=[Depends(require_admin)],
+    include_in_schema=False,
+)
+
+b2b_router = APIRouter(
+    prefix="/applications/service-accounts",
+    tags=["applications-service-accounts"],
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
 )
 
 
-@router.get("/", response_class=HTMLResponse)
-def integrations_index(
+@top_router.get("/", response_class=HTMLResponse)
+def applications_index(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
-    """Redirect to the first accessible integrations sub-page."""
-    first_child = get_first_accessible_child("/admin/integrations", user.get("role"))
+    """Redirect to the first accessible Applications sub-page."""
+    first_child = get_first_accessible_child("/applications", user.get("role"))
     return safe_redirect(first_child, default="/dashboard")
 
 
-@router.get("/apps", response_class=HTMLResponse)
+@top_router.get("/forward-auth/", response_class=HTMLResponse)
+@top_router.get("/forward-auth", response_class=HTMLResponse)
+def forward_auth_index(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Redirect to the first accessible Forward Auth tab (Domains or Apps)."""
+    first_child = get_first_accessible_child("/applications/forward-auth", user.get("role"))
+    return safe_redirect(first_child, default="/dashboard")
+
+
+@apps_router.get("", response_class=HTMLResponse)
 def apps_list(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """List normal OAuth2 clients (Apps)."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     clients = oauth2_service.get_all_clients(tenant_id, client_type="normal")
@@ -67,7 +107,7 @@ def apps_list(
     return templates.TemplateResponse(request, "integrations_apps.html", context)
 
 
-@router.post("/apps/create", response_class=HTMLResponse)
+@apps_router.post("/create", response_class=HTMLResponse)
 def apps_create(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -77,18 +117,18 @@ def apps_create(
     description: str = Form(""),
 ):
     """Create a new normal OAuth2 client (App)."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
-        return RedirectResponse(url="/admin/integrations/apps?error=name_required", status_code=303)
+        return RedirectResponse(url="/applications/oauth?error=name_required", status_code=303)
 
     # Parse redirect URIs from textarea (one per line)
     uri_list = [uri.strip() for uri in redirect_uris.strip().splitlines() if uri.strip()]
 
     if not uri_list:
         return RedirectResponse(
-            url="/admin/integrations/apps?error=redirect_uris_required", status_code=303
+            url="/applications/oauth?error=redirect_uris_required", status_code=303
         )
 
     try:
@@ -107,22 +147,20 @@ def apps_create(
             "name": client["name"],
         }
 
-        return RedirectResponse(url="/admin/integrations/apps?success=created", status_code=303)
+        return RedirectResponse(url="/applications/oauth?success=created", status_code=303)
     except ServiceError as exc:
         logger.warning("Failed to create OAuth2 app: %s", exc)
-        return RedirectResponse(
-            url="/admin/integrations/apps?error=creation_failed", status_code=303
-        )
+        return RedirectResponse(url="/applications/oauth?error=creation_failed", status_code=303)
 
 
-@router.get("/b2b", response_class=HTMLResponse)
+@b2b_router.get("", response_class=HTMLResponse)
 def b2b_list(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """List B2B OAuth2 clients (Service Accounts)."""
-    if not has_page_access("/admin/integrations/b2b", user.get("role")):
+    if not has_page_access("/applications/service-accounts", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     clients = oauth2_service.get_all_clients(tenant_id, client_type="b2b")
@@ -141,7 +179,7 @@ def b2b_list(
     return templates.TemplateResponse(request, "integrations_b2b.html", context)
 
 
-@router.post("/b2b/create", response_class=HTMLResponse)
+@b2b_router.post("/create", response_class=HTMLResponse)
 def b2b_create(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -151,14 +189,18 @@ def b2b_create(
     description: str = Form(""),
 ):
     """Create a new B2B OAuth2 client (Service Account)."""
-    if not has_page_access("/admin/integrations/b2b", user.get("role")):
+    if not has_page_access("/applications/service-accounts", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
-        return RedirectResponse(url="/admin/integrations/b2b?error=name_required", status_code=303)
+        return RedirectResponse(
+            url="/applications/service-accounts?error=name_required", status_code=303
+        )
 
     if role not in ("member", "admin", "super_admin"):
-        return RedirectResponse(url="/admin/integrations/b2b?error=invalid_role", status_code=303)
+        return RedirectResponse(
+            url="/applications/service-accounts?error=invalid_role", status_code=303
+        )
 
     try:
         client = oauth2_service.create_b2b_client(
@@ -176,11 +218,13 @@ def b2b_create(
             "name": client["name"],
         }
 
-        return RedirectResponse(url="/admin/integrations/b2b?success=created", status_code=303)
+        return RedirectResponse(
+            url="/applications/service-accounts?success=created", status_code=303
+        )
     except ServiceError as exc:
         logger.warning("Failed to create B2B client: %s", exc)
         return RedirectResponse(
-            url="/admin/integrations/b2b?error=creation_failed", status_code=303
+            url="/applications/service-accounts?error=creation_failed", status_code=303
         )
 
 
@@ -189,7 +233,7 @@ def b2b_create(
 # =============================================================================
 
 
-@router.get("/apps/{client_id}", response_class=HTMLResponse)
+@apps_router.get("/{client_id}", response_class=HTMLResponse)
 def app_detail(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -197,12 +241,12 @@ def app_detail(
     client_id: str,
 ):
     """View/edit details for a normal OAuth2 client (App)."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
     if not client or client["client_type"] != "normal":
-        return RedirectResponse(url="/admin/integrations/apps?error=not_found", status_code=303)
+        return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
 
     # Check for pending credentials in session (one-time read after regenerate)
     pending_credentials = request.session.pop("pending_credentials", None)
@@ -233,7 +277,7 @@ def app_detail(
     return templates.TemplateResponse(request, "integrations_app_detail.html", context)
 
 
-@router.post("/apps/{client_id}/edit", response_class=HTMLResponse)
+@apps_router.post("/{client_id}/edit", response_class=HTMLResponse)
 def app_edit(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -244,10 +288,10 @@ def app_edit(
     description: str = Form(""),
 ):
     """Update a normal OAuth2 client (App)."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/apps/{client_id}"
+    redirect_url = f"/applications/oauth/{client_id}"
 
     if not name.strip():
         return safe_redirect(f"{redirect_url}?error=name_required")
@@ -269,7 +313,7 @@ def app_edit(
         )
 
         if not client:
-            return RedirectResponse(url="/admin/integrations/apps?error=not_found", status_code=303)
+            return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
 
         return safe_redirect(f"{redirect_url}?success=updated")
     except ServiceError as exc:
@@ -277,7 +321,7 @@ def app_edit(
         return safe_redirect(f"{redirect_url}?error=update_failed")
 
 
-@router.post("/apps/{client_id}/regenerate-secret", response_class=HTMLResponse)
+@apps_router.post("/{client_id}/regenerate-secret", response_class=HTMLResponse)
 def app_regenerate_secret(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -285,14 +329,14 @@ def app_regenerate_secret(
     client_id: str,
 ):
     """Regenerate the client secret for an App."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/apps/{client_id}"
+    redirect_url = f"/applications/oauth/{client_id}"
 
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
     if not client or client["client_type"] != "normal":
-        return RedirectResponse(url="/admin/integrations/apps?error=not_found", status_code=303)
+        return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
 
     new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id, str(user["id"]))
 
@@ -306,7 +350,7 @@ def app_regenerate_secret(
     return safe_redirect(f"{redirect_url}?success=secret_regenerated")
 
 
-@router.post("/apps/{client_id}/deactivate", response_class=HTMLResponse)
+@apps_router.post("/{client_id}/deactivate", response_class=HTMLResponse)
 def app_deactivate(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -314,19 +358,19 @@ def app_deactivate(
     client_id: str,
 ):
     """Deactivate an App (soft delete)."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/apps/{client_id}"
+    redirect_url = f"/applications/oauth/{client_id}"
 
     client = oauth2_service.deactivate_client(tenant_id, client_id, str(user["id"]))
     if not client:
-        return RedirectResponse(url="/admin/integrations/apps?error=not_found", status_code=303)
+        return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
 
     return safe_redirect(f"{redirect_url}?success=deactivated")
 
 
-@router.post("/apps/{client_id}/reactivate", response_class=HTMLResponse)
+@apps_router.post("/{client_id}/reactivate", response_class=HTMLResponse)
 def app_reactivate(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -334,14 +378,14 @@ def app_reactivate(
     client_id: str,
 ):
     """Reactivate a deactivated App."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/apps/{client_id}"
+    redirect_url = f"/applications/oauth/{client_id}"
 
     client = oauth2_service.reactivate_client(tenant_id, client_id, str(user["id"]))
     if not client:
-        return RedirectResponse(url="/admin/integrations/apps?error=not_found", status_code=303)
+        return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
 
     return safe_redirect(f"{redirect_url}?success=reactivated")
 
@@ -351,7 +395,7 @@ def app_reactivate(
 # =============================================================================
 
 
-@router.post("/apps/{client_id}/oidc/toggle", response_class=HTMLResponse)
+@apps_router.post("/{client_id}/oidc/toggle", response_class=HTMLResponse)
 def app_toggle_oidc(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -360,10 +404,10 @@ def app_toggle_oidc(
     oidc_enabled: Annotated[str, Form(max_length=50)] = "false",
 ):
     """Enable or disable OIDC (OpenID Provider) for an App."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/apps/{client_id}"
+    redirect_url = f"/applications/oauth/{client_id}"
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
@@ -376,7 +420,7 @@ def app_toggle_oidc(
         return safe_redirect(f"{redirect_url}?error=oidc_update_failed")
 
 
-@router.post("/apps/{client_id}/oidc/toggle-available-to-all", response_class=HTMLResponse)
+@apps_router.post("/{client_id}/oidc/toggle-available-to-all", response_class=HTMLResponse)
 def app_toggle_available_to_all(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -385,10 +429,10 @@ def app_toggle_available_to_all(
     available_to_all: Annotated[str, Form(max_length=50)] = "false",
 ):
     """Toggle the 'available to all users' access mode for an OIDC App."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/apps/{client_id}"
+    redirect_url = f"/applications/oauth/{client_id}"
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
@@ -401,7 +445,7 @@ def app_toggle_available_to_all(
         return safe_redirect(f"{redirect_url}?error=oidc_update_failed")
 
 
-@router.post("/apps/{client_id}/oidc/groups/add", response_class=HTMLResponse)
+@apps_router.post("/{client_id}/oidc/groups/add", response_class=HTMLResponse)
 def app_add_group(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -410,10 +454,10 @@ def app_add_group(
     group_id: Annotated[str, Form(max_length=50)] = "",
 ):
     """Assign a group to an OIDC App."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/apps/{client_id}"
+    redirect_url = f"/applications/oauth/{client_id}"
 
     if not group_id.strip():
         return safe_redirect(f"{redirect_url}?error=group_required")
@@ -428,7 +472,7 @@ def app_add_group(
         return safe_redirect(f"{redirect_url}?error=group_assign_failed")
 
 
-@router.post("/apps/{client_id}/oidc/groups/{group_id}/remove", response_class=HTMLResponse)
+@apps_router.post("/{client_id}/oidc/groups/{group_id}/remove", response_class=HTMLResponse)
 def app_remove_group(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -437,10 +481,10 @@ def app_remove_group(
     group_id: str,
 ):
     """Remove a group assignment from an OIDC App."""
-    if not has_page_access("/admin/integrations/apps", user.get("role")):
+    if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/apps/{client_id}"
+    redirect_url = f"/applications/oauth/{client_id}"
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
@@ -456,7 +500,7 @@ def app_remove_group(
 # =============================================================================
 
 
-@router.get("/b2b/{client_id}", response_class=HTMLResponse)
+@b2b_router.get("/{client_id}", response_class=HTMLResponse)
 def b2b_detail(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -464,12 +508,14 @@ def b2b_detail(
     client_id: str,
 ):
     """View/edit details for a B2B OAuth2 client."""
-    if not has_page_access("/admin/integrations/b2b", user.get("role")):
+    if not has_page_access("/applications/service-accounts", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
     if not client or client["client_type"] != "b2b":
-        return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/applications/service-accounts?error=not_found", status_code=303
+        )
 
     # Check for pending credentials in session (one-time read after regenerate)
     pending_credentials = request.session.pop("pending_credentials", None)
@@ -485,7 +531,7 @@ def b2b_detail(
     return templates.TemplateResponse(request, "integrations_b2b_detail.html", context)
 
 
-@router.post("/b2b/{client_id}/edit", response_class=HTMLResponse)
+@b2b_router.post("/{client_id}/edit", response_class=HTMLResponse)
 def b2b_edit(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -495,10 +541,10 @@ def b2b_edit(
     description: str = Form(""),
 ):
     """Update a B2B OAuth2 client name/description."""
-    if not has_page_access("/admin/integrations/b2b", user.get("role")):
+    if not has_page_access("/applications/service-accounts", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/b2b/{client_id}"
+    redirect_url = f"/applications/service-accounts/{client_id}"
 
     if not name.strip():
         return safe_redirect(f"{redirect_url}?error=name_required")
@@ -513,7 +559,9 @@ def b2b_edit(
         )
 
         if not client:
-            return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
+            return RedirectResponse(
+                url="/applications/service-accounts?error=not_found", status_code=303
+            )
 
         return safe_redirect(f"{redirect_url}?success=updated")
     except ServiceError as exc:
@@ -521,7 +569,7 @@ def b2b_edit(
         return safe_redirect(f"{redirect_url}?error=update_failed")
 
 
-@router.post("/b2b/{client_id}/role", response_class=HTMLResponse)
+@b2b_router.post("/{client_id}/role", response_class=HTMLResponse)
 def b2b_change_role(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -530,10 +578,10 @@ def b2b_change_role(
     role: str = Form(""),
 ):
     """Change the service user role for a B2B client."""
-    if not has_page_access("/admin/integrations/b2b", user.get("role")):
+    if not has_page_access("/applications/service-accounts", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/b2b/{client_id}"
+    redirect_url = f"/applications/service-accounts/{client_id}"
 
     if role not in ("member", "admin", "super_admin"):
         return safe_redirect(f"{redirect_url}?error=invalid_role")
@@ -547,7 +595,9 @@ def b2b_change_role(
         )
 
         if not client:
-            return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
+            return RedirectResponse(
+                url="/applications/service-accounts?error=not_found", status_code=303
+            )
 
         return safe_redirect(f"{redirect_url}?success=role_changed")
     except ServiceError as exc:
@@ -555,7 +605,7 @@ def b2b_change_role(
         return safe_redirect(f"{redirect_url}?error=role_change_failed")
 
 
-@router.post("/b2b/{client_id}/regenerate-secret", response_class=HTMLResponse)
+@b2b_router.post("/{client_id}/regenerate-secret", response_class=HTMLResponse)
 def b2b_regenerate_secret(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -563,14 +613,16 @@ def b2b_regenerate_secret(
     client_id: str,
 ):
     """Regenerate the client secret for a B2B client."""
-    if not has_page_access("/admin/integrations/b2b", user.get("role")):
+    if not has_page_access("/applications/service-accounts", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/b2b/{client_id}"
+    redirect_url = f"/applications/service-accounts/{client_id}"
 
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
     if not client or client["client_type"] != "b2b":
-        return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/applications/service-accounts?error=not_found", status_code=303
+        )
 
     new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id, str(user["id"]))
 
@@ -584,7 +636,7 @@ def b2b_regenerate_secret(
     return safe_redirect(f"{redirect_url}?success=secret_regenerated")
 
 
-@router.post("/b2b/{client_id}/deactivate", response_class=HTMLResponse)
+@b2b_router.post("/{client_id}/deactivate", response_class=HTMLResponse)
 def b2b_deactivate(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -592,19 +644,21 @@ def b2b_deactivate(
     client_id: str,
 ):
     """Deactivate a B2B client (soft delete)."""
-    if not has_page_access("/admin/integrations/b2b", user.get("role")):
+    if not has_page_access("/applications/service-accounts", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/b2b/{client_id}"
+    redirect_url = f"/applications/service-accounts/{client_id}"
 
     client = oauth2_service.deactivate_client(tenant_id, client_id, str(user["id"]))
     if not client:
-        return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/applications/service-accounts?error=not_found", status_code=303
+        )
 
     return safe_redirect(f"{redirect_url}?success=deactivated")
 
 
-@router.post("/b2b/{client_id}/reactivate", response_class=HTMLResponse)
+@b2b_router.post("/{client_id}/reactivate", response_class=HTMLResponse)
 def b2b_reactivate(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -612,13 +666,25 @@ def b2b_reactivate(
     client_id: str,
 ):
     """Reactivate a deactivated B2B client."""
-    if not has_page_access("/admin/integrations/b2b", user.get("role")):
+    if not has_page_access("/applications/service-accounts", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    redirect_url = f"/admin/integrations/b2b/{client_id}"
+    redirect_url = f"/applications/service-accounts/{client_id}"
 
     client = oauth2_service.reactivate_client(tenant_id, client_id, str(user["id"]))
     if not client:
-        return RedirectResponse(url="/admin/integrations/b2b?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/applications/service-accounts?error=not_found", status_code=303
+        )
 
     return safe_redirect(f"{redirect_url}?success=reactivated")
+
+
+# =============================================================================
+# Combined router (mounted once in main.py)
+# =============================================================================
+
+router = APIRouter()
+router.include_router(top_router)
+router.include_router(apps_router)
+router.include_router(b2b_router)

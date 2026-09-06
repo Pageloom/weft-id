@@ -2,7 +2,7 @@
 
 Configure password strength requirements, manage forced resets, and monitor for breached credentials.
 
-Navigate to **Settings > Security > Passwords** (super admin only).
+Navigate to **Security > Passwords** (super admin only).
 
 ## Minimum password length
 

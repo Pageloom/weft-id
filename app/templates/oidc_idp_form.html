@@ -6,7 +6,7 @@
 <div class="max-w-4xl">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="mb-6">
-            <a href="/admin/settings/oidc-identity-providers" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+            <a href="/identity-providers/oidc" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
                 &larr; Back to OIDC Identity Providers
             </a>
         </div>
@@ -25,7 +25,7 @@
         </div>
         {% endif %}
 
-        <form method="post" action="/admin/settings/oidc-identity-providers/new" class="space-y-4">
+        <form method="post" action="/identity-providers/oidc/new" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div>

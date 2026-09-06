@@ -9,7 +9,7 @@ Manage the users in your WeftID tenant. Create users manually or let them self-r
 
 ## User list
 
-Navigate to **Users > User List** to see all users in your tenant. The list shows name, email, role, status, last activity, creation date, authentication method, and group count.
+Navigate to **Directory > Users > User List** to see all users in your tenant. The list shows name, email, role, status, last activity, creation date, authentication method, and group count.
 
 ### Searching
 

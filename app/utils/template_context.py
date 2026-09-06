@@ -2,15 +2,37 @@
 
 import base64
 
-from dependencies import get_current_user
+from dependencies import build_requesting_user, get_current_user
 from fastapi import Request
 from middleware.csrf import get_csrf_token
 from pages import get_navigation_context
+from services import reactivation as reactivation_service
+from services import users as users_service
 from services.branding import get_branding_for_template
+from services.exceptions import ServiceError
 from utils.csp_nonce import get_csp_nonce
 from utils.datetime_format import create_datetime_formatter, create_relative_date_formatter
 from utils.mandala import generate_mandala_svg
 from utils.static_assets import static_url
+
+
+def _get_requests_badge_count(user: dict, tenant_id: str) -> int:
+    """Count pending items behind the Directory > Requests nav badge.
+
+    Sums pending reactivation requests and users with incomplete required
+    profiles. Both service functions require admin/super_admin, matching
+    the Requests page's own permission -- non-admins never see the badge.
+    """
+    if user.get("role") not in ("admin", "super_admin"):
+        return 0
+
+    requesting_user = build_requesting_user(user, tenant_id)
+    try:
+        return reactivation_service.count_pending_requests(
+            requesting_user
+        ) + users_service.count_users_with_missing_required(requesting_user)
+    except ServiceError:
+        return 0
 
 
 def get_template_context(request: Request, tenant_id: str, **kwargs):
@@ -24,6 +46,14 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
     nav_context = {}
     if user:
         nav_context = get_navigation_context(current_path, user.get("role"))
+        # The badge only ever renders next to the Directory > Requests sub-nav
+        # link (base.html), which only appears when Directory is the active
+        # top-level section. Skip the two service calls otherwise.
+        active_top_level = nav_context.get("active_top_level")
+        if active_top_level and active_top_level.path == "/directory":
+            nav_context["requests_badge_count"] = _get_requests_badge_count(user, tenant_id)
+        else:
+            nav_context["requests_badge_count"] = 0
 
     # Create datetime formatter with user's timezone and locale
     user_timezone = user.get("tz") if user else None

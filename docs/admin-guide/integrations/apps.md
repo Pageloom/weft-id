@@ -4,7 +4,7 @@ Apps are OAuth2 clients that use the authorization code flow. They're designed f
 
 ## Creating an app
 
-Navigate to **Admin > Integrations > Apps** and click **Create App**.
+Navigate to **Applications > OAuth2 / OIDC** and click **Create App**.
 
 | Field | Required | Description |
 |-------|----------|-------------|

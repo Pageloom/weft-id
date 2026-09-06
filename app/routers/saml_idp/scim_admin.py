@@ -29,13 +29,13 @@ from utils.templates import templates
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/admin/settings/service-providers",
+    prefix="/applications/saml",
     tags=["saml-idp", "scim"],
     dependencies=[Depends(require_super_admin)],
     include_in_schema=False,
 )
 
-SP_LIST_URL = "/admin/settings/service-providers"
+SP_LIST_URL = "/applications/saml"
 
 
 def _build_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
@@ -54,7 +54,7 @@ def sp_tab_scim(
     sp_id: str,
 ):
     """SCIM tab: outbound provisioning configuration and activity."""
-    if not has_page_access("/admin/settings/service-providers/detail/scim", user.get("role")):
+    if not has_page_access("/applications/saml/detail/scim", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)

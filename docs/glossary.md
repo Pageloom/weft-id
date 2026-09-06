@@ -60,7 +60,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 ## OAuth2 & API Access
 
 **OAuth2** {#oauth2}
-:   An authorization framework for granting limited access to APIs without sharing credentials. WeftID uses OAuth2 for API integrations, supporting two flows: authorization code (for interactive applications) and client credentials (for service-to-service communication). See [Integrations](admin-guide/integrations/index.md).
+:   An authorization framework for granting limited access to APIs without sharing credentials. WeftID uses OAuth2 for API integrations, supporting two flows: authorization code (for interactive applications) and client credentials (for service-to-service communication). See [Applications](admin-guide/applications/index.md).
 
 **Authorization code flow** {#authorization-code-flow}
 :   An OAuth2 flow for interactive applications. The user authorizes the application in a browser, receives a short-lived authorization code, and the application exchanges that code for access and refresh tokens. Supports PKCE for added security. See [Apps](admin-guide/integrations/apps.md).

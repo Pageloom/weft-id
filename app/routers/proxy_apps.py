@@ -1,6 +1,8 @@
 """Admin UI routes for proxy-app (forward-auth) management.
 
-Lives under the Service Providers section. Lets a super admin create proxy apps
+Lives under Applications > Forward Auth (Apps tab), moved from
+/admin/settings/proxy-apps as part of the nav restructure -- see
+.claude/ITERATION_nav_restructure.md. Lets a super admin create proxy apps
 under verified protected domains, edit their config (public paths, forwarded
 headers), manage group grants, and view a reverse-proxy config snippet.
 """
@@ -33,13 +35,13 @@ from utils.templates import templates
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/admin/settings/proxy-apps",
+    prefix="/applications/forward-auth/apps",
     tags=["proxy-apps"],
     dependencies=[Depends(require_super_admin)],
     include_in_schema=False,
 )
 
-LIST_URL = "/admin/settings/proxy-apps"
+LIST_URL = "/applications/forward-auth/apps"
 
 
 def _parse_public_paths(raw: str) -> list[str]:

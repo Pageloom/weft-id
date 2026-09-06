@@ -133,7 +133,7 @@ class TestSPListPage:
             return_value=sample_sp_list,
         ):
             response = sp_admin_session.get(
-                "/admin/settings/service-providers",
+                "/applications/saml",
                 headers={"Host": sp_host},
             )
 
@@ -158,7 +158,7 @@ class TestSPListPage:
             return_value=empty,
         ):
             response = sp_admin_session.get(
-                "/admin/settings/service-providers",
+                "/applications/saml",
                 headers={"Host": sp_host},
             )
 
@@ -180,7 +180,7 @@ class TestSPListPage:
             return_value=sample_sp_list,
         ):
             response = sp_admin_session.get(
-                "/admin/settings/service-providers?success=created",
+                "/applications/saml?success=created",
                 headers={"Host": sp_host},
             )
 
@@ -205,7 +205,7 @@ class TestSPNewPage:
         mock_tmpl.return_value = HTMLResponse(content="<html>new sp</html>")
 
         response = sp_admin_session.get(
-            "/admin/settings/service-providers/new",
+            "/applications/saml/new",
             headers={"Host": sp_host},
         )
 
@@ -230,7 +230,7 @@ class TestSPCreateManual:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                "/admin/settings/service-providers/create",
+                "/applications/saml/create",
                 data={"name": "New App"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -238,12 +238,12 @@ class TestSPCreateManual:
 
         assert response.status_code == 303
         assert "success=created" in response.headers["location"]
-        assert f"/service-providers/{sample_sp_config.id}/details" in response.headers["location"]
+        assert f"/applications/saml/{sample_sp_config.id}/details" in response.headers["location"]
 
     def test_create_missing_name(self, sp_admin_session, sp_host):
         """Missing name redirects with error."""
         response = sp_admin_session.post(
-            "/admin/settings/service-providers/create",
+            "/applications/saml/create",
             data={"name": ""},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -268,7 +268,7 @@ class TestSPImportXML:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                "/admin/settings/service-providers/import-metadata-xml",
+                "/applications/saml/import-metadata-xml",
                 data={"name": "XML App", "metadata_xml": "<xml>test</xml>"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -280,7 +280,7 @@ class TestSPImportXML:
     def test_import_xml_missing_name(self, sp_admin_session, sp_host):
         """Missing name redirects with error."""
         response = sp_admin_session.post(
-            "/admin/settings/service-providers/import-metadata-xml",
+            "/applications/saml/import-metadata-xml",
             data={"name": "", "metadata_xml": "<xml/>"},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -305,7 +305,7 @@ class TestSPImportURL:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                "/admin/settings/service-providers/import-metadata-url",
+                "/applications/saml/import-metadata-url",
                 data={"name": "URL App", "metadata_url": "https://example.com/metadata"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -332,7 +332,7 @@ class TestSPDelete:
             return_value=None,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/delete",
+                f"/applications/saml/{sp_id}/delete",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -351,7 +351,7 @@ class TestSPDelete:
             side_effect=NotFoundError(message="Service provider not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/delete",
+                f"/applications/saml/{sp_id}/delete",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -372,7 +372,7 @@ class TestSPDelete:
             ),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/delete",
+                f"/applications/saml/{sp_id}/delete",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -407,7 +407,7 @@ class TestSPListMetadataURL:
             return_value=sample_sp_list,
         ):
             response = sp_admin_session.get(
-                "/admin/settings/service-providers",
+                "/applications/saml",
                 headers={"Host": sp_host},
             )
 
@@ -487,7 +487,7 @@ class TestSPDetailRedirect:
     def test_detail_redirects_to_details_tab(self, sp_admin_session, sp_host, sample_sp_config):
         """GET /{sp_id} redirects to /{sp_id}/details."""
         response = sp_admin_session.get(
-            f"/admin/settings/service-providers/{sample_sp_config.id}",
+            f"/applications/saml/{sample_sp_config.id}",
             headers={"Host": sp_host},
             follow_redirects=False,
         )
@@ -514,7 +514,7 @@ class TestSPTabDetails:
         mock_tmpl.return_value = HTMLResponse(content="<html>details tab</html>")
 
         response = sp_admin_session.get(
-            f"/admin/settings/service-providers/{sample_sp_config.id}/details",
+            f"/applications/saml/{sample_sp_config.id}/details",
             headers={"Host": sp_host},
         )
 
@@ -541,7 +541,7 @@ class TestSPTabDetails:
             ),
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sp_id}/details",
+                f"/applications/saml/{sp_id}/details",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -568,7 +568,7 @@ class TestSPTabAttributes:
         mock_tmpl.return_value = HTMLResponse(content="<html>attributes tab</html>")
 
         response = sp_admin_session.get(
-            f"/admin/settings/service-providers/{sample_sp_config.id}/attributes",
+            f"/applications/saml/{sample_sp_config.id}/attributes",
             headers={"Host": sp_host},
         )
 
@@ -610,7 +610,7 @@ class TestSPTabAttributes:
             ],
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/attributes",
+                f"/applications/saml/{sample_sp_config.id}/attributes",
                 headers={"Host": sp_host},
             )
 
@@ -661,7 +661,7 @@ class TestSPTabAttributes:
             ],
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/attributes",
+                f"/applications/saml/{sample_sp_config.id}/attributes",
                 headers={"Host": sp_host},
             )
 
@@ -704,7 +704,7 @@ class TestSPTabAttributes:
             ),
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/attributes",
+                f"/applications/saml/{sample_sp_config.id}/attributes",
                 headers={"Host": sp_host},
             )
 
@@ -745,7 +745,7 @@ class TestSPTabGroups:
             ),
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/groups",
+                f"/applications/saml/{sample_sp_config.id}/groups",
                 headers={"Host": sp_host},
             )
 
@@ -799,7 +799,7 @@ class TestSPTabGroups:
             ),
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/groups",
+                f"/applications/saml/{sample_sp_config.id}/groups",
                 headers={"Host": sp_host},
             )
 
@@ -824,7 +824,7 @@ class TestSPTabGroups:
             side_effect=ServiceError(message="Database error"),
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/groups",
+                f"/applications/saml/{sample_sp_config.id}/groups",
                 headers={"Host": sp_host},
             )
 
@@ -864,7 +864,7 @@ class TestSPTabCertificates:
             return_value=signing_cert,
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/certificates",
+                f"/applications/saml/{sample_sp_config.id}/certificates",
                 headers={"Host": sp_host},
             )
 
@@ -892,7 +892,7 @@ class TestSPTabCertificates:
             side_effect=NotFoundError(message="not found"),
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/certificates",
+                f"/applications/saml/{sample_sp_config.id}/certificates",
                 headers={"Host": sp_host},
             )
 
@@ -919,7 +919,7 @@ class TestSPTabMetadata:
         mock_tmpl.return_value = HTMLResponse(content="<html>metadata tab</html>")
 
         response = sp_admin_session.get(
-            f"/admin/settings/service-providers/{sample_sp_config.id}/metadata",
+            f"/applications/saml/{sample_sp_config.id}/metadata",
             headers={"Host": sp_host},
         )
 
@@ -949,7 +949,7 @@ class TestSPTabDanger:
         mock_tmpl.return_value = HTMLResponse(content="<html>danger tab</html>")
 
         response = sp_admin_session.get(
-            f"/admin/settings/service-providers/{sample_sp_config.id}/danger",
+            f"/applications/saml/{sample_sp_config.id}/danger",
             headers={"Host": sp_host},
         )
 
@@ -984,7 +984,7 @@ class TestSPRotateCertificate:
             return_value=rotation_result,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/rotate-certificate",
+                f"/applications/saml/{sp_id}/rotate-certificate",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1004,7 +1004,7 @@ class TestSPRotateCertificate:
             side_effect=NotFoundError(message="No signing certificate exists"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/rotate-certificate",
+                f"/applications/saml/{sp_id}/rotate-certificate",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1029,7 +1029,7 @@ class TestSPAddGroup:
 
         with patch("services.service_providers.assign_sp_to_group"):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/add",
+                f"/applications/saml/{sp_id}/groups/add",
                 data={"group_id": group_id},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -1051,7 +1051,7 @@ class TestSPAddGroup:
             side_effect=NotFoundError(message="Group not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/add",
+                f"/applications/saml/{sp_id}/groups/add",
                 data={"group_id": group_id},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -1073,7 +1073,7 @@ class TestSPAddGroup:
             side_effect=ValidationError(message="Group already assigned"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/add",
+                f"/applications/saml/{sp_id}/groups/add",
                 data={"group_id": group_id},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -1087,7 +1087,7 @@ class TestSPAddGroup:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/groups/add",
+            f"/applications/saml/{sp_id}/groups/add",
             data={"group_id": ""},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -1105,7 +1105,7 @@ class TestSPAddGroup:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/groups/add",
+            f"/applications/saml/{sp_id}/groups/add",
             data={},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -1120,7 +1120,7 @@ class TestSPAddGroup:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/groups/add",
+            f"/applications/saml/{sp_id}/groups/add",
             data={"group_id": "   "},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -1149,7 +1149,7 @@ class TestSPBulkAddGroups:
 
         with patch("services.service_providers.bulk_assign_sp_to_groups"):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+                f"/applications/saml/{sp_id}/groups/bulk",
                 content=body,
                 headers={
                     "Host": sp_host,
@@ -1169,7 +1169,7 @@ class TestSPBulkAddGroups:
 
         with patch("services.service_providers.bulk_assign_sp_to_groups"):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+                f"/applications/saml/{sp_id}/groups/bulk",
                 data={"group_ids": group_id},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -1193,7 +1193,7 @@ class TestSPBulkAddGroups:
             side_effect=ValidationError(message="Some groups already assigned"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+                f"/applications/saml/{sp_id}/groups/bulk",
                 content=body,
                 headers={
                     "Host": sp_host,
@@ -1221,7 +1221,7 @@ class TestSPBulkAddGroups:
             side_effect=NotFoundError(message="Service provider not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+                f"/applications/saml/{sp_id}/groups/bulk",
                 content=body,
                 headers={
                     "Host": sp_host,
@@ -1238,7 +1238,7 @@ class TestSPBulkAddGroups:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+            f"/applications/saml/{sp_id}/groups/bulk",
             data={},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -1264,7 +1264,7 @@ class TestSPRemoveGroup:
 
         with patch("services.service_providers.remove_sp_group_assignment"):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/{group_id}/remove",
+                f"/applications/saml/{sp_id}/groups/{group_id}/remove",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1285,7 +1285,7 @@ class TestSPRemoveGroup:
             side_effect=NotFoundError(message="Group assignment not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/{group_id}/remove",
+                f"/applications/saml/{sp_id}/groups/{group_id}/remove",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1306,7 +1306,7 @@ class TestSPRemoveGroup:
             side_effect=ForbiddenError(message="Insufficient permissions"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/{group_id}/remove",
+                f"/applications/saml/{sp_id}/groups/{group_id}/remove",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1326,7 +1326,7 @@ class TestSPRemoveGroup:
             side_effect=ValidationError(message="Cannot remove last group"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/groups/{group_id}/remove",
+                f"/applications/saml/{sp_id}/groups/{group_id}/remove",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1352,7 +1352,7 @@ class TestSPEdit:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit",
+                f"/applications/saml/{sp_id}/edit",
                 data={
                     "name": "Updated App",
                     "description": "New description",
@@ -1375,7 +1375,7 @@ class TestSPEdit:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit",
+                f"/applications/saml/{sp_id}/edit",
                 data={"name": "Just Name", "description": "", "acs_url": ""},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -1390,7 +1390,7 @@ class TestSPEdit:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/edit",
+            f"/applications/saml/{sp_id}/edit",
             data={"name": "", "description": "", "acs_url": ""},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -1411,7 +1411,7 @@ class TestSPEdit:
             side_effect=NotFoundError(message="Service provider not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit",
+                f"/applications/saml/{sp_id}/edit",
                 data={"name": "Updated"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -1431,7 +1431,7 @@ class TestSPEdit:
             side_effect=ValidationError(message="Invalid ACS URL"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit",
+                f"/applications/saml/{sp_id}/edit",
                 data={"acs_url": "not-a-url"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -1460,7 +1460,7 @@ class TestSPEditAttributes:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={
                     "include_group_claims": "true",
                 },
@@ -1486,7 +1486,7 @@ class TestSPEditAttributes:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -1510,7 +1510,7 @@ class TestSPEditAttributes:
             side_effect=ValidationError(message="Invalid"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={"include_group_claims": "true"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -1531,7 +1531,7 @@ class TestSPEditAttributes:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={
                     "include_group_claims": "false",
                     "attr_map_email": "email",
@@ -1567,7 +1567,7 @@ class TestSPEditAttributes:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={
                     "include_group_claims": "false",
                     "attr_map_email": "email",
@@ -1600,7 +1600,7 @@ class TestSPEditAttributes:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={
                     "include_group_claims": "false",
                     # Empty fixed key: should fall back to "email"
@@ -1638,7 +1638,7 @@ class TestSPEnable:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/enable",
+                f"/applications/saml/{sp_id}/enable",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1658,7 +1658,7 @@ class TestSPEnable:
             side_effect=ValidationError(message="Service provider is already enabled"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/enable",
+                f"/applications/saml/{sp_id}/enable",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1678,7 +1678,7 @@ class TestSPEnable:
             side_effect=NotFoundError(message="Service provider not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/enable",
+                f"/applications/saml/{sp_id}/enable",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1704,7 +1704,7 @@ class TestSPDisable:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/disable",
+                f"/applications/saml/{sp_id}/disable",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1724,7 +1724,7 @@ class TestSPDisable:
             side_effect=ValidationError(message="Service provider is already disabled"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/disable",
+                f"/applications/saml/{sp_id}/disable",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1744,7 +1744,7 @@ class TestSPDisable:
             side_effect=NotFoundError(message="Service provider not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/disable",
+                f"/applications/saml/{sp_id}/disable",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -1788,7 +1788,7 @@ class TestSPRefreshMetadataPreview:
             return_value=preview,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/refresh-metadata-preview",
+                f"/applications/saml/{sp_id}/refresh-metadata-preview",
                 headers={"Host": sp_host},
                 data={"csrf_token": "test"},
             )
@@ -1809,7 +1809,7 @@ class TestSPRefreshMetadataPreview:
             side_effect=ValidationError(message="No metadata URL configured"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/refresh-metadata-preview",
+                f"/applications/saml/{sp_id}/refresh-metadata-preview",
                 headers={"Host": sp_host},
                 data={"csrf_token": "test"},
                 follow_redirects=False,
@@ -1837,7 +1837,7 @@ class TestSPRefreshMetadataApply:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/refresh-metadata-apply",
+                f"/applications/saml/{sample_sp_config.id}/refresh-metadata-apply",
                 headers={"Host": sp_host},
                 data={"csrf_token": "test"},
                 follow_redirects=False,
@@ -1858,7 +1858,7 @@ class TestSPRefreshMetadataApply:
             side_effect=NotFoundError(message="Service provider not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/refresh-metadata-apply",
+                f"/applications/saml/{sp_id}/refresh-metadata-apply",
                 headers={"Host": sp_host},
                 data={"csrf_token": "test"},
                 follow_redirects=False,
@@ -1898,7 +1898,7 @@ class TestSPReimportMetadataPreview:
             return_value=preview,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/reimport-metadata-preview",
+                f"/applications/saml/{sp_id}/reimport-metadata-preview",
                 headers={"Host": sp_host},
                 data={"csrf_token": "test", "metadata_xml": "<xml>test</xml>"},
             )
@@ -1913,7 +1913,7 @@ class TestSPReimportMetadataPreview:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/reimport-metadata-preview",
+            f"/applications/saml/{sp_id}/reimport-metadata-preview",
             headers={"Host": sp_host},
             data={"csrf_token": "test", "metadata_xml": ""},
             follow_redirects=False,
@@ -1941,7 +1941,7 @@ class TestSPReimportMetadataApply:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/reimport-metadata-apply",
+                f"/applications/saml/{sample_sp_config.id}/reimport-metadata-apply",
                 headers={"Host": sp_host},
                 data={"csrf_token": "test", "metadata_xml": "<xml>test</xml>"},
                 follow_redirects=False,
@@ -1956,7 +1956,7 @@ class TestSPReimportMetadataApply:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/reimport-metadata-apply",
+            f"/applications/saml/{sp_id}/reimport-metadata-apply",
             headers={"Host": sp_host},
             data={"csrf_token": "test", "metadata_xml": ""},
             follow_redirects=False,
@@ -1977,7 +1977,7 @@ class TestSPReimportMetadataApply:
             side_effect=ValidationError(message="Invalid XML"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/reimport-metadata-apply",
+                f"/applications/saml/{sp_id}/reimport-metadata-apply",
                 headers={"Host": sp_host},
                 data={"csrf_token": "test", "metadata_xml": "bad xml"},
                 follow_redirects=False,
@@ -2005,7 +2005,7 @@ class TestToggleAvailableToAll:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/toggle-available-to-all",
+                f"/applications/saml/{sp_id}/toggle-available-to-all",
                 data={"csrf_token": "test", "available_to_all": "true"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2024,7 +2024,7 @@ class TestToggleAvailableToAll:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/toggle-available-to-all",
+                f"/applications/saml/{sp_id}/toggle-available-to-all",
                 data={"csrf_token": "test", "available_to_all": "false"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2045,7 +2045,7 @@ class TestToggleAvailableToAll:
             side_effect=NotFoundError(message="Service provider not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/toggle-available-to-all",
+                f"/applications/saml/{sp_id}/toggle-available-to-all",
                 data={"csrf_token": "test", "available_to_all": "true"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2079,7 +2079,7 @@ class TestSPListAvailableToAllBadge:
             return_value=sp_list,
         ):
             response = sp_admin_session.get(
-                "/admin/settings/service-providers/",
+                "/applications/saml/",
                 headers={"Host": sp_host},
             )
 
@@ -2116,7 +2116,7 @@ class TestSPBaseNoAccessBanner:
             ),
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sp_id}/details",
+                f"/applications/saml/{sp_id}/details",
                 headers={"Host": sp_host},
             )
 
@@ -2150,7 +2150,7 @@ class TestSPBaseNoAccessBanner:
             ),
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sp_id}/details",
+                f"/applications/saml/{sp_id}/details",
                 headers={"Host": sp_host},
             )
 
@@ -2175,7 +2175,7 @@ class TestSPEditSLOUrl:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-slo-url",
+                f"/applications/saml/{sp_id}/edit-slo-url",
                 data={"slo_url": "https://app.example.com/slo"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2197,7 +2197,7 @@ class TestSPEditSLOUrl:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-slo-url",
+                f"/applications/saml/{sp_id}/edit-slo-url",
                 data={"slo_url": "  https://app.example.com/slo  "},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2216,7 +2216,7 @@ class TestSPEditSLOUrl:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-slo-url",
+                f"/applications/saml/{sp_id}/edit-slo-url",
                 data={"slo_url": ""},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2237,7 +2237,7 @@ class TestSPEditSLOUrl:
             side_effect=ServiceError(message="Invalid URL format", code="validation_failed"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-slo-url",
+                f"/applications/saml/{sp_id}/edit-slo-url",
                 data={"slo_url": "not-a-url"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2268,7 +2268,7 @@ class TestSPEditEncryptionAlgorithm:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={
                     "assertion_encryption_algorithm": "aes256-gcm",
                     "include_group_claims": "true",
@@ -2291,7 +2291,7 @@ class TestSPEditEncryptionAlgorithm:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={
                     "assertion_encryption_algorithm": "aes256-cbc",
                 },
@@ -2314,7 +2314,7 @@ class TestSPEditEncryptionAlgorithm:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={
                     "assertion_encryption_algorithm": "aes128-ecb",
                 },
@@ -2337,7 +2337,7 @@ class TestSPEditEncryptionAlgorithm:
             return_value=sample_sp_config,
         ) as mock_update:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                f"/applications/saml/{sp_id}/edit-attributes",
                 data={
                     "assertion_encryption_algorithm": "",
                 },
@@ -2364,7 +2364,7 @@ class TestSPEditNameIDFormat:
             "services.service_providers.update_service_provider",
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/edit-nameid-format",
+                f"/applications/saml/{sample_sp_config.id}/edit-nameid-format",
                 data={"nameid_format": "persistent"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2376,7 +2376,7 @@ class TestSPEditNameIDFormat:
     def test_edit_nameid_format_invalid(self, sp_admin_session, sp_host, sample_sp_config):
         """Invalid NameID format redirects with error."""
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sample_sp_config.id}/edit-nameid-format",
+            f"/applications/saml/{sample_sp_config.id}/edit-nameid-format",
             data={"nameid_format": "bogus_format"},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -2394,7 +2394,7 @@ class TestSPEditNameIDFormat:
             side_effect=ServiceError(message="Failed", code="failed"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/edit-nameid-format",
+                f"/applications/saml/{sample_sp_config.id}/edit-nameid-format",
                 data={"nameid_format": "transient"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2418,7 +2418,7 @@ class TestSPEstablishTrustURL:
             "services.service_providers.establish_trust_from_metadata_url",
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-url",
+                f"/applications/saml/{sample_sp_config.id}/establish-trust-url",
                 data={"metadata_url": "https://app.example.com/metadata"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2430,7 +2430,7 @@ class TestSPEstablishTrustURL:
     def test_establish_trust_url_missing(self, sp_admin_session, sp_host, sample_sp_config):
         """Missing URL redirects with error."""
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-url",
+            f"/applications/saml/{sample_sp_config.id}/establish-trust-url",
             data={"metadata_url": ""},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -2448,7 +2448,7 @@ class TestSPEstablishTrustURL:
             side_effect=ServiceError(message="Failed to fetch", code="fetch_failed"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-url",
+                f"/applications/saml/{sample_sp_config.id}/establish-trust-url",
                 data={"metadata_url": "https://app.example.com/metadata"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2472,7 +2472,7 @@ class TestSPEstablishTrustXML:
             "services.service_providers.establish_trust_from_metadata_xml",
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-xml",
+                f"/applications/saml/{sample_sp_config.id}/establish-trust-xml",
                 data={"metadata_xml": "<EntityDescriptor>...</EntityDescriptor>"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2484,7 +2484,7 @@ class TestSPEstablishTrustXML:
     def test_establish_trust_xml_missing(self, sp_admin_session, sp_host, sample_sp_config):
         """Missing XML redirects with error."""
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-xml",
+            f"/applications/saml/{sample_sp_config.id}/establish-trust-xml",
             data={"metadata_xml": ""},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -2502,7 +2502,7 @@ class TestSPEstablishTrustXML:
             side_effect=ServiceError(message="Invalid XML", code="invalid_xml"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-xml",
+                f"/applications/saml/{sample_sp_config.id}/establish-trust-xml",
                 data={"metadata_xml": "<bad>xml</bad>"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2526,7 +2526,7 @@ class TestSPEstablishTrustManual:
             "services.service_providers.establish_trust_manually",
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+                f"/applications/saml/{sample_sp_config.id}/establish-trust-manual",
                 data={
                     "entity_id": "https://app.example.com",
                     "acs_url": "https://app.example.com/acs",
@@ -2545,7 +2545,7 @@ class TestSPEstablishTrustManual:
             "services.service_providers.establish_trust_manually",
         ) as mock_trust:
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+                f"/applications/saml/{sample_sp_config.id}/establish-trust-manual",
                 data={
                     "entity_id": "https://app.example.com",
                     "acs_url": "https://app.example.com/acs",
@@ -2565,7 +2565,7 @@ class TestSPEstablishTrustManual:
     ):
         """Missing entity_id redirects with error."""
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+            f"/applications/saml/{sample_sp_config.id}/establish-trust-manual",
             data={
                 "entity_id": "",
                 "acs_url": "https://app.example.com/acs",
@@ -2582,7 +2582,7 @@ class TestSPEstablishTrustManual:
     ):
         """Missing ACS URL redirects with error."""
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+            f"/applications/saml/{sample_sp_config.id}/establish-trust-manual",
             data={
                 "entity_id": "https://app.example.com",
                 "acs_url": "",
@@ -2605,7 +2605,7 @@ class TestSPEstablishTrustManual:
             side_effect=ServiceError(message="Entity exists", code="conflict"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+                f"/applications/saml/{sample_sp_config.id}/establish-trust-manual",
                 data={
                     "entity_id": "https://app.example.com",
                     "acs_url": "https://app.example.com/acs",
@@ -2637,7 +2637,7 @@ class TestSPEnableDisableErrors:
             side_effect=ServiceError(message="Cannot enable", code="cannot_enable"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/enable",
+                f"/applications/saml/{sp_id}/enable",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -2656,7 +2656,7 @@ class TestSPEnableDisableErrors:
             side_effect=ServiceError(message="Cannot disable", code="cannot_disable"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/disable",
+                f"/applications/saml/{sp_id}/disable",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -2676,7 +2676,7 @@ class TestSPImportErrors:
     def test_import_xml_missing_xml(self, sp_admin_session, sp_host):
         """Import XML with missing XML redirects with error."""
         response = sp_admin_session.post(
-            "/admin/settings/service-providers/import-metadata-xml",
+            "/applications/saml/import-metadata-xml",
             data={"name": "Test App", "metadata_xml": ""},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -2694,7 +2694,7 @@ class TestSPImportErrors:
             side_effect=ServiceError(message="Invalid XML", code="invalid"),
         ):
             response = sp_admin_session.post(
-                "/admin/settings/service-providers/import-metadata-xml",
+                "/applications/saml/import-metadata-xml",
                 data={"name": "Test App", "metadata_xml": "<bad>"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2706,7 +2706,7 @@ class TestSPImportErrors:
     def test_import_url_missing_url(self, sp_admin_session, sp_host):
         """Import URL with missing URL redirects with error."""
         response = sp_admin_session.post(
-            "/admin/settings/service-providers/import-metadata-url",
+            "/applications/saml/import-metadata-url",
             data={"name": "Test App", "metadata_url": ""},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -2718,7 +2718,7 @@ class TestSPImportErrors:
     def test_import_url_missing_name(self, sp_admin_session, sp_host):
         """Import URL with missing name redirects with error."""
         response = sp_admin_session.post(
-            "/admin/settings/service-providers/import-metadata-url",
+            "/applications/saml/import-metadata-url",
             data={"name": "", "metadata_url": "https://app.example.com/metadata"},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -2736,7 +2736,7 @@ class TestSPImportErrors:
             side_effect=ServiceError(message="Fetch failed", code="fetch_failed"),
         ):
             response = sp_admin_session.post(
-                "/admin/settings/service-providers/import-metadata-url",
+                "/applications/saml/import-metadata-url",
                 data={"name": "Test App", "metadata_url": "https://bad.example.com"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2765,7 +2765,7 @@ class TestSPReimportErrors:
             side_effect=ServiceError(message="Parse error", code="parse_error"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/reimport-metadata-preview",
+                f"/applications/saml/{sp_id}/reimport-metadata-preview",
                 data={"metadata_xml": "<EntityDescriptor>broken</EntityDescriptor>"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2785,7 +2785,7 @@ class TestSPReimportErrors:
             side_effect=ServiceError(message="Apply failed", code="apply_failed"),
         ):
             response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/reimport-metadata-apply",
+                f"/applications/saml/{sp_id}/reimport-metadata-apply",
                 data={"metadata_xml": "<EntityDescriptor>data</EntityDescriptor>"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2817,7 +2817,7 @@ class TestSPListError:
             side_effect=ServiceError(message="DB error", code="db_error"),
         ):
             response = sp_admin_session.get(
-                "/admin/settings/service-providers",
+                "/applications/saml",
                 headers={"Host": sp_host},
             )
 
@@ -2843,7 +2843,7 @@ class TestSPCreateError:
             side_effect=ServiceError(message="Duplicate name", code="duplicate"),
         ):
             response = sp_admin_session.post(
-                "/admin/settings/service-providers/create",
+                "/applications/saml/create",
                 data={"name": "Duplicate App"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -2867,7 +2867,7 @@ class TestSPLogoUpload:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/logo/upload",
+            f"/applications/saml/{sp_id}/logo/upload",
             files={"file": ("logo.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100, "image/png")},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -2887,7 +2887,7 @@ class TestSPLogoUpload:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/logo/upload",
+            f"/applications/saml/{sp_id}/logo/upload",
             files={"file": ("bad.txt", b"not an image", "text/plain")},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -2911,7 +2911,7 @@ class TestSPLogoUpload:
         override_auth(user, level="admin")
 
         response = client.post(
-            f"/admin/settings/service-providers/{uuid4()}/logo/upload",
+            f"/applications/saml/{uuid4()}/logo/upload",
             files={"file": ("logo.png", b"\x89PNG" + b"\x00" * 100, "image/png")},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -2930,7 +2930,7 @@ class TestSPLogoDelete:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/logo/delete",
+            f"/applications/saml/{sp_id}/logo/delete",
             headers={"Host": sp_host},
             follow_redirects=False,
         )
@@ -2949,7 +2949,7 @@ class TestSPLogoDelete:
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/logo/delete",
+            f"/applications/saml/{sp_id}/logo/delete",
             headers={"Host": sp_host},
             follow_redirects=False,
         )
@@ -2972,7 +2972,7 @@ class TestSPLogoDelete:
         override_auth(user, level="admin")
 
         response = client.post(
-            f"/admin/settings/service-providers/{uuid4()}/logo/delete",
+            f"/applications/saml/{uuid4()}/logo/delete",
             headers={"Host": sp_host},
             follow_redirects=False,
         )

@@ -81,17 +81,17 @@ def test_list_renders(test_super_admin_user, override_auth, mocker):
     _patch_render(mocker)
 
     client = TestClient(app)
-    resp = client.get("/admin/settings/proxy-apps")
+    resp = client.get("/applications/forward-auth/apps")
     assert resp.status_code == 200
 
 
 def test_list_non_super_admin_redirects(test_admin_user, override_auth):
-    # has_page_access for /admin/settings/proxy-apps requires super_admin.
+    # has_page_access for /applications/forward-auth/apps requires super_admin.
     override_auth(test_admin_user, level="super_admin")
     test_admin_user["role"] = "admin"
 
     client = TestClient(app)
-    resp = client.get("/admin/settings/proxy-apps", follow_redirects=False)
+    resp = client.get("/applications/forward-auth/apps", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/dashboard"
 
@@ -120,7 +120,7 @@ def test_detail_renders(test_super_admin_user, override_auth, mocker):
     _patch_render(mocker)
 
     client = TestClient(app)
-    resp = client.get(f"/admin/settings/proxy-apps/detail/{a.id}")
+    resp = client.get(f"/applications/forward-auth/apps/detail/{a.id}")
     assert resp.status_code == 200
 
 
@@ -134,7 +134,7 @@ def test_add_parses_form_and_redirects(test_super_admin_user, override_auth, moc
 
     client = TestClient(app)
     resp = client.post(
-        "/admin/settings/proxy-apps/add",
+        "/applications/forward-auth/apps/add",
         data={
             "protected_domain_id": a.protected_domain_id,
             "name": "Grafana",
@@ -146,7 +146,9 @@ def test_add_parses_form_and_redirects(test_super_admin_user, override_auth, moc
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == f"/admin/settings/proxy-apps/detail/{a.id}?success=created"
+    assert (
+        resp.headers["location"] == f"/applications/forward-auth/apps/detail/{a.id}?success=created"
+    )
 
     sent = mock_create.call_args.args[1]
     assert sent.public_paths == ["/health", "/public/*"]
@@ -165,7 +167,7 @@ def test_edit_redirects(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     resp = client.post(
-        f"/admin/settings/proxy-apps/detail/{a.id}/edit",
+        f"/applications/forward-auth/apps/detail/{a.id}/edit",
         data={
             "name": "Grafana 2",
             "external_url": "https://grafana.acme-corp.com",
@@ -193,9 +195,9 @@ def test_delete_redirects(test_super_admin_user, override_auth, mocker):
     mock_del = mocker.patch(f"{MODULE}.proxy_apps_service.delete_proxy_app")
 
     client = TestClient(app)
-    resp = client.post(f"/admin/settings/proxy-apps/delete/{uuid4()}", follow_redirects=False)
+    resp = client.post(f"/applications/forward-auth/apps/delete/{uuid4()}", follow_redirects=False)
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/admin/settings/proxy-apps?success=deleted"
+    assert resp.headers["location"] == "/applications/forward-auth/apps?success=deleted"
     mock_del.assert_called_once()
 
 
@@ -210,7 +212,7 @@ def test_add_grant_redirects(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     resp = client.post(
-        f"/admin/settings/proxy-apps/detail/{app_id}/grants/add",
+        f"/applications/forward-auth/apps/detail/{app_id}/grants/add",
         data={"group_id": group_id},
         follow_redirects=False,
     )
@@ -227,7 +229,7 @@ def test_remove_grant_redirects(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     resp = client.post(
-        f"/admin/settings/proxy-apps/detail/{app_id}/grants/{group_id}/remove",
+        f"/applications/forward-auth/apps/detail/{app_id}/grants/{group_id}/remove",
         follow_redirects=False,
     )
     assert resp.status_code == 303

@@ -6,8 +6,8 @@
 <div class="max-w-4xl">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="mb-6">
-            <a href="/admin/settings/identity-providers" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
-                &larr; Back to Identity Providers
+            <a href="/identity-providers/saml" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                &larr; Back to SAML Identity Providers
             </a>
         </div>
 
@@ -24,7 +24,7 @@
         </div>
         {% endif %}
 
-        <form method="post" action="/admin/settings/identity-providers/new" class="space-y-4">
+        <form method="post" action="/identity-providers/saml/new" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

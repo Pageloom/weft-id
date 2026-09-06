@@ -94,7 +94,7 @@ def admin_session(client, test_tenant_host, test_admin_user):
 def test_list_idps_as_super_admin(super_admin_session, test_tenant_host):
     """Test that super_admin can access IdP list page."""
     response = super_admin_session.get(
-        "/admin/settings/identity-providers",
+        "/identity-providers/saml",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -106,7 +106,7 @@ def test_list_idps_as_super_admin(super_admin_session, test_tenant_host):
 def test_list_idps_as_admin_forbidden(admin_session, test_tenant_host):
     """Test that admin cannot access IdP list page."""
     response = admin_session.get(
-        "/admin/settings/identity-providers",
+        "/identity-providers/saml",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -118,7 +118,7 @@ def test_list_idps_as_admin_forbidden(admin_session, test_tenant_host):
 def test_new_idp_form_as_super_admin(super_admin_session, test_tenant_host):
     """Test that super_admin can access new IdP form."""
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/new",
+        "/identity-providers/saml/new",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -129,7 +129,7 @@ def test_new_idp_form_as_super_admin(super_admin_session, test_tenant_host):
 def test_create_idp_success(super_admin_session, test_tenant_host, test_idp_data):
     """Test creating a new IdP via form."""
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/new",
+        "/identity-providers/saml/new",
         data=test_idp_data,
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -138,7 +138,7 @@ def test_create_idp_success(super_admin_session, test_tenant_host, test_idp_data
     # Should redirect on success
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "success=created" in location or "/admin/settings/identity-providers" in location
+    assert "success=created" in location or "/identity-providers/saml" in location
 
 
 def test_saml_select_no_idps(client, test_tenant_host):
@@ -307,14 +307,14 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 
     # Toggle to enabled
     response = super_admin_session.post(
-        f"/admin/settings/identity-providers/{idp.id}/toggle",
+        f"/identity-providers/saml/{idp.id}/toggle",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "success=enabled" in location or "/admin/settings/identity-providers" in location
+    assert "success=enabled" in location or "/identity-providers/saml" in location
 
 
 def test_delete_idp_via_admin(
@@ -349,14 +349,14 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 
     # Delete the disabled IdP
     response = super_admin_session.post(
-        f"/admin/settings/identity-providers/{idp.id}/delete",
+        f"/identity-providers/saml/{idp.id}/delete",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "success=deleted" in location or "/admin/settings/identity-providers" in location
+    assert "success=deleted" in location or "/identity-providers/saml" in location
 
 
 def test_delete_idp_via_admin_with_scrub_mirrored_flag(
@@ -397,7 +397,7 @@ b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
     )
 
     response = super_admin_session.post(
-        f"/admin/settings/identity-providers/{idp.id}/delete",
+        f"/identity-providers/saml/{idp.id}/delete",
         headers={"Host": test_tenant_host},
         data={"scrub_mirrored": "on"},
         follow_redirects=False,
@@ -437,14 +437,14 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 
     # Base URL should redirect to /details tab
     response = super_admin_session.get(
-        f"/admin/settings/identity-providers/{idp.id}",
+        f"/identity-providers/saml/{idp.id}",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert f"/admin/settings/identity-providers/{idp.id}/details" in location
+    assert f"/identity-providers/saml/{idp.id}/details" in location
 
 
 def test_view_idp_details_tab(
@@ -477,7 +477,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 
     # View the details tab
     response = super_admin_session.get(
-        f"/admin/settings/identity-providers/{idp.id}/details",
+        f"/identity-providers/saml/{idp.id}/details",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -518,7 +518,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 
     # Update name via the edit endpoint
     response = super_admin_session.post(
-        f"/admin/settings/identity-providers/{idp.id}/edit",
+        f"/identity-providers/saml/{idp.id}/edit",
         data={"name": "Updated IdP Name"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -563,7 +563,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 
     # Update attributes
     response = super_admin_session.post(
-        f"/admin/settings/identity-providers/{idp.id}/edit-attributes",
+        f"/identity-providers/saml/{idp.id}/edit-attributes",
         data={
             "attr_email": "user.email",
             "attr_first_name": "user.firstName",
@@ -613,7 +613,7 @@ def test_update_idp_attributes_includes_standard_attributes(
     idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
     response = super_admin_session.post(
-        f"/admin/settings/identity-providers/{idp.id}/edit-attributes",
+        f"/identity-providers/saml/{idp.id}/edit-attributes",
         data={
             "attr_email": "email",
             "attr_first_name": "firstName",
@@ -665,7 +665,7 @@ def test_update_idp_attributes_skips_unknown_form_keys(
     idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
     response = super_admin_session.post(
-        f"/admin/settings/identity-providers/{idp.id}/edit-attributes",
+        f"/identity-providers/saml/{idp.id}/edit-attributes",
         data={
             "attr_email": "email",
             "attr_first_name": "firstName",
@@ -724,7 +724,7 @@ def test_import_idp_from_xml_via_form(
     }
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/import-metadata-xml",
+        "/identity-providers/saml/import-metadata-xml",
         data=form_data,
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -733,7 +733,7 @@ def test_import_idp_from_xml_via_form(
     # Should redirect on success
     assert response.status_code == 303, f"Expected 303, got {response.status_code}"
     location = response.headers.get("location", "")
-    assert "success=created" in location or "/admin/settings/identity-providers/" in location
+    assert "success=created" in location or "/identity-providers/saml/" in location
 
 
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
@@ -746,7 +746,7 @@ def test_import_idp_from_xml_invalid_xml(super_admin_session, test_tenant_host):
     }
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/import-metadata-xml",
+        "/identity-providers/saml/import-metadata-xml",
         data=form_data,
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -767,7 +767,7 @@ def test_import_idp_from_xml_as_admin_forbidden(admin_session, test_tenant_host)
     }
 
     response = admin_session.post(
-        "/admin/settings/identity-providers/import-metadata-xml",
+        "/identity-providers/saml/import-metadata-xml",
         data=form_data,
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -1820,7 +1820,7 @@ def test_debug_list_as_super_admin_success(
     monkeypatch.setattr(saml_service, "list_saml_debug_entries", lambda *args, **kwargs: [])
 
     response = super_admin_session.get(
-        "/admin/audit/saml-debug",
+        "/audit/saml-debug",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1831,7 +1831,7 @@ def test_debug_list_as_super_admin_success(
 def test_debug_list_as_admin_forbidden(admin_session, test_tenant_host):
     """Test debug list as admin is forbidden."""
     response = admin_session.get(
-        "/admin/audit/saml-debug",
+        "/audit/saml-debug",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1848,7 +1848,7 @@ def test_debug_list_unauthenticated_redirects(client, test_tenant_host):
     app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant-id"
 
     response = client.get(
-        "/admin/audit/saml-debug",
+        "/audit/saml-debug",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1890,7 +1890,7 @@ def test_debug_list_shows_entries(
     )
 
     response = super_admin_session.get(
-        "/admin/audit/saml-debug",
+        "/audit/saml-debug",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1926,7 +1926,7 @@ def test_debug_detail_as_super_admin_success(
     monkeypatch.setattr(saml_service, "get_saml_debug_entry", lambda *args, **kwargs: mock_entry)
 
     response = super_admin_session.get(
-        "/admin/audit/saml-debug/entry-123",
+        "/audit/saml-debug/entry-123",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1946,7 +1946,7 @@ def test_debug_detail_not_found_redirects(super_admin_session, test_tenant_host,
     monkeypatch.setattr(saml_service, "get_saml_debug_entry", mock_get_entry)
 
     response = super_admin_session.get(
-        "/admin/audit/saml-debug/nonexistent-id",
+        "/audit/saml-debug/nonexistent-id",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1959,7 +1959,7 @@ def test_debug_detail_not_found_redirects(super_admin_session, test_tenant_host,
 def test_debug_detail_as_admin_forbidden(admin_session, test_tenant_host):
     """Test debug detail as admin is forbidden."""
     response = admin_session.get(
-        "/admin/audit/saml-debug/some-entry-id",
+        "/audit/saml-debug/some-entry-id",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -1994,7 +1994,7 @@ def test_debug_detail_shows_saml_xml(
     monkeypatch.setattr(saml_service, "get_saml_debug_entry", lambda *args, **kwargs: mock_entry)
 
     response = super_admin_session.get(
-        "/admin/audit/saml-debug/entry-xml",
+        "/audit/saml-debug/entry-xml",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )

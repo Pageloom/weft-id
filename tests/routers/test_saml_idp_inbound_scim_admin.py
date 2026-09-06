@@ -1,6 +1,6 @@
 """Tests for the inbound SCIM admin UI tab on a SAML Identity Provider.
 
-Covers `/admin/settings/identity-providers/{idp_id}/scim` (the HTML tab)
+Covers `/identity-providers/saml/{idp_id}/scim` (the HTML tab)
 which paints the credentials list and the "create / revoke" controls.
 State-changing actions go through `WeftUtils.apiFetch` against the
 `/api/v1/saml-identity-providers/{idp_id}/inbound-scim/credentials`
@@ -124,7 +124,7 @@ def test_inbound_scim_tab_renders(idp_admin_session, idp_host, sample_idp, mocke
         ),
     ):
         response = idp_admin_session.get(
-            f"/admin/settings/identity-providers/{sample_idp.id}/scim",
+            f"/identity-providers/saml/{sample_idp.id}/scim",
             headers={"Host": idp_host},
         )
 
@@ -147,7 +147,7 @@ def test_inbound_scim_tab_redirects_non_super_admin(client, idp_user, override_a
     admin_user = {**idp_user, "role": "admin"}
     override_auth(admin_user, level="admin")
     response = client.get(
-        f"/admin/settings/identity-providers/{uuid4()}/scim",
+        f"/identity-providers/saml/{uuid4()}/scim",
         headers={"Host": idp_host},
         follow_redirects=False,
     )
@@ -165,13 +165,13 @@ def test_inbound_scim_tab_redirects_when_idp_missing(idp_admin_session, idp_host
         side_effect=NotFoundError(message="missing", code="idp_not_found"),
     ):
         response = idp_admin_session.get(
-            f"/admin/settings/identity-providers/{idp_id}/scim",
+            f"/identity-providers/saml/{idp_id}/scim",
             headers={"Host": idp_host},
             follow_redirects=False,
         )
 
     assert response.status_code == 303
-    assert "/admin/settings/identity-providers" in response.headers["location"]
+    assert "/identity-providers/saml" in response.headers["location"]
     assert "error" in response.headers["location"]
 
 
@@ -200,7 +200,7 @@ def test_inbound_scim_tab_uses_x_forwarded_host_for_base_url(
         ),
     ):
         response = idp_admin_session.get(
-            f"/admin/settings/identity-providers/{sample_idp.id}/scim",
+            f"/identity-providers/saml/{sample_idp.id}/scim",
             headers={
                 "Host": idp_host,
                 "x-forwarded-host": "acme.weftid.com",

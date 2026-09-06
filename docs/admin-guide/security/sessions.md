@@ -2,7 +2,7 @@
 
 Configure how long user sessions last, how WeftID handles inactive accounts, and the sign-in verification mode.
 
-Navigate to **Settings > Security > Sessions**.
+Navigate to **Security > Sessions**.
 
 ## Maximum session length
 

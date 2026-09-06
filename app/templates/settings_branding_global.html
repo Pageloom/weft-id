@@ -1,7 +1,5 @@
 {% extends "settings_branding_base.html" %}
 
-{% set active_tab = 'global' %}
-
 {% block tab_content %}
 <style nonce="{{ csp_nonce }}">
     .checker-light {
@@ -30,7 +28,7 @@
     <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
         <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Organization Name</h2>
 
-        <form method="post" action="/admin/settings/branding/global/settings">
+        <form method="post" action="/settings/branding/global/settings">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="mb-4">
@@ -116,7 +114,7 @@
         </p>
 
         <div class="flex items-center justify-between">
-            <form method="post" action="/admin/settings/branding/global/upload/light" enctype="multipart/form-data">
+            <form method="post" action="/settings/branding/global/upload/light" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="flex items-center space-x-3">
                     <input type="file" name="file" accept="image/png,image/svg+xml,.png,.svg"
@@ -132,7 +130,7 @@
                 {% if branding_settings.has_logo_light %}
                 <div class="text-right">
                     <p class="text-sm text-gray-600 dark:text-gray-400">{{ branding_settings.logo_light_mime }}</p>
-                    <form method="post" action="/admin/settings/branding/global/delete/light" class="mt-1">
+                    <form method="post" action="/settings/branding/global/delete/light" class="mt-1">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
                             Remove
@@ -160,7 +158,7 @@
         </p>
 
         <div class="flex items-center justify-between">
-            <form method="post" action="/admin/settings/branding/global/upload/dark" enctype="multipart/form-data">
+            <form method="post" action="/settings/branding/global/upload/dark" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="flex items-center space-x-3">
                     <input type="file" name="file" accept="image/png,image/svg+xml,.png,.svg"
@@ -176,7 +174,7 @@
                 {% if branding_settings.has_logo_dark %}
                 <div class="text-right">
                     <p class="text-sm text-gray-600 dark:text-gray-400">{{ branding_settings.logo_dark_mime }}</p>
-                    <form method="post" action="/admin/settings/branding/global/delete/dark" class="mt-1">
+                    <form method="post" action="/settings/branding/global/delete/dark" class="mt-1">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
                             Remove
@@ -270,7 +268,7 @@
         })
         .then(resp => {
             if (resp.ok) {
-                window.location.href = '/admin/settings/branding/global?success=mandala_saved';
+                window.location.href = '/settings/branding/global?success=mandala_saved';
             } else {
                 saveBtn.disabled = false;
                 saveBtn.textContent = 'Save as Logo';

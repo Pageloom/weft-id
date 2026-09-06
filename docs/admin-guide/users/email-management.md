@@ -4,7 +4,7 @@ Email addresses in WeftID are managed by administrators. Users can view their em
 
 ## Viewing a user's emails
 
-Open the user's detail page (**Users > click a user > Profile tab**). The **Email Addresses** section shows all emails with their status (primary, verified, unverified) and creation date.
+Open the user's detail page (**Directory > Users > click a user > Profile tab**). The **Email Addresses** section shows all emails with their status (primary, verified, unverified) and creation date.
 
 ## Adding a secondary email
 
@@ -49,7 +49,7 @@ For changes across many users at once, WeftID provides two bulk operations. Both
 
 ### Selecting users
 
-1. Navigate to **Users > User List**
+1. Navigate to **Directory > Users > User List**
 2. Use checkboxes to select individual users, or use the header checkbox to select all on the current page
 3. For large result sets: after selecting all on the page, click **Select all N matching users** to include every user matching the current search and filters (across all pages)
 

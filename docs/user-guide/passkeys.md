@@ -84,4 +84,4 @@ If the passkey prompt is dismissed, cancelled, or fails, WeftID falls back to th
 
 On the **Account > Sign-in Methods** page, each registered passkey has a **Revoke** button. Revoking a passkey immediately removes its public key from WeftID. The private key on the device becomes a dead credential; it can no longer sign in.
 
-Admins can also revoke a user's passkey from the user detail page under **Users > (user) > Profile**. Revoking a compromised device is the right first step if a laptop or phone is lost.
+Admins can also revoke a user's passkey from the user detail page under **Directory > Users > (user) > Profile**. Revoking a compromised device is the right first step if a laptop or phone is lost.

@@ -302,6 +302,10 @@ def app_edit(
     if not uri_list:
         return safe_redirect(f"{redirect_url}?error=redirect_uris_required")
 
+    existing = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not existing or existing["client_type"] != "normal":
+        return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
+
     try:
         client = oauth2_service.update_client(
             tenant_id=tenant_id,
@@ -363,6 +367,10 @@ def app_deactivate(
 
     redirect_url = f"/applications/oauth/{client_id}"
 
+    existing = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not existing or existing["client_type"] != "normal":
+        return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
+
     client = oauth2_service.deactivate_client(tenant_id, client_id, str(user["id"]))
     if not client:
         return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
@@ -382,6 +390,10 @@ def app_reactivate(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     redirect_url = f"/applications/oauth/{client_id}"
+
+    existing = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not existing or existing["client_type"] != "normal":
+        return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
 
     client = oauth2_service.reactivate_client(tenant_id, client_id, str(user["id"]))
     if not client:

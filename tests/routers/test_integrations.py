@@ -748,6 +748,8 @@ def test_app_edit_success(test_admin_user, override_auth, mocker):
         "created_at": "2026-01-01T00:00:00",
     }
 
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = mock_updated_client
     mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
     mock_update.return_value = mock_updated_client
 
@@ -884,6 +886,8 @@ def test_app_deactivate_success(test_admin_user, override_auth, mocker):
         "created_at": "2026-01-01T00:00:00",
     }
 
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = mock_deactivated
     mock_deact = mocker.patch(f"{SERVICES_OAUTH2}.deactivate_client")
     mock_deact.return_value = mock_deactivated
 
@@ -914,6 +918,8 @@ def test_app_reactivate_success(test_admin_user, override_auth, mocker):
         "created_at": "2026-01-01T00:00:00",
     }
 
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = mock_reactivated
     mock_react = mocker.patch(f"{SERVICES_OAUTH2}.reactivate_client")
     mock_react.return_value = mock_reactivated
 
@@ -926,6 +932,107 @@ def test_app_reactivate_success(test_admin_user, override_auth, mocker):
 
     assert response.status_code == 303
     assert "success=reactivated" in response.headers["location"]
+
+
+def test_app_deactivate_b2b_client_redirects_not_found(test_admin_user, override_auth, mocker):
+    """Test an admin cannot deactivate a B2B client via the Apps route."""
+    override_auth(test_admin_user, level="admin")
+
+    mock_b2b = {
+        "id": str(uuid4()),
+        "client_id": "weft-id_b2b_deact123",
+        "client_type": "b2b",
+        "name": "B2B Service Account",
+        "description": None,
+        "redirect_uris": None,
+        "service_user_id": str(uuid4()),
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = mock_b2b
+    mock_deact = mocker.patch(f"{SERVICES_OAUTH2}.deactivate_client")
+
+    client = TestClient(app)
+    response = client.post(
+        "/applications/oauth/weft-id_b2b_deact123/deactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
+    mock_deact.assert_not_called()
+
+
+def test_app_reactivate_b2b_client_redirects_not_found(test_admin_user, override_auth, mocker):
+    """Test an admin cannot reactivate a B2B client via the Apps route."""
+    override_auth(test_admin_user, level="admin")
+
+    mock_b2b = {
+        "id": str(uuid4()),
+        "client_id": "weft-id_b2b_react123",
+        "client_type": "b2b",
+        "name": "B2B Service Account",
+        "description": None,
+        "redirect_uris": None,
+        "service_user_id": str(uuid4()),
+        "is_active": False,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = mock_b2b
+    mock_react = mocker.patch(f"{SERVICES_OAUTH2}.reactivate_client")
+
+    client = TestClient(app)
+    response = client.post(
+        "/applications/oauth/weft-id_b2b_react123/reactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
+    mock_react.assert_not_called()
+
+
+def test_app_edit_b2b_client_redirects_not_found(test_admin_user, override_auth, mocker):
+    """Test an admin cannot edit a B2B client via the Apps route."""
+    override_auth(test_admin_user, level="admin")
+
+    mock_b2b = {
+        "id": str(uuid4()),
+        "client_id": "weft-id_b2b_edit123",
+        "client_type": "b2b",
+        "name": "B2B Service Account",
+        "description": None,
+        "redirect_uris": None,
+        "service_user_id": str(uuid4()),
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = mock_b2b
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
+
+    client = TestClient(app)
+    response = client.post(
+        "/applications/oauth/weft-id_b2b_edit123/edit",
+        data={
+            "name": "Updated Name",
+            "description": "",
+            "redirect_uris": "https://example.com/callback",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
+    mock_update.assert_not_called()
 
 
 # =============================================================================
@@ -1174,11 +1281,12 @@ def test_b2b_reactivate_success(test_super_admin_user, override_auth, mocker):
 
 
 def test_app_edit_not_found(test_admin_user, override_auth, mocker):
-    """Test editing an app that returns None redirects with not_found error."""
+    """Test editing a non-existent app redirects with not_found error."""
     override_auth(test_admin_user, level="admin")
 
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = None
     mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
-    mock_update.return_value = None
 
     client = TestClient(app)
     response = client.post(
@@ -1194,6 +1302,7 @@ def test_app_edit_not_found(test_admin_user, override_auth, mocker):
 
     assert response.status_code == 303
     assert "error=not_found" in response.headers["location"]
+    mock_update.assert_not_called()
 
 
 def test_app_edit_service_error(test_admin_user, override_auth, mocker):
@@ -1202,6 +1311,8 @@ def test_app_edit_service_error(test_admin_user, override_auth, mocker):
 
     from services.exceptions import ServiceError
 
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = {"client_type": "normal"}
     mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
     mock_update.side_effect = ServiceError("update failed")
 
@@ -1225,8 +1336,9 @@ def test_app_deactivate_not_found(test_admin_user, override_auth, mocker):
     """Test deactivating non-existent app redirects with not_found error."""
     override_auth(test_admin_user, level="admin")
 
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = None
     mock_deact = mocker.patch(f"{SERVICES_OAUTH2}.deactivate_client")
-    mock_deact.return_value = None
 
     client = TestClient(app)
     response = client.post(
@@ -1237,14 +1349,16 @@ def test_app_deactivate_not_found(test_admin_user, override_auth, mocker):
 
     assert response.status_code == 303
     assert "error=not_found" in response.headers["location"]
+    mock_deact.assert_not_called()
 
 
 def test_app_reactivate_not_found(test_admin_user, override_auth, mocker):
     """Test reactivating non-existent app redirects with not_found error."""
     override_auth(test_admin_user, level="admin")
 
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = None
     mock_react = mocker.patch(f"{SERVICES_OAUTH2}.reactivate_client")
-    mock_react.return_value = None
 
     client = TestClient(app)
     response = client.post(
@@ -1255,6 +1369,7 @@ def test_app_reactivate_not_found(test_admin_user, override_auth, mocker):
 
     assert response.status_code == 303
     assert "error=not_found" in response.headers["location"]
+    mock_react.assert_not_called()
 
 
 def test_b2b_edit_empty_name(test_super_admin_user, override_auth):

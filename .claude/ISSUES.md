@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 6 | File Structure (pre-existing); B2B service account deactivate/reactivate missing client_type check (pre-existing); historical Spaces exports 500 under config drift; Requests badge runs uncached COUNTs on every Directory-section render; Directory router baseline lowered to `require_current_user`; auth-coverage test passes vacuously |
+| Medium | 5 | File Structure (pre-existing); historical Spaces exports 500 under config drift; Requests badge runs uncached COUNTs on every Directory-section render; Directory router baseline lowered to `require_current_user`; auth-coverage test passes vacuously |
 | Low/Medium | 3 | `form-input-length` checker misses `= Form("")` syntax, 33 unbounded params (pre-existing); legacy 301s drop query strings; per-instance legacy URLs 404 instead of 301 |
 | Low | 9 | Upload-auth temp-file leak (warning-ignored, tracked); stale "Integrations" template copy; page headings out of step with new nav; Add User vs New Group verb split; Requests badge accessibility/reach; section index routes lack bare-path form; degenerate single-tab third-level nav; hardcoded role tuple in `users_list.html`; nav-restructure backlog item not archived |
 
@@ -197,41 +197,6 @@ Note: the previously-noted side observation (two uncached service calls on every
 render, even where the badge cannot render) was fixed 2026-09-06 -- `get_template_context()` now
 gates `_get_requests_badge_count()` on the active top-level section being Directory. This entry's
 remaining scope is copy/accessibility only (no text alternative, invisible outside Directory).
-
----
-
-## [SECURITY] Admin can deactivate/reactivate a super_admin-tier B2B service account
-
-**Discovered:** 2026-09-06 (nav-restructure branch, Step 8 security review)
-**Severity:** Medium
-**Source:** Mechanical route-graph diff against `main` during the nav-restructure feature's final
-review. Pre-existing on `main` (byte-identical there) -- the nav restructure did not introduce
-this, but its explicit ADMIN (`/applications/oauth`) vs SUPER_ADMIN (`/applications/service-accounts`)
-split made the gap visible.
-
-`app/routers/integrations.py`'s `app_deactivate` and `app_reactivate` handlers omit the
-`client["client_type"] != "normal"` check that sibling handlers `app_detail` and
-`app_regenerate_secret` both perform. `oauth2_service.deactivate_client` /
-`reactivate_client` (`app/services/oauth2.py`) take a raw `tenant_id`/`client_id` with no role or
-client-type check of their own, so the router is the only gate. Since B2B service accounts (client
-type != `normal`) are gated at `SUPER_ADMIN` while the Apps list is gated at `ADMIN`, a plain admin
-can `POST /applications/oauth/{b2b_client_id}/deactivate` (revoking all its tokens) or
-`/reactivate` (re-enabling a machine credential that a super admin deliberately disabled). The
-`client_id` is discoverable via `/audit/events` (ADMIN-visible; `oauth2_client_created` events
-include it in metadata).
-
-**Impact:** An admin (not super_admin) can disable or re-enable a B2B service account's API
-access, bypassing the SUPER_ADMIN boundary intended for that resource class.
-
-**Suggested fix:** Add the `client_type != "normal"` guard to `app_deactivate` and `app_reactivate`
-in `app/routers/integrations.py`, matching `app_detail`/`app_regenerate_secret` -- or better, move
-the check into `oauth2_service.deactivate_client`/`reactivate_client` so the service layer
-enforces it independently of which router calls it. Also worth hardening
-`app_edit`: it is only incidentally safe today because the router always sends non-empty
-`redirect_uris`, which `update_client` rejects for non-normal clients.
-
-**Files Affected:** `app/routers/integrations.py` (`app_deactivate`, `app_reactivate`, and
-review `app_edit`), `app/services/oauth2.py` (`deactivate_client`, `reactivate_client`)
 
 ---
 

@@ -5217,3 +5217,32 @@ sections generally; none are affected because their tab children are `show_in_na
 `app/templates/settings_security_tab_certificates.html`, `app/templates/settings_security_tab_passwords.html`,
 `app/templates/settings_security_tab_permissions.html`, `app/templates/settings_security_tab_sessions.html`,
 `app/templates/settings_branding_global.html`, `app/templates/settings_branding_groups.html`
+
+---
+
+## [SECURITY] Admin can deactivate/reactivate a super_admin-tier B2B service account
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, Step 8 security review)
+**Severity:** Medium
+**Category:** Authorization / privilege escalation
+
+`app/routers/integrations.py`'s `app_deactivate` and `app_reactivate` handlers (mounted at
+`/applications/oauth`, gated at `require_admin`) omitted the `client_type != "normal"` guard that
+sibling handlers `app_detail` and `app_regenerate_secret` perform. Since B2B service accounts
+(client type != `normal`) are gated at `SUPER_ADMIN` while the Apps list is gated at `ADMIN`, a
+plain admin could `POST /applications/oauth/{b2b_client_id}/deactivate` (revoking all its tokens)
+or `/reactivate` (re-enabling a machine credential a super_admin deliberately disabled). The
+`client_id` is discoverable via `/audit/events` (ADMIN-visible; `oauth2_client_created` events
+include it in metadata).
+
+**Resolution.** Added the `client_type != "normal"` guard to `app_deactivate`, `app_reactivate`,
+and `app_edit` in `app/routers/integrations.py`, matching the existing sibling-handler pattern.
+The router-level guard was chosen over moving the check into
+`oauth2_service.deactivate_client`/`reactivate_client` because `app/services/oauth2.py` is
+documented as "utility functions without authorization," and the API route already enforces its
+own role check via `_require_super_admin_for_b2b`. The sibling B2B handlers
+(`b2b_deactivate`/`b2b_reactivate`) have the same missing `client_type != "b2b"` guard, but that
+is not a security issue (super_admin-only section) and was left out of scope.
+
+**Files changed:** `app/routers/integrations.py`, `tests/routers/test_integrations.py`

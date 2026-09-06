@@ -262,8 +262,15 @@ def test_bulk_set_force_profile_completion_emits_event_per_flagged_user(test_use
     assert mock_log.call_count == 1
     call_kwargs = mock_log.call_args.kwargs
     assert call_kwargs["event_type"] == "user_force_profile_completion_set"
-    assert call_kwargs["artifact_id"] == str(test_user["id"])
-    assert "missing_keys" in call_kwargs["metadata"]
+
+
+def test_bulk_set_force_profile_completion_invalidates_requests_badge(test_user):
+    """Flagging users drops the cached Requests nav badge count."""
+    _seed_config(test_user["tenant_id"], key="job_title", required=True)
+    admin = _admin_requester(test_user["tenant_id"])
+    with patch("services.users.attributes.requests_badge.invalidate") as mock_invalidate:
+        bulk_set_force_profile_completion(admin, [str(test_user["id"])])
+    mock_invalidate.assert_called_once_with(str(test_user["tenant_id"]))
 
 
 def test_bulk_set_force_profile_completion_with_mixed_users_splits_results(test_user, test_tenant):

@@ -1,6 +1,7 @@
 """Template context helpers for adding common data to templates."""
 
 import base64
+import logging
 
 from dependencies import build_requesting_user, get_current_user
 from fastapi import Request
@@ -9,11 +10,13 @@ from pages import get_navigation_context
 from services import reactivation as reactivation_service
 from services import users as users_service
 from services.branding import get_branding_for_template
-from services.exceptions import ServiceError
+from utils import requests_badge
 from utils.csp_nonce import get_csp_nonce
 from utils.datetime_format import create_datetime_formatter, create_relative_date_formatter
 from utils.mandala import generate_mandala_svg
 from utils.static_assets import static_url
+
+logger = logging.getLogger(__name__)
 
 
 def _get_requests_badge_count(user: dict, tenant_id: str) -> int:
@@ -22,17 +25,32 @@ def _get_requests_badge_count(user: dict, tenant_id: str) -> int:
     Sums pending reactivation requests and users with incomplete required
     profiles. Both service functions require admin/super_admin, matching
     the Requests page's own permission -- non-admins never see the badge.
+
+    The sum is cached per tenant (short TTL) because it renders on every
+    Directory-section page and the profile-completion count is a CROSS JOIN
+    over users x attributes. Invalidated on approve/deny/force-complete.
     """
     if user.get("role") not in ("admin", "super_admin"):
         return 0
 
+    cached = requests_badge.get_count(tenant_id)
+    if cached is not None:
+        return cached
+
     requesting_user = build_requesting_user(user, tenant_id)
     try:
-        return reactivation_service.count_pending_requests(
+        count = reactivation_service.count_pending_requests(
             requesting_user
         ) + users_service.count_users_with_missing_required(requesting_user)
-    except ServiceError:
+    except Exception:
+        # A DB error here must not 500 the page render (or the error page
+        # itself, which also calls get_template_context). Degrade to 0 and
+        # leave the cache empty so the next render retries.
+        logger.exception("Failed to compute requests badge count for tenant %s", tenant_id)
         return 0
+
+    requests_badge.set_count(tenant_id, count)
+    return count
 
 
 def get_template_context(request: Request, tenant_id: str, **kwargs):

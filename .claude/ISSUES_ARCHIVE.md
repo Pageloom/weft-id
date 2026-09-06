@@ -4,6 +4,96 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REVIEW] Historical Spaces exports 500 when local backend is selected
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Medium
+**Category:** Correctness / config drift
+
+`LocalStorageBackend.get_download_url` raises `NotImplementedError`. The exports
+service picked the backend from current config (`get_backend()`, which silently
+falls back to local when `SPACES_BUCKET` is unset) but branched on the persisted
+row's `storage_type`. An export created while `STORAGE_BACKEND=spaces` has
+`storage_type='spaces'`; if the bucket was later unset or the backend switched,
+Download took the `spaces` branch and called `get_download_url()` on the local
+backend. Both routers caught only `ServiceError` and `main.py` had no catch-all,
+so the request was an unhandled 500.
+
+**Resolution.** Added a `storage_type` class attribute to each backend
+(`local`/`spaces`). `get_download()` now branches on the *active* backend's
+`storage_type` and, when the persisted `storage_type` no longer matches the
+active backend, raises `NotFoundError` (graceful 404) instead of calling the
+wrong backend's methods. Both drift directions (spaces→local and local→spaces)
+are covered by regression tests.
+
+**Files changed:** `app/utils/storage.py`, `app/services/exports.py`,
+`tests/services/test_exports.py`
+
+---
+
+## [REVIEW] Requests badge runs two uncached COUNTs on every Directory-section render
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Medium
+**Category:** Performance
+
+`find_page_with_ancestors` uses prefix matching, so every `/users/*`, `/groups/*`,
+`/directory/*` page resolved `active_top_level` to `/directory` and called
+`_get_requests_badge_count`, running two COUNT queries plus two `track_activity`
+calls per HTML render. `count_users_with_missing_required` is a CROSS JOIN of
+`tenant_attribute_config` x `users` x `user_attributes` with `count(distinct)`;
+on a 50k-user tenant with 8 required attributes that is a 400k-row scan on every
+user or group page. `render_error_page` also calls `get_template_context`, and
+only `ServiceError` was swallowed, so a psycopg `OperationalError` from the
+count turned the error page itself into a 500.
+
+**Resolution.** New `app/utils/requests_badge.py` caches the summed count per
+tenant in memcached with a 30s TTL. `_get_requests_badge_count` is cache-first
+and now catches `Exception` (logs and returns 0) rather than `ServiceError`, so
+a DB failure degrades the badge to 0 instead of 500ing the page. The cache is
+invalidated on reactivation approve/deny and on force-profile-completion, so an
+admin's own action is reflected immediately. The "fold both counts into one
+query" suggestion was considered and skipped: the TTL makes the queries run at
+most once per 30s per tenant, so the round-trip savings is marginal and the
+expensive CROSS JOIN still runs either way.
+
+**Files changed:** `app/utils/requests_badge.py` (new),
+`app/utils/template_context.py`, `app/services/reactivation.py`,
+`app/services/users/attributes.py`, `tests/utils/test_template_context.py`,
+`tests/services/test_reactivation.py`,
+`tests/services/test_user_attributes_force_completion.py`
+
+---
+
+## [REVIEW] `test_router_level_dependencies_are_set` passes vacuously after the move
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Medium
+**Category:** Test coverage
+
+The test still filtered on the retired `/admin/settings` prefix. Two problems
+compounded: (1) under FastAPI 0.138 `app.routes` holds `_IncludedRouter`
+wrappers without `.path`, so the `hasattr(r, 'path')` filter dropped every real
+route and both tests in the file passed with zero assertions exercised; (2) the
+25 `/admin/settings*` matches were all `routers.legacy_redirects` 301 stubs with
+no auth deps, while the 10 `/settings*` and 11 `/security*` routes the test was
+meant to guard were never matched.
+
+**Resolution.** Added `_iter_routes()` which recurses into
+`_IncludedRouter.original_router.routes` (the same pattern
+`test_legacy_redirects.py` already used) and yields only FastAPI APIRoutes.
+Both tests now walk through it, the settings prefix was updated to
+`('/settings', '/security')`, and each test carries a guard assertion
+(`"/dashboard" in all_paths`) so a future FastAPI internals change fails the
+test instead of silently vacating it.
+
+**Files changed:** `tests/test_auth_coverage.py`
+
+---
+
 ## [BUG] Login-form IdP routing blocked by CSP form-action in Chromium
 
 **Fixed:** 2026-09-06

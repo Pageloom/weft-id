@@ -79,6 +79,7 @@ def test_get_download_local_storage(make_requesting_user, make_export_file_dict)
     ):
         mock_db.export_files.get_export_file.return_value = export
         mock_storage = MagicMock()
+        mock_storage.storage_type = "local"
         mock_storage.get_file_path.return_value = "/app/storage/exports/test-download.json.gz"
         mock_backend.return_value = mock_storage
 
@@ -112,6 +113,7 @@ def test_get_download_spaces_storage(make_requesting_user, make_export_file_dict
     ):
         mock_db.export_files.get_export_file.return_value = export
         mock_storage = MagicMock()
+        mock_storage.storage_type = "spaces"
         mock_storage.get_download_url.return_value = "https://spaces.example.com/signed-url"
         mock_backend.return_value = mock_storage
 
@@ -144,6 +146,7 @@ def test_get_download_marks_as_downloaded(make_requesting_user, make_export_file
     ):
         mock_db.export_files.get_export_file.return_value = export
         mock_storage = MagicMock()
+        mock_storage.storage_type = "local"
         mock_storage.get_file_path.return_value = "/app/storage/exports/test.json.gz"
         mock_backend.return_value = mock_storage
 
@@ -190,6 +193,7 @@ def test_get_download_logs_event(make_requesting_user, make_export_file_dict):
     ):
         mock_db.export_files.get_export_file.return_value = export
         mock_storage = MagicMock()
+        mock_storage.storage_type = "local"
         mock_storage.get_file_path.return_value = "/app/storage/exports/test.json.gz"
         mock_backend.return_value = mock_storage
 
@@ -244,6 +248,7 @@ def test_get_download_file_missing_from_disk(make_requesting_user, make_export_f
     ):
         mock_db.export_files.get_export_file.return_value = export
         mock_storage = MagicMock()
+        mock_storage.storage_type = "local"
         mock_storage.get_file_path.return_value = None  # File not found
         mock_backend.return_value = mock_storage
 
@@ -251,3 +256,82 @@ def test_get_download_file_missing_from_disk(make_requesting_user, make_export_f
             exports.get_download(requesting_user, str(export["id"]))
 
         assert exc_info.value.code == "export_file_missing"
+
+
+def test_get_download_spaces_export_with_local_backend_raises_not_found(
+    make_requesting_user, make_export_file_dict
+):
+    """A Spaces-stored export is a graceful 404 when the local backend is active.
+
+    Regression for the unhandled 500: an export created while
+    STORAGE_BACKEND=spaces, then downloaded after the bucket was unset, used to
+    call LocalStorageBackend.get_download_url() and raise NotImplementedError.
+    """
+    from services import exports
+    from services.exceptions import NotFoundError
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    export = make_export_file_dict(
+        tenant_id=tenant_id,
+        filename="stale-spaces.json.gz",
+        storage_type="spaces",
+        storage_path="exports/stale-spaces.json.gz",
+    )
+
+    with (
+        patch("services.exports.database") as mock_db,
+        patch("services.exports.track_activity"),
+        patch("services.exports.log_event"),
+        patch("services.exports.storage.get_backend") as mock_backend,
+    ):
+        mock_db.export_files.get_export_file.return_value = export
+        mock_storage = MagicMock()
+        mock_storage.storage_type = "local"
+        mock_backend.return_value = mock_storage
+
+        with pytest.raises(NotFoundError) as exc_info:
+            exports.get_download(requesting_user, str(export["id"]))
+
+        assert exc_info.value.code == "export_file_missing"
+        mock_storage.get_download_url.assert_not_called()
+
+
+def test_get_download_local_export_with_spaces_backend_raises_not_found(
+    make_requesting_user, make_export_file_dict
+):
+    """A local-stored export is a graceful 404 when the Spaces backend is active.
+
+    The reverse drift: the file lives on local disk, so a presigned URL for its
+    local path would be a dead link. Surface a 404 instead.
+    """
+    from services import exports
+    from services.exceptions import NotFoundError
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    export = make_export_file_dict(
+        tenant_id=tenant_id,
+        filename="stale-local.json.gz",
+        storage_type="local",
+        storage_path="exports/stale-local.json.gz",
+    )
+
+    with (
+        patch("services.exports.database") as mock_db,
+        patch("services.exports.track_activity"),
+        patch("services.exports.log_event"),
+        patch("services.exports.storage.get_backend") as mock_backend,
+    ):
+        mock_db.export_files.get_export_file.return_value = export
+        mock_storage = MagicMock()
+        mock_storage.storage_type = "spaces"
+        mock_backend.return_value = mock_storage
+
+        with pytest.raises(NotFoundError) as exc_info:
+            exports.get_download(requesting_user, str(export["id"]))
+
+        assert exc_info.value.code == "export_file_missing"
+        mock_storage.get_download_url.assert_not_called()

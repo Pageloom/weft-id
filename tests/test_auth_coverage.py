@@ -9,6 +9,28 @@ from main import app
 from pages import PAGES, PagePermission, get_all_pages
 
 
+def _iter_routes(routes, prefix=""):
+    """Yield (full_path, route) for every APIRoute, recursing into included routers.
+
+    FastAPI 0.138 defers included routers behind ``_IncludedRouter`` wrappers
+    that carry no ``path``/``methods``/``dependant`` of their own; the real
+    routes live on ``original_router.routes``. Walking ``app.routes`` directly
+    would therefore see nothing and every assertion below would pass vacuously.
+    """
+    for route in routes:
+        original = getattr(route, "original_router", None)
+        if original is not None:
+            context_prefix = getattr(getattr(route, "include_context", None), "prefix", "")
+            yield from _iter_routes(original.routes, prefix + context_prefix)
+            continue
+        path = getattr(route, "path", None)
+        methods = getattr(route, "methods", None)
+        # Only FastAPI APIRoutes carry a dependant; the starlette Route objects
+        # FastAPI adds for /openapi.json and the docs pages do not.
+        if path and methods and hasattr(route, "dependant"):
+            yield prefix + path, route
+
+
 def get_public_paths():
     """Get all paths that are marked as PUBLIC in pages.py."""
     public_paths = set()
@@ -37,67 +59,59 @@ def test_all_non_public_routes_have_authentication():
     # Authentication dependencies to check for
     auth_deps = {get_current_user, require_current_user, require_admin, require_super_admin}
 
-    # Get all routes from the app
-    for route in app.routes:
-        if hasattr(route, "path") and hasattr(route, "methods"):
-            path = route.path
+    # Guard: if the walker ever stops seeing included routers (FastAPI internals
+    # change), every assertion below would pass vacuously.
+    all_paths = {path for path, _ in _iter_routes(app.routes)}
+    assert "/dashboard" in all_paths, "route walker failed to enumerate included routers"
 
-            # Skip paths that are public or in exceptions
-            if path in public_paths or path in exception_paths:
-                continue
+    for path, route in _iter_routes(app.routes):
+        # Skip paths that are public or in exceptions
+        if path in public_paths or path in exception_paths:
+            continue
 
-            # Skip docs/health check paths
-            if path in ["/api/docs", "/api/redoc", "/openapi.json", "/health"]:
-                continue
+        # Skip docs/health check paths
+        if path in ["/api/docs", "/api/redoc", "/openapi.json", "/health"]:
+            continue
 
-            # Check if route has ANY authentication dependency
-            has_auth = False
+        # Check if route has ANY authentication dependency
+        deps = [dep.call for dep in route.dependant.dependencies if hasattr(dep, "call")]
+        has_auth = any(dep in auth_deps for dep in deps)
 
-            if hasattr(route, "dependant") and hasattr(route.dependant, "dependencies"):
-                deps = [dep.call for dep in route.dependant.dependencies if hasattr(dep, "call")]
-                has_auth = any(dep in auth_deps for dep in deps)
-
-            # For paths not in exception list, they must have auth
-            if path.startswith("/account") or path.startswith("/users"):
-                assert has_auth, f"Route {path} is missing authentication dependency"
-            elif path.startswith("/settings"):
-                assert has_auth, f"Route {path} is missing authentication dependency"
+        # For paths not in exception list, they must have auth
+        if path.startswith("/account") or path.startswith("/users"):
+            assert has_auth, f"Route {path} is missing authentication dependency"
+        elif path.startswith("/settings") or path.startswith("/security"):
+            assert has_auth, f"Route {path} is missing authentication dependency"
 
 
 def test_router_level_dependencies_are_set():
     """Test that routers have the correct dependencies set at the router level."""
-    # Find routers
-    account_routes = [r for r in app.routes if hasattr(r, "path") and r.path.startswith("/account")]
-    users_routes = [r for r in app.routes if hasattr(r, "path") and r.path.startswith("/users")]
-    settings_routes = [
-        r for r in app.routes if hasattr(r, "path") and r.path.startswith("/admin/settings")
-    ]
+    # Guard: if the walker ever stops seeing included routers (FastAPI internals
+    # change), every assertion below would pass vacuously.
+    all_paths = {path for path, _ in _iter_routes(app.routes)}
+    assert "/dashboard" in all_paths, "route walker failed to enumerate included routers"
 
     # Account routes should have authentication (either require_current_user or get_current_user)
     auth_deps = {get_current_user, require_current_user, require_admin, require_super_admin}
+    # Settings/security routes should have admin/super_admin authentication
+    admin_deps = {require_admin, require_super_admin}
 
     # Paths that start with /account but don't require authentication
     account_exceptions = {"/account-recovery/{token}"}
 
-    for route in account_routes:
-        if hasattr(route, "dependant"):
-            if route.path in account_exceptions:
+    for path, route in _iter_routes(app.routes):
+        deps = [dep.call for dep in route.dependant.dependencies if hasattr(dep, "call")]
+
+        if path.startswith("/account"):
+            if path in account_exceptions:
                 continue
-            deps = [dep.call for dep in route.dependant.dependencies if hasattr(dep, "call")]
             has_auth = any(dep in auth_deps for dep in deps)
-            assert has_auth, f"Account route {route.path} missing authentication dependency"
+            assert has_auth, f"Account route {path} missing authentication dependency"
 
-    # Users routes should have authentication
-    for route in users_routes:
-        if hasattr(route, "dependant"):
-            deps = [dep.call for dep in route.dependant.dependencies if hasattr(dep, "call")]
+        if path.startswith("/users"):
             has_auth = any(dep in auth_deps for dep in deps)
-            assert has_auth, f"Users route {route.path} missing authentication dependency"
+            assert has_auth, f"Users route {path} missing authentication dependency"
 
-    # Settings routes should have admin/super_admin authentication
-    admin_deps = {require_admin, require_super_admin}
-    for route in settings_routes:
-        if hasattr(route, "dependant"):
-            deps = [dep.call for dep in route.dependant.dependencies if hasattr(dep, "call")]
+        if path.startswith("/settings") or path.startswith("/security"):
             has_auth = any(dep in admin_deps for dep in deps)
-            assert has_auth, f"Settings route {route.path} missing admin/super_admin dependency"
+            assert has_auth, f"Settings route {path} missing admin/super_admin dependency"

@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 class StorageBackend(ABC):
     """Abstract base class for storage backends."""
 
+    # Identifier for this backend ("local" or "spaces"). Consumers branch on
+    # the *active* backend's type, never on a persisted value, so a config
+    # change (e.g. the Spaces bucket being unset) can't route a download to
+    # the wrong backend.
+    storage_type: str = ""
+
     @abstractmethod
     def save(self, key: str, data: BinaryIO, content_type: str) -> str:
         """Save data and return the full storage path."""
@@ -41,6 +47,8 @@ class StorageBackend(ABC):
 
 class LocalStorageBackend(StorageBackend):
     """Local filesystem storage backend."""
+
+    storage_type = "local"
 
     def __init__(self) -> None:
         self.base_path = Path(settings.LOCAL_STORAGE_PATH)
@@ -94,6 +102,8 @@ class LocalStorageBackend(StorageBackend):
 
 class SpacesStorageBackend(StorageBackend):
     """DigitalOcean Spaces (S3-compatible) storage backend."""
+
+    storage_type = "spaces"
 
     def __init__(self) -> None:
         try:

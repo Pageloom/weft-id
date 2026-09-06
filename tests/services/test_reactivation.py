@@ -382,6 +382,22 @@ def test_approve_request_success(test_tenant, test_admin_user, test_user):
     assert user["is_inactivated"] is False
 
 
+def test_approve_request_invalidates_requests_badge(test_tenant, test_admin_user, test_user):
+    """Approving a request drops the cached Requests nav badge count."""
+    from unittest.mock import patch
+
+    from services import reactivation as reactivation_service
+
+    _inactivate_user(test_tenant["id"], test_user["id"])
+    request = reactivation_service.create_request(test_tenant["id"], str(test_user["id"]))
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    with patch("services.reactivation.requests_badge.invalidate") as mock_invalidate:
+        reactivation_service.approve_request(requesting_user, request.id)
+
+    mock_invalidate.assert_called_once_with(test_tenant["id"])
+
+
 def test_approve_request_super_admin(test_tenant, test_super_admin_user, test_user):
     """Test that super_admin can approve requests."""
     from services import reactivation as reactivation_service
@@ -483,6 +499,22 @@ def test_deny_request_success(test_tenant, test_admin_user, test_user):
     user = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
     assert user["is_inactivated"] is True
     assert user["reactivation_denied_at"] is not None
+
+
+def test_deny_request_invalidates_requests_badge(test_tenant, test_admin_user, test_user):
+    """Denying a request drops the cached Requests nav badge count."""
+    from unittest.mock import patch
+
+    from services import reactivation as reactivation_service
+
+    _inactivate_user(test_tenant["id"], test_user["id"])
+    request = reactivation_service.create_request(test_tenant["id"], str(test_user["id"]))
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    with patch("services.reactivation.requests_badge.invalidate") as mock_invalidate:
+        reactivation_service.deny_request(requesting_user, request.id)
+
+    mock_invalidate.assert_called_once_with(test_tenant["id"])
 
 
 def test_deny_request_super_admin(test_tenant, test_super_admin_user, test_user):

@@ -22,6 +22,7 @@ from services.exceptions import (
     ValidationError,
 )
 from services.types import RequestingUser
+from utils import requests_badge
 
 # =============================================================================
 # Request Creation (by inactivated user)
@@ -324,6 +325,10 @@ def approve_request(
     # Clear any denial flag
     database.users.clear_reactivation_denied(tenant_id, user_id)
 
+    # The pending count changed; drop the cached nav badge so the next render
+    # reflects the decision immediately.
+    requests_badge.invalidate(tenant_id)
+
     # Log the event
     log_event(
         tenant_id=tenant_id,
@@ -404,6 +409,10 @@ def deny_request(
 
     # Mark user as denied
     database.users.set_reactivation_denied(tenant_id, user_id)
+
+    # The pending count changed; drop the cached nav badge so the next render
+    # reflects the decision immediately.
+    requests_badge.invalidate(tenant_id)
 
     # Log the event
     log_event(

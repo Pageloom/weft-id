@@ -21,7 +21,9 @@ Privileged domains let you route users to a specific identity provider and auto-
 
 Each domain can be bound to one identity provider. When a user with a matching email domain signs in, they are automatically directed to that IdP instead of seeing the IdP selection page.
 
-To bind an IdP, select it from the domain's configuration panel.
+To bind an IdP, select it from the domain's configuration panel. Both [SAML](saml-setup.md) and [OIDC](oidc-setup.md) connections appear as options.
+
+The limit of one IdP per domain spans both protocols: a domain already bound to a SAML IdP cannot also be bound to an OIDC connection. Remove the existing binding first.
 
 ## Linking groups
 

@@ -74,11 +74,23 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 **OIDC (OpenID Connect)**
 :   An identity layer on top of [OAuth2](#oauth2). Where OAuth2 authorizes API access, OIDC adds a signed **ID token** and a standard set of identity claims, so an application can verify who the user is. WeftID acts as an OpenID Provider: an OIDC-enabled [App](admin-guide/integrations/apps.md) receives a signed ID token (via the [authorization code flow](#authorization-code-flow), with [PKCE](#pkce-proof-key-for-code-exchange) recommended) plus scope-gated claims from the UserInfo endpoint. See [Sign in with WeftID (OIDC)](admin-guide/integrations/oidc-provider-setup.md).
 
-**ID token**
+**ID token** {#id-token}
 :   A signed JWT issued by an OpenID Provider that asserts a user's identity. Contains a stable subject (`sub`), the issuer, audience, expiry, and, per requested scope, profile/email/group claims. Relying parties verify its RS256 signature against the provider's [JWKS](admin-guide/integrations/oidc-provider-setup.md). Distinct from an [access token](#access-token), which authorizes API calls rather than asserting identity.
 
 **Relying party (RP)**
-:   An application that delegates authentication to an OpenID Provider. In WeftID's OIDC surface, the downstream App is the relying party and WeftID is the provider.
+:   An application that delegates authentication to an OpenID Provider. WeftID is on both sides of this relationship: a downstream App is the relying party when WeftID is the provider, and WeftID is itself the relying party when it consumes an [upstream OIDC identity provider](admin-guide/identity-providers/oidc-setup.md).
+
+**OIDC discovery** {#oidc-discovery}
+:   A document published by an OpenID Provider at `/.well-known/openid-configuration` listing its issuer and endpoints (authorization, token, userinfo, [JWKS](#jwks)). A relying party fetches it instead of having each endpoint configured by hand. WeftID validates that the document's issuer matches the configured issuer and that every endpoint is HTTPS before storing it. Defined in [OpenID Connect Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html).
+
+**JWKS (JSON Web Key Set)** {#jwks}
+:   The set of public keys an OpenID Provider publishes so relying parties can verify the signatures on its [ID tokens](#id-token). Fetched from the provider's `jwks_uri` and cached, then refreshed when a signature fails to verify so that key rotation does not interrupt sign-ins.
+
+**UserInfo endpoint**
+:   An OIDC endpoint returning identity claims for the user an access token was issued for. Supplements the claims carried in the [ID token](#id-token).
+
+**Correlation claim**
+:   The claim WeftID uses to recognise a returning user from an upstream OIDC provider, recorded per connection alongside the provider's value for it. Usually `sub`; the [Entra](admin-guide/identity-providers/oidc-entra.md) preset uses `oid` because Entra's `sub` is unique per application. Correlating on a stable subject rather than on email means a user who changes their email address upstream keeps the same WeftID account.
 
 **Access token** {#access-token}
 :   A short-lived credential (bearer token) that authorizes API requests. Issued by WeftID after a successful OAuth2 flow. Include it in the `Authorization` header as `Bearer <token>`.

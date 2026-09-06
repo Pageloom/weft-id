@@ -10,9 +10,11 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 2 | File Structure (pre-existing); B2B service account deactivate/reactivate missing client_type check (pre-existing) |
-| Low/Medium | 1 | `form-input-length` checker misses `= Form("")` syntax, 33 unbounded params (pre-existing) |
-| Low | 5 | Upload-auth temp-file leak (warning-ignored, tracked); stale "Integrations" template copy; page headings out of step with new nav; Add User vs New Group verb split; Requests badge accessibility/reach |
+| Medium | 6 | File Structure (pre-existing); B2B service account deactivate/reactivate missing client_type check (pre-existing); historical Spaces exports 500 under config drift; Requests badge runs uncached COUNTs on every Directory-section render; Directory router baseline lowered to `require_current_user`; auth-coverage test passes vacuously |
+| Low/Medium | 3 | `form-input-length` checker misses `= Form("")` syntax, 33 unbounded params (pre-existing); legacy 301s drop query strings; per-instance legacy URLs 404 instead of 301 |
+| Low | 9 | Upload-auth temp-file leak (warning-ignored, tracked); stale "Integrations" template copy; page headings out of step with new nav; Add User vs New Group verb split; Requests badge accessibility/reach; section index routes lack bare-path form; degenerate single-tab third-level nav; hardcoded role tuple in `users_list.html`; nav-restructure backlog item not archived |
+
+**Last code review:** 2026-09-06 (nav-restructure branch vs main, `/code-review`; 10 findings logged below under `[REVIEW]`)
 
 Note: the `[DEPS] pygments` entry was resolved in 1.11.0 (2026-07-12) — pymdown-extensions
 11.0.1 unblocked the 2.20.0 bump and the pin is gone; see ISSUES_ARCHIVE.md.
@@ -259,6 +261,236 @@ CLAUDE.md's rule 10).
 
 **Files Affected:** `dev/compliance_check.py` (checker), `app/routers/integrations.py`,
 `app/routers/saml_idp/admin.py`, `app/routers/saml_idp/sso.py`
+
+---
+
+## [REVIEW] Historical Spaces exports 500 when local backend is selected
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Medium
+**Found in:** `app/utils/storage.py:63`, `app/services/exports.py:103-104`,
+`app/routers/account.py:643-647`, `app/routers/api/v1/exports.py:153`
+
+`LocalStorageBackend.get_download_url` now raises `NotImplementedError`. The exports service picks
+the backend from current config (`get_backend()`, `storage.py:166-170`, which silently falls back
+to the local backend when `SPACES_BUCKET` is unset) but branches on the persisted row's
+`storage_type`. An export created while `STORAGE_BACKEND=spaces` has `storage_type='spaces'`;
+if the bucket is later unset or the backend switched, Download on that export takes the `spaces`
+branch and calls `get_download_url()` on the local backend. Both routers catch only
+`ServiceError` and `main.py` has no catch-all handler, so the request is an unhandled 500. On
+`main` the same path returned a redirect to a dead `/admin/exports/file/...` URL (a graceful 404).
+
+**Suggested fix:** Check the backend type in `services/exports.py` before branching, or have the
+local backend return `None` and fall through to streaming.
+
+**Files Affected:** `app/utils/storage.py`, `app/services/exports.py`
+
+---
+
+## [REVIEW] Requests badge runs two uncached COUNTs on every Directory-section render
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Medium
+**Found in:** `app/utils/template_context.py:34`, `app/utils/service_errors.py:79-85`
+
+`find_page_with_ancestors` uses prefix matching, so `/users/{id}/profile`,
+`/groups/{id}/membership`, and every other `/users/*`, `/groups/*`, `/directory/*` page resolves
+`active_top_level` to `/directory` and calls `_get_requests_badge_count`. That runs two COUNT
+queries plus two `track_activity` calls per HTML render. `count_users_with_missing_required` is a
+CROSS JOIN of `tenant_attribute_config` x `users` x `user_attributes` with `count(distinct)`; on a
+50k-user tenant with 8 required attributes that is a 400k-row scan on every user or group page.
+`render_error_page` also calls `get_template_context`, and only `ServiceError` is swallowed, so a
+psycopg `OperationalError` from the count turns the error page itself into a 500.
+
+The 2026-09-06 gating fix (noted under the Requests badge accessibility entry above) narrowed the
+cost from every admin page to every Directory-section page. It did not remove it.
+
+**Suggested fix:** Cache the per-tenant count in memcached with a short TTL, invalidated on
+approve/deny/force-complete. Fold both counts into one query. Catch `Exception` (log and return 0)
+rather than `ServiceError`.
+
+**Files Affected:** `app/utils/template_context.py`, `app/services/user_attributes.py` (or
+wherever the count queries live), `app/database/users/`
+
+---
+
+## [REVIEW] Directory router baseline lowered from `require_admin` to `require_current_user`
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Medium
+**Found in:** `app/routers/directory.py:41`, `dev/compliance_check.py:1020-1024,1113`
+
+On `main`, `admin.py` rejected non-admins at the router boundary. `directory.py` now mounts the
+router with `require_current_user` and re-adds `dependencies=[Depends(require_admin)]` on each of
+11 routes so that the single AUTHENTICATED `directory_index` can live on the same router. The
+compliance checker marks a file as "uses route-level checks" if that string appears anywhere in it
+and then skips the mixed-permission check entirely, so a future handler that forgets the per-route
+dependency ships reachable by `role='user'` and `make check` cannot see it.
+
+**Suggested fix:** Keep the router at `require_admin`. Register `directory_index` on a separate
+two-line `APIRouter(prefix='/directory', dependencies=[Depends(require_current_user)])`, or on the
+users router, the way `identity_providers.py` does for its bind/unbind overrides.
+
+**Files Affected:** `app/routers/directory.py`, `app/main.py` (router registration)
+
+---
+
+## [REVIEW] `test_router_level_dependencies_are_set` passes vacuously after the move
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Medium
+**Found in:** `tests/test_auth_coverage.py:73`
+
+The test still filters on the retired `/admin/settings` prefix. Two problems compound:
+
+1. Under FastAPI 0.138 `app.routes` holds `_IncludedRouter` wrappers without `.path`, so the
+   `hasattr(r, 'path')` filter drops every real route. `account_routes`, `users_routes`, and
+   `settings_routes` are all empty and both tests pass with zero assertions exercised.
+2. If the walk is fixed, the 25 `/admin/settings*` matches are all `routers.legacy_redirects` 301
+   stubs with no auth deps (they would fail the admin-dep assertion), while the 10 `/settings*` and
+   11 `/security*` routes the test was meant to guard are never matched.
+
+**Suggested fix:** Update the prefix to `('/settings', '/security')` and walk `router.routes`
+(recursing into included routers) instead of `app.routes`.
+
+**Files Affected:** `tests/test_auth_coverage.py`
+
+---
+
+## [REVIEW] Legacy 301 handlers drop query strings
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low/Medium
+**Found in:** `app/routers/legacy_redirects.py:30` (all 45 handlers)
+
+Every handler takes no `Request` and redirects to a fixed literal, so parameters the old routes
+honored are silently dropped. `GET /admin/audit/events?tiers=security&page=3&size=100` lands on
+`/audit/events` with default filters. `/admin/groups/list?view=graph&search=Eng` lands on the plain
+list. `/admin/todo/user-attributes?filter_key=phone` loses its filter.
+`/admin/audit/user-export?success=export_started` loses its flash.
+
+The module docstring claims the compliance check forces literal `RedirectResponse` targets. That is
+a misreading: `check_redirect_validation_violations` only inspects `RedirectResponse` calls, so
+`safe_redirect(location, status_code=301)` is permitted, and `routers/groups/members.py:94-98`
+already uses exactly that pattern with `request.url.query` appended.
+
+**Suggested fix:** Replace the 45 handlers with a single table-driven handler that appends
+`request.url.query` and returns `safe_redirect(new_path, status_code=301)`. See the next entry for
+folding per-instance URLs into the same handler.
+
+**Files Affected:** `app/routers/legacy_redirects.py`, `tests/routers/test_legacy_redirects.py`
+
+---
+
+## [REVIEW] Per-instance legacy URLs 404 instead of 301
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low/Medium
+**Found in:** `app/routers/legacy_redirects.py:92`, `.claude/BACKLOG.md:1117`
+
+`legacy_redirects.py` contains no `{` path parameter anywhere, so every old per-instance URL that
+rendered on `main` now 404s: `/admin/audit/events/<uuid>`, `/admin/groups/<gid>/membership`,
+`/admin/settings/identity-providers/<idp>/certificates`,
+`/admin/settings/service-providers/<sp>/groups`, `/admin/integrations/apps/<client_id>`, and the
+OIDC, proxy-app, and SAML-debug detail pages. Comments and CHANGELOG describe the omission as
+deliberate, but the backlog acceptance criterion reads "Every old URL under `/admin/settings/*`,
+`/admin/integrations/*`, `/admin/todo/*` ... returns a 301".
+
+**Suggested fix:** A catch-all `@router.get('/admin/{rest:path}')` that rewrites against a
+~15-entry longest-prefix-first table, re-appends `request.url.query`, and returns
+`safe_redirect(new_path, default='/dashboard', status_code=301)` covers static, dynamic, and
+query-string cases in roughly 40 lines and replaces the 45 stubs. If the 404 behaviour is kept
+instead, amend the acceptance criterion when archiving the backlog item.
+
+**Files Affected:** `app/routers/legacy_redirects.py`, `tests/routers/test_legacy_redirects.py`,
+`.claude/BACKLOG.md` (or its archive entry)
+
+---
+
+## [REVIEW] Section index routes register only the trailing-slash form
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low
+**Found in:** `app/routers/audit.py:42` and the sibling index routes for `/security`,
+`/identity-providers`, `/settings`, `/applications`; `app/templates/base.html:95,144`
+
+Enumerating app routes yields only `/audit/`, `/security/`, `/identity-providers/`, `/settings/`
+(no bare form), where `main`'s `admin.py` registered both `/audit/` and `/audit`. `base.html` emits
+`href="{{ page.path }}"` (bare) and `legacy_redirects.py` 301s to bare paths, so
+`GET /admin/audit` is now three hops: 301 to `/audit`, implicit 307 to `/audit/`, 303 to
+`/audit/events`. `tests/routers/test_admin.py::test_section_index_works_without_trailing_slash`
+was deleted; only `/directory/requests` kept an equivalent (`test_directory.py:57`).
+
+**Suggested fix:** Register both forms as `directory.py:62-70` and `integrations.py:73` already
+do, and restore the bare-path test for each section.
+
+**Files Affected:** `app/routers/audit.py`, `app/routers/security.py`,
+`app/routers/identity_providers.py`, `app/routers/settings.py`, `app/routers/integrations.py`,
+their tests
+
+---
+
+## [REVIEW] Degenerate single-tab third-level nav on user and group pages
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low
+**Found in:** `app/pages.py:133`, `app/templates/base.html:158`, `tests/test_pages.py:286-287`
+
+Hiding `/users/new` and `/groups/new` from nav leaves `/users` and `/groups` with exactly one
+visible child. `get_navigation_context('/users/list', 'admin')` and
+`('/users/<id>/profile', 'admin')` both return `sub_sub_nav_items == ['/users/list']`;
+`/groups/list` returns `['/groups/list']`. `base.html` has no single-item suppression, so a
+full-width strip containing only "User List" (or "Group List") renders under the Directory sub-nav
+on every user and group page. On `main` the list was empty for these paths. The existing test only
+asserts membership, not that the strip is intentional.
+
+**Suggested fix:** Either set `show_in_nav=False` on the lone list child (collapsing the level), or
+have `get_navigation_context` / `base.html` suppress any level with fewer than two entries.
+
+**Files Affected:** `app/pages.py` or `app/templates/base.html`, `tests/test_pages.py`
+
+---
+
+## [REVIEW] Hardcoded role tuple in `users_list.html` duplicates `pages.py`
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low
+**Found in:** `app/templates/users_list.html:96`, `app/pages.py:132,1024`,
+`app/utils/templates.py`
+
+The new Add User button is gated by `user.role in ('admin', 'super_admin')` inline in the template.
+It is the only role-tuple gate in any template (`grep 'role in' app/templates`). `pages.py`, the
+declared single source of truth for page access, already assigns `PagePermission.ADMIN` to
+`/users/new`; if that changes or a role is added, the button and the route diverge silently.
+`has_page_access(path, role)` exists in `pages.py` but is not a Jinja global (`templates.py`
+registers only `static_url`, `icon`, `display_role`, `display_status`).
+
+**Suggested fix:** Register `has_page_access` as a Jinja global and write
+`{% if has_page_access('/users/new', user.role) %}`. Apply the same to Add Group and any other
+action demoted from nav to a list-page button.
+
+**Files Affected:** `app/utils/templates.py`, `app/templates/users_list.html`,
+`app/templates/groups_list.html`
+
+---
+
+## [HOUSEKEEPING] Nav-restructure backlog item not archived
+
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Low
+**Found in:** `.claude/BACKLOG.md:1042`
+
+`.claude/ITERATION_nav_restructure.md:7` says "All 5 iterations complete. make quality-all green."
+and the CHANGELOG entry exists, but `git diff main...HEAD -- .claude/BACKLOG.md
+.claude/BACKLOG_ARCHIVE.md` is empty. The "Restructure Admin Navigation Around Concepts, Not
+Permissions" item still sits in `BACKLOG.md` with every acceptance criterion unchecked. CLAUDE.md
+rule 9 requires moving completed items to `BACKLOG_ARCHIVE.md` marked Complete.
+
+**Suggested fix:** Archive the item. Note the deliberate deviation from the criterion at line 1117
+(per-instance URLs 404 by design) so the archive entry is accurate, or resolve that deviation via
+the catch-all redirect entry above first.
+
+**Files Affected:** `.claude/BACKLOG.md`, `.claude/BACKLOG_ARCHIVE.md`
 
 ---
 

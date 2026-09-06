@@ -1129,3 +1129,111 @@ Seven top-level items, maximum depth three, and every level-2 bar has at most fi
 **Version impact:** Minor. Admin UI paths change but old paths redirect; no API, SAML, schema, or env var changes.
 
 ---
+
+## Localization Readiness: Make the Whole Codebase Translatable With No User-Facing Change
+
+**User Story:**
+As a maintainer
+I want every user-visible string in the product to flow through a message catalog, and every layout to be direction-neutral, while the product keeps rendering exactly as it does today in English
+So that adding a language later is a translation task, not an engineering project, and so that new code cannot quietly regress that readiness
+
+**Where the frontend is today (survey, 2026-09-06):**
+- Server-rendered Jinja2 (108 templates, roughly 1,070 visible text nodes), Tailwind 3.4, vanilla ES2020 JS. No gettext, no `{% trans %}`, no message catalogs. `base.html` hardcodes `<html lang="en">` and has no `dir` attribute.
+- `babel` is already a dependency and already drives locale-aware date formatting (`app/utils/datetime_format.py`), so the extraction toolchain (`pybabel extract`/`update`/`compile`) and the Jinja2 i18n extension are zero new dependencies.
+- `users.locale` already exists, auto-captured from the browser at login and MFA (`WeftUtils.detectLocale()`), and drives formatting only. Leave it alone in this item.
+- Roughly 440 `ServiceError` messages in `app/services/`, about 80 JS-built strings (confirm modals, status text), and 23 email functions are user-visible English.
+- Tailwind physical-direction utilities are everywhere (`text-left` x115, `ml-*` x90, `pr-*`, `mr-*`, `space-x-*`); logical-direction utilities (`ms-`, `me-`, `ps-`, `pe-`, `text-start`, `text-end`, in Tailwind since 3.3) are unused. Chevron and arrow icons have no mirrored variants.
+
+**Scope: across the board, English only.** Every surface is made translatable in this item: login and MFA flows, account pages, error pages, consent screens, the entire admin console, all emails, every `ServiceError` message, and all JS-built strings. Nothing is translated. The `en` catalog is the source language, so the rendered output is byte-for-byte what it is today. The only things a user could notice are that `<html lang>` and `dir` are now emitted from a resolver instead of hardcoded, and they resolve to `en` / `ltr` for everyone.
+
+**What "ready" means (the deliverables):**
+
+1. **String extraction.** Jinja2 i18n extension enabled; templates use `{% trans %}` / `_()`; Python uses `_()` backed by a request-scoped locale `contextvar` set by middleware, so services can raise `ServiceError` with translatable messages without knowing about requests, and background jobs get an explicit locale; emails build subject and body through the same `_()`; JS uses `WeftUtils.t()` reading a per-language JSON catalog compiled from the `.po` at build time and served as a static file (no `{{ }}` inside `<script>` bodies). Plurals go through `ngettext`, never string concatenation. Strings with variables use named placeholders, never positional, so translators can reorder.
+2. **Catalog layout and build.** `app/locale/messages.pot` is committed and kept in sync. `app/locale/en/LC_MESSAGES/messages.po` exists as the identity catalog. Compiled `.mo` and JSON catalogs are build artifacts produced in both Dockerfiles and gitignored. `make i18n-extract` regenerates the POT; `make check` fails if the committed POT is stale.
+3. **Locale resolver.** One function resolves the request's language and direction. In this item it always returns `en` / `ltr` (the fallback), but the resolution chain is in place so the next item only has to add inputs to it. `<html lang>` and `dir` come from it in `base.html` and the two SAML POST templates.
+4. **Direction-neutral layout.** Mechanical migration of every physical-direction Tailwind utility to its logical equivalent (`ml-` to `ms-`, `pr-` to `pe-`, `text-left` to `text-start`, `rounded-l-` to `rounded-s-`, `border-l-` to `border-s-`, `space-x-*` to `gap` or `space-x-reverse`-safe forms, `left-`/`right-` to `start-`/`end-`). Zero visual change in LTR. Icons that encode direction (`chevron-right`, `chevron-left`, `arrow-right`, `arrows-pointing-*`) get an `rtl:` mirroring class applied by the `icon()` helper when the resolved direction is `rtl`; inert today.
+5. **Pseudo-locales, dev only.** `en-XA` (every string accented, lengthened ~40%, bracketed) is generated from the POT at build time and selectable by `?lang=en-XA` when `IS_DEV`. It is how readiness is verified: any unaccented text on any page is a missed string. `ar-XB` (strings reversed, `dir=rtl`) validates item 4. Neither exists in production builds.
+6. **Compliance checks so readiness cannot decay.** `dev/compliance_check.py` gains: (a) `i18n-extraction` fails if the POT is stale; (b) `i18n-hardcoded-strings` fails on any bare text node or `placeholder`/`title`/`aria-label`/`value`/`alt` attribute in a template outside `{% trans %}`/`_()`, on any string literal passed to `ServiceError` subclasses without `_()`, and on JS string literals assigned to `textContent`/`innerText` or passed to `WeftUtils.showConfirm` without `t()` (same shape as the existing `template-xss` check); (c) `i18n-physical-direction` fails on any physical-direction Tailwind utility in `app/templates/`. All three run in `make check` and in `code-quality.yml`.
+7. **Two Playwright screenshot tests** (login and MFA verify) rendered in `en-XA` and `ar-XB`, so a future template change that breaks either shows up in `make e2e`.
+
+**Explicitly not in this item:** no translations, no language picker, no `users.language` or tenant default, no cookie or `Accept-Language` negotiation, no release-tag gate on translation completeness. Those are the next item. Vertical (top-to-bottom) writing mode is permanently out of scope for the product: Japanese and Chinese UIs are horizontal on the web, and no identity product supports vertical mode. `writing-mode: vertical-*` is never set. Recorded here so it is not re-litigated.
+
+**Suggested iteration split (for `/lead`):**
+1. *Toolchain and resolver.* Babel config, Jinja2 extension, `contextvar` middleware, `_()`/`WeftUtils.t()`, catalog build in both Dockerfiles, `en-XA` generator, the extraction and hardcoded-string compliance checks (initially scoped to an allowlist that grows per iteration), `<html lang>`/`dir` from the resolver.
+2. *Extract end-user surfaces and emails.* Login, MFA, password, consent, error, account pages, all 23 emails, the `ServiceError` messages they can surface. Screenshot tests in `en-XA`.
+3. *Extract the admin console.* The remaining ~85 templates and ~400 service messages, in page-group batches. Remove the compliance allowlist when done.
+4. *Direction-neutral layout.* Logical utilities migration, icon mirroring, `ar-XB` generator, physical-direction compliance check, RTL screenshot tests.
+
+**Acceptance Criteria:**
+- [ ] Rendering any page or email in `en` produces the same HTML as before this work (snapshot comparison of the E2E page set and the 23-email preview run)
+- [ ] `?lang=en-XA` in dev shows zero unaccented strings on every page and in every email preview; the hardcoded-string check has an empty allowlist
+- [ ] `?lang=ar-XB` in dev renders every page mirrored with mirrored chevrons and arrows; no physical-direction utility remains in `app/templates/`
+- [ ] `<html lang>` and `dir` are emitted from the resolver on every HTML response, including the SAML POST and SLO templates and error pages
+- [ ] `messages.pot` is committed and `make check` fails when it is stale; compiled catalogs are gitignored and produced by both Dockerfiles
+- [ ] `_()` works in services (via `contextvar`), in background jobs (explicit locale), and in emails; plurals use `ngettext`; all interpolations are named placeholders
+- [ ] `WeftUtils.t()` and the JSON catalog are loaded on every page that has JS-built strings; no `{{ }}` inside `<script>` bodies
+- [ ] The three compliance checks run in `make check` and `code-quality.yml`; `en-XA` and `ar-XB` are absent from production builds
+- [ ] Contributor documentation in `docs/` and `CLAUDE.md` describes how to write a translatable string in templates, Python, JS, and emails
+- [ ] Unit tests for the resolver, the catalog loader, the pseudo-locale generators, and each compliance check; `make quality-all` passes
+
+**Effort:** XL (iteration 1 is M; iterations 2 and 3 are the bulk and are mechanical but wide: roughly 1,500 strings; iteration 4 is M and mechanical)
+**Value:** High (turns every future language into a translation task; without it the product is English-only by architecture, which caps the embedder and EU enterprise positioning)
+**Version impact:** Patch. No user-facing behavior, API, schema, SAML, or env var change. Both Dockerfiles gain a catalog compile step.
+
+---
+
+## Localization Process: Language Tiers, Select Locales, and a Translation Release Gate
+
+**Depends on:** *Localization Readiness* (above) being complete, or at least its iterations 1 and 2.
+
+**User Story:**
+As an end user signing in through WeftID (an employee of a tenant, or a customer of an embedder's SaaS)
+I want the screens and emails I see in my own language
+So that an identity step that is supposed to build trust does not read like a foreign system
+
+As a maintainer
+I want translation completeness enforced on every PR and on every release tag
+So that "add a string, forget the translations" is impossible and localization stays current instead of decaying
+
+**Decisions (recommended; confirm during grooming):**
+
+1. **Surfaces are tiered, and only the end-user surface is gated.**
+   - *Surface A (translated, release-gated):* login (password, OTP, passkey, IdP picker), MFA enroll/verify/backup codes/downgrade, forgot/reset/set/forced-password, onboarding, OAuth2 and SAML consent, `error.html`/`saml_error.html`/`oauth2_error.html`, account inactivated/recovery pages, account settings (profile, password, MFA, background jobs), the shared layout chrome, all 23 emails, and every `ServiceError` message that can surface on those pages. This is what an embedder's customers' employees see.
+   - *Surface B (translated best-effort, never gated):* the admin console. Admins of identity products tolerate English, the string volume is 5x Surface A, and its vocabulary is protocol jargon that translates badly. A language's admin console is shown in that language only when its Surface B catalog is 100%; otherwise the admin console falls back to English per string.
+   - *Out of scope:* the docs site (English only), API error bodies (English, machine-consumed), audit log event metadata (stored English, formatted at display time), SCIM/SAML/OIDC protocol error strings.
+
+2. **Language tiers.**
+   - *Tier 1 (required; a release fails if any Surface A string is untranslated):* `en` (source), `sv`, `de`, `fr`, `es`. Five languages covers the home market plus the three largest EU markets, and is small enough that a PR adding one string carries four translations without ceremony.
+   - *Tier 2 (best effort; listed in the picker only when the Surface A catalog is 100%, never gated):* `nl`, `pt-BR`, `it`, `pl`, `ja`, `zh-Hans`, `ar`, `he`. Promotion to Tier 1 is a one-line config change once someone commits to maintaining it.
+   - *Left by the wayside:* everything else until a customer asks. The picker never shows a partially translated language.
+   - *Right-to-left:* the readiness item makes the layout RTL-capable; `ar` and `he` ship as Tier 2 translations whenever complete. No extra engineering.
+
+3. **Locale resolution order** (first match wins, added to the resolver from the readiness item): explicit `?lang=` on the request (sets a `lang` cookie, used for pre-login pages and links in emails) → `lang` cookie → authenticated user's language preference → `Accept-Language` negotiation against the enabled set → tenant default language → `en`. Emails use the recipient user's language; invitation and onboarding emails (no user yet) use the tenant default.
+
+4. **Language preference is its own field, not derived from `users.locale`.** `locale` keeps driving date, number, and collation formatting (a Swede may want `sv_SE` dates with an English UI). Add `users.language` (nullable, BCP 47, `max_length=10`) and `tenants.default_language`. Expose both on the profile page as an explicit dropdown (today `locale` is auto-detected and read-only) and on the tenant Settings page, and on `/api/v1/`.
+
+5. **Translation process.** No external translation platform. `.po` files are the only committed source. Translations are authored in the PR that adds the string: `make i18n-update` extracts, merges, and drafts missing Tier 1 entries with an LLM for review; a `TRANSLATORS.md` names who reviews each Tier 1 language and how to reach them. Drafted entries are committed as `fuzzy` and the gate rejects `fuzzy`, so an unreviewed draft cannot ship. A `/translate` skill (or extension of `/dev`) does the drafting step so subagent-driven work carries its translations.
+
+6. **The release gate.** The `i18n` compliance check from the readiness item grows a completeness mode: for every Tier 1 language, fail on any Surface A msgid that is missing, empty, or `fuzzy`. It runs in `make check`, in `code-quality.yml` on every PR (so `main` is always fully translated), and in the `validate` job of `publish.yml` on every `v*.*.*` tag next to the existing version and changelog checks, so a tag physically cannot publish with an untranslated Tier 1 string. Tier 2 completeness is printed as a percentage per language and never fails the check. The Tier 1 set and the Surface A template list live in one config file so promoting a language or a page is a one-line change.
+
+**Suggested iteration split (for `/lead`):**
+1. *Preference and resolution.* `users.language`, `tenants.default_language` (migration, service, API, profile and Settings UI), cookie and `Accept-Language` inputs to the resolver, email language selection, language picker on the login page (tenant-brandable placement).
+2. *Tier 1 translations for Surface A* plus `make i18n-update`, `TRANSLATORS.md`, and the drafting skill. Native-speaker review of `sv` at minimum before this iteration closes.
+3. *The gate.* Completeness mode of the compliance check wired into `make check`, `code-quality.yml`, and `publish.yml`. Contributor docs updated.
+4. *Tier 2 and Surface B, ongoing.* Add catalogs as they reach 100%; no release dependency.
+
+**Acceptance Criteria:**
+- [ ] Every Surface A page, JS string, reachable `ServiceError` message, and all 23 emails render in `en`, `sv`, `de`, `fr`, `es` with no English leakage
+- [ ] Users can pick a language on the profile page; super admins can set a tenant default; both exposed on `/api/v1/` with documented fields
+- [ ] Pre-login pages honor `?lang=`, the `lang` cookie, `Accept-Language`, then the tenant default, in that order; emails use the recipient's language, invitation emails the tenant default
+- [ ] Date, number, and relative-time formatting continue to follow `users.locale`, independent of UI language
+- [ ] The language picker never lists a language whose Surface A catalog is below 100%; Tier 2 languages appear automatically when complete; the admin console switches language only at 100% Surface B
+- [ ] `make check` fails on any missing, empty, or `fuzzy` Tier 1 Surface A entry; the same check runs in `code-quality.yml` and in `publish.yml`'s `validate` job so a tag cannot publish with an incomplete Tier 1 catalog
+- [ ] `make i18n-update` drafts missing Tier 1 entries as `fuzzy`; `TRANSLATORS.md` names a reviewer per Tier 1 language; the workflow is documented in `docs/` and `CLAUDE.md`
+- [ ] Unit tests for resolution order, email language selection, and the completeness check; E2E login and MFA flows run once in `sv`; `make quality-all` passes
+
+**Effort:** L (iteration 1 is M; iteration 2 is M and mostly translation volume, roughly 350 strings and 23 emails in four languages; iteration 3 is S)
+**Value:** High (end-user trust on the auth screens, table stakes for the embedder positioning and for EU enterprise procurement; the gate is what keeps the value from decaying)
+**Version impact:** Minor. New columns (`users.language`, `tenants.default_language`), new API fields, new `lang` cookie. No SAML assertion, attribute mapping, or env var changes. Removing a Tier 1 language later would be a major.
+
+---

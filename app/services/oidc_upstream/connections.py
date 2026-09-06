@@ -9,8 +9,10 @@ responses expose a ``client_secret_set`` boolean instead.
 
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 import database
+import settings
 from cryptography.fernet import Fernet
 from schemas.oidc_upstream import (
     OIDCConnectionConfig,
@@ -100,6 +102,37 @@ def _row_to_list_item(row: dict) -> OIDCConnectionListItem:
         discovery_error=row.get("discovery_error"),
         created_at=row["created_at"],
     )
+
+
+# The four endpoint fields an admin may set by hand when the IdP publishes no
+# discovery document. Discovery validates the same fields on the way in; this
+# check is the manual-entry counterpart so the form and the API PATCH cannot
+# persist a plaintext (or malformed) endpoint that discovery would reject.
+_MANUAL_ENDPOINT_FIELDS = (
+    "authorization_endpoint",
+    "token_endpoint",
+    "userinfo_endpoint",
+    "jwks_uri",
+)
+
+
+def _validate_manual_endpoints(data: OIDCConnectionCreate | OIDCConnectionUpdate) -> None:
+    """Reject a manually supplied endpoint that is not https.
+
+    ``http`` is permitted in ``IS_DEV`` for local testbeds, mirroring the
+    discovery validator. A value that is None (not supplied) is skipped.
+    """
+    for field in _MANUAL_ENDPOINT_FIELDS:
+        value = getattr(data, field, None)
+        if value is None:
+            continue
+        scheme = urlparse(value).scheme.lower()
+        if scheme == "https" or (scheme == "http" and settings.IS_DEV):
+            continue
+        raise ValidationError(
+            message=f"{field} must be an https URL",
+            code="oidc_endpoint_not_https",
+        )
 
 
 def list_connections(
@@ -227,6 +260,7 @@ def create_connection(
     tenant_id = requesting_user["tenant_id"]
 
     data = _apply_preset_defaults(data)
+    _validate_manual_endpoints(data)
 
     # _apply_preset_defaults guarantees a non-None issuer (composed from the
     # preset or tenant id, or rejected for generic) and a non-None
@@ -313,6 +347,8 @@ def update_connection(
             message="OIDC connection not found",
             code="oidc_connection_not_found",
         )
+
+    _validate_manual_endpoints(data)
 
     update_kwargs: dict[str, Any] = {}
     for field in [

@@ -413,3 +413,191 @@ def test_test_connection_failure(
     )
     assert response.status_code == 303
     assert "test=error" in response.headers["location"]
+
+
+# =============================================================================
+# Manual endpoints (providers without discovery)
+# =============================================================================
+
+
+def test_new_connection_form_renders_manual_endpoint_fields(super_admin_session, test_tenant_host):
+    response = super_admin_session.get(
+        "/admin/settings/oidc-identity-providers/new",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    assert "Advanced: manual endpoints" in response.text
+    for field in ("authorization_endpoint", "token_endpoint", "userinfo_endpoint", "jwks_uri"):
+        assert f'name="{field}"' in response.text
+
+
+def test_create_connection_with_manual_endpoints(
+    super_admin_session, test_tenant_host, test_tenant
+):
+    import database
+
+    response = super_admin_session.post(
+        "/admin/settings/oidc-identity-providers/new",
+        data={
+            "name": "No Discovery IdP",
+            "provider_type": "generic",
+            "issuer": "https://idp.example.com",
+            "client_id": "client-123",
+            "authorization_endpoint": "https://idp.example.com/authorize",
+            "token_endpoint": "https://idp.example.com/token",
+            "userinfo_endpoint": "https://idp.example.com/userinfo",
+            "jwks_uri": "https://idp.example.com/keys",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert "success=created" in location
+
+    connection_id = location.split("/oidc-identity-providers/")[1].split("/")[0]
+    row = database.oidc_upstream.get_connection(test_tenant["id"], connection_id)
+    assert row["authorization_endpoint"] == "https://idp.example.com/authorize"
+    assert row["token_endpoint"] == "https://idp.example.com/token"
+    assert row["userinfo_endpoint"] == "https://idp.example.com/userinfo"
+    assert row["jwks_uri"] == "https://idp.example.com/keys"
+
+
+def test_create_connection_rejects_insecure_manual_endpoint(super_admin_session, test_tenant_host):
+    with patch("services.oidc_upstream.connections.settings.IS_DEV", False):
+        response = super_admin_session.post(
+            "/admin/settings/oidc-identity-providers/new",
+            data={
+                "name": "Plaintext IdP",
+                "provider_type": "generic",
+                "issuer": "https://idp.example.com",
+                "token_endpoint": "http://idp.example.com/token",
+            },
+            headers={"Host": test_tenant_host},
+            follow_redirects=False,
+        )
+    assert response.status_code == 303
+    assert "/new?error=" in response.headers["location"]
+    assert "https" in response.headers["location"]
+
+
+def test_details_tab_shows_endpoint_editor_for_generic(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        authorization_endpoint="https://idp.example.com/authorize",
+    )
+    response = super_admin_session.get(
+        f"/admin/settings/oidc-identity-providers/{conn['id']}/details",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    assert 'id="edit-endpoints-btn"' in response.text
+    assert 'id="edit-endpoints-modal"' in response.text
+    # The modal is prefilled with the stored value.
+    assert 'value="https://idp.example.com/authorize"' in response.text
+
+
+def test_details_tab_hides_endpoint_editor_for_google(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = database.oidc_upstream.create_connection(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Google OIDC",
+        provider_type="google",
+        created_by=str(test_super_admin_user["id"]),
+        issuer="https://accounts.google.com",
+        client_id="client-123",
+        is_enabled=False,
+    )
+    response = super_admin_session.get(
+        f"/admin/settings/oidc-identity-providers/{conn['id']}/details",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    assert 'id="edit-endpoints-btn"' not in response.text
+    assert 'id="edit-endpoints-modal"' not in response.text
+
+
+def test_edit_endpoints(super_admin_session, test_tenant_host, test_tenant, test_super_admin_user):
+    import database
+
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        userinfo_endpoint="https://idp.example.com/userinfo",
+    )
+    response = super_admin_session.post(
+        f"/admin/settings/oidc-identity-providers/{conn['id']}/edit-endpoints",
+        data={
+            "authorization_endpoint": "https://idp.example.com/authorize",
+            "token_endpoint": "https://idp.example.com/token",
+            "jwks_uri": "https://idp.example.com/keys",
+            # Blank keeps the stored value.
+            "userinfo_endpoint": "",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=endpoints_updated" in response.headers["location"]
+
+    row = database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])
+    assert row["authorization_endpoint"] == "https://idp.example.com/authorize"
+    assert row["token_endpoint"] == "https://idp.example.com/token"
+    assert row["jwks_uri"] == "https://idp.example.com/keys"
+    assert row["userinfo_endpoint"] == "https://idp.example.com/userinfo"
+
+
+def test_edit_endpoints_rejects_insecure_url(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    with patch("services.oidc_upstream.connections.settings.IS_DEV", False):
+        response = super_admin_session.post(
+            f"/admin/settings/oidc-identity-providers/{conn['id']}/edit-endpoints",
+            data={"jwks_uri": "http://idp.example.com/keys"},
+            headers={"Host": test_tenant_host},
+            follow_redirects=False,
+        )
+    assert response.status_code == 303
+    assert f"/{conn['id']}/details?error=" in response.headers["location"]
+
+    row = database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])
+    assert row["jwks_uri"] is None
+
+
+def test_edit_endpoints_not_found(super_admin_session, test_tenant_host):
+    from uuid import uuid4
+
+    response = super_admin_session.post(
+        f"/admin/settings/oidc-identity-providers/{uuid4()}/edit-endpoints",
+        data={"jwks_uri": "https://idp.example.com/keys"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
+
+
+def test_edit_endpoints_as_admin_forbidden(
+    admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    response = admin_session.post(
+        f"/admin/settings/oidc-identity-providers/{conn['id']}/edit-endpoints",
+        data={"jwks_uri": "https://idp.example.com/keys"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code in (303, 403)

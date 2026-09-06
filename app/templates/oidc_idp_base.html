@@ -9,11 +9,13 @@
            class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to OIDC Identity Providers</a>
     </div>
 
-    {% if success in ('updated', 'settings_updated', 'enabled', 'disabled', 'set_default', 'claim_mapping_updated') %}
+    {% if success in ('updated', 'endpoints_updated', 'settings_updated', 'enabled', 'disabled', 'set_default', 'claim_mapping_updated') %}
     <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
         <p class="text-sm text-green-800 dark:text-green-300">
             {% if success == 'updated' %}
             OIDC provider updated.
+            {% elif success == 'endpoints_updated' %}
+            Endpoints updated.
             {% elif success == 'settings_updated' %}
             Settings updated.
             {% elif success == 'enabled' %}

@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 3 | File Structure (pre-existing), Test infrastructure (rate limiting untestable from host), Admin/API parity (manual OIDC endpoints) |
+| Medium | 2 | File Structure (pre-existing), Test infrastructure (rate limiting untestable from host) |
 | Low | 3 | Upload-auth temp-file leak (warning-ignored, tracked), Missing OIDC rate-limit tests, Dead code (`list_user_oidc_links`) |
 
 Note: the `[DEPS] pygments` entry was resolved in 1.11.0 (2026-07-12) — pymdown-extensions
@@ -94,32 +94,6 @@ Blocked in practice by the [TEST-INFRA] issue above: a meaningful test needs a
 counting backend. Fix together.
 
 **Files affected:** `tests/routers/test_oidc_upstream_authentication.py`
-
----
-
-## [PARITY] Manual OIDC endpoint configuration is API-only
-
-**Discovered:** 2026-09-06 (oidc-upstream final review)
-**Severity:** Medium
-**Category:** Admin/API parity
-
-`authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, and `jwks_uri`
-exist on `oidc_idp_connections`, in the Pydantic schemas, and in the
-`PATCH /api/v1/oidc-upstream/connections/{id}` endpoint, but the admin
-create/edit form has no fields for them. An IdP that does not publish
-`/.well-known/openid-configuration` can only be configured through the API.
-
-This is the inverse of the usual API-first gap (rule 8 guards web-first
-features lacking API endpoints; here the API leads the web UI). Documented
-honestly in `docs/admin-guide/identity-providers/oidc-setup.md` ("Providers
-without discovery"), so fixing the form should also update that section.
-
-**Suggested fix:** An "Advanced: manual endpoints" collapsible section on the
-connection form, shown for the Generic provider type.
-
-**Files affected:** `app/routers/oidc_upstream/admin.py`,
-`app/templates/oidc_idp_form.html`,
-`docs/admin-guide/identity-providers/oidc-setup.md`
 
 ---
 

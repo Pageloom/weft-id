@@ -59,13 +59,22 @@ Once the test passes, enable the connection.
 
 ## Providers without discovery
 
-A provider that does not publish `/.well-known/openid-configuration` can still be used. The four endpoints (authorization, token, userinfo, JWKS) can be set individually through the API:
+A provider that does not publish `/.well-known/openid-configuration` can still be used by entering its endpoints by hand. This applies to the Generic provider type only. Google and Entra always publish discovery, so the manual fields are not shown for them.
+
+* **When creating a connection**, expand **Advanced: manual endpoints** on the form and fill in the authorization endpoint, token endpoint, userinfo endpoint, and JWKS URI.
+* **On an existing connection**, open the **Details** tab and click the pencil next to **Endpoints**. A blank field keeps its current value.
+
+Every endpoint must be an `https` URL. The same rule discovery applies to a fetched document applies here.
+
+The endpoints can also be set through the API:
 
 ```
 PATCH /api/v1/oidc-upstream/connections/{connection_id}
 ```
 
-Send `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, and `jwks_uri`. These fields are not currently exposed in the admin form, so manual configuration is API-only.
+Send any of `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, and `jwks_uri`.
+
+Manual values are not protected from discovery. If you later click **Test connection** and the fetch succeeds, all four endpoints are replaced with the discovered values. For a provider with no discovery document the test fails and your manual values are left as they are.
 
 ## Connection settings
 

@@ -4,6 +4,7 @@ Covers CRUD, encryption-at-rest (secret never stored or returned in
 plaintext), delete-guard, and event logging.
 """
 
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -251,6 +252,114 @@ class TestUpdate:
         ]
         assert after != before
         assert "new-secret" not in after
+
+
+class TestManualEndpoints:
+    """Manually supplied endpoints must be https (http only in IS_DEV)."""
+
+    ENDPOINTS = {
+        "authorization_endpoint": "https://idp.example.com/authorize",
+        "token_endpoint": "https://idp.example.com/token",
+        "userinfo_endpoint": "https://idp.example.com/userinfo",
+        "jwks_uri": "https://idp.example.com/keys",
+    }
+
+    def test_create_persists_manual_endpoints(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+
+        for field, value in self.ENDPOINTS.items():
+            assert getattr(conn, field) == value
+
+    @pytest.mark.parametrize("field", sorted(ENDPOINTS))
+    def test_create_rejects_non_https_endpoint(self, test_tenant, test_super_admin_user, field):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        data = _create_data(**{field: "http://idp.example.com/insecure"})
+
+        with (
+            patch("services.oidc_upstream.connections.settings.IS_DEV", False),
+            pytest.raises(ValidationError) as exc_info,
+        ):
+            svc.create_connection(ru, data, BASE_URL)
+        assert exc_info.value.code == "oidc_endpoint_not_https"
+        assert field in exc_info.value.message
+
+    def test_create_rejects_schemeless_endpoint(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        data = _create_data(jwks_uri="idp.example.com/keys")
+
+        # Rejected even in IS_DEV: only http/https are ever acceptable.
+        with pytest.raises(ValidationError) as exc_info:
+            svc.create_connection(ru, data, BASE_URL)
+        assert exc_info.value.code == "oidc_endpoint_not_https"
+
+    def test_create_allows_http_in_dev(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(
+            ru, _create_data(token_endpoint="http://localhost:9000/token"), BASE_URL
+        )
+        assert conn.token_endpoint == "http://localhost:9000/token"
+
+    def test_update_sets_manual_endpoints(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+        assert created.authorization_endpoint is None
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(**self.ENDPOINTS), BASE_URL
+        )
+        for field, value in self.ENDPOINTS.items():
+            assert getattr(updated, field) == value
+
+    def test_update_rejects_non_https_endpoint(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+
+        with (
+            patch("services.oidc_upstream.connections.settings.IS_DEV", False),
+            pytest.raises(ValidationError) as exc_info,
+        ):
+            svc.update_connection(
+                ru,
+                created.id,
+                OIDCConnectionUpdate(token_endpoint="http://idp.example.com/token"),
+                BASE_URL,
+            )
+        assert exc_info.value.code == "oidc_endpoint_not_https"
+
+        # Nothing was written.
+        current = svc.get_connection(ru, created.id, BASE_URL)
+        assert current.token_endpoint == self.ENDPOINTS["token_endpoint"]
+
+    def test_update_unset_endpoint_leaves_value(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+
+        updated = svc.update_connection(
+            ru,
+            created.id,
+            OIDCConnectionUpdate(jwks_uri="https://idp.example.com/keys-v2"),
+            BASE_URL,
+        )
+        assert updated.jwks_uri == "https://idp.example.com/keys-v2"
+        assert updated.token_endpoint == self.ENDPOINTS["token_endpoint"]
 
 
 class TestDelete:

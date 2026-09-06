@@ -125,6 +125,54 @@
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Restrict sign-in to a Google Workspace domain.</p>
             </div>
 
+            <div id="manual-endpoints-section" class="hidden border border-gray-200 dark:border-gray-700 rounded-md">
+                <button type="button" id="manual-endpoints-toggle"
+                        class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
+                        aria-expanded="false" aria-controls="manual-endpoints-fields">
+                    <span>Advanced: manual endpoints</span>
+                    {{ icon("chevron-down", class="w-4 h-4 text-gray-400", id="manual-endpoints-chevron") }}
+                </button>
+                <div id="manual-endpoints-fields" class="hidden px-4 pb-4 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Only needed for a provider that does not publish
+                        <code>/.well-known/openid-configuration</code>. Leave blank to rely on discovery.
+                        A successful Test Connection replaces these with the discovered values.
+                    </p>
+                    <div>
+                        <label for="authorization_endpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Authorization Endpoint
+                        </label>
+                        <input type="url" id="authorization_endpoint" name="authorization_endpoint"
+                               placeholder="https://idp.example.com/oauth2/authorize"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="token_endpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Token Endpoint
+                        </label>
+                        <input type="url" id="token_endpoint" name="token_endpoint"
+                               placeholder="https://idp.example.com/oauth2/token"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="userinfo_endpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Userinfo Endpoint
+                        </label>
+                        <input type="url" id="userinfo_endpoint" name="userinfo_endpoint"
+                               placeholder="https://idp.example.com/oauth2/userinfo"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="jwks_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            JWKS URI
+                        </label>
+                        <input type="url" id="jwks_uri" name="jwks_uri"
+                               placeholder="https://idp.example.com/oauth2/keys"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
             <div class="space-y-3 pt-2">
                 <div class="flex items-start">
                     <div class="flex items-center h-5">
@@ -188,6 +236,10 @@
     const correlationInput = document.getElementById('correlation_claim');
     const entraField = document.getElementById('entra-tenant-field');
     const hostedField = document.getElementById('hosted-domain-field');
+    const manualSection = document.getElementById('manual-endpoints-section');
+    const manualToggle = document.getElementById('manual-endpoints-toggle');
+    const manualFields = document.getElementById('manual-endpoints-fields');
+    const manualChevron = document.getElementById('manual-endpoints-chevron');
 
     function applyPreset() {
         const type = providerSelect.value;
@@ -213,7 +265,16 @@
         issuerInput.required = type !== 'entra';
         entraField.classList.toggle('hidden', type !== 'entra');
         hostedField.classList.toggle('hidden', type !== 'google');
+        // Google and Entra always publish discovery; manual endpoints only
+        // make sense for a generic provider.
+        manualSection.classList.toggle('hidden', type !== 'generic');
     }
+
+    manualToggle.addEventListener('click', () => {
+        const expanded = manualFields.classList.toggle('hidden') === false;
+        manualToggle.setAttribute('aria-expanded', String(expanded));
+        manualChevron.classList.toggle('rotate-180', expanded);
+    });
 
     providerSelect.addEventListener('change', applyPreset);
     applyPreset();

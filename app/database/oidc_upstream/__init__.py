@@ -44,7 +44,6 @@ from database.oidc_upstream.links import (
     get_links_for_user_idp,
     get_user_id_by_sub,
     list_links_for_connection,
-    list_links_for_user,
 )
 
 __all__ = [
@@ -66,7 +65,6 @@ __all__ = [
     "get_link_for_user",
     "get_links_for_user_idp",
     "get_user_id_by_sub",
-    "list_links_for_user",
     "list_links_for_connection",
     "delete_link",
     "delete_links_for_user_idp",

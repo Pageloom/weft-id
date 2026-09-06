@@ -26,45 +26,6 @@ from services.types import RequestingUser
 logger = logging.getLogger(__name__)
 
 
-def list_user_oidc_links(
-    requesting_user: RequestingUser,
-    user_id: str,
-) -> list[dict]:
-    """List a user's OIDC connection links for the admin disconnect surface.
-
-    Authorization: Requires super_admin role.
-
-    Returns a list of dicts with ``connection_id``, ``connection_name``,
-    ``sub``, and ``link_id`` for each link. A user has at most one link in
-    practice, but this returns all of them for completeness.
-    """
-    require_super_admin(requesting_user)
-    track_activity(requesting_user["tenant_id"], requesting_user["id"])
-
-    tenant_id = requesting_user["tenant_id"]
-
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if user is None:
-        raise NotFoundError(
-            message="User not found",
-            code="user_not_found",
-        )
-
-    links = database.oidc_upstream.list_links_for_user(tenant_id, user_id)
-    result: list[dict] = []
-    for link in links:
-        connection = database.oidc_upstream.get_connection(tenant_id, str(link["idp_id"]))
-        result.append(
-            {
-                "link_id": str(link["id"]),
-                "connection_id": str(link["idp_id"]),
-                "connection_name": connection["name"] if connection else "Unknown",
-                "sub": link["sub"],
-            }
-        )
-    return result
-
-
 def list_connection_linked_users(
     requesting_user: RequestingUser,
     connection_id: str,

@@ -190,3 +190,12 @@ class TestSsrFGuard:
 
         with pytest.raises(DiscoveryError):
             discovery_service._fetch_discovery_document("http://169.254.169.254/latest/meta-data")
+
+
+class TestDevBaseDomainRewrite:
+    def test_fetch_discovery_passes_flag(self):
+        """Opts into the dev-only base-domain rewrite (loopback E2E); inert
+        outside IS_DEV."""
+        with _patch_client(_FakeResponse(200, {"issuer": "x"})) as mock_client:
+            discovery_service._fetch_discovery_document("https://idp.example.com/.well-known")
+        assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True

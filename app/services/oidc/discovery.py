@@ -33,6 +33,11 @@ RESPONSE_TYPES_SUPPORTED = ["code"]
 # Grant types the token endpoint accepts today.
 GRANT_TYPES_SUPPORTED = ["authorization_code", "refresh_token", "client_credentials"]
 
+# Client authentication methods the token endpoint accepts (RFC 6749 section
+# 2.3.1). Basic is the spec-mandated method and the discovery default when this
+# field is omitted; post is the form-field variant many SDKs send.
+TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED = ["client_secret_basic", "client_secret_post"]
+
 # Claims that may appear in an ID token or a userinfo response. This is the
 # union of the token-envelope claims added by the ID-token minter
 # (services.oidc.tokens) and the scope-gated identity claims produced by the
@@ -84,5 +89,6 @@ def build_discovery_metadata(issuer: str) -> OIDCProviderMetadata:
         grant_types_supported=list(GRANT_TYPES_SUPPORTED),
         subject_types_supported=list(SUBJECT_TYPES_SUPPORTED),
         id_token_signing_alg_values_supported=list(ID_TOKEN_SIGNING_ALG_VALUES_SUPPORTED),
+        token_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
         claims_supported=list(CLAIMS_SUPPORTED),
     )

@@ -550,3 +550,18 @@ from inside `dev/` resolves build contexts and the env file against the wrong ro
 
 **Wrong:** Assuming rate limits fail open under `make test` (Memcached is unreachable on the host) and either ignoring them or mocking `ratelimit.prevent` "just in case".
 **Right:** Every test gets a fresh in-memory cache backend (`memory_cache` autouse fixture in `tests/conftest.py` installing `utils.cache.MemoryCache`), so limits count for real and reset per test. A test that sends more requests than a route's limit will get the rate-limited response; that is a signal about the test, not a flake. Mock `ratelimit.prevent` only to force the exceeded branch cheaply, and request `memory_cache` to advance its `clock` when you need a window to expire. Real-count regression tests live in `tests/routers/test_rate_limit_enforcement.py`.
+
+## Form POST Redirect Chains Are Subject to CSP form-action in Chromium
+
+**Wrong:** Answering a form POST (login email step, OAuth2 consent) with a 303 whose chain
+ends on another origin, and trusting TestClient tests that assert the `Location` header.
+**Right:** Either break the chain with a 200 same-origin hand-off page that navigates by GET
+(`routers.auth._helpers._idp_handoff`), or allow the known target origin via
+`request.state.csp_form_action_url` on the page that holds the form (`routers.oauth2.authorize_page`,
+`routers.saml_idp.sso`). Then prove it in a real browser starting from the form, not from a
+direct `page.goto` of the hop URL.
+
+Chromium applies the form's document CSP `form-action` to every redirect hop after submission.
+The reverse-proxy access log is the fastest way to see it: the 303 is issued, the next hop is
+never requested. Found 2026-09-06 by the upstream OIDC loopback E2E; both the login-page IdP
+routing (SAML and OIDC) and the OAuth2 consent redirect had shipped broken in Chromium.

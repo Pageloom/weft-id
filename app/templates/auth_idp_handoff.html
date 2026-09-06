@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Redirecting - {{ site_title }}{% endblock %}
+
+{% block extra_head %}
+<meta http-equiv="refresh" content="0;url={{ target }}">
+{% endblock %}
+
+{% block content %}
+<div class="flex justify-center">
+    <div class="w-full max-w-md">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 text-center">
+            <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Redirecting to your identity provider</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+                If you are not redirected automatically,
+                <a href="{{ target }}" class="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 underline">continue to sign in</a>.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

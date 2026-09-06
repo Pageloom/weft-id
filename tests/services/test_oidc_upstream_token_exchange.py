@@ -132,3 +132,27 @@ class TestFetchUserinfo:
                     userinfo_endpoint="https://idp.example.com/userinfo",
                     access_token="at",
                 )
+
+
+class TestDevBaseDomainRewrite:
+    """The upstream fetchers opt into the SSRF guard's dev-only base-domain
+    rewrite so a dev-stack tenant can be its own upstream IdP (loopback E2E).
+    The flag is inert outside IS_DEV (see utils.safe_http)."""
+
+    def test_exchange_code_passes_flag(self):
+        body = {"access_token": "at", "id_token": "idt"}
+        with _patch_client(_FakeResponse(200, body)) as mock_client:
+            te.exchange_code(
+                token_endpoint="https://idp.example.com/token",
+                client_id="cid",
+                client_secret="secret",
+                code="code",
+                redirect_uri="https://rp.example.com/cb",
+                code_verifier="verifier",
+            )
+        assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
+
+    def test_fetch_userinfo_passes_flag(self):
+        with _patch_client(_FakeResponse(200, {"sub": "s"})) as mock_client:
+            te.fetch_userinfo(userinfo_endpoint="https://idp.example.com/ui", access_token="at")
+        assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True

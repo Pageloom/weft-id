@@ -63,7 +63,9 @@ def exchange_code(
         "code_verifier": code_verifier,
     }
 
-    with build_safe_client(timeout=10.0) as client:
+    # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
+    # IdP (the loopback E2E); it is inert outside IS_DEV.
+    with build_safe_client(timeout=10.0, dev_base_domain_rewrite=True) as client:
         try:
             response = client.post(
                 token_endpoint,
@@ -105,7 +107,9 @@ def fetch_userinfo(*, userinfo_endpoint: str, access_token: str) -> dict:
     """
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    with build_safe_client(timeout=10.0) as client:
+    # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
+    # IdP (the loopback E2E); it is inert outside IS_DEV.
+    with build_safe_client(timeout=10.0, dev_base_domain_rewrite=True) as client:
         try:
             response = client.get(userinfo_endpoint, headers=headers)
         except Exception as exc:  # noqa: BLE001

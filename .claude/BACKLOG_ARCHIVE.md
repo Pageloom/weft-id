@@ -4,10 +4,53 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Upstream OIDC Login E2E Test
+
+**Status:** Complete (2026-09-06, branch `oidc-upstream`)
+
+**What shipped:** `tests/e2e/test_oidc_upstream_loopback_e2e.py` drives a real
+browser through a full upstream-OIDC login with WeftID as its own upstream IdP:
+a provider tenant (`e2e-oidc-op`) exposes the downstream OP, a relying-party
+tenant (`e2e-oidc-rp`) holds a default JIT connection pointed at it.
+Provisioned by `app/dev/oidc_loopback_testbed.py` (run inside the app container,
+idempotent, `--teardown`). First sign-in asserts JIT provisioning (user, verified
+email, no password, one `(connection, sub)` link on the OP's stable subject);
+second sign-in in a fresh browser context asserts correlation (same user, same
+link, no second JIT event). Runs under `make e2e`, skipped with the rest of the
+suite when MailDev is absent.
+
+**What the loopback surfaced (all fixed in the same pass, see ISSUES_ARCHIVE.md):**
+
+- The upstream fetchers (discovery, JWKS, token, userinfo) did not opt into the
+  SSRF guard's dev-only base-domain rewrite, so a dev-stack tenant could not
+  reach its own host. Now passed like the SAML SLO back-channel; inert in prod.
+- The OP token endpoint only read `client_secret_post` form fields while the RP
+  (and RFC 6749 section 2.3.1) uses `client_secret_basic`. The OP now accepts
+  both and advertises `token_endpoint_auth_methods_supported`.
+- The login form's email step routed to IdPs with a 303 chain that Chromium's
+  CSP `form-action 'self'` enforcement cut off at the off-origin hop, for SAML
+  and OIDC alike. Replaced with a same-origin hand-off page (meta refresh GET).
+- The OAuth2 consent page's CSP blocked the post-consent 303 to any cross-origin
+  `redirect_uri`. The consent page now allows the registered redirect URI's
+  origin, mirroring the SAML IdP SSO post binding.
+
+**Acceptance Criteria:**
+
+- [x] E2E test in `tests/e2e/`: login via upstream OIDC, JIT provisioning on
+      first sign-in, second sign-in correlates on the same subject (no duplicate)
+- [x] Runs under `make e2e` with the standard dev services; skipped cleanly when
+      services are absent
+- [x] Testbed/seed wiring documented or scripted
+
+**Effort:** S-M (delivered as M: two product bugs and one spec gap fixed en route)
+**Value:** Medium (closes the one untested flow in the upstream OIDC surface)
+
+---
+
 ## OIDC Upstream IdP Support (with Entra, Google, GitHub, Okta Presets)
 
 **Status:** Complete -- core scope (2026-09-06, branch `oidc-upstream`, 9 iterations
-via the CI /lead orchestrator + local final review, released as 1.12.0)
+via the CI /lead orchestrator + local final review; unreleased, versioned on main at release time)
 
 **What shipped:** the generic OIDC connector (authorization code + PKCE only,
 discovery with issuer/https validation, JWKS-verified ID tokens, `(connection, subject)`

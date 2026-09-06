@@ -63,6 +63,26 @@ class TestAuthorizePage:
         assert response.status_code == 200
         assert "oauth2_authorize" in response.text or "Authorize" in response.text
 
+    def test_authorize_page_allows_redirect_uri_origin_in_form_action(
+        self, authenticated_client_with_host, normal_oauth2_client
+    ):
+        """The consent page's CSP must allow the form's redirect chain to
+        reach the client's redirect_uri origin. Chromium enforces form-action
+        on every hop after a form POST, so the default 'self' would block the
+        303 to any cross-origin relying party."""
+        response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+            },
+        )
+        assert response.status_code == 200
+        csp = response.headers["Content-Security-Policy"]
+        assert "form-action 'self' http://localhost:3000" in csp
+        # Origin only: the path of the redirect_uri is not part of the source.
+        assert "http://localhost:3000/callback" not in csp
+
     def test_authorize_page_with_state(self, authenticated_client_with_host, normal_oauth2_client):
         """Test authorization page accepts state parameter (stored in session).
 

@@ -55,6 +55,26 @@ Tests cover:
 - Basic multi-step email+password login flow
 - Single Logout (SLO) flows (`tests/e2e/test_slo_flows.py`)
 
+Loopback test beds use WeftID as both ends of a protocol so no external system
+is needed:
+- **OIDC provider** (`app/dev/oidc_testbed.py`): one tenant, an OIDC-enabled
+  client, browser consent then code exchange, JWKS verification, and userinfo
+  (`tests/e2e/test_oidc_provider_e2e.py`).
+- **Upstream OIDC** (`app/dev/oidc_loopback_testbed.py`): a provider tenant
+  (`e2e-oidc-op`) and a relying-party tenant (`e2e-oidc-rp`) whose default JIT
+  connection points at it. A real browser goes login page, hand-off, consent,
+  callback, dashboard; asserts JIT provisioning and `(connection, sub)`
+  correlation via SQL (`tests/e2e/test_oidc_upstream_loopback_e2e.py`). The
+  RP's outbound hops reach the OP through the SSRF guard's dev-only
+  base-domain rewrite.
+- **SCIM** (`app/dev/scim_loopback_testbed.py`): outbound SCIM pushes into
+  WeftID's own inbound endpoint (`tests/e2e/test_scim_loopback_e2e.py`).
+
+Browser-only failure classes these catch that TestClient tests cannot: CSP
+`form-action` enforcement on post-submission redirect chains (the login page's
+IdP hand-off and the OAuth2 consent page both depend on it), cross-host cookie
+isolation, and the full redirect chain between two tenant hosts.
+
 For manual testing, SAMLtest.id and sptest.iamshowcase.com remain available options.
 
 ## SAML IdP / Service Provider Testing

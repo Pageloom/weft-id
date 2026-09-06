@@ -33,6 +33,7 @@ class TestDiscoveryDocument:
             "grant_types_supported",
             "subject_types_supported",
             "id_token_signing_alg_values_supported",
+            "token_endpoint_auth_methods_supported",
             "claims_supported",
         }
         assert required <= set(body.keys())
@@ -56,6 +57,12 @@ class TestDiscoveryDocument:
             "refresh_token",
             "client_credentials",
         }
+        # Both confidential-client methods the token endpoint implements.
+        # Basic is the RFC 6749 mandated method (and the discovery default).
+        assert body["token_endpoint_auth_methods_supported"] == [
+            "client_secret_basic",
+            "client_secret_post",
+        ]
 
     def test_scopes_supported_reflects_implemented_scopes(self, client, test_tenant_host):
         """Advertises openid/profile/email/groups (all implemented scopes)."""

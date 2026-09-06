@@ -4,6 +4,43 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 # =============================================================================
+# IdP hand-off assertions
+# =============================================================================
+
+
+def _assert_handoff(response, target: str) -> None:
+    """The IdP routes render the same-origin hand-off page, not a 303.
+
+    A 303 chain that follows the login form POST would be cut off by the
+    login page's CSP ``form-action 'self'`` at the off-origin IdP hop in
+    Chromium (see ``_idp_handoff``). The page must carry a meta refresh to the
+    target and a plain link fallback.
+    """
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    body = response.body.decode()
+    assert f'<meta http-equiv="refresh" content="0;url={target}">' in body
+    assert f'href="{target}"' in body
+
+
+def test_idp_handoff_renders_meta_refresh_and_link():
+    from routers.auth._helpers import _idp_handoff
+
+    response = _idp_handoff(MagicMock(), "/saml/login/abc")
+    _assert_handoff(response, "/saml/login/abc")
+
+
+def test_idp_handoff_escapes_target():
+    """The target is never request-supplied, but autoescaping must still hold."""
+    from routers.auth._helpers import _idp_handoff
+
+    response = _idp_handoff(MagicMock(), '/saml/login/x"><script>')
+    body = response.body.decode()
+    assert "<script>" not in body.split("</head>")[0].split('http-equiv="refresh"')[1].split(">")[0]
+    assert "&#34;&gt;&lt;script&gt;" in body
+
+
+# =============================================================================
 # _route_after_email_verification Tests
 # =============================================================================
 
@@ -38,8 +75,7 @@ def test_route_idp():
     response = _call_route_after_email_verification(
         str(uuid4()), "user@example.com", "idp", idp_id=idp_id
     )
-    assert response.status_code == 303
-    assert f"/saml/login/{idp_id}" == response.headers["location"]
+    _assert_handoff(response, f"/saml/login/{idp_id}")
 
 
 def test_route_idp_jit():
@@ -48,8 +84,7 @@ def test_route_idp_jit():
     response = _call_route_after_email_verification(
         str(uuid4()), "user@example.com", "idp_jit", idp_id=idp_id
     )
-    assert response.status_code == 303
-    assert f"/saml/login/{idp_id}" == response.headers["location"]
+    _assert_handoff(response, f"/saml/login/{idp_id}")
 
 
 def test_route_idp_oidc():
@@ -58,8 +93,7 @@ def test_route_idp_oidc():
     response = _call_route_after_email_verification(
         str(uuid4()), "user@example.com", "idp_oidc", idp_id=idp_id
     )
-    assert response.status_code == 303
-    assert f"/auth/oidc/{idp_id}/login" == response.headers["location"]
+    _assert_handoff(response, f"/auth/oidc/{idp_id}/login")
 
 
 def test_route_idp_oidc_jit():
@@ -68,8 +102,7 @@ def test_route_idp_oidc_jit():
     response = _call_route_after_email_verification(
         str(uuid4()), "user@example.com", "idp_oidc_jit", idp_id=idp_id
     )
-    assert response.status_code == 303
-    assert f"/auth/oidc/{idp_id}/login" == response.headers["location"]
+    _assert_handoff(response, f"/auth/oidc/{idp_id}/login")
 
 
 def test_route_idp_oidc_disabled():
@@ -195,8 +228,7 @@ def test_route_without_verification_idp_oidc():
     response = _call_route_without_verification(
         str(uuid4()), "user@example.com", "idp_oidc", idp_id=idp_id
     )
-    assert response.status_code == 303
-    assert f"/auth/oidc/{idp_id}/login" == response.headers["location"]
+    _assert_handoff(response, f"/auth/oidc/{idp_id}/login")
 
 
 def test_route_without_verification_idp_oidc_jit():
@@ -205,8 +237,7 @@ def test_route_without_verification_idp_oidc_jit():
     response = _call_route_without_verification(
         str(uuid4()), "user@example.com", "idp_oidc_jit", idp_id=idp_id
     )
-    assert response.status_code == 303
-    assert f"/auth/oidc/{idp_id}/login" == response.headers["location"]
+    _assert_handoff(response, f"/auth/oidc/{idp_id}/login")
 
 
 def test_route_without_verification_idp_oidc_disabled_no_disclosure():

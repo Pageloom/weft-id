@@ -37,6 +37,11 @@ After creation, WeftID displays the **client ID** and **client secret** in a dia
     grant_type=authorization_code&code=...&redirect_uri=...&client_id=...&client_secret=...
     ```
 
+    The client credentials can be sent either as the `client_id` and
+    `client_secret` form fields shown above (`client_secret_post`) or as an
+    HTTP Basic `Authorization` header (`client_secret_basic`). Use one method
+    per request, not both.
+
 5. WeftID returns an access token and refresh token:
 
     ```json

@@ -60,6 +60,13 @@ class OIDCProviderMetadata(BaseModel):
     id_token_signing_alg_values_supported: list[str] = Field(
         ..., description="ID-token signing algorithms. Always ['RS256']."
     )
+    token_endpoint_auth_methods_supported: list[str] = Field(
+        ...,
+        description=(
+            "Client authentication methods the token endpoint accepts: "
+            "client_secret_basic (HTTP Basic) and client_secret_post (form fields)."
+        ),
+    )
     claims_supported: list[str] = Field(
         ..., description="Claims that may appear in ID tokens or userinfo responses."
     )

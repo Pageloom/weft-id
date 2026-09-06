@@ -38,12 +38,22 @@ from utils.templates import templates
 router = APIRouter(
     prefix="/directory",
     tags=["directory"],
-    dependencies=[Depends(require_current_user)],  # Baseline: every route requires login
+    dependencies=[Depends(require_admin)],  # Baseline: every route requires admin role
+    include_in_schema=False,
+)
+
+# The section index redirect is the one AUTHENTICATED route in this section: it
+# forwards to the first child the caller may access, so it must live on a router
+# whose baseline is require_current_user, not require_admin.
+index_router = APIRouter(
+    prefix="/directory",
+    tags=["directory"],
+    dependencies=[Depends(require_current_user)],
     include_in_schema=False,
 )
 
 
-@router.get("/", response_class=HTMLResponse)
+@index_router.get("/", response_class=HTMLResponse)
 def directory_index(
     request: Request,
     user: Annotated[dict, Depends(require_current_user)],
@@ -62,12 +72,10 @@ def directory_index(
 @router.get(
     "/requests/",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
 )
 @router.get(
     "/requests",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
 )
 def requests_index(
     request: Request,
@@ -82,7 +90,6 @@ def requests_index(
 @router.get(
     "/requests/reactivation",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
 )
 def reactivation_requests_list(
     request: Request,
@@ -116,7 +123,6 @@ def reactivation_requests_list(
 @router.get(
     "/requests/reactivation/history",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
 )
 def reactivation_requests_history(
     request: Request,
@@ -144,7 +150,6 @@ def reactivation_requests_history(
 
 @router.post(
     "/requests/reactivation/{request_id}/approve",
-    dependencies=[Depends(require_admin)],
 )
 def approve_reactivation_request(
     request: Request,
@@ -182,7 +187,6 @@ def approve_reactivation_request(
 
 @router.post(
     "/requests/reactivation/{request_id}/deny",
-    dependencies=[Depends(require_admin)],
 )
 def deny_reactivation_request(
     request: Request,
@@ -251,7 +255,6 @@ def _group_missing_rows(rows: list[dict]) -> list[dict]:
 @router.get(
     "/requests/user-attributes",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
 )
 def requests_user_attributes_list(
     request: Request,
@@ -327,7 +330,6 @@ def _parse_force_complete_success(value: str | None) -> dict[str, int] | None:
 
 @router.post(
     "/requests/user-attributes/force-complete",
-    dependencies=[Depends(require_admin)],
 )
 async def requests_user_attributes_force_complete(
     request: Request,
@@ -450,7 +452,6 @@ def directory_attributes(
 @router.get(
     "/exports",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_admin)],
 )
 def exports_page(
     request: Request,
@@ -472,7 +473,6 @@ def exports_page(
 
 @router.post(
     "/exports",
-    dependencies=[Depends(require_admin)],
 )
 def trigger_user_export(
     request: Request,

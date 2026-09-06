@@ -40,6 +40,30 @@ def test_directory_index_fallback_to_dashboard(test_admin_user, override_auth):
         assert response.headers["location"] == "/dashboard"
 
 
+def test_directory_index_accessible_to_regular_user(test_user, override_auth):
+    """Directory index is AUTHENTICATED: a regular user can reach it."""
+    override_auth(test_user, level="user")
+
+    with patch("routers.directory.get_first_accessible_child") as mock_first_child:
+        mock_first_child.return_value = "/users/list"
+
+        client = TestClient(app)
+        response = client.get("/directory/", follow_redirects=False)
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/users/list"
+
+
+def test_directory_admin_route_denied_for_regular_user(test_user, override_auth):
+    """Admin routes under /directory reject a regular user at the router boundary."""
+    override_auth(test_user, level="user")
+
+    client = TestClient(app)
+    response = client.get("/directory/requests/reactivation", follow_redirects=False)
+
+    assert response.status_code in (303, 403)
+
+
 def test_requests_index_redirects_to_first_child(test_admin_user, override_auth):
     """Requests index page redirects to its first accessible child page."""
     override_auth(test_admin_user, level="admin")

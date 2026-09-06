@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 5 | File Structure (pre-existing); historical Spaces exports 500 under config drift; Requests badge runs uncached COUNTs on every Directory-section render; Directory router baseline lowered to `require_current_user`; auth-coverage test passes vacuously |
+| Medium | 4 | File Structure (pre-existing); historical Spaces exports 500 under config drift; Requests badge runs uncached COUNTs on every Directory-section render; auth-coverage test passes vacuously |
 | Low/Medium | 3 | `form-input-length` checker misses `= Form("")` syntax, 33 unbounded params (pre-existing); legacy 301s drop query strings; per-instance legacy URLs 404 instead of 301 |
 | Low | 9 | Upload-auth temp-file leak (warning-ignored, tracked); stale "Integrations" template copy; page headings out of step with new nav; Add User vs New Group verb split; Requests badge accessibility/reach; section index routes lack bare-path form; degenerate single-tab third-level nav; hardcoded role tuple in `users_list.html`; nav-restructure backlog item not archived |
 
@@ -276,27 +276,6 @@ rather than `ServiceError`.
 
 **Files Affected:** `app/utils/template_context.py`, `app/services/user_attributes.py` (or
 wherever the count queries live), `app/database/users/`
-
----
-
-## [REVIEW] Directory router baseline lowered from `require_admin` to `require_current_user`
-
-**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
-**Severity:** Medium
-**Found in:** `app/routers/directory.py:41`, `dev/compliance_check.py:1020-1024,1113`
-
-On `main`, `admin.py` rejected non-admins at the router boundary. `directory.py` now mounts the
-router with `require_current_user` and re-adds `dependencies=[Depends(require_admin)]` on each of
-11 routes so that the single AUTHENTICATED `directory_index` can live on the same router. The
-compliance checker marks a file as "uses route-level checks" if that string appears anywhere in it
-and then skips the mixed-permission check entirely, so a future handler that forgets the per-route
-dependency ships reachable by `role='user'` and `make check` cannot see it.
-
-**Suggested fix:** Keep the router at `require_admin`. Register `directory_index` on a separate
-two-line `APIRouter(prefix='/directory', dependencies=[Depends(require_current_user)])`, or on the
-users router, the way `identity_providers.py` does for its bind/unbind overrides.
-
-**Files Affected:** `app/routers/directory.py`, `app/main.py` (router registration)
 
 ---
 

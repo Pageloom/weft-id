@@ -5246,3 +5246,31 @@ own role check via `_require_super_admin_for_b2b`. The sibling B2B handlers
 is not a security issue (super_admin-only section) and was left out of scope.
 
 **Files changed:** `app/routers/integrations.py`, `tests/routers/test_integrations.py`
+
+---
+
+## [REVIEW] Directory router baseline lowered from `require_admin` to `require_current_user`
+
+**Fixed:** 2026-09-06
+**Discovered:** 2026-09-06 (nav-restructure branch, `/code-review`)
+**Severity:** Medium
+**Category:** Authorization
+
+`app/routers/directory.py` mounted its router with `require_current_user` and re-added
+`dependencies=[Depends(require_admin)]` on each of 11 routes so the single AUTHENTICATED
+`directory_index` could live on the same router. The compliance checker marks a file as "uses
+route-level checks" if that string appears anywhere in it and then skips the mixed-permission
+check entirely, so a future handler that forgot the per-route dependency would ship reachable by
+`role='user'` with `make check` unable to see it.
+
+**Resolution.** Kept the main router at `require_admin` and removed the now-redundant per-route
+`require_admin` dependencies (the baseline covers them). Moved `directory_index` to a separate
+`index_router` with a `require_current_user` baseline, registered alongside the main router in
+`app/main.py`. `directory_attributes` keeps its per-route `require_super_admin` override, the
+same raise-the-bar pattern `identity_providers.py` uses. A future handler added to the main
+router is now admin-gated by default, and the compliance checker sees the honest `require_admin`
+baseline.
+
+**Files changed:** `app/routers/directory.py`, `app/main.py`,
+`tests/routers/test_directory.py` (2 new tests: regular user can reach the index, regular user
+denied from an admin route)

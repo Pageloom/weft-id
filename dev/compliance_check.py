@@ -2865,11 +2865,12 @@ def check_form_input_length_violations(report: ComplianceReport) -> None:
     """
     Check that all str Form() parameters in route handlers have max_length.
 
-    Scans app/routers/**/*.py for function parameters annotated as
-    Annotated[str, Form()] or Annotated[str | None, Form()] and checks
-    that the Form() call includes max_length. Unbounded form parameters
-    allow attackers to submit multi-megabyte strings, causing memory and
-    CPU exhaustion (especially on password fields passed to Argon2).
+    Scans app/routers/**/*.py for function parameters written either as
+    Annotated[str, Form()] / Annotated[str | None, Form()] or as the
+    equivalent default-value form `name: str = Form(...)` and checks that
+    the Form() call includes max_length. Unbounded form parameters allow
+    attackers to submit multi-megabyte strings, causing memory and CPU
+    exhaustion (especially on password fields passed to Argon2).
     """
     routers_path = get_app_path() / "routers"
     if not routers_path.exists():
@@ -2894,12 +2895,23 @@ def check_form_input_length_violations(report: ComplianceReport) -> None:
 
             report.functions_analyzed += 1
 
-            for arg in node.args.args:
-                annotation = arg.annotation
-                if annotation is None:
-                    continue
+            args = node.args.args
+            defaults = node.args.defaults
+            # Defaults are right-aligned: the last len(defaults) args have defaults
+            default_offset = len(args) - len(defaults)
 
-                form_call = _extract_form_call_from_annotation(annotation)
+            for idx, arg in enumerate(args):
+                form_call = None
+
+                # Form 1: Annotated[str, Form(...)] annotation
+                if arg.annotation is not None:
+                    form_call = _extract_form_call_from_annotation(arg.annotation)
+
+                # Form 2: name: str = Form(...) default value
+                if form_call is None:
+                    default = defaults[idx - default_offset] if idx >= default_offset else None
+                    form_call = _extract_form_call_from_default(arg, default)
+
                 if form_call is None:
                     continue
 
@@ -2917,7 +2929,7 @@ def check_form_input_length_violations(report: ComplianceReport) -> None:
                         function_name=node.name,
                         description=(f"Form parameter '{arg.arg}' missing max_length constraint"),
                         evidence=f"Form() call for '{arg.arg}' has no max_length",
-                        suggested_fix=("Add max_length: Annotated[str, Form(max_length=N)]"),
+                        suggested_fix=("Add max_length to the Form() call, e.g. Form(max_length=N)"),
                     )
                 )
 
@@ -2955,6 +2967,31 @@ def _extract_form_call_from_annotation(annotation: ast.expr) -> ast.Call | None:
                 isinstance(func, ast.Attribute) and func.attr == "Form"
             ):
                 return elt
+
+    return None
+
+
+def _extract_form_call_from_default(arg: ast.arg, default: ast.expr | None) -> ast.Call | None:
+    """Extract a Form() call from a `name: str = Form(...)` default value.
+
+    The Annotated form (`Annotated[str, Form(...)]`) is handled by
+    `_extract_form_call_from_annotation`; this covers the equivalent
+    default-value form, which the AST represents as a Form() call in the
+    argument's default. Returns the Form() AST Call node if found, or None.
+    """
+    # Annotation must be str or str | None
+    if arg.annotation is None or not _is_str_annotation_for_form(arg.annotation):
+        return None
+
+    # Default must be a Form(...) call
+    if not isinstance(default, ast.Call):
+        return None
+
+    func = default.func
+    if (isinstance(func, ast.Name) and func.id == "Form") or (
+        isinstance(func, ast.Attribute) and func.attr == "Form"
+    ):
+        return default
 
     return None
 

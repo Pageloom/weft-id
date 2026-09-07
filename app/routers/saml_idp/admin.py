@@ -129,7 +129,7 @@ def sp_create_manual(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    name: str = Form(""),
+    name: str = Form("", max_length=255),
 ):
     """Create an SP with just a name (step 1 of trust establishment flow)."""
     if not has_page_access("/applications/saml", user.get("role")):
@@ -156,8 +156,8 @@ def sp_import_xml(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    name: str = Form(""),
-    metadata_xml: str = Form(""),
+    name: str = Form("", max_length=255),
+    metadata_xml: str = Form("", max_length=1000000),
 ):
     """Create an SP from pasted metadata XML."""
     if not has_page_access("/applications/saml", user.get("role")):
@@ -185,8 +185,8 @@ def sp_import_url(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    name: str = Form(""),
-    metadata_url: str = Form(""),
+    name: str = Form("", max_length=255),
+    metadata_url: str = Form("", max_length=2048),
 ):
     """Create an SP from a metadata URL."""
     if not has_page_access("/applications/saml", user.get("role")):
@@ -479,10 +479,10 @@ def sp_edit(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    name: str = Form(""),
-    description: str = Form(""),
-    acs_url: str = Form(""),
-    slo_url: str = Form(""),
+    name: str = Form("", max_length=255),
+    description: str = Form("", max_length=2000),
+    acs_url: str = Form("", max_length=2048),
+    slo_url: str = Form("", max_length=2048),
 ):
     """Update an SP's name, description, and optionally ACS/SLO URLs (manual SPs)."""
     if not has_page_access("/applications/saml/detail", user.get("role")):
@@ -520,7 +520,7 @@ def sp_edit_slo_url(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    slo_url: str = Form(""),
+    slo_url: str = Form("", max_length=2048),
 ):
     """Update an SP's SLO URL (works for both manual and metadata-imported SPs)."""
     if not has_page_access("/applications/saml/detail", user.get("role")):
@@ -545,7 +545,7 @@ def sp_edit_nameid_format(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    nameid_format: str = Form(""),
+    nameid_format: str = Form("", max_length=50),
 ):
     """Update an SP's NameID format."""
     if not has_page_access("/applications/saml/detail", user.get("role")):
@@ -712,7 +712,7 @@ def sp_reimport_metadata_preview(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    metadata_xml: str = Form(""),
+    metadata_xml: str = Form("", max_length=1000000),
 ):
     """Preview changes from re-importing metadata from provided XML."""
     if not has_page_access("/applications/saml/detail", user.get("role")):
@@ -746,7 +746,7 @@ def sp_reimport_metadata_apply(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    metadata_xml: str = Form(""),
+    metadata_xml: str = Form("", max_length=1000000),
 ):
     """Apply metadata reimport from provided XML."""
     if not has_page_access("/applications/saml/detail", user.get("role")):
@@ -776,7 +776,7 @@ def sp_establish_trust_url(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    metadata_url: str = Form(""),
+    metadata_url: str = Form("", max_length=2048),
 ):
     """Establish trust with an SP by fetching its metadata URL."""
     if not has_page_access("/applications/saml/detail", user.get("role")):
@@ -801,7 +801,7 @@ def sp_establish_trust_xml(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    metadata_xml: str = Form(""),
+    metadata_xml: str = Form("", max_length=1000000),
 ):
     """Establish trust with an SP by providing metadata XML."""
     if not has_page_access("/applications/saml/detail", user.get("role")):
@@ -826,9 +826,9 @@ def sp_establish_trust_manual(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    entity_id: str = Form(""),
-    acs_url: str = Form(""),
-    slo_url: str = Form(""),
+    entity_id: str = Form("", max_length=2048),
+    acs_url: str = Form("", max_length=2048),
+    slo_url: str = Form("", max_length=2048),
 ):
     """Establish trust with an SP by manually providing entity_id and acs_url."""
     if not has_page_access("/applications/saml/detail", user.get("role")):
@@ -882,7 +882,7 @@ def sp_toggle_available_to_all(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    available_to_all: str = Form("false"),
+    available_to_all: str = Form("false", max_length=50),
 ):
     """Toggle the 'available to all users' access mode for an SP."""
     if not has_page_access("/applications/saml/detail", user.get("role")):
@@ -907,7 +907,7 @@ def sp_add_group(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
-    group_id: str = Form(""),
+    group_id: str = Form("", max_length=50),
 ):
     """Assign a group to a service provider."""
     if not has_page_access("/applications/saml/detail", user.get("role")):

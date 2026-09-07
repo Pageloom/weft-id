@@ -112,9 +112,9 @@ def apps_create(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    name: str = Form(""),
-    redirect_uris: str = Form(""),
-    description: str = Form(""),
+    name: str = Form("", max_length=255),
+    redirect_uris: str = Form("", max_length=20000),
+    description: str = Form("", max_length=2000),
 ):
     """Create a new normal OAuth2 client (App)."""
     if not has_page_access("/applications/oauth", user.get("role")):
@@ -184,9 +184,9 @@ def b2b_create(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    name: str = Form(""),
-    role: str = Form(""),
-    description: str = Form(""),
+    name: str = Form("", max_length=255),
+    role: str = Form("", max_length=50),
+    description: str = Form("", max_length=2000),
 ):
     """Create a new B2B OAuth2 client (Service Account)."""
     if not has_page_access("/applications/service-accounts", user.get("role")):
@@ -283,9 +283,9 @@ def app_edit(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     client_id: str,
-    name: str = Form(""),
-    redirect_uris: str = Form(""),
-    description: str = Form(""),
+    name: str = Form("", max_length=255),
+    redirect_uris: str = Form("", max_length=20000),
+    description: str = Form("", max_length=2000),
 ):
     """Update a normal OAuth2 client (App)."""
     if not has_page_access("/applications/oauth", user.get("role")):
@@ -549,8 +549,8 @@ def b2b_edit(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     client_id: str,
-    name: str = Form(""),
-    description: str = Form(""),
+    name: str = Form("", max_length=255),
+    description: str = Form("", max_length=2000),
 ):
     """Update a B2B OAuth2 client name/description."""
     if not has_page_access("/applications/service-accounts", user.get("role")):
@@ -587,7 +587,7 @@ def b2b_change_role(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     client_id: str,
-    role: str = Form(""),
+    role: str = Form("", max_length=50),
 ):
     """Change the service user role for a B2B client."""
     if not has_page_access("/applications/service-accounts", user.get("role")):

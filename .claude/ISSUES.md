@@ -11,7 +11,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low/Medium | 1 | `form-input-length` checker misses `= Form("")` syntax, 33 unbounded params (pre-existing) |
 | Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
 
 **Last code review:** 2026-09-06 (nav-restructure branch vs main, `/code-review`; 5 findings logged, all resolved 2026-09-06 -- see ISSUES_ARCHIVE.md)
@@ -95,34 +94,5 @@ this needs a coordinated change. When fixed, remove the `filterwarnings` ignore.
 
 **Files Affected:** `app/routers/saml_idp/admin.py` (and the other 5 `UploadFile`
 routes share the latent pattern), `app/middleware/csrf.py`, `pyproject.toml`
-
----
-
-## [COMPLIANCE] `form-input-length` checker misses `= Form("")` default-value syntax
-
-**Discovered:** 2026-09-06 (nav-restructure branch, Step 8 compliance and security reviews, found
-independently by both)
-**Severity:** Low/Medium
-**Source:** Manual review during the nav-restructure feature's final Step 8 pass. Pre-existing
-on `main` (confirmed byte-identical for the affected lines) -- the nav restructure touched some
-of the affected files (moving routes) but did not introduce the unbounded parameters.
-
-`dev/compliance_check.py`'s `form-input-length` rule (`_extract_form_call_from_annotation`) only
-inspects the `Annotated[str, Form(...)]` subscript form. It does not see the equivalent
-`name: str = Form("")` default-value form, so parameters written that way are invisible to
-`make check` even though CLAUDE.md's rule ("every `Form()` parameter in route handlers must
-specify `max_length`") covers them. 33 such parameters currently exist with no `max_length`: 12 in
-`app/routers/integrations.py`, 20 in `app/routers/saml_idp/admin.py`, 1 in
-`app/routers/saml_idp/sso.py`. The most notable is `metadata_xml: str = Form("")` on the SAML SP
-metadata-import routes -- an unbounded body reaching an XML parser. All 33 are behind
-admin/super_admin auth, limiting real-world impact.
-
-**Suggested fix:** Two-part -- (1) extend `dev/compliance_check.py`'s form-input-length check to
-also recognize the `= Form(...)` default-value syntax, so this class of gap can't recur silently;
-(2) add `max_length` to the 33 existing parameters, using this project's standard limits (see
-CLAUDE.md's rule 10).
-
-**Files Affected:** `dev/compliance_check.py` (checker), `app/routers/integrations.py`,
-`app/routers/saml_idp/admin.py`, `app/routers/saml_idp/sso.py`
 
 ---

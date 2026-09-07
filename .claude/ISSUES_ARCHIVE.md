@@ -4,6 +4,37 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [COMPLIANCE] `form-input-length` checker misses `= Form("")` default-value syntax
+
+**Fixed:** 2026-09-07
+**Discovered:** 2026-09-06 (nav-restructure branch, Step 8 compliance and security reviews, found
+independently by both)
+**Severity:** Low/Medium
+**Category:** Compliance
+
+`dev/compliance_check.py`'s `form-input-length` rule only inspected the
+`Annotated[str, Form(...)]` subscript form. Parameters written as `name: str =
+Form("")` were invisible to `make check`, so 33 unbounded str parameters shipped
+undetected (12 in `app/routers/integrations.py`, 20 in `app/routers/saml_idp/admin.py`,
+1 in `app/routers/saml_idp/sso.py`) — including `metadata_xml` reaching an XML parser.
+
+**Resolution.** Extended the check to also detect the default-value form. Defaults are
+right-aligned on the AST `arguments` node, so the scan now maps each arg to its default
+and recognizes a `Form(...)` call there (new `_extract_form_call_from_default()` helper);
+the `suggested_fix` is now generic to both syntaxes. Added `max_length` to all 33
+parameters using the project standard limits (names 255, descriptions 2000, URLs 2048,
+enums/IDs 50, metadata XML 1000000) — `redirect_uris` (a multi-line textarea of URLs) is
+bounded at 20000 so a single field can hold several full-length URIs without allowing
+multi-megabyte submissions. New `tests/test_compliance_form_input_length.py` (14 tests)
+covers both syntaxes, required/optional/union annotations, non-str exclusions (`list[str]`,
+`UploadFile`), per-parameter reporting, and scanner robustness.
+
+**Files changed:** `dev/compliance_check.py`, `app/routers/integrations.py`,
+`app/routers/saml_idp/admin.py`, `app/routers/saml_idp/sso.py`,
+`tests/test_compliance_form_input_length.py`
+
+---
+
 ## [REVIEW] Legacy 301 handlers drop query strings
 
 **Fixed:** 2026-09-06

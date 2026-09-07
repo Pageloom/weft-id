@@ -270,7 +270,7 @@ def consent_switch_account(
 def consent_respond(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    action: str = Form(...),
+    action: str = Form(..., max_length=50),
 ):
     """Process consent form submission."""
     # Require authenticated session

@@ -78,6 +78,7 @@ def _load_sp_tab(
 
 
 @router.get("/", response_class=HTMLResponse)
+@router.get("", response_class=HTMLResponse)
 def sp_list(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],

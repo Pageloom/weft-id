@@ -68,7 +68,7 @@ If your tenant requires certain [profile attributes](../security/user-attributes
 and a user is missing values, an admin can require them to complete their profile
 before they can use the site.
 
-1. Navigate to **Directory > Requests > User Attributes**. Each user is listed with the
+1. Navigate to **Directory > Requests > Profile Completion**. Each user is listed with the
    missing attributes split by whether the user can fill them (unlocked) or only
    an admin can (locked).
 2. Select users with missing unlocked attributes.

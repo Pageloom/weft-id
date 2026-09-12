@@ -54,6 +54,7 @@ index_router = APIRouter(
 
 
 @index_router.get("/", response_class=HTMLResponse)
+@index_router.get("", response_class=HTMLResponse)
 def directory_index(
     request: Request,
     user: Annotated[dict, Depends(require_current_user)],

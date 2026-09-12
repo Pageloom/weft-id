@@ -54,6 +54,20 @@ def test_directory_index_accessible_to_regular_user(test_user, override_auth):
         assert response.headers["location"] == "/users/list"
 
 
+def test_directory_index_without_trailing_slash(test_admin_user, override_auth):
+    """Directory index works without a trailing slash (no 307 hop)."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch("routers.directory.get_first_accessible_child") as mock_first_child:
+        mock_first_child.return_value = "/users/list"
+
+        client = TestClient(app)
+        response = client.get("/directory", follow_redirects=False)
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/users/list"
+
+
 def test_directory_admin_route_denied_for_regular_user(test_user, override_auth):
     """Admin routes under /directory reject a regular user at the router boundary."""
     override_auth(test_user, level="user")

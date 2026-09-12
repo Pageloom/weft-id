@@ -1,6 +1,6 @@
-# Privileged Domains
+# Domain Routing
 
-Privileged domains let you route users to a specific identity provider and auto-assign them to groups based on their email domain.
+Domain Routing manages your tenant's privileged domains. Privileged domains let you route users to a specific identity provider and auto-assign them to groups based on their email domain.
 
 !!! note "Privileged domains are not protected (web) domains"
     A **privileged domain** here is an **email** domain (`acme.com`) used to route

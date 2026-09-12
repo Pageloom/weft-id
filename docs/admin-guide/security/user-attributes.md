@@ -27,7 +27,7 @@ Each attribute has five independent flags. Each row saves on change (no Save but
   is hidden from profile pages, user creation, IdP mapping, and SP mapping. The other
   four flags are disabled until Enabled is on.
 * **Required.** Users must provide a value. Missing values flag the user in
-  **Directory > Requests > User Attributes** and (when [force-completion](#force-profile-completion) is
+  **Directory > Requests > Profile Completion** and (when [force-completion](#force-profile-completion) is
   on) block sign-in until the field is filled.
 * **Mirror from IdP.** When an upstream identity provider sends this attribute in a
   SAML assertion, copy the value into the user's profile on each sign-in. When off,
@@ -59,7 +59,7 @@ edit their own attributes on **Account > Profile**.
 When required attributes go unfilled, admins can force users to complete their
 profile before they can use the rest of the site.
 
-1. Go to **Directory > Requests > User Attributes**. Each row shows missing attributes split by
+1. Go to **Directory > Requests > Profile Completion**. Each row shows missing attributes split by
    whether they can be filled by the user (unlocked) or only by an admin (locked).
 2. Select the users you want to gate. Users whose only missing values are locked
    cannot be selected (the gate would trap them; an admin must fill those fields

@@ -60,7 +60,7 @@ pip = ">=26.0"
 zensical = "^0.0.28"
 pygments = ">=2.20.0"  # 2.20.0 carries the upstream fix for the Pygments advisory
 pymdown-extensions = ">=11.0.1"  # CVE-2026-46338; 11.x is what tolerates pygments 2.20
-httpx2 = "^2.4.0"
+httpx2 = "^2.12.0"  # CVE-2026-84379/84380/84381/84382, dev-only (starlette TestClient)
 
 [tool.poetry.scripts]
 # Note: These are for documentation. Run commands directly:

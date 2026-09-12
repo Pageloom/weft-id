@@ -2086,6 +2086,20 @@ class TestSPListAvailableToAllBadge:
         assert response.status_code == 200
         assert "All users" in response.text
 
+    def test_sp_list_without_trailing_slash(self, sp_admin_session, sp_host, mocker):
+        """SP list works without a trailing slash (no 307 hop)."""
+        with patch(
+            "services.service_providers.list_service_providers",
+            return_value=SPListResponse(items=[], total=0),
+        ):
+            response = sp_admin_session.get(
+                "/applications/saml",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 200
+
 
 class TestSPBaseNoAccessBanner:
     """Tests for no-access warning banner on SP detail pages."""

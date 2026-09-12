@@ -11,4 +11,4 @@ SAML and OIDC are peers. A tenant can run connections of both kinds at the same 
 - [Inbound SCIM Overview](inbound-scim.md) — Let the upstream IdP push user and group changes into WeftID over SCIM 2.0
 - [Inbound SCIM (Okta)](inbound-scim-okta.md) — Step-by-step setup for Okta as the SCIM client
 - [Inbound SCIM (Entra)](inbound-scim-entra.md) — Step-by-step setup for Microsoft Entra ID as the SCIM client
-- [Privileged Domains](privileged-domains.md) — Domain-based IdP routing and auto-assignment
+- [Domain Routing](privileged-domains.md) — Privileged email domains for IdP routing and group auto-assignment

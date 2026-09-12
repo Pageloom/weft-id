@@ -48,8 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `Admin` top-level wrapper is gone; the sections it held are now top-level
   nav items, and a few pages were regrouped or renamed to match. Old URLs
   still work: every path below issues a permanent (301) redirect to its new
-  location. List/section paths redirect; per-instance detail URLs (e.g. a
-  specific group's or provider's detail page) do not, by design.
+  location. Per-instance detail URLs redirect too: the ID and any sub-tab
+  after the old prefix are preserved, and the query string survives the hop.
 
   | Old path | New path |
   |----------|----------|

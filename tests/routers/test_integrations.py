@@ -48,6 +48,17 @@ def test_applications_index_redirects_super_admin_to_saml(test_super_admin_user,
     assert response.headers["location"] == "/applications/saml"
 
 
+def test_applications_index_without_trailing_slash(test_admin_user, override_auth):
+    """Applications index works without a trailing slash (no 307 hop)."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.get("/applications", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/applications/oauth"
+
+
 def test_applications_index_fallback_to_dashboard(test_admin_user, override_auth, mocker):
     """Test the /applications/ index falls back to dashboard with no accessible children."""
     override_auth(test_admin_user, level="admin")

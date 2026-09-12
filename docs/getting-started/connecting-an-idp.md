@@ -32,4 +32,4 @@ After trust is established, users can sign in through this identity provider.
 
 ## Optional: Bind email domains
 
-You can route users to this IdP automatically based on their email domain. See [Privileged Domains](../admin-guide/identity-providers/privileged-domains.md) for details.
+You can route users to this IdP automatically based on their email domain. See [Domain Routing](../admin-guide/identity-providers/privileged-domains.md) for details.

@@ -95,6 +95,17 @@ def test_groups_index_redirects_to_list(test_admin_user, override_auth):
     assert response.headers["location"] == "/groups/list"
 
 
+def test_groups_index_without_trailing_slash(test_admin_user, override_auth):
+    """Groups index works without a trailing slash (no 307 hop)."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.get("/groups", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/groups/list"
+
+
 def test_groups_index_fallback_when_no_children(test_admin_user, override_auth, mocker):
     """Test groups index falls back to /dashboard when no accessible children."""
     override_auth(test_admin_user, level="admin")

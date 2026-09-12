@@ -156,7 +156,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   Permanently removing a user's personally identifiable information (name, email) while preserving their audit trail. Satisfies GDPR right-to-erasure requirements. Irreversible. See [User Lifecycle](admin-guide/users/user-lifecycle.md).
 
 **Privileged domain**
-:   An email domain registered in WeftID with an IdP binding and optional group auto-assignment. Users with matching email addresses are routed to the bound IdP during sign-in and can be automatically added to specified groups. See [Privileged Domains](admin-guide/identity-providers/privileged-domains.md).
+:   An email domain registered in WeftID with an IdP binding and optional group auto-assignment. Users with matching email addresses are routed to the bound IdP during sign-in and can be automatically added to specified groups. See [Domain Routing](admin-guide/identity-providers/privileged-domains.md).
 
 **Standard user attribute**
 :   A profile field from WeftID's built-in attribute registry (display name, job title, department, phone, location, and others, grouped by category). Each attribute can be enabled per tenant, marked required, mirrored from an upstream IdP, locked from user edits, and made available to downstream SPs in SAML assertions. See [User Attributes](admin-guide/security/user-attributes.md).

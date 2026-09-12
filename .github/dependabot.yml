@@ -10,6 +10,10 @@ updates:
       day: "monday"
     allow:
       - dependency-type: "direct"
+    # deploy/prod_requirements.lock.txt is generated from poetry.lock and
+    # installed with exact pins, so Dependabot must not bump it directly.
+    exclude-paths:
+      - "deploy/**"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"

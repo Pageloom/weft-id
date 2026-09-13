@@ -29,7 +29,7 @@ Select one or more members using the checkboxes on the group's members page, the
 
 ## IdP groups
 
-Members of IdP-type groups are managed automatically by the identity provider. Membership updates each time a user signs in via SAML and the IdP includes group assertions. You cannot manually add or remove members from IdP groups. Bulk assignment also rejects IdP groups.
+Members of IdP-type groups are managed automatically by the identity provider. Membership updates each time a user signs in through the IdP and it includes group assertions (SAML) or a group claim (OIDC). You cannot manually add or remove members from IdP groups. Bulk assignment also rejects IdP groups.
 
 ## Inherited membership
 

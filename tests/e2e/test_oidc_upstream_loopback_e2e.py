@@ -124,6 +124,52 @@ def _op_user_id(op_tenant_id: str, email: str) -> str:
     )
 
 
+def _rp_oidc_group(rp_tenant_id: str, connection_id: str, name: str) -> tuple[str, str] | None:
+    """(group_id, group_type) of the RP group sourced from the connection, or None."""
+    raw = _run_sql(
+        "SELECT id || '|' || group_type FROM groups "
+        f"WHERE tenant_id = '{rp_tenant_id}' AND oidc_connection_id = '{connection_id}' "
+        f"AND name = '{name}';"
+    )
+    if not raw:
+        return None
+    group_id, group_type = raw.split("|", 1)
+    return group_id, group_type
+
+
+def _is_member(group_id: str, user_id: str) -> bool:
+    return (
+        _run_sql(
+            "SELECT count(*) FROM group_memberships "
+            f"WHERE group_id = '{group_id}' AND user_id = '{user_id}';"
+        )
+        == "1"
+    )
+
+
+def _assert_group_claim_synced(cfg: dict, rp_user_id: str) -> None:
+    """The OP's `groups` claim landed as an IdP group under the base group."""
+    op, rp = cfg["op"], cfg["rp"]
+
+    base = _rp_oidc_group(rp["tenant_id"], rp["connection_id"], rp["connection_name"])
+    assert base is not None, "connection base group missing on the RP"
+    base_id, base_type = base
+    assert base_type == "idp"
+    assert _is_member(base_id, rp_user_id)
+
+    claim = _rp_oidc_group(rp["tenant_id"], rp["connection_id"], op["group_name"])
+    assert claim is not None, f"claim group '{op['group_name']}' was not created on the RP"
+    claim_id, claim_type = claim
+    assert claim_type == "idp"
+    assert _is_member(claim_id, rp_user_id)
+
+    wired = _run_sql(
+        "SELECT count(*) FROM group_relationships "
+        f"WHERE parent_group_id = '{base_id}' AND child_group_id = '{claim_id}';"
+    )
+    assert wired == "1", "claim group is not wired beneath the base group"
+
+
 # ---------------------------------------------------------------------------
 # Browser flow
 # ---------------------------------------------------------------------------
@@ -238,6 +284,11 @@ class TestUpstreamOidcFirstSignIn:
         assert _event_count(rp["tenant_id"], "oidc_login_completed") == 0
         assert _event_count(rp["tenant_id"], "oidc_login_failed") == 0
 
+        # Group claim: the OP released the loop user's group under the
+        # `groups` scope; the RP discovered it once and synced membership.
+        _assert_group_claim_synced(cfg, rp_user_id)
+        assert _event_count(rp["tenant_id"], "idp_group_discovered") == 1
+
 
 # ---------------------------------------------------------------------------
 # Second sign-in: correlation on sub
@@ -272,6 +323,11 @@ class TestUpstreamOidcSecondSignIn:
         assert _event_count(rp["tenant_id"], "oidc_login_started") == 2
         assert _event_count(rp["tenant_id"], "oidc_login_completed") == 1
         assert _event_count(rp["tenant_id"], "oidc_login_failed") == 0
+
+        # Group claim on the linked-user path: the known group is reused (no
+        # second discovery) and membership is intact after the full re-sync.
+        _assert_group_claim_synced(cfg, before_users[0])
+        assert _event_count(rp["tenant_id"], "idp_group_discovered") == 1
 
         # The RP session belongs to the linked user: the profile form is
         # pre-filled with the name the OP asserted.

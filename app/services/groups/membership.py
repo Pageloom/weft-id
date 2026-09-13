@@ -238,6 +238,9 @@ def get_effective_memberships(
             description=row.get("description"),
             group_type=row["group_type"],
             idp_id=str(row["idp_id"]) if row.get("idp_id") else None,
+            oidc_connection_id=(
+                str(row["oidc_connection_id"]) if row.get("oidc_connection_id") else None
+            ),
             idp_name=row.get("idp_name"),
             is_direct=row["is_direct"],
         )

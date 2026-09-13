@@ -109,6 +109,33 @@ Mapped values are mirrored into the user's profile on every sign-in, subject to 
 
 Mirroring is best-effort. A mapping problem will not prevent a user from signing in.
 
+## Group claims
+
+The **Claim mapping** tab also holds the connection's group claim settings. Leave the claim name empty (the default) and WeftID never touches group membership for this connection. Set it, and every sign-in through the connection syncs the user's groups from that claim.
+
+How it works:
+
+* **Base group.** Every connection has a base group with the connection's name. Every user who signs in through the connection is added to it, whether or not a group claim is configured. The base group is created with the connection, renamed with it, and deleted with it.
+* **Discovered groups.** Each value in the claim becomes an IdP-type group under the base group, created the first time it is seen. Membership is read-only in WeftID and is updated on every sign-in: the user is added to the groups in the claim and removed from this connection's groups that are no longer listed.
+* **Absent claim.** If the token carries no such claim at all, memberships are left as they are. A missing claim usually means a scope or provider setting rather than "no groups", so WeftID does not strip access on it. An explicitly empty list does remove the user from all of the connection's discovered groups.
+
+WeftID reads the claim from the ID token, and from the userinfo response when the token does not carry it. Accepted shapes:
+
+* a list of names: `["engineering", "ops"]`
+* a list of objects, with the group name under the configured **name key** (default `name`): `[{"id": "…", "name": "engineering"}]`
+* a single name as a string
+
+Names are trimmed and de-duplicated. Values longer than 200 characters are ignored.
+
+Groups synced this way behave exactly like groups synced from a SAML assertion: they appear under **Groups** with the connection's name as their source, can be used for [group-based access](../groups/group-based-access.md), and cannot be edited by hand.
+
+Provider notes:
+
+* **Okta**: add a `groups` claim to the authorization server (**Security > API > Authorization Servers > Claims**), include it in the ID token, and use the claim's group filter to limit which groups are released. Add `groups` to the connection's scopes if the claim is scoped to it.
+* **Microsoft Entra ID**: enable the groups claim on the app registration. The claim carries group object IDs, not names, so synced groups are named by GUID. See [OIDC with Microsoft Entra ID](oidc-entra.md#groups).
+* **Google Workspace**: no groups claim is available over OIDC.
+* **Keycloak, Auth0, Authentik and other generic providers**: add a mapper or action that puts the user's groups into a claim, then enter that claim's name here. Namespaced names such as `https://example.com/groups` work.
+
 ## Correlation claim
 
 Most providers use `sub` as the stable subject. Entra is the exception: its `sub` is unique per application, so the Entra preset correlates on `oid` instead, per Microsoft's guidance.
@@ -121,6 +148,6 @@ The **Danger** tab lists users linked to the connection and can unlink them indi
 
 ## Deleting a connection
 
-Deleting a connection removes its user links and mirrored attributes. Users who could only sign in through that connection will no longer have a way in, so give them a password or another connection first.
+Deleting a connection removes its user links, mirrored attributes, and the groups synced from it (including the base group). Users who could only sign in through that connection will no longer have a way in, so give them a password or another connection first.
 
 A connection bound to a [privileged domain](privileged-domains.md) cannot be deleted until the binding is removed.

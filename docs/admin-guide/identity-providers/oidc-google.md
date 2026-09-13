@@ -42,7 +42,7 @@ This is a useful guard, but it is enforced by Google at the point of sign-in rat
 
 ## Groups
 
-Google does not emit a groups claim over OIDC. Group membership is not synchronised by this connection; manage groups in WeftID, or use a directory sync.
+Google does not emit a groups claim over OIDC, so the connection's [group claim settings](oidc-setup.md#group-claims) have nothing to read for a Google connection. Users still land in the connection's base group. For anything finer, manage groups in WeftID or use a directory sync.
 
 ## Troubleshooting
 

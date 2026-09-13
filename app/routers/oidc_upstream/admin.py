@@ -3,7 +3,7 @@
 Mirrors ``routers.saml.admin.providers`` for the consuming direction of OIDC:
 list, create/edit form with the vendor preset picker, detail tabs (details /
 danger), and a real test-connection action that runs discovery. The
-claim-mapping tab arrives in Iteration 5.
+claim-mapping tab also carries the group claim settings.
 
 The client secret is write-only: it is accepted on the create form but never
 rendered back into any template.
@@ -373,6 +373,45 @@ async def edit_claim_mapping(
 
     return safe_redirect(
         f"{CONNECTION_LIST_URL}/{connection_id}/claim-mapping?success=claim_mapping_updated"
+    )
+
+
+@router.post(
+    "/identity-providers/oidc/{connection_id}/edit-group-claim",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_group_claim(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+    group_claim_source: Annotated[str, Form(max_length=255)] = "",
+    group_claim_name_key: Annotated[str, Form(max_length=100)] = "",
+):
+    """Update the group claim settings (claim-mapping tab).
+
+    An empty claim name disables group sync; an empty name key falls back
+    to ``name``. Both are stored as NULL when blank.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        oidc_service.update_connection(
+            requesting_user,
+            connection_id,
+            OIDCConnectionUpdate(
+                group_claim_source=group_claim_source,
+                group_claim_name_key=group_claim_name_key,
+            ),
+            tenant_base_url(request),
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as e:
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/claim-mapping?error={str(e)}")
+
+    return safe_redirect(
+        f"{CONNECTION_LIST_URL}/{connection_id}/claim-mapping?success=group_claim_updated"
     )
 
 

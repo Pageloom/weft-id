@@ -10,15 +10,16 @@ def get_group_by_id(tenant_id: TenantArg, group_id: str) -> dict | None:
     Get a group by ID with member/relationship counts.
 
     Returns:
-        Dict with id, tenant_id, name, description, group_type, idp_id, idp_name,
-        is_valid, created_by, created_at, updated_at, member_count,
-        parent_count, child_count
+        Dict with id, tenant_id, name, description, group_type, idp_id,
+        oidc_connection_id, idp_name (from whichever source is set), is_valid,
+        created_by, created_at, updated_at, member_count, parent_count, child_count
     """
     return fetchone(
         tenant_id,
         """
         select g.id, g.tenant_id, g.name, g.description, g.acronym, g.group_type,
-               g.idp_id, idp.name as idp_name, g.is_valid, g.created_by,
+               g.idp_id, g.oidc_connection_id,
+               coalesce(idp.name, oc.name) as idp_name, g.is_valid, g.created_by,
                g.created_at, g.updated_at,
                (select count(*) from group_memberships gm
                 where gm.group_id = g.id) as member_count,
@@ -34,6 +35,7 @@ def get_group_by_id(tenant_id: TenantArg, group_id: str) -> dict | None:
                gl.updated_at as logo_updated_at
         from groups g
         left join saml_identity_providers idp on g.idp_id = idp.id
+        left join oidc_idp_connections oc on g.oidc_connection_id = oc.id
         left join group_logos gl on gl.group_id = g.id
         where g.id = :group_id
         """,

@@ -4,6 +4,60 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## OIDC Upstream Group Claim Handling
+
+**Status:** Complete (2026-09-13, on main, unreleased)
+
+**What shipped:** an OIDC upstream connection can name a group claim
+(`group_claim_source`, previously written-but-unread) plus an optional
+`group_claim_name_key` for list-of-object claims. On every sign-in through the
+connection (existing link, email link, or JIT) the claim is read from the
+merged ID-token + userinfo claims and fully synced into `idp`-type groups via the
+same `services.groups.idp` machinery SAML uses, now parameterised by
+`source="saml" | "oidc"` (new `groups.oidc_connection_id` column, migration
+0060, mutually exclusive with `idp_id`, per-source unique-name indexes, FK
+cascade). Every OIDC connection also gets a base (umbrella) group named after
+it, created/renamed/deleted with the connection and populated on sign-in, so
+discovered groups are wired beneath it exactly as for SAML. Read queries
+coalesce the source name into `idp_name`, so group list/detail/graph/effective
+views show the connection as the group's source with no template changes.
+Admin UI: a **Group Claim** card on the Claim mapping tab; API: both fields on
+create/PATCH with `""` meaning clear. Docs: a "Group claims" section on the
+OIDC setup page with per-vendor notes, the Entra page's Groups section
+rewritten (GUID naming, overage, how to enable the claim), Google note
+updated, groups docs mention OIDC. Loopback E2E extended: the OP releases the
+loop user's group under the `groups` scope and the RP is asserted to have
+created the IdP group, wired it under the base group, and added the user.
+
+**Design decisions:**
+- Present claim (even `[]`) is authoritative and triggers a full sync; an
+  absent claim is "no information" and leaves memberships untouched. This is
+  stricter than SAML (which only syncs on a non-empty list) and is what keeps a
+  dropped scope from silently stripping access.
+- Entra overage (`_claim_names` naming the group claim) is detected, logged as
+  `oidc_group_claim_overage`, and skips the sync. GUIDs are used verbatim as
+  group names; Graph name resolution is documented as a separate decision, not
+  silently required.
+- Group sync failures propagate and fail the sign-in (unlike attribute
+  mirroring, which is soft-fail) because group membership gates app access.
+- IdP-group audit events carry `idp_source` (`saml`/`oidc`) and
+  `sync_source` (`oidc_authentication` for the new path).
+- New event types: `idp_group_renamed`, `oidc_group_claim_overage`.
+
+**Acceptance Criteria:**
+
+- [x] Generic connector reads `group_claim_source` and syncs membership on each sign-in
+- [x] Value shapes: list of strings and list of objects (configurable name key)
+- [x] Synced groups are `idp`-type: read-only in WeftID, membership updated on sign-in
+- [x] Entra GUID handling: GUID-keyed groups work without Graph; optional Graph
+      name resolution documented as a follow-up decision, not silently required
+- [x] Docs: group-claim section on the OIDC setup page + per-vendor notes
+
+**Effort:** M
+**Value:** Medium-High
+
+---
+
 ## Restructure Admin Navigation Around Concepts, Not Permissions
 
 **Status:** Complete (2026-09-06, branch `nav-restructure`, 5 iterations)

@@ -46,7 +46,17 @@ Entra client secrets expire, up to a maximum of 24 months. When the secret expir
 
 ## Groups
 
-The Entra `groups` claim emits directory object IDs (GUIDs) rather than group names, and resolving them requires additional Microsoft Graph permissions. Group synchronisation over OIDC is not supported by this connection. To bring Entra groups into WeftID, use [inbound SCIM](inbound-scim-entra.md).
+Entra can put the user's groups in the ID token, and WeftID can sync them into IdP groups (see [group claims](oidc-setup.md#group-claims)). Two things to know before enabling it.
+
+**The claim carries object IDs, not names.** Entra's `groups` claim emits directory object IDs (GUIDs). WeftID uses them verbatim, so the synced groups are named by GUID under the connection's base group. That works for group-based access (assign the GUID-named group to an application), but the names are not friendly. Resolving GUIDs to display names needs `GroupMember.Read.All` or `Directory.Read.All` and Microsoft Graph calls. WeftID does not do that today; whether it should is a separate decision from this feature, not something the connection needs. If you want friendly names, use [inbound SCIM](inbound-scim-entra.md), which pushes groups by display name.
+
+**Overage.** When a user is in more groups than fit in the token (200 for a JWT), Entra omits the `groups` claim and sends a `_claim_names` pointer to Microsoft Graph instead. WeftID detects this, records an `oidc_group_claim_overage` event against the connection, and leaves that user's memberships unchanged rather than emptying them.
+
+To enable the claim:
+
+1. On the app registration, open **Token configuration > Add groups claim**
+2. Choose which groups to emit and keep the **Group ID** format for the ID token. Restricting it to groups assigned to the application keeps tokens small and avoids overage
+3. In WeftID, open the connection's **Claim mapping** tab and set the group claim name to `groups`
 
 ## Troubleshooting
 

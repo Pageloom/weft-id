@@ -1,24 +1,54 @@
-"""IdP group database operations."""
+"""IdP group database operations.
+
+IdP-type groups are sourced from one of two kinds of upstream identity
+provider, selected by the ``source`` argument:
+
+- ``"saml"`` (default): ``groups.idp_id`` references
+  ``saml_identity_providers``.
+- ``"oidc"``: ``groups.oidc_connection_id`` references
+  ``oidc_idp_connections``.
+
+The column and provider-table names are resolved from a fixed allowlist
+(``_SOURCES``) before being interpolated into SQL; values are always
+parameterized.
+"""
 
 from database._core import TenantArg, execute, fetchall, fetchone, session
 
+# source -> (groups column holding the provider id, provider table)
+_SOURCES: dict[str, tuple[str, str]] = {
+    "saml": ("idp_id", "saml_identity_providers"),
+    "oidc": ("oidc_connection_id", "oidc_idp_connections"),
+}
 
-def get_idp_base_group_id(tenant_id: TenantArg, idp_id: str) -> str | None:
+IDP_SOURCES = frozenset(_SOURCES)
+
+
+def _resolve_source(source: str) -> tuple[str, str]:
+    """Return ``(id_column, provider_table)`` for an allowlisted source."""
+    try:
+        return _SOURCES[source]
+    except KeyError:
+        raise ValueError(f"Unknown IdP group source: {source!r}") from None
+
+
+def get_idp_base_group_id(tenant_id: TenantArg, idp_id: str, source: str = "saml") -> str | None:
     """Get the base group ID for an IdP.
 
     The base group is the one whose name matches the IdP name.
-    Uses a join to identity_providers so callers don't need the IdP name.
+    Uses a join to the provider table so callers don't need the IdP name.
 
     Returns:
         The group ID as a string, or None if not found.
     """
+    id_column, provider_table = _resolve_source(source)
     row = fetchone(
         tenant_id,
-        """
+        f"""
         select g.id
         from groups g
-        join saml_identity_providers ip on g.idp_id = ip.id and g.name = ip.name
-        where g.idp_id = :idp_id
+        join {provider_table} ip on g.{id_column} = ip.id and g.name = ip.name
+        where g.{id_column} = :idp_id
           and g.is_valid = true
         """,
         {"idp_id": idp_id},
@@ -26,29 +56,33 @@ def get_idp_base_group_id(tenant_id: TenantArg, idp_id: str) -> str | None:
     return str(row["id"]) if row else None
 
 
-def get_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> list[dict]:
+def get_groups_by_idp(tenant_id: TenantArg, idp_id: str, source: str = "saml") -> list[dict]:
     """Get all groups for a specific IdP."""
+    id_column, _ = _resolve_source(source)
     return fetchall(
         tenant_id,
-        """
+        f"""
         select g.id, g.name, g.description, g.group_type, g.is_valid, g.created_at,
                (select count(*) from group_memberships gm where gm.group_id = g.id) as member_count
         from groups g
-        where g.idp_id = :idp_id
+        where g.{id_column} = :idp_id
         order by g.name
         """,
         {"idp_id": idp_id},
     )
 
 
-def get_group_by_idp_and_name(tenant_id: TenantArg, idp_id: str, name: str) -> dict | None:
+def get_group_by_idp_and_name(
+    tenant_id: TenantArg, idp_id: str, name: str, source: str = "saml"
+) -> dict | None:
     """Get a specific IdP group by name."""
+    id_column, _ = _resolve_source(source)
     return fetchone(
         tenant_id,
-        """
-        select g.id, g.name, g.group_type, g.idp_id, g.is_valid
+        f"""
+        select g.id, g.name, g.group_type, g.idp_id, g.oidc_connection_id, g.is_valid
         from groups g
-        where g.idp_id = :idp_id and g.name = :name
+        where g.{id_column} = :idp_id and g.name = :name
         """,
         {"idp_id": idp_id, "name": name},
     )
@@ -60,6 +94,7 @@ def create_idp_group(
     idp_id: str,
     name: str,
     description: str | None = None,
+    source: str = "saml",
 ) -> dict | None:
     """
     Create an IdP group with its self-referential lineage entry.
@@ -69,11 +104,12 @@ def create_idp_group(
     Returns:
         Dict with id of the created group
     """
+    id_column, _ = _resolve_source(source)
     with session(tenant_id=tenant_id) as cur:
-        # Create the group with type='idp' and idp_id set
+        # Create the group with type='idp' and the source id column set
         cur.execute(
-            """
-            insert into groups (tenant_id, name, description, group_type, idp_id, created_by)
+            f"""
+            insert into groups (tenant_id, name, description, group_type, {id_column}, created_by)
             values (%(tenant_id)s, %(name)s, %(description)s, 'idp', %(idp_id)s, null)
             returning id
             """,
@@ -102,7 +138,7 @@ def create_idp_group(
         return {"id": group_id}
 
 
-def invalidate_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> int:
+def invalidate_groups_by_idp(tenant_id: TenantArg, idp_id: str, source: str = "saml") -> int:
     """
     Mark all groups for an IdP as invalid.
 
@@ -112,51 +148,57 @@ def invalidate_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> int:
     Returns:
         Number of groups invalidated
     """
+    id_column, _ = _resolve_source(source)
     return execute(
         tenant_id,
-        """
+        f"""
         update groups
         set is_valid = false, updated_at = now()
-        where idp_id = :idp_id and is_valid = true
+        where {id_column} = :idp_id and is_valid = true
         """,
         {"idp_id": idp_id},
     )
 
 
-def delete_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> int:
+def delete_groups_by_idp(tenant_id: TenantArg, idp_id: str, source: str = "saml") -> int:
     """
     Delete all groups for an IdP.
 
     Called before an IdP is deleted to avoid unique constraint violations.
-    The groups FK has ON DELETE SET NULL, which would set idp_id to NULL and
-    collide with existing weftid groups sharing the same name.
+    The SAML groups FK has ON DELETE SET NULL, which would set idp_id to NULL
+    and collide with existing weftid groups sharing the same name. The OIDC FK
+    cascades, but deleting here first lets the service layer audit each removal.
 
     Cascading deletes handle memberships, relationships, and lineage.
 
     Returns:
         Number of groups deleted
     """
+    id_column, _ = _resolve_source(source)
     return execute(
         tenant_id,
-        "delete from groups where idp_id = :idp_id",
+        f"delete from groups where {id_column} = :idp_id",
         {"idp_id": idp_id},
     )
 
 
-def get_user_idp_group_ids(tenant_id: TenantArg, user_id: str, idp_id: str) -> list[str]:
+def get_user_idp_group_ids(
+    tenant_id: TenantArg, user_id: str, idp_id: str, source: str = "saml"
+) -> list[str]:
     """
     Get all IdP group IDs a user belongs to for a specific IdP.
 
     Used for membership sync to determine which groups to add/remove.
     """
+    id_column, _ = _resolve_source(source)
     rows = fetchall(
         tenant_id,
-        """
+        f"""
         select g.id
         from group_memberships gm
         join groups g on gm.group_id = g.id
         where gm.user_id = :user_id
-          and g.idp_id = :idp_id
+          and g.{id_column} = :idp_id
           and g.is_valid = true
         """,
         {"user_id": user_id, "idp_id": idp_id},

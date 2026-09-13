@@ -598,3 +598,120 @@ def test_edit_endpoints_as_admin_forbidden(
         follow_redirects=False,
     )
     assert response.status_code in (303, 403)
+
+
+# =============================================================================
+# Group claim settings (claim-mapping tab)
+# =============================================================================
+
+
+def test_claim_mapping_tab_renders_group_claim_settings(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        group_claim_source="https://example.com/groups",
+        group_claim_name_key="displayName",
+    )
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/claim-mapping",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "Group Claim" in body
+    assert 'name="group_claim_source"' in body
+    assert 'value="https://example.com/groups"' in body
+    assert 'value="displayName"' in body
+    assert "edit-group-claim" in body
+
+
+def test_claim_mapping_tab_entra_shows_guid_note(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    database.execute(
+        test_tenant["id"],
+        "update oidc_idp_connections set provider_type = 'entra' where id = :id",
+        {"id": str(conn["id"])},
+    )
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/claim-mapping",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    assert "directory object IDs" in response.text
+
+
+def test_edit_group_claim_saves(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    response = super_admin_session.post(
+        f"/identity-providers/oidc/{conn['id']}/edit-group-claim",
+        data={"group_claim_source": " groups ", "group_claim_name_key": "name"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=group_claim_updated" in response.headers["location"]
+
+    row = database.oidc_upstream.get_connection(test_tenant["id"], str(conn["id"]))
+    assert row is not None
+    assert row["group_claim_source"] == "groups"
+    assert row["group_claim_name_key"] == "name"
+
+
+def test_edit_group_claim_blank_clears(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(
+        test_tenant, test_super_admin_user, group_claim_source="groups", group_claim_name_key="n"
+    )
+    response = super_admin_session.post(
+        f"/identity-providers/oidc/{conn['id']}/edit-group-claim",
+        data={"group_claim_source": "", "group_claim_name_key": ""},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    row = database.oidc_upstream.get_connection(test_tenant["id"], str(conn["id"]))
+    assert row is not None
+    assert row["group_claim_source"] is None
+    assert row["group_claim_name_key"] is None
+
+
+def test_edit_group_claim_not_found(super_admin_session, test_tenant_host):
+    import uuid
+
+    response = super_admin_session.post(
+        f"/identity-providers/oidc/{uuid.uuid4()}/edit-group-claim",
+        data={"group_claim_source": "groups"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
+
+
+def test_edit_group_claim_as_admin_forbidden(
+    admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    response = admin_session.post(
+        f"/identity-providers/oidc/{conn['id']}/edit-group-claim",
+        data={"group_claim_source": "groups"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code in (303, 403)

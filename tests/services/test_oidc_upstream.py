@@ -437,3 +437,119 @@ class TestEnableDisableDefault:
 
         assert svc.oidc_connection_requires_platform_mfa(test_tenant["id"], created.id) is True
         assert svc.oidc_connection_requires_platform_mfa(test_tenant["id"], str(uuid4())) is False
+
+
+class TestGroupLifecycle:
+    """Base group lifecycle and group-claim settings on the connection."""
+
+    def test_create_makes_base_group(self, test_tenant, test_super_admin_user):
+        import database
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(ru, _create_data(name="Acme OIDC"), BASE_URL)
+
+        base_id = database.groups.get_idp_base_group_id(test_tenant["id"], conn.id, "oidc")
+        assert base_id is not None
+        base = database.groups.get_group_by_id(test_tenant["id"], base_id)
+        assert base is not None
+        assert base["name"] == "Acme OIDC"
+        assert base["group_type"] == "idp"
+        assert str(base["oidc_connection_id"]) == conn.id
+        assert base["idp_name"] == "Acme OIDC"
+        _verify_event_logged(test_tenant["id"], "idp_group_created", base_id)
+
+    def test_create_survives_base_group_conflict(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        with patch(
+            "services.oidc_upstream.connections.groups_service.create_idp_base_group",
+            side_effect=ConflictError(message="dup", code="group_name_exists"),
+        ):
+            conn = svc.create_connection(ru, _create_data(), BASE_URL)
+        assert conn.id is not None
+
+    def test_rename_follows_to_base_group(self, test_tenant, test_super_admin_user):
+        import database
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(ru, _create_data(name="Old Name"), BASE_URL)
+        base_id = database.groups.get_idp_base_group_id(test_tenant["id"], conn.id, "oidc")
+
+        svc.update_connection(ru, conn.id, OIDCConnectionUpdate(name="New Name"), BASE_URL)
+
+        base = database.groups.get_group_by_id(test_tenant["id"], base_id)
+        assert base is not None and base["name"] == "New Name"
+        assert database.groups.get_idp_base_group_id(test_tenant["id"], conn.id, "oidc") == base_id
+        _verify_event_logged(test_tenant["id"], "idp_group_renamed", base_id)
+
+    def test_delete_removes_groups(self, test_tenant, test_super_admin_user):
+        import database
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(ru, _create_data(), BASE_URL)
+        base_id = database.groups.get_idp_base_group_id(test_tenant["id"], conn.id, "oidc")
+        claim_group = database.groups.create_idp_group(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            idp_id=conn.id,
+            name="engineering",
+            source="oidc",
+        )
+
+        svc.delete_connection(ru, conn.id)
+
+        assert database.groups.get_group_by_id(test_tenant["id"], base_id) is None
+        assert database.groups.get_group_by_id(test_tenant["id"], str(claim_group["id"])) is None
+        _verify_event_logged(test_tenant["id"], "idp_group_invalidated", base_id)
+        events = database.event_log.list_events(test_tenant["id"], limit=20)
+        deleted = [e for e in events if e["event_type"] == "oidc_idp_connection_deleted"]
+        assert deleted[0]["metadata"]["groups_removed"] == 2
+
+    def test_group_claim_settings_persist(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(
+            ru,
+            _create_data(group_claim_source=" groups ", group_claim_name_key="displayName"),
+            BASE_URL,
+        )
+        assert conn.group_claim_source == "groups"
+        assert conn.group_claim_name_key == "displayName"
+
+    def test_blank_group_claim_on_create_stored_as_null(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(
+            ru, _create_data(group_claim_source="  ", group_claim_name_key=""), BASE_URL
+        )
+        assert conn.group_claim_source is None
+        assert conn.group_claim_name_key is None
+
+    def test_update_blank_clears_and_none_leaves(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(
+            ru, _create_data(group_claim_source="groups", group_claim_name_key="name"), BASE_URL
+        )
+
+        # None leaves unchanged.
+        updated = svc.update_connection(ru, conn.id, OIDCConnectionUpdate(name="X"), BASE_URL)
+        assert updated.group_claim_source == "groups"
+        assert updated.group_claim_name_key == "name"
+
+        # Empty string clears.
+        cleared = svc.update_connection(
+            ru,
+            conn.id,
+            OIDCConnectionUpdate(group_claim_source="", group_claim_name_key="  "),
+            BASE_URL,
+        )
+        assert cleared.group_claim_source is None
+        assert cleared.group_claim_name_key is None

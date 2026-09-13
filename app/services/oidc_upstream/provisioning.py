@@ -162,11 +162,9 @@ def jit_provision_user(
         },
     )
 
-    # NOTE: The SAML "base group" step is intentionally omitted here. The
-    # base-group infrastructure is SAML-specific: ``groups.idp_id`` FKs to
-    # ``saml_identity_providers``, so an OIDC connection id cannot be stored
-    # there without a migration (out of scope for Iteration 3, which has no
-    # database layer). OIDC base-group support is a follow-on.
+    # Base-group membership and group-claim sync happen in
+    # ``authenticate_via_oidc`` after provisioning, on the same path as the
+    # existing-link and email-link branches.
 
     # Auto-assign to domain-linked groups (protocol-agnostic, email-domain
     # based, so it works for OIDC users unchanged).
@@ -246,6 +244,7 @@ def authenticate_via_oidc(
                 code="user_inactivated",
             )
         _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
+        _sync_groups(tenant_id, str(user["id"]), connection, claims, user)
         _log_sign_in(tenant_id, str(user["id"]), connection, sub, claims)
         return user
 
@@ -297,6 +296,7 @@ def authenticate_via_oidc(
                     },
                 )
                 _apply_oidc_idp_attributes_safe(tenant_id, user_id, connection, claims)
+                _sync_groups(tenant_id, user_id, connection, claims, existing)
                 _log_sign_in(tenant_id, user_id, connection, sub, claims)
                 return existing
 
@@ -304,6 +304,7 @@ def authenticate_via_oidc(
     if connection.get("jit_provisioning"):
         user = jit_provision_user(tenant_id, connection, sub, claims)
         _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
+        _sync_groups(tenant_id, str(user["id"]), connection, claims, user)
         return user
 
     # 4. Reject.
@@ -312,6 +313,26 @@ def authenticate_via_oidc(
         code="user_not_found",
         details={"sub": sub},
     )
+
+
+def _sync_groups(
+    tenant_id: str,
+    user_id: str,
+    connection: dict,
+    claims: dict,
+    user: dict,
+) -> None:
+    """Base-group membership plus group-claim sync for a signed-in user.
+
+    Not soft-failed on purpose: group membership gates application access,
+    so a sync that cannot complete fails the sign-in (the callback maps the
+    exception to ``auth_failed``) instead of leaving stale memberships.
+    """
+    from services.oidc_upstream.groups import sync_groups_from_claims
+
+    email = _extract_claims(claims, connection.get("claim_mapping") or {}).get("email")
+    user_email = email or user.get("email") or ""
+    sync_groups_from_claims(tenant_id, user_id, user_email, connection, claims)
 
 
 def _apply_oidc_idp_attributes_safe(

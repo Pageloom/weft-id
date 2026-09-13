@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **OIDC upstream group claim handling.** An OIDC connection can name a group
+  claim (Claim mapping tab, or `group_claim_source` and
+  `group_claim_name_key` on the API). On every sign-in the claim's values are
+  synced into read-only IdP groups beneath the connection's base group,
+  exactly as SAML group assertions are. Lists of names, lists of objects, and
+  single values are accepted. An absent claim leaves memberships untouched,
+  and Entra group overage is detected and recorded as an
+  `oidc_group_claim_overage` event instead of emptying the user's groups.
+- Every OIDC connection now has a base group named after it, created with the
+  connection, renamed with it, and deleted with it. Every user who signs in
+  through the connection is added to it, mirroring SAML identity providers.
+
+### Changed
+
+- IdP groups can be sourced from an OIDC connection as well as a SAML
+  identity provider (new `groups.oidc_connection_id` column, migration 0060).
+  Group views show the connection name as the group's source, and IdP group
+  audit events carry an `idp_source` of `saml` or `oidc`.
+
 ## [1.12.0] - 2026-09-13
 
 ### Added

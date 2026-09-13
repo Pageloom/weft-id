@@ -60,11 +60,13 @@ def get_effective_memberships(tenant_id: TenantArg, user_id: str) -> list[dict]:
             group by group_id
         )
         select g.id, g.name, g.description, g.group_type,
-               g.idp_id, idp.name as idp_name,
+               g.idp_id, g.oidc_connection_id,
+               coalesce(idp.name, oc.name) as idp_name,
                d.is_direct
         from deduped d
         join groups g on d.group_id = g.id
         left join saml_identity_providers idp on g.idp_id = idp.id
+        left join oidc_idp_connections oc on g.oidc_connection_id = oc.id
         order by d.is_direct desc, g.name
         """,
         {"user_id": user_id},

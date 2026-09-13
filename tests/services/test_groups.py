@@ -1654,7 +1654,7 @@ def test_get_idp_base_group_success():
         assert result is not None
         assert result.id == group_id
         assert result.group_type == "idp"
-        mock_db.groups.get_idp_base_group_id.assert_called_once_with(tenant_id, idp_id)
+        mock_db.groups.get_idp_base_group_id.assert_called_once_with(tenant_id, idp_id, "saml")
         mock_db.groups.get_group_by_id.assert_called_once_with(tenant_id, group_id)
 
 
@@ -3348,7 +3348,7 @@ def test_ensure_user_in_base_group_auto_creates_missing_base_group():
             tenant_id, user_id, "user@example.com", idp_id, "Test IdP"
         )
 
-        mock_create.assert_called_once_with(tenant_id, idp_id, "Test IdP")
+        mock_create.assert_called_once_with(tenant_id, idp_id, "Test IdP", "saml")
         mock_db.groups.bulk_add_user_to_groups.assert_called_once_with(
             tenant_id, tenant_id, user_id, [new_group_id]
         )
@@ -3443,7 +3443,7 @@ def test_ensure_users_in_base_group_auto_creates_missing_base_group():
 
         count = groups_service.ensure_users_in_base_group(tenant_id, user_ids, idp_id, "Test IdP")
 
-        mock_create.assert_called_once_with(tenant_id, idp_id, "Test IdP")
+        mock_create.assert_called_once_with(tenant_id, idp_id, "Test IdP", "saml")
         assert count == 2
         assert mock_db.groups.bulk_add_user_to_groups.call_count == 2
 

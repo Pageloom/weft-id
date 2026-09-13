@@ -11,8 +11,14 @@ This module provides business logic for IdP-managed group operations:
 - remove_user_from_all_idp_groups
 - move_users_between_idps
 
-These are system-level operations typically invoked during SAML authentication
-or IdP lifecycle events.
+These are system-level operations typically invoked during SAML or OIDC
+authentication or IdP lifecycle events.
+
+Every function takes a ``source`` argument (``"saml"`` by default, ``"oidc"``
+for upstream OIDC connections) that selects which provider table the group
+hangs off; see ``database.groups.idp`` for the column mapping. Event metadata
+carries the same value as ``idp_source`` so audit consumers can tell the two
+apart.
 """
 
 import logging
@@ -32,6 +38,7 @@ def create_idp_base_group(
     tenant_id: str,
     idp_id: str,
     idp_name: str,
+    source: str = "saml",
 ) -> GroupDetail:
     """
     Create the base group for an IdP.
@@ -46,8 +53,9 @@ def create_idp_base_group(
 
     Args:
         tenant_id: Tenant UUID
-        idp_id: The IdP UUID
+        idp_id: The IdP UUID (SAML IdP id or OIDC connection id)
         idp_name: The IdP name (used as group name)
+        source: ``"saml"`` or ``"oidc"``
 
     Returns:
         The created GroupDetail
@@ -57,7 +65,7 @@ def create_idp_base_group(
         ConflictError: If a group with this name already exists
     """
     # Check for duplicate name within this IdP (IdP groups are namespaced to their IdP)
-    if database.groups.get_group_by_idp_and_name(tenant_id, idp_id, idp_name):
+    if database.groups.get_group_by_idp_and_name(tenant_id, idp_id, idp_name, source):
         raise ConflictError(
             message=f"A group named '{idp_name}' already exists for this IdP",
             code="group_name_exists",
@@ -74,6 +82,7 @@ def create_idp_base_group(
             f"It contains every user who authenticates through this identity provider. "
             f"Groups reported by the IdP during authentication appear as children of this group."
         ),
+        source=source,
     )
 
     if not result:
@@ -95,6 +104,7 @@ def create_idp_base_group(
             metadata={
                 "idp_id": idp_id,
                 "idp_name": idp_name,
+                "idp_source": source,
                 "group_name": idp_name,
             },
         )
@@ -112,6 +122,7 @@ def create_idp_base_group(
 def get_idp_base_group(
     tenant_id: str,
     idp_id: str,
+    source: str = "saml",
 ) -> GroupDetail | None:
     """
     Fetch the base (umbrella) group for an IdP.
@@ -126,7 +137,7 @@ def get_idp_base_group(
     Returns:
         The GroupDetail for the base group, or None if not found
     """
-    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id, source)
     if not base_group_id:
         return None
     row = database.groups.get_group_by_id(tenant_id, base_group_id)
@@ -140,13 +151,14 @@ def _ensure_umbrella_relationship(
     idp_id: str,
     idp_name: str,
     assertion_group_id: str,
+    source: str = "saml",
 ) -> None:
     """Wire an assertion group as a DAG child of the umbrella group.
 
     Idempotent: does nothing if the relationship already exists or if
     the umbrella group does not exist yet (IdP setup may be incomplete).
     """
-    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id, source)
     if not base_group_id:
         return
 
@@ -166,6 +178,7 @@ def _ensure_umbrella_relationship(
             metadata={
                 "idp_id": idp_id,
                 "idp_name": idp_name,
+                "idp_source": source,
                 "parent_group_id": base_group_id,
                 "child_group_id": assertion_group_id,
             },
@@ -177,11 +190,12 @@ def get_or_create_idp_group(
     idp_id: str,
     idp_name: str,
     group_name: str,
+    source: str = "saml",
 ) -> dict:
     """
     Get or create an IdP-scoped group by name.
 
-    Used during SAML authentication to handle discovered group claims.
+    Used during SAML or OIDC authentication to handle discovered group claims.
     If a group with this name already exists for this IdP, returns it.
     Otherwise creates a new IdP group.
 
@@ -192,16 +206,17 @@ def get_or_create_idp_group(
         tenant_id: Tenant UUID
         idp_id: The IdP UUID
         idp_name: The IdP name (for logging)
-        group_name: The group name from SAML claims
+        group_name: The group name from the assertion or token claims
+        source: ``"saml"`` or ``"oidc"``
 
     Returns:
         Dict with id and name of the group
     """
     # Check if group already exists for this IdP
-    existing = database.groups.get_group_by_idp_and_name(tenant_id, idp_id, group_name)
+    existing = database.groups.get_group_by_idp_and_name(tenant_id, idp_id, group_name, source)
     if existing:
         group_id = str(existing["id"])
-        _ensure_umbrella_relationship(tenant_id, idp_id, idp_name, group_id)
+        _ensure_umbrella_relationship(tenant_id, idp_id, idp_name, group_id, source)
         return {"id": group_id, "name": existing["name"], "created": False}
 
     # Create new IdP group
@@ -215,6 +230,7 @@ def get_or_create_idp_group(
             "Membership is managed automatically whenever a user authenticates "
             "through the identity provider."
         ),
+        source=source,
     )
 
     if not result:
@@ -236,12 +252,13 @@ def get_or_create_idp_group(
             metadata={
                 "idp_id": idp_id,
                 "idp_name": idp_name,
+                "idp_source": source,
                 "group_name": group_name,
             },
         )
 
     # Wire to umbrella group
-    _ensure_umbrella_relationship(tenant_id, idp_id, idp_name, group_id)
+    _ensure_umbrella_relationship(tenant_id, idp_id, idp_name, group_id, source)
 
     return {"id": group_id, "name": group_name, "created": True}
 
@@ -253,8 +270,13 @@ def apply_membership_additions(
     idp_id: str,
     idp_name: str,
     group_ids: set[str],
+    sync_source: str = "saml_authentication",
+    source: str = "saml",
 ) -> list[str]:
     """Add user to the given groups and log each addition.
+
+    ``sync_source`` names the trigger in the audit metadata
+    (``saml_authentication``, ``oidc_authentication``, ...).
 
     Returns list of added group names. Public so other system-level
     callers (inbound SCIM group writes) can reuse the IdP membership
@@ -281,11 +303,12 @@ def apply_membership_additions(
                 metadata={
                     "idp_id": idp_id,
                     "idp_name": idp_name,
+                    "idp_source": source,
                     "user_id": user_id,
                     "user_email": user_email,
                     "group_id": group_id,
                     "group_name": group_name,
-                    "sync_source": "saml_authentication",
+                    "sync_source": sync_source,
                 },
             )
 
@@ -299,8 +322,13 @@ def apply_membership_removals(
     idp_id: str,
     idp_name: str,
     group_ids: set[str],
+    sync_source: str = "saml_authentication",
+    source: str = "saml",
 ) -> list[str]:
     """Remove user from the given groups and log each removal.
+
+    ``sync_source`` names the trigger in the audit metadata
+    (``saml_authentication``, ``oidc_authentication``, ...).
 
     Returns list of removed group names. Public so other system-level
     callers (inbound SCIM group writes) can reuse the IdP membership
@@ -332,11 +360,12 @@ def apply_membership_removals(
                 metadata={
                     "idp_id": idp_id,
                     "idp_name": idp_name,
+                    "idp_source": source,
                     "user_id": user_id,
                     "user_email": user_email,
                     "group_id": group_id,
                     "group_name": group_name,
-                    "sync_source": "saml_authentication",
+                    "sync_source": sync_source,
                 },
             )
 
@@ -350,12 +379,14 @@ def sync_user_idp_groups(
     idp_id: str,
     idp_name: str,
     group_names: list[str],
+    source: str = "saml",
+    sync_source: str = "saml_authentication",
 ) -> dict:
     """
     Full sync of user's IdP group memberships.
 
-    Called during SAML authentication to update the user's group memberships
-    based on the group claims in the SAML assertion.
+    Called during SAML or OIDC authentication to update the user's group
+    memberships based on the group claims in the assertion or ID token.
 
     This performs a full sync:
     - Adds user to groups they're in according to IdP
@@ -371,7 +402,9 @@ def sync_user_idp_groups(
         user_email: The user's email (for logging)
         idp_id: The IdP UUID
         idp_name: The IdP name (for logging)
-        group_names: List of group names from SAML claims
+        group_names: List of group names from the assertion or token claims
+        source: ``"saml"`` or ``"oidc"`` (selects the provider table)
+        sync_source: Trigger label recorded in audit metadata
 
     Returns:
         Dict with sync results: {"added": [...], "removed": [...], "created": [...]}
@@ -379,19 +412,21 @@ def sync_user_idp_groups(
     result: dict[str, list[str]] = {"added": [], "removed": [], "created": []}
 
     # Get current IdP group memberships for this user
-    current_group_ids = set(database.groups.get_user_idp_group_ids(tenant_id, user_id, idp_id))
+    current_group_ids = set(
+        database.groups.get_user_idp_group_ids(tenant_id, user_id, idp_id, source)
+    )
 
     # Resolve group names to group IDs (creating groups as needed)
     target_group_ids: set[str] = set()
     for group_name in group_names:
-        group_info = get_or_create_idp_group(tenant_id, idp_id, idp_name, group_name)
+        group_info = get_or_create_idp_group(tenant_id, idp_id, idp_name, group_name, source)
         if group_info:
             target_group_ids.add(group_info["id"])
             if group_info.get("created"):
                 result["created"].append(group_name)
 
     # Protect base group from removal (managed by assignment, not assertions)
-    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id, source)
     if base_group_id:
         current_group_ids.discard(base_group_id)
 
@@ -400,10 +435,10 @@ def sync_user_idp_groups(
     to_remove = current_group_ids - target_group_ids
 
     result["added"] = apply_membership_additions(
-        tenant_id, user_id, user_email, idp_id, idp_name, to_add
+        tenant_id, user_id, user_email, idp_id, idp_name, to_add, sync_source, source
     )
     result["removed"] = apply_membership_removals(
-        tenant_id, user_id, user_email, idp_id, idp_name, to_remove
+        tenant_id, user_id, user_email, idp_id, idp_name, to_remove, sync_source, source
     )
 
     return result
@@ -413,6 +448,7 @@ def invalidate_idp_groups(
     tenant_id: str,
     idp_id: str,
     idp_name: str,
+    source: str = "saml",
 ) -> int:
     """
     Delete all groups for an IdP.
@@ -433,7 +469,7 @@ def invalidate_idp_groups(
         Number of groups deleted
     """
     # Get groups before deletion for logging
-    groups = database.groups.get_groups_by_idp(tenant_id, idp_id)
+    groups = database.groups.get_groups_by_idp(tenant_id, idp_id, source)
 
     if not groups:
         return 0
@@ -450,13 +486,14 @@ def invalidate_idp_groups(
                 metadata={
                     "idp_id": idp_id,
                     "idp_name": idp_name,
+                    "idp_source": source,
                     "group_name": group["name"],
                     "reason": "idp_deleted",
                 },
             )
 
     # Delete all groups for this IdP
-    count = database.groups.delete_groups_by_idp(tenant_id, idp_id)
+    count = database.groups.delete_groups_by_idp(tenant_id, idp_id, source)
 
     return count
 
@@ -473,9 +510,10 @@ def _get_or_create_base_group_id(
     tenant_id: str,
     idp_id: str,
     idp_name: str,
+    source: str = "saml",
 ) -> str:
     """Get the base group ID for an IdP, creating it if it doesn't exist."""
-    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id, source)
     if base_group_id:
         return base_group_id
 
@@ -486,12 +524,12 @@ def _get_or_create_base_group_id(
         idp_name,
     )
     try:
-        group = create_idp_base_group(tenant_id, idp_id, idp_name)
+        group = create_idp_base_group(tenant_id, idp_id, idp_name, source)
         return str(group.id)
     except ConflictError:
         # Race condition: another request created it between our check and create.
         # Re-query to get the existing group.
-        base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+        base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id, source)
         if base_group_id:
             return base_group_id
         raise ValidationError(
@@ -506,13 +544,14 @@ def ensure_user_in_base_group(
     user_email: str,
     idp_id: str,
     idp_name: str,
+    source: str = "saml",
 ) -> None:
     """Add user to the IdP's base group if not already a member.
 
     Called from all IdP assignment paths to guarantee every assigned user
     is in the base group.
     """
-    base_group_id = _get_or_create_base_group_id(tenant_id, idp_id, idp_name)
+    base_group_id = _get_or_create_base_group_id(tenant_id, idp_id, idp_name, source)
 
     if database.groups.is_group_member(tenant_id, base_group_id, user_id):
         return
@@ -529,6 +568,7 @@ def ensure_user_in_base_group(
             metadata={
                 "idp_id": idp_id,
                 "idp_name": idp_name,
+                "idp_source": source,
                 "user_id": user_id,
                 "user_email": user_email,
                 "group_id": base_group_id,
@@ -536,6 +576,44 @@ def ensure_user_in_base_group(
                 "sync_source": "idp_assignment",
             },
         )
+
+
+def rename_idp_base_group(
+    tenant_id: str,
+    idp_id: str,
+    old_name: str,
+    new_name: str,
+    source: str = "saml",
+) -> bool:
+    """Rename an IdP's base group to follow a provider rename.
+
+    The base group is identified by name equality with the provider, so a
+    provider rename must carry the group along or the umbrella lookup
+    silently stops matching. Returns True when a group was renamed.
+    """
+    if old_name == new_name:
+        return False
+    existing = database.groups.get_group_by_idp_and_name(tenant_id, idp_id, old_name, source)
+    if not existing:
+        return False
+    group_id = str(existing["id"])
+    database.groups.update_group(tenant_id, group_id, name=new_name)
+
+    with system_context():
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=SYSTEM_ACTOR_ID,
+            artifact_type="group",
+            artifact_id=group_id,
+            event_type="idp_group_renamed",
+            metadata={
+                "idp_id": idp_id,
+                "idp_source": source,
+                "old_name": old_name,
+                "new_name": new_name,
+            },
+        )
+    return True
 
 
 def remove_user_from_base_group(

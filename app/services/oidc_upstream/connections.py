@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import database
+import services.groups as groups_service
 import settings
 from cryptography.fernet import Fernet
 from schemas.oidc_upstream import (
@@ -39,6 +40,19 @@ logger = logging.getLogger(__name__)
 # from the SAML private-key key so a compromise of one purpose does not
 # expose the other.
 _cipher = Fernet(derive_fernet_key(b"oidc-upstream-client-secret"))
+
+
+# Optional text settings where an explicit empty string from the API or a form
+# means "clear" and is stored as NULL.
+_CLEARABLE_TEXT_FIELDS = frozenset({"group_claim_source", "group_claim_name_key"})
+
+
+def _blank_to_none(value: str | None) -> str | None:
+    """Normalize a blank/whitespace-only text setting to None."""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
 
 
 def _encrypt_secret(plaintext: str) -> str:
@@ -76,6 +90,7 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         claim_mapping=row["claim_mapping"],
         correlation_claim=row["correlation_claim"],
         group_claim_source=row.get("group_claim_source"),
+        group_claim_name_key=row.get("group_claim_name_key"),
         hosted_domain=row.get("hosted_domain"),
         entra_tenant_id=row.get("entra_tenant_id"),
         is_enabled=row["is_enabled"],
@@ -291,7 +306,8 @@ def create_connection(
         scopes=data.scopes,
         claim_mapping=data.claim_mapping,
         correlation_claim=correlation_claim,
-        group_claim_source=data.group_claim_source,
+        group_claim_source=_blank_to_none(data.group_claim_source),
+        group_claim_name_key=_blank_to_none(data.group_claim_name_key),
         hosted_domain=data.hosted_domain,
         entra_tenant_id=data.entra_tenant_id,
         is_enabled=data.is_enabled,
@@ -321,6 +337,23 @@ def create_connection(
             "issuer": data.issuer,
         },
     )
+
+    # Create the base (umbrella) IdP group, mirroring the SAML provider path.
+    # Every user who signs in through this connection is added to it, and
+    # groups discovered from the group claim are wired beneath it.
+    try:
+        groups_service.create_idp_base_group(
+            tenant_id=tenant_id,
+            idp_id=connection_id,
+            idp_name=data.name,
+            source="oidc",
+        )
+    except ConflictError:
+        logger.warning(
+            "Could not create base group for OIDC connection %s: group name '%s' already exists",
+            connection_id,
+            data.name,
+        )
 
     return _row_to_config(row, base_url)
 
@@ -364,6 +397,7 @@ def update_connection(
         "claim_mapping",
         "correlation_claim",
         "group_claim_source",
+        "group_claim_name_key",
         "hosted_domain",
         "entra_tenant_id",
         "require_platform_mfa",
@@ -371,8 +405,13 @@ def update_connection(
         "allow_email_linking",
     ]:
         value = getattr(data, field, None)
-        if value is not None:
-            update_kwargs[field] = value
+        if value is None:
+            continue
+        if field in _CLEARABLE_TEXT_FIELDS:
+            # An explicit empty string clears the setting (stored as NULL);
+            # None still means "leave unchanged".
+            value = _blank_to_none(value)
+        update_kwargs[field] = value
 
     # The client secret is handled separately: it is write-only and encrypted.
     if data.client_secret is not None:
@@ -387,6 +426,14 @@ def update_connection(
         raise ValidationError(
             message="Failed to update OIDC connection",
             code="oidc_connection_update_failed",
+        )
+
+    # Keep the base group's name in step with the connection name; the
+    # umbrella lookup matches on name equality.
+    new_name = update_kwargs.get("name")
+    if new_name and new_name != existing["name"]:
+        groups_service.rename_idp_base_group(
+            tenant_id, connection_id, existing["name"], new_name, source="oidc"
         )
 
     log_event(
@@ -456,6 +503,22 @@ def delete_connection(
         actor_user_id=requesting_user["id"],
     )
 
+    # Remove the connection's IdP groups (base group + claim-discovered
+    # groups) so each removal is audited. The FK cascade would drop them
+    # silently otherwise.
+    invalidated_count = groups_service.invalidate_idp_groups(
+        tenant_id=tenant_id,
+        idp_id=connection_id,
+        idp_name=existing["name"],
+        source="oidc",
+    )
+    if invalidated_count > 0:
+        logger.info(
+            "Removed %d IdP group(s) before deleting OIDC connection %s",
+            invalidated_count,
+            connection_id,
+        )
+
     database.oidc_upstream.delete_connection(tenant_id, connection_id)
 
     # Drop any cached JWKS for the deleted connection so its keys are not
@@ -470,7 +533,11 @@ def delete_connection(
         artifact_type="oidc_idp_connection",
         artifact_id=connection_id,
         event_type="oidc_idp_connection_deleted",
-        metadata={"name": existing["name"], "scrubbed_count": scrubbed_count},
+        metadata={
+            "name": existing["name"],
+            "scrubbed_count": scrubbed_count,
+            "groups_removed": invalidated_count,
+        },
     )
 
 

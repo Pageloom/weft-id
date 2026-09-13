@@ -91,7 +91,11 @@ def create_connection(
     - scopes: Space-separated scopes (<=500 chars)
     - claim_mapping: OIDC claim name -> WeftID attribute key mapping
     - correlation_claim: Claim used to correlate users (default 'sub')
-    - group_claim_source: Reserved for deferred group-claims (written, unread)
+    - group_claim_source: Claim carrying the user's groups (<=255 chars). When
+      set, group membership is synced from it on every sign-in; omit/blank to
+      leave groups alone
+    - group_claim_name_key: Key holding the group name when the claim is a
+      list of objects (<=100 chars, default 'name')
     - hosted_domain: Google `hd` restriction (<=253 chars)
     - entra_tenant_id: Entra tenant id for authority composition (<=100 chars)
     - is_enabled / is_default / require_platform_mfa / jit_provisioning /
@@ -152,9 +156,11 @@ def update_connection(
     Request body (all fields optional):
     - name, issuer, discovery_url, authorization_endpoint, token_endpoint,
       userinfo_endpoint, jwks_uri, client_id, client_secret, scopes,
-      claim_mapping, correlation_claim, group_claim_source, hosted_domain,
-      entra_tenant_id, require_platform_mfa, jit_provisioning,
-      allow_email_linking
+      claim_mapping, correlation_claim, group_claim_source,
+      group_claim_name_key, hosted_domain, entra_tenant_id,
+      require_platform_mfa, jit_provisioning, allow_email_linking.
+      An empty string for group_claim_source or group_claim_name_key clears
+      the setting
 
     Returns the updated connection. The client secret is never returned.
     """

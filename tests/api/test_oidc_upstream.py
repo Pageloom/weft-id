@@ -236,3 +236,50 @@ def test_enable_connection_as_admin_forbidden(
         headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
     )
     assert response.status_code == 403
+
+
+def test_group_claim_fields_round_trip(
+    client, test_tenant_host, oauth2_super_admin_header, sample_connection_data
+):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            **sample_connection_data,
+            "group_claim_source": "groups",
+            "group_claim_name_key": "displayName",
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["group_claim_source"] == "groups"
+    assert data["group_claim_name_key"] == "displayName"
+
+    # None leaves the settings alone; an empty string clears them.
+    response = client.patch(
+        f"/api/v1/oidc-upstream/connections/{data['id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"name": "Renamed"},
+    )
+    assert response.status_code == 200
+    assert response.json()["group_claim_source"] == "groups"
+
+    response = client.patch(
+        f"/api/v1/oidc-upstream/connections/{data['id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"group_claim_source": "", "group_claim_name_key": ""},
+    )
+    assert response.status_code == 200
+    assert response.json()["group_claim_source"] is None
+    assert response.json()["group_claim_name_key"] is None
+
+
+def test_group_claim_name_key_length_bounded(
+    client, test_tenant_host, oauth2_super_admin_header, created_connection
+):
+    response = client.patch(
+        f"/api/v1/oidc-upstream/connections/{created_connection['id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"group_claim_name_key": "k" * 101},
+    )
+    assert response.status_code == 422

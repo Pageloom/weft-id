@@ -80,8 +80,8 @@ def list_groups(
         tenant_id,
         f"""
         select g.id, g.name, g.description, g.acronym, g.group_type,
-               g.idp_id, g.is_valid, g.created_at,
-               idp.name as idp_name,
+               g.idp_id, g.oidc_connection_id, g.is_valid, g.created_at,
+               coalesce(idp.name, oc.name) as idp_name,
                (select count(*) from group_memberships gm where gm.group_id = g.id) as member_count,
                (select count(*) from group_relationships gr
                 where gr.child_group_id = g.id) as parent_count,
@@ -97,6 +97,7 @@ def list_groups(
                logo.updated_at as logo_updated_at
         from groups g
         left join saml_identity_providers idp on g.idp_id = idp.id
+        left join oidc_idp_connections oc on g.oidc_connection_id = oc.id
         left join group_logos logo on logo.group_id = g.id
         {where_clause}
         order by {order_by}
@@ -116,7 +117,7 @@ def list_all_groups_for_graph(tenant_id: TenantArg) -> dict:
         tenant_id,
         """
         select g.id, g.name, g.acronym, g.group_type,
-               (idp_match.id is not null) as is_umbrella,
+               (idp_match.id is not null or oc_match.id is not null) as is_umbrella,
                (select count(*) from group_memberships gm
                 where gm.group_id = g.id) as member_count,
                (select count(distinct gm.user_id)
@@ -130,6 +131,9 @@ def list_all_groups_for_graph(tenant_id: TenantArg) -> dict:
         left join saml_identity_providers idp_match
           on idp_match.id = g.idp_id
           and idp_match.name = g.name
+        left join oidc_idp_connections oc_match
+          on oc_match.id = g.oidc_connection_id
+          and oc_match.name = g.name
         order by g.name
         """,
         {},

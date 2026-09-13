@@ -44,7 +44,8 @@ def get_connection_for_domain(tenant_id: TenantArg, domain: str) -> dict | None:
                conn.userinfo_endpoint, conn.jwks_uri, conn.discovery_fetched_at,
                conn.discovery_error, conn.client_id, conn.client_secret_enc,
                conn.scopes, conn.claim_mapping, conn.correlation_claim,
-               conn.group_claim_source, conn.hosted_domain, conn.entra_tenant_id,
+               conn.group_claim_source, conn.group_claim_name_key, conn.hosted_domain,
+               conn.entra_tenant_id,
                conn.is_enabled, conn.is_default, conn.require_platform_mfa,
                conn.jit_provisioning, conn.allow_email_linking,
                conn.created_by, conn.created_at, conn.updated_at

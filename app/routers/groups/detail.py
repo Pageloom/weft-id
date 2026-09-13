@@ -310,8 +310,13 @@ def group_tab_relationships(
 
     group = ctx["group"]
     idp_umbrella_group = None
-    if group.group_type == "idp" and group.idp_id and group.name != group.idp_name:
-        idp_umbrella_group = groups_service.get_idp_base_group(tenant_id, group.idp_id)
+    if group.group_type == "idp" and group.name != group.idp_name:
+        if group.idp_id:
+            idp_umbrella_group = groups_service.get_idp_base_group(tenant_id, group.idp_id)
+        elif group.oidc_connection_id:
+            idp_umbrella_group = groups_service.get_idp_base_group(
+                tenant_id, group.oidc_connection_id, source="oidc"
+            )
 
     return templates.TemplateResponse(
         request,

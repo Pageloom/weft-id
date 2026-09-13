@@ -23,7 +23,7 @@ This is a standing roadmap, not a work item. It records the **recommended sequen
 
 - **Phase 1 — Functional OIDC (both directions) (COMPLETE).** The foundation everything else needs.
   - *Downstream* (WeftID is an OIDC provider): **OIDC Provider (Downstream IdP for Apps)** shipped in 1.11.0 (2026-07-12). This is what lets a SaaS app say "Sign in with WeftID."
-  - *Upstream* (WeftID consumes OIDC IdPs): **OIDC Upstream IdP Support** shipped in 1.12.0 (2026-09-13) with Generic, Google, and Entra presets. This delivers **"multiple SSO"** beyond SAML and the enterprise half of **"social sign-in"**. Two follow-ups were split out and remain open below: **OIDC Upstream Group Claim Handling** and **GitHub and Okta OIDC Presets**.
+  - *Upstream* (WeftID consumes OIDC IdPs): **OIDC Upstream IdP Support** shipped in 1.12.0 (2026-09-13) with Generic, Google, and Entra presets. This delivers **"multiple SSO"** beyond SAML and the enterprise half of **"social sign-in"**. Two follow-ups were split out: **OIDC Upstream Group Claim Handling** shipped on 2026-09-13 (unreleased, see BACKLOG_ARCHIVE.md); **GitHub and Okta OIDC Presets** remains open below.
 
 - **Phase 2 — Social sign-in breadth + OIDC hardening.** Make the auth surface genuinely versatile and credible.
   - **Social Sign-In Providers (Consumer IdPs)** — extends the generic OIDC connector with consumer providers (Apple, Microsoft personal, Facebook, Discord, LinkedIn, etc.) so **"social sign-in"** is a complete, marketable capability, not just the enterprise presets.
@@ -32,7 +32,7 @@ This is a standing roadmap, not a work item. It records the **recommended sequen
 - **Phase 3 — Embedder Enablement (the SaaS go-to-market).** Only after Phases 1–2. The **"Theme: Embedder Enablement"** section below (9 items; MVP = Organizations API, Webhooks, Self-Serve SSO Portal, Guest Invitations). This turns "strong auth middleware" into "build your SaaS on us."
 
 **Capability → item map (for the two named asks):**
-- **"Multiple SSO"**: SAML multi-IdP per Organization — *shipped*. OIDC multi-IdP — *shipped in 1.12.0*. Group-based access from OIDC IdPs — *OIDC Upstream Group Claim Handling*. Self-service setup by the customer's own admin — *Self-Service SSO/SCIM Admin Portal* (Phase 3).
+- **"Multiple SSO"**: SAML multi-IdP per Organization — *shipped*. OIDC multi-IdP — *shipped in 1.12.0*. Group-based access from OIDC IdPs — *shipped 2026-09-13 (OIDC Upstream Group Claim Handling, unreleased)*. Self-service setup by the customer's own admin — *Self-Service SSO/SCIM Admin Portal* (Phase 3).
 - **"Social sign-in"**: enterprise-flavored (Google, Entra) — *shipped in 1.12.0*; GitHub and Okta — *GitHub and Okta OIDC Presets*. Full consumer breadth (Apple/Microsoft/Facebook/etc.) — *Social Sign-In Providers*. As primary login for invited externals — *External/Guest Invitations + Passwordless* (Phase 3).
 
 ---
@@ -397,48 +397,6 @@ Two related extensions also belong here: connector types that don't fit the "gen
 
 ---
 
-## OIDC Upstream Group Claim Handling
-
-**User Story:**
-As a tenant admin whose upstream OIDC provider carries group information,
-I want group claims from the provider mapped into WeftID groups,
-So that group-based app access follows the upstream directory without a separate sync.
-
-**Context:**
-
-Split from **OIDC Upstream IdP Support** (shipped in 1.12.0 without group claims; see
-BACKLOG_ARCHIVE.md). The connector already stores a reserved `group_claim_source`
-column (written by the admin form, read by nothing). Group claim shapes are
-per-vendor:
-
-- **Generic**: configurable claim name (`groups`, `roles`, custom) and value shape
-  (list of strings, list of objects)
-- **Entra**: `groups` claim emits directory GUIDs; resolving names needs
-  `Directory.Read.All` + Microsoft Graph, or the admin accepts GUID-keyed groups
-- **Okta**: native `groups` claim, admin enables it on the Okta authorization server
-- **Google**: no native group claim; custom-claim opt-in only
-- **GitHub**: orgs/teams via extra API calls after token exchange (belongs with the
-  GitHub preset)
-
-Groups arriving this way should behave like `idp`-type groups (read-only membership,
-synced on sign-in), mirroring the SAML group-assertion behavior.
-
-**Acceptance Criteria:**
-
-- [ ] Generic connector reads `group_claim_source` and syncs membership on each sign-in
-- [ ] Value shapes: list of strings and list of objects (configurable name key)
-- [ ] Synced groups are `idp`-type: read-only in WeftID, membership updated on sign-in
-- [ ] Entra GUID handling: GUID-keyed groups work without Graph; optional Graph
-      name resolution documented as a follow-up decision, not silently required
-- [ ] Docs: group-claim section on the OIDC setup page + per-vendor notes
-
-**Effort:** M
-**Value:** Medium-High (group-based access is the reason many tenants federate)
-
-**Dependencies:** OIDC Upstream IdP Support ✅ (1.12.0)
-
----
-
 ## GitHub and Okta OIDC Presets
 
 **User Story:**
@@ -471,7 +429,8 @@ GitHub because it is developer-niche. Revisit when a customer asks.
 **Value:** Medium
 
 **Dependencies:** OIDC Upstream IdP Support ✅ (1.12.0). GitHub group
-mapping belongs to **OIDC Upstream Group Claim Handling**.
+mapping builds on the shipped **OIDC Upstream Group Claim Handling** (orgs/teams
+fetched after token exchange must feed the same sync path; see BACKLOG_ARCHIVE.md).
 
 ---
 

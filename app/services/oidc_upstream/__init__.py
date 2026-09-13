@@ -60,6 +60,11 @@ from services.oidc_upstream.errors import (
     JwksError,
     OIDCUpstreamError,
 )
+from services.oidc_upstream.groups import (
+    extract_group_names,
+    has_group_claim_overage,
+    sync_groups_from_claims,
+)
 from services.oidc_upstream.id_token import validate_id_token
 from services.oidc_upstream.jwks import (
     clear_jwks_cache,
@@ -106,6 +111,9 @@ __all__ = [
     "build_authorize_url",
     "authenticate_via_oidc",
     "jit_provision_user",
+    "extract_group_names",
+    "has_group_claim_overage",
+    "sync_groups_from_claims",
     "unlink_user_from_connection",
     "list_connection_linked_users",
     "apply_oidc_idp_attributes",

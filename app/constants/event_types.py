@@ -130,6 +130,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oidc_login_started": "OIDC upstream login initiated",
     "oidc_login_completed": "User signed in via OIDC upstream",
     "oidc_login_failed": "OIDC upstream login attempt failed",
+    "oidc_group_claim_overage": "OIDC group claim omitted by provider (group overage)",
     "oidc_user_jit_provisioned": "User created via OIDC just-in-time provisioning",
     "user_oidc_idp_linked": "User linked to OIDC upstream identity provider",
     "user_oidc_idp_unlinked": "User unlinked from OIDC upstream identity provider",
@@ -278,6 +279,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "idp_group_member_added": "User added to IdP group during authentication",
     "idp_group_member_removed": "User removed from IdP group during authentication",
     "idp_group_relationship_created": "IdP group wired as child of umbrella group",
+    "idp_group_renamed": "IdP base group renamed to follow a provider rename",
 }
 
 
@@ -309,6 +311,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oidc_login_started": "security",
     "oidc_login_completed": "security",
     "oidc_login_failed": "security",
+    "oidc_group_claim_overage": "operational",
     "oidc_user_jit_provisioned": "security",
     "user_oidc_idp_linked": "security",
     "user_oidc_idp_unlinked": "security",
@@ -482,6 +485,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "idp_group_member_added": "operational",
     "idp_group_member_removed": "operational",
     "idp_group_relationship_created": "operational",
+    "idp_group_renamed": "operational",
     "saml_assertion_received": "operational",
     "saml_assertion_failed": "security",
     "domain_group_auto_assigned": "operational",

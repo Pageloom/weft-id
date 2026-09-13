@@ -201,3 +201,188 @@ class TestCorrelationClaim:
             test_tenant["id"], str(conn["id"]), "entra-oid-123"
         )
         assert linked == str(user["id"])
+
+
+# ---------------------------------------------------------------------------
+# Group claim handling (real database)
+# ---------------------------------------------------------------------------
+
+
+def _link(test_tenant, conn, user, sub="subject-123"):
+    import database
+
+    database.oidc_upstream.create_link(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        idp_id=str(conn["id"]),
+        sub=sub,
+        user_id=str(user["id"]),
+    )
+
+
+def _oidc_group_names_for_user(test_tenant, conn, user) -> set[str]:
+    import database
+
+    ids = database.groups.get_user_idp_group_ids(
+        test_tenant["id"], str(user["id"]), str(conn["id"]), "oidc"
+    )
+    names = set()
+    for gid in ids:
+        row = database.groups.get_group_by_id(test_tenant["id"], gid)
+        assert row is not None
+        names.add(row["name"])
+    return names
+
+
+class TestGroupClaimSync:
+    def test_sign_in_puts_user_in_base_group_without_claim_config(self, test_tenant, test_user):
+        import database
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(test_tenant, test_user)
+        _link(test_tenant, conn, test_user)
+
+        svc.authenticate_via_oidc(test_tenant["id"], conn, "subject-123", _claims(groups=["x"]))
+
+        base_id = database.groups.get_idp_base_group_id(test_tenant["id"], str(conn["id"]), "oidc")
+        assert base_id is not None
+        base = database.groups.get_group_by_id(test_tenant["id"], base_id)
+        assert base is not None
+        assert base["name"] == "Test OIDC"
+        assert base["group_type"] == "idp"
+        assert database.groups.is_group_member(test_tenant["id"], base_id, str(test_user["id"]))
+        # No claim configured: the "x" group is not created.
+        assert _oidc_group_names_for_user(test_tenant, conn, test_user) == {"Test OIDC"}
+
+    def test_existing_link_syncs_claim_groups(self, test_tenant, test_user):
+        import database
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(test_tenant, test_user, group_claim_source="groups")
+        _link(test_tenant, conn, test_user)
+
+        svc.authenticate_via_oidc(
+            test_tenant["id"], conn, "subject-123", _claims(groups=["engineering", "ops"])
+        )
+
+        assert _oidc_group_names_for_user(test_tenant, conn, test_user) == {
+            "Test OIDC",
+            "engineering",
+            "ops",
+        }
+        eng = database.groups.get_group_by_idp_and_name(
+            test_tenant["id"], str(conn["id"]), "engineering", "oidc"
+        )
+        assert eng is not None and eng["group_type"] == "idp"
+        # Wired beneath the base group.
+        base_id = database.groups.get_idp_base_group_id(test_tenant["id"], str(conn["id"]), "oidc")
+        assert database.groups.relationship_exists(test_tenant["id"], base_id, str(eng["id"]))
+
+    def test_second_sign_in_removes_stale_groups(self, test_tenant, test_user):
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(test_tenant, test_user, group_claim_source="groups")
+        _link(test_tenant, conn, test_user)
+        svc.authenticate_via_oidc(
+            test_tenant["id"], conn, "subject-123", _claims(groups=["engineering", "ops"])
+        )
+
+        svc.authenticate_via_oidc(test_tenant["id"], conn, "subject-123", _claims(groups=["ops"]))
+
+        assert _oidc_group_names_for_user(test_tenant, conn, test_user) == {"Test OIDC", "ops"}
+
+    def test_absent_claim_leaves_memberships(self, test_tenant, test_user):
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(test_tenant, test_user, group_claim_source="groups")
+        _link(test_tenant, conn, test_user)
+        svc.authenticate_via_oidc(test_tenant["id"], conn, "subject-123", _claims(groups=["ops"]))
+
+        svc.authenticate_via_oidc(test_tenant["id"], conn, "subject-123", _claims())
+
+        assert _oidc_group_names_for_user(test_tenant, conn, test_user) == {"Test OIDC", "ops"}
+
+    def test_empty_claim_clears_claim_groups_but_keeps_base(self, test_tenant, test_user):
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(test_tenant, test_user, group_claim_source="groups")
+        _link(test_tenant, conn, test_user)
+        svc.authenticate_via_oidc(test_tenant["id"], conn, "subject-123", _claims(groups=["ops"]))
+
+        svc.authenticate_via_oidc(test_tenant["id"], conn, "subject-123", _claims(groups=[]))
+
+        assert _oidc_group_names_for_user(test_tenant, conn, test_user) == {"Test OIDC"}
+
+    def test_object_claim_uses_name_key(self, test_tenant, test_user):
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(
+            test_tenant,
+            test_user,
+            group_claim_source="groups",
+            group_claim_name_key="displayName",
+        )
+        _link(test_tenant, conn, test_user)
+
+        svc.authenticate_via_oidc(
+            test_tenant["id"],
+            conn,
+            "subject-123",
+            _claims(groups=[{"id": "g1", "displayName": "Engineering"}]),
+        )
+
+        assert _oidc_group_names_for_user(test_tenant, conn, test_user) == {
+            "Test OIDC",
+            "Engineering",
+        }
+
+    def test_jit_provisioned_user_gets_groups(self, test_tenant, test_user):
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(
+            test_tenant, test_user, jit_provisioning=True, group_claim_source="groups"
+        )
+
+        user = svc.authenticate_via_oidc(
+            test_tenant["id"], conn, "subject-new", _claims(groups=["engineering"])
+        )
+
+        assert _oidc_group_names_for_user(test_tenant, conn, user) == {"Test OIDC", "engineering"}
+
+    def test_overage_logs_event_and_keeps_memberships(self, test_tenant, test_user):
+        import database
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(test_tenant, test_user, group_claim_source="groups")
+        _link(test_tenant, conn, test_user)
+        svc.authenticate_via_oidc(test_tenant["id"], conn, "subject-123", _claims(groups=["ops"]))
+
+        svc.authenticate_via_oidc(
+            test_tenant["id"],
+            conn,
+            "subject-123",
+            _claims(_claim_names={"groups": "src1"}, _claim_sources={"src1": {}}),
+        )
+
+        assert _oidc_group_names_for_user(test_tenant, conn, test_user) == {"Test OIDC", "ops"}
+        events = database.event_log.list_events(test_tenant["id"], limit=50)
+        assert any(e["event_type"] == "oidc_group_claim_overage" for e in events)
+
+    def test_sync_failure_fails_sign_in(self, test_tenant, test_user):
+        from unittest.mock import patch
+
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(test_tenant, test_user, group_claim_source="groups")
+        _link(test_tenant, conn, test_user)
+
+        with (
+            patch(
+                "services.oidc_upstream.groups.groups_service.sync_user_idp_groups",
+                side_effect=RuntimeError("db down"),
+            ),
+            pytest.raises(RuntimeError),
+        ):
+            svc.authenticate_via_oidc(
+                test_tenant["id"], conn, "subject-123", _claims(groups=["ops"])
+            )

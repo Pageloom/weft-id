@@ -68,6 +68,7 @@ from services.groups.idp import (
     move_users_between_idps,
     remove_user_from_all_idp_groups,
     remove_user_from_base_group,
+    rename_idp_base_group,
     sync_user_idp_groups,
 )
 
@@ -153,6 +154,7 @@ __all__ = [
     "list_groups_for_idp",
     "move_users_between_idps",
     "remove_user_from_all_idp_groups",
+    "rename_idp_base_group",
     "remove_user_from_base_group",
     "sync_user_idp_groups",
     # Private (for backwards compatibility)

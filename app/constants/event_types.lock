@@ -40,6 +40,7 @@ idp_group_invalidated
 idp_group_member_added
 idp_group_member_removed
 idp_group_relationship_created
+idp_group_renamed
 invitation_resent
 jobs_deleted
 login_failed
@@ -67,6 +68,7 @@ oidc_client_groups_bulk_assigned
 oidc_domain_bound
 oidc_domain_rebound
 oidc_domain_unbound
+oidc_group_claim_overage
 oidc_id_token_issued
 oidc_idp_connection_created
 oidc_idp_connection_deleted

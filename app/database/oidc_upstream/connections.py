@@ -20,7 +20,7 @@ _COLUMNS = """
     authorization_endpoint, token_endpoint, userinfo_endpoint, jwks_uri,
     discovery_fetched_at, discovery_error, client_id, client_secret_enc,
     scopes, claim_mapping, correlation_claim, group_claim_source,
-    hosted_domain, entra_tenant_id, is_enabled, is_default,
+    group_claim_name_key, hosted_domain, entra_tenant_id, is_enabled, is_default,
     require_platform_mfa, jit_provisioning, allow_email_linking,
     created_by, created_at, updated_at
 """
@@ -89,6 +89,7 @@ def create_connection(
     claim_mapping: dict[str, str] | None = None,
     correlation_claim: str = "sub",
     group_claim_source: str | None = None,
+    group_claim_name_key: str | None = None,
     hosted_domain: str | None = None,
     entra_tenant_id: str | None = None,
     is_enabled: bool = False,
@@ -115,7 +116,7 @@ def create_connection(
             tenant_id, name, provider_type, issuer, discovery_url,
             authorization_endpoint, token_endpoint, userinfo_endpoint, jwks_uri,
             client_id, client_secret_enc, scopes, claim_mapping,
-            correlation_claim, group_claim_source, hosted_domain,
+            correlation_claim, group_claim_source, group_claim_name_key, hosted_domain,
             entra_tenant_id, is_enabled, is_default, require_platform_mfa,
             jit_provisioning, allow_email_linking, created_by
         )
@@ -123,7 +124,7 @@ def create_connection(
             :tenant_id, :name, :provider_type, :issuer, :discovery_url,
             :authorization_endpoint, :token_endpoint, :userinfo_endpoint, :jwks_uri,
             :client_id, :client_secret_enc, :scopes, :claim_mapping,
-            :correlation_claim, :group_claim_source, :hosted_domain,
+            :correlation_claim, :group_claim_source, :group_claim_name_key, :hosted_domain,
             :entra_tenant_id, :is_enabled, :is_default, :require_platform_mfa,
             :jit_provisioning, :allow_email_linking, :created_by
         )
@@ -145,6 +146,7 @@ def create_connection(
             "claim_mapping": json.dumps(claim_mapping),
             "correlation_claim": correlation_claim,
             "group_claim_source": group_claim_source,
+            "group_claim_name_key": group_claim_name_key,
             "hosted_domain": hosted_domain,
             "entra_tenant_id": entra_tenant_id,
             "is_enabled": is_enabled,
@@ -186,6 +188,7 @@ def update_connection(
         "claim_mapping",
         "correlation_claim",
         "group_claim_source",
+        "group_claim_name_key",
         "hosted_domain",
         "entra_tenant_id",
         "require_platform_mfa",
@@ -206,6 +209,7 @@ def update_connection(
         "client_secret_enc",
         "scopes",
         "group_claim_source",
+        "group_claim_name_key",
         "hosted_domain",
         "entra_tenant_id",
     }

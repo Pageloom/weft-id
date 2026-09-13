@@ -15,7 +15,8 @@ Topology:
   - OAuth2 client, oidc_enabled +     <- - generic OIDC connection:
     available_to_all, redirect_uri =         issuer = https://e2e-oidc-op...
     https://e2e-oidc-rp.../auth/oidc/        client_id/secret = the OP client
-    {connection_id}/callback                 enabled, default, JIT on
+    {connection_id}/callback                 enabled, default, JIT on,
+                                             groups scope + group claim
                                            - discovery run against the OP
 
 Reachability: the RP's outbound fetches (discovery, JWKS, token, userinfo)
@@ -69,6 +70,11 @@ RP_ADMIN_EMAIL = "super-rp@oidc-loopback.example.com"
 
 CLIENT_NAME = "Upstream OIDC Loopback RP"
 CONNECTION_NAME = "Loopback OP"
+
+# A WeftID group on the OP tenant that the loop user belongs to. The OP
+# releases the user's effective group names under the `groups` scope, and
+# the RP connection syncs that claim into an IdP group (group claim E2E).
+OP_GROUP_NAME = "Loopback Engineering"
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +141,19 @@ def step_1_tenants_and_users(log: logging.Logger) -> tuple[str, str]:
         first_name="Super",
         last_name="Admin",
     )
+
+    # Put the loop user in a group on the OP so the `groups` claim is non-empty.
+    group = database.groups.get_weftid_group_by_name(op_tid, OP_GROUP_NAME)
+    if group is None:
+        group = database.groups.create_group(
+            tenant_id=op_tid, tenant_id_value=op_tid, name=OP_GROUP_NAME
+        )
+    if group is None:
+        raise RuntimeError("Failed to create OP group")
+    op_user_id = _user_id(op_tid, OP_USER_EMAIL)
+    if not database.groups.is_group_member(op_tid, str(group["id"]), op_user_id):
+        database.groups.add_group_member(op_tid, op_tid, str(group["id"]), op_user_id)
+    log.info("OP user is a member of group '%s'", OP_GROUP_NAME)
     return op_tid, rp_tid
 
 
@@ -168,7 +187,8 @@ def step_2_rp_connection(log: logging.Logger, rp_tid: str, rp_admin: RequestingU
                 provider_type="generic",
                 issuer=op_base,
                 discovery_url=f"{op_base}/.well-known/openid-configuration",
-                scopes="openid profile email",
+                scopes="openid profile email groups",
+                group_claim_source="groups",
                 is_enabled=False,  # enabled in step 4, once credentials exist
                 is_default=True,
                 jit_provisioning=True,
@@ -265,6 +285,7 @@ def setup(log: logging.Logger) -> dict:
             "user_email": OP_USER_EMAIL,
             "user_first_name": OP_USER_FIRST_NAME,
             "user_last_name": OP_USER_LAST_NAME,
+            "group_name": OP_GROUP_NAME,
             "client_id": client["client_id"],
         },
         "rp": {
@@ -273,6 +294,7 @@ def setup(log: logging.Logger) -> dict:
             "base_url": _base_url(RP_SUBDOMAIN),
             "admin_email": RP_ADMIN_EMAIL,
             "connection_id": connection_id,
+            "connection_name": CONNECTION_NAME,
             "callback_url": callback_url,
         },
     }

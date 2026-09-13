@@ -43,6 +43,9 @@ class GroupSummary(BaseModel):
     acronym: str | None = Field(None, description="Custom acronym override (up to 4 chars)")
     group_type: str = Field(..., description="Group type (weftid or idp)")
     idp_id: str | None = Field(None, description="Source IdP UUID (for IdP groups)")
+    oidc_connection_id: str | None = Field(
+        None, description="Source OIDC connection UUID (for OIDC-sourced IdP groups)"
+    )
     idp_name: str | None = Field(None, description="Source IdP name (for IdP groups)")
     is_valid: bool = Field(True, description="Whether group is valid (IdP groups)")
     member_count: int = Field(0, description="Number of direct members")
@@ -68,6 +71,9 @@ class GroupDetail(BaseModel):
     acronym: str | None = Field(None, description="Custom acronym override (up to 4 chars)")
     group_type: str = Field(..., description="Group type (weftid or idp)")
     idp_id: str | None = Field(None, description="Source IdP UUID (for IdP groups)")
+    oidc_connection_id: str | None = Field(
+        None, description="Source OIDC connection UUID (for OIDC-sourced IdP groups)"
+    )
     idp_name: str | None = Field(None, description="Source IdP name (for IdP groups)")
     is_valid: bool = Field(True, description="Whether group is valid")
     member_count: int = Field(0, description="Number of direct members")
@@ -240,6 +246,7 @@ class EffectiveMembership(BaseModel):
     description: str | None = Field(None, description="Group description")
     group_type: str = Field(..., description="Group type (weftid or idp)")
     idp_id: str | None = Field(None, description="Source IdP UUID")
+    oidc_connection_id: str | None = Field(None, description="Source OIDC connection UUID")
     idp_name: str | None = Field(None, description="Source IdP name")
     is_direct: bool = Field(..., description="True if user is a direct member")
 

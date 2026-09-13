@@ -78,6 +78,7 @@ class OIDCConnectionCreate(BaseModel):
     # preset nor the caller specifies one.
     correlation_claim: str | None = Field(None, max_length=50)
     group_claim_source: str | None = Field(None, max_length=255)
+    group_claim_name_key: str | None = Field(None, max_length=100)
     hosted_domain: str | None = Field(None, max_length=253)
     entra_tenant_id: str | None = Field(None, max_length=100)
     is_enabled: bool = False
@@ -112,6 +113,7 @@ class OIDCConnectionUpdate(BaseModel):
 
     correlation_claim: str | None = Field(None, max_length=50)
     group_claim_source: str | None = Field(None, max_length=255)
+    group_claim_name_key: str | None = Field(None, max_length=100)
     hosted_domain: str | None = Field(None, max_length=253)
     entra_tenant_id: str | None = Field(None, max_length=100)
     require_platform_mfa: bool | None = None
@@ -141,6 +143,7 @@ class OIDCConnectionConfig(BaseModel):
     claim_mapping: dict[str, str]
     correlation_claim: str
     group_claim_source: str | None
+    group_claim_name_key: str | None
     hosted_domain: str | None
     entra_tenant_id: str | None
     is_enabled: bool

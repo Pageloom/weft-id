@@ -1,0 +1,180 @@
+# OIDC conformance suite (OpenID Foundation)
+
+Run the [OpenID Foundation conformance suite](https://gitlab.com/openid/conformance-suite)
+against WeftID's OpenID Provider, locally, in Docker. The suite is the
+quality bar for the OIDC provider: the certification test plans for the
+profiles WeftID supports must be green before a release, and the results
+are published so anyone can rerun them.
+
+WeftID does not pursue formal OIDF certification. The wording rule for docs
+and marketing is therefore "passes the OpenID Foundation conformance suite
+for profiles X, Y, Z", never "OpenID Certified" (that is OIDF's mark).
+
+The suite runs entirely **outside** the WeftID repo by default. Its compose
+file, Mongo data directory, downloaded runner scripts, and the rendered plan
+config (which holds client secrets) live under
+`~/.local/share/weft-id/oidc-conformance/`. Override with the
+`OIDC_CONFORMANCE_DIR` env var or `--dir <path>`. The only things that land
+in this checkout are the exported result zips under
+`dev/oidc-conformance/export/`, which is gitignored.
+
+## Prerequisites
+
+* The WeftID dev stack running: `make up`. The proxy must have been
+  (re)created since `dev/docker-compose.yml` gained the
+  `oidc-conformance.weftid.localhost` network alias; `make up` does this.
+* `BYPASS_OTP=true` in `.env` (the dev default). The suite's scripted
+  browser passes the MFA step with any six-digit code.
+* Poetry environment installed (`poetry install`). The suite's runner is a
+  Python script that needs `httpx` and `pyparsing`, both already present.
+
+## Quick start
+
+```bash
+make oidc-conformance-up     # first run pulls the pinned suite images
+make oidc-conformance        # provision tenant + clients, run the plans
+```
+
+The first `up` writes the compose file, discovers WeftID's `devnet` network
+name from the running `dev_app` container, and starts three containers
+(`weft_oidc_conformance_server`, `_nginx`, `_mongo`). The suite UI is at
+`https://localhost.emobix.co.uk:8443/` (a public DNS name that resolves to
+127.0.0.1; the nginx in front uses a self-signed certificate, accept the
+warning).
+
+`make oidc-conformance` then:
+
+1. downloads the suite's `run-test-plan.py` for the pinned release into the
+   runtime dir (once per release),
+2. runs `app/dev/oidc_conformance_testbed.py` inside the app container to
+   provision the `oidc-conformance` tenant, a member user, and three
+   OIDC-enabled clients registered with the suite's callback URL,
+3. renders `dev/oidc-conformance/config.template.json` with those values,
+4. runs the Basic OP, Config OP, and Form Post OP certification plans and
+   exports the results.
+
+The run exits non-zero unless every module finished and the outcome
+matches `dev/oidc-conformance/expected-failures.json` exactly.
+
+When you're done for the day:
+
+```bash
+make oidc-conformance-down      # stop containers, keep Mongo data
+make oidc-conformance-destroy   # stop + wipe Mongo data + remove the dir
+```
+
+## Reading results
+
+* **Terminal.** The runner prints one line per test module with PASSED,
+  WARNING, REVIEW, SKIPPED, FAILED, or INTERRUPTED, then a per-plan summary.
+  With `ARGS="--verbose"` it also prints, for every unexpected failure, a
+  ready-to-paste JSON template for the expected-failures file.
+* **Suite UI.** Each plan line carries a `plan-detail.html?plan=...` link.
+  Open it to browse every module's log, including the scripted browser's
+  page snapshots.
+* **Export.** `dev/oidc-conformance/export/` holds one zip per plan with the
+  full logs. CI uploads this directory as the run artifact.
+
+A profile is green when every module is PASSED, WARNING, REVIEW, or
+SKIPPED and none is FAILED or INTERRUPTED.
+
+## The expected-failures file
+
+`dev/oidc-conformance/expected-failures.json` lists the conditions that are
+known to fail, one entry per failing condition with a one-line `comment`.
+The runner fails on an unexpected failure **and** on an expected failure
+that did not happen, so the file cannot go stale: fixing a gap means
+removing its entry. The goal state is an empty list.
+
+Entries have the suite's shape; `--verbose` prints them ready to paste:
+
+```json
+{
+    "test-name": "oidcc-prompt-login",
+    "variant": "*",
+    "configuration-filename": "*config.json",
+    "current-block": "Second authorization: check auth_time",
+    "condition": "CheckSecondIdTokenAuthTimeIsLaterIfPresent",
+    "expected-result": "failure",
+    "comment": "prompt=login not honoured yet (Iteration 2)"
+}
+```
+
+`dev/oidc-conformance/expected-skips.json` works the same way for modules
+the suite skips (for example a scope WeftID does not advertise).
+
+## How the browser automation works
+
+The plan config's `browser` section scripts the interactive steps in the
+suite's built-in headless browser (HtmlUnit): the login email step, the
+password step, the MFA code, and the consent page. Every step is optional
+because an existing session or remembered consent skips it. The final step
+waits for the suite's own callback page. Per-module `override` entries
+handle tests that expect an error page instead of a redirect (for example
+an unregistered `redirect_uri`) or a second login page (`prompt=login`).
+
+The browser reaches WeftID through the dev reverse proxy: the suite joins
+WeftID's `devnet` network and the proxy carries a network alias for the
+conformance tenant host. WeftID's containers reach the suite the same way
+via the `localhost.emobix.co.uk` alias on the suite's nginx. TLS needs no
+extra trust setup: the suite deliberately does not validate the certificate
+of the server under test.
+
+## Rate limits during a run
+
+Every module logs the conformance user in from a fresh browser, and modules
+that fail early take about a second each. WeftID's login limits (five MFA
+attempts per user per fifteen minutes, per-IP limits on the email step) are
+tuned for people, not for forty logins in ten minutes, so the runner flushes
+memcached once a second for the duration of the run, the same reset the E2E
+fixtures perform before each testbed. This only touches rate-limit counters:
+the OTP passes via `BYPASS_OTP`, sessions are cookies, and codes and tokens
+live in Postgres. Do not run `make e2e` at the same time; its rate-limit
+tests would see the resets.
+
+## Running a subset
+
+The runner passes unknown arguments through to `run-test-plan.py`:
+
+```bash
+make oidc-conformance ARGS="--list"          # numbered plan list, no run
+make oidc-conformance ARGS="--rerun 1:5"     # plan 1, module 5 only
+make oidc-conformance ARGS="--no-parallel"   # (already serial: static clients use an alias)
+```
+
+Or call the runner directly, for example with a different runtime dir:
+
+```bash
+poetry run python dev/oidc_conformance.py run --runtime-dir /tmp/suite --verbose
+./dev/oidc-conformance.sh up --dir /tmp/suite --tag release-v5.2.4
+```
+
+## Lifecycle commands
+
+| Command                            | Action                                        |
+|------------------------------------|-----------------------------------------------|
+| `make oidc-conformance-up`         | Create dir + compose if missing, start        |
+| `make oidc-conformance`            | Provision testbed, run the plans              |
+| `make oidc-conformance-down`       | Stop containers, keep Mongo data              |
+| `make oidc-conformance-destroy`    | Stop, wipe data, remove the runtime dir       |
+| `make oidc-conformance-status`     | `docker compose ps` for the suite             |
+| `make oidc-conformance-logs`       | Follow combined logs                          |
+| `make oidc-conformance-info`       | Reprint URLs and the walkthrough              |
+
+## Pinned release
+
+The suite version is pinned in two places that must agree:
+`DEFAULT_TAG` in `dev/oidc-conformance.sh` (images) and
+`DEFAULT_SUITE_TAG` in `dev/oidc_conformance.py` (runner scripts). Bump both
+deliberately; a new release can add tests, and the published results record
+the version they were produced with.
+
+## Credits and licensing
+
+The conformance suite is developed by the OpenID Foundation and released
+under the Apache License 2.0. WeftID does not bundle, vendor, or
+redistribute any of its code or images: the script pulls the public images
+at runtime and the runner downloads `run-test-plan.py` from the pinned
+release tag. The compose template written by `dev/oidc-conformance.sh` is
+adapted from the suite's own `docker-compose-prebuilt.yml` and credits it in
+the file header.

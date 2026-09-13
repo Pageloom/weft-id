@@ -15,7 +15,13 @@ services:
       - ${PWD}/.devcerts:/certs:ro
       - ${PWD}/static:/srv/static:ro
     networks:
-      - devnet
+      devnet:
+        aliases:
+          # Lets containers that join devnet from outside this compose project
+          # (the OIDC conformance suite, see dev/oidc-conformance.sh) resolve
+          # the conformance tenant's host to this proxy. Docker DNS has no
+          # wildcard aliases, so each such host is listed explicitly.
+          - oidc-conformance.weftid.localhost
 
   app:
     build:

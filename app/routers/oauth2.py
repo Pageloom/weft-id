@@ -6,15 +6,16 @@ import secrets
 import time
 from datetime import UTC, datetime
 from typing import Annotated
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qsl, unquote, urlencode, urlparse
 
 import oauth2
 import services.oauth2 as oauth2_service
 import services.oidc as oidc_service
-from dependencies import get_tenant_id_from_request, require_current_user
+from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from middleware.csrf import make_csrf_token_func
+from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
 from services.oidc.claims import SCOPE_OPENID, parse_scope
 from utils.csp_nonce import get_csp_nonce
@@ -36,7 +37,7 @@ router = APIRouter(prefix="/oauth2", tags=["oauth2"], include_in_schema=False)
 def authorize_page(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(require_current_user)],
+    user: Annotated[dict | None, Depends(get_current_user)],
     client_id: str,
     redirect_uri: str,
     state: str | None = None,
@@ -48,7 +49,10 @@ def authorize_page(
     """
     OAuth2 authorization endpoint - show authorization page.
 
-    User must be logged in (session cookie) to authorize a client.
+    User must be logged in (session cookie) to authorize a client. An
+    unauthenticated user is sent to the login flow with this request stashed
+    in the session; login completion returns them here so the authorization
+    request resumes (see ``get_post_auth_redirect``).
 
     Query Parameters:
         client_id: OAuth2 client ID
@@ -59,6 +63,20 @@ def authorize_page(
         scope: Optional space-delimited OAuth2/OIDC scopes (e.g. "openid profile")
         nonce: Optional OIDC nonce, bound to the resulting ID token
     """
+    if not user:
+        # Stash the full authorize request (a server-built relative path, never
+        # a client-supplied redirect target) so the login flow can resume it.
+        # ``get_post_auth_redirect`` only honours a rooted ``/oauth2/authorize?``
+        # path, and login completion carries the key across session
+        # regeneration. Without this, an RP-initiated login ends on the
+        # dashboard and the authorization request is lost.
+        request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = _pending_authorize_path(request)
+        return RedirectResponse(url="/login", status_code=303)
+    if user.get("force_profile_completion"):
+        # Same gate as ``require_current_user``: the profile must be completed
+        # before any authenticated page, the consent page included.
+        return RedirectResponse(url="/account/profile", status_code=303)
+
     # Get client
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
 
@@ -196,6 +214,19 @@ def authorize_page(
             "csp_nonce": get_csp_nonce(request),
         },
     )
+
+
+def _pending_authorize_path(request: Request) -> str:
+    """Rebuild this authorize request as a same-origin path for the login stash.
+
+    The query is re-encoded rather than copied verbatim: RPs commonly send
+    ``redirect_uri=https://...`` unescaped, and a literal ``://`` anywhere in
+    the target is (rightly) rejected by the redirect validator as a scheme.
+    Percent-encoding the values keeps the parameters byte-for-byte identical
+    once the resumed request decodes them again.
+    """
+    query = urlencode(parse_qsl(request.url.query, keep_blank_values=True))
+    return f"{request.url.path}?{query}" if query else request.url.path
 
 
 def _form_action_origin(redirect_uri: str) -> str:

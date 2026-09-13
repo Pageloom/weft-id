@@ -106,3 +106,41 @@ class TestOidcProviderHappyPath:
             userinfo = userinfo_resp.json()
             assert userinfo["sub"] == claims["sub"]
             assert userinfo["email"] == cfg["user_email"]
+
+
+class TestOidcProviderLoginResume:
+    def test_unauthenticated_authorize_resumes_after_real_login(self, page, oidc_config):
+        """An RP-initiated authorize with no session must survive the full login.
+
+        The browser arrives at /oauth2/authorize logged out, goes through the
+        real email, password, and MFA steps (no /dev/login shortcut), and must
+        land back on the consent page for the same request, then at the RP
+        callback with the echoed state. This is the path the OIDC conformance
+        suite drives for every interactive module.
+        """
+        from tests.e2e.conftest import enter_email_and_reach_password_form
+
+        cfg = oidc_config
+        base_url = cfg["base_url"]
+
+        page.goto(_authorize_url(cfg))
+        page.wait_for_url(f"{base_url}/login**", timeout=10000)
+
+        # Real login: the helper opens /login and submits the email step and the
+        # password form; the stashed authorize request rides along in the session.
+        enter_email_and_reach_password_form(page, base_url, cfg["user_email"], cfg["password"])
+
+        page.wait_for_url("**/mfa/verify**", timeout=10000)
+        page.locator("#code").fill("123456")  # BYPASS_OTP accepts any 6 digits
+        page.locator("#mfaVerifyForm button[type='submit']").click()
+
+        # Back on the authorization request, not the dashboard.
+        page.wait_for_selector("button[name='action'][value='allow']", timeout=10000)
+        assert "/oauth2/authorize" in page.url
+        assert "/dashboard" not in page.url
+        page.locator("button[name='action'][value='allow']").click()
+
+        page.wait_for_url(f"{cfg['redirect_uri']}?*", timeout=10000)
+        params = parse_qs(urlparse(page.url).query)
+        assert params["state"] == [STATE]
+        assert params["code"][0]

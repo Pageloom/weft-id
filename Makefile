@@ -9,7 +9,7 @@ endif
 TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TAILWIND_VERSION)/$(TAILWIND_BIN)
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev scim-testbed-up scim-testbed-down scim-testbed-destroy scim-testbed-info scim-testbed-status scim-testbed-logs test e2e check fix quality-all coverage docs
+.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev scim-testbed-up scim-testbed-down scim-testbed-destroy scim-testbed-info scim-testbed-status scim-testbed-logs oidc-conformance-up oidc-conformance-down oidc-conformance-destroy oidc-conformance-info oidc-conformance-status oidc-conformance-logs oidc-conformance test e2e check fix quality-all coverage docs
 
 help:
 	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -95,6 +95,28 @@ scim-testbed-status: ## Show status of SCIM testbed containers
 
 scim-testbed-logs: ## Follow combined SCIM testbed logs
 	./dev/scim-testbed.sh logs
+
+## OIDC conformance suite (OpenID Foundation, runs OUTSIDE this repo by default)
+oidc-conformance-up: ## Start the OIDC conformance suite (joins devnet; run 'make up' first)
+	./dev/oidc-conformance.sh up
+
+oidc-conformance-down: ## Stop the conformance suite (keep its Mongo data)
+	./dev/oidc-conformance.sh down
+
+oidc-conformance-destroy: ## Stop and wipe the conformance suite (data + dir)
+	./dev/oidc-conformance.sh destroy
+
+oidc-conformance-info: ## Print the suite URL and the run walkthrough
+	./dev/oidc-conformance.sh info
+
+oidc-conformance-status: ## Show status of conformance suite containers
+	./dev/oidc-conformance.sh status
+
+oidc-conformance-logs: ## Follow combined conformance suite logs
+	./dev/oidc-conformance.sh logs
+
+oidc-conformance: ## Run the OIDC conformance plans (pass args: ARGS="--verbose")
+	poetry run python dev/oidc_conformance.py run $(ARGS)
 
 ## Docs
 docs: ## Build documentation site (output in site/)

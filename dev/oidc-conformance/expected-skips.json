@@ -1,0 +1,50 @@
+[
+    {
+        "test-name": "oidcc-scope-address",
+        "variant": {
+            "response_mode": "default"
+        },
+        "configuration-filename": "*config.json",
+        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+    },
+    {
+        "test-name": "oidcc-scope-phone",
+        "variant": {
+            "response_mode": "default"
+        },
+        "configuration-filename": "*config.json",
+        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+    },
+    {
+        "test-name": "oidcc-scope-all",
+        "variant": {
+            "response_mode": "default"
+        },
+        "configuration-filename": "*config.json",
+        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+    },
+    {
+        "test-name": "oidcc-scope-address",
+        "variant": {
+            "response_mode": "form_post"
+        },
+        "configuration-filename": "*config.json",
+        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+    },
+    {
+        "test-name": "oidcc-scope-phone",
+        "variant": {
+            "response_mode": "form_post"
+        },
+        "configuration-filename": "*config.json",
+        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+    },
+    {
+        "test-name": "oidcc-scope-all",
+        "variant": {
+            "response_mode": "form_post"
+        },
+        "configuration-filename": "*config.json",
+        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+    }
+]

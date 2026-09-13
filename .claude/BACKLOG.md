@@ -21,9 +21,9 @@ This is a standing roadmap, not a work item. It records the **recommended sequen
 
 - **Phase 0 — Forward-Auth Proxy (COMPLETE).** Shipped in 1.10.0 (2026-06-23); see the archived item in BACKLOG_ARCHIVE.md. The nonce-cleanup follow-up shipped as its own backlog item.
 
-- **Phase 1 — Functional OIDC (both directions).** The foundation everything else needs.
-  - *Upstream* (WeftID consumes OIDC IdPs): **OIDC Upstream IdP Support**. This is what delivers **"multiple SSO"** beyond SAML and the enterprise half of **"social sign-in"** (Google/GitHub/Entra/Okta presets). Multiple SSO *per tenant* already works for SAML today (per-IdP entity IDs); this extends it to OIDC.
-  - *Downstream* (WeftID is an OIDC provider): **OIDC Provider (Downstream IdP for Apps)**. This is what lets a SaaS app say "Sign in with WeftID."
+- **Phase 1 — Functional OIDC (both directions) (COMPLETE).** The foundation everything else needs.
+  - *Downstream* (WeftID is an OIDC provider): **OIDC Provider (Downstream IdP for Apps)** shipped in 1.11.0 (2026-07-12). This is what lets a SaaS app say "Sign in with WeftID."
+  - *Upstream* (WeftID consumes OIDC IdPs): **OIDC Upstream IdP Support** shipped in 1.12.0 (2026-09-13) with Generic, Google, and Entra presets. This delivers **"multiple SSO"** beyond SAML and the enterprise half of **"social sign-in"**. Two follow-ups were split out and remain open below: **OIDC Upstream Group Claim Handling** and **GitHub and Okta OIDC Presets**.
 
 - **Phase 2 — Social sign-in breadth + OIDC hardening.** Make the auth surface genuinely versatile and credible.
   - **Social Sign-In Providers (Consumer IdPs)** — extends the generic OIDC connector with consumer providers (Apple, Microsoft personal, Facebook, Discord, LinkedIn, etc.) so **"social sign-in"** is a complete, marketable capability, not just the enterprise presets.
@@ -32,8 +32,8 @@ This is a standing roadmap, not a work item. It records the **recommended sequen
 - **Phase 3 — Embedder Enablement (the SaaS go-to-market).** Only after Phases 1–2. The **"Theme: Embedder Enablement"** section below (9 items; MVP = Organizations API, Webhooks, Self-Serve SSO Portal, Guest Invitations). This turns "strong auth middleware" into "build your SaaS on us."
 
 **Capability → item map (for the two named asks):**
-- **"Multiple SSO"**: SAML multi-IdP per Organization — *already shipped*. OIDC multi-IdP — *OIDC Upstream IdP Support*. Self-service setup by the customer's own admin — *Self-Service SSO/SCIM Admin Portal* (Phase 3).
-- **"Social sign-in"**: enterprise-flavored (Google/GitHub) — *OIDC Upstream IdP Support*. Full consumer breadth (Apple/Microsoft/Facebook/etc.) — *Social Sign-In Providers*. As primary login for invited externals — *External/Guest Invitations + Passwordless* (Phase 3).
+- **"Multiple SSO"**: SAML multi-IdP per Organization — *shipped*. OIDC multi-IdP — *shipped in 1.12.0*. Group-based access from OIDC IdPs — *OIDC Upstream Group Claim Handling*. Self-service setup by the customer's own admin — *Self-Service SSO/SCIM Admin Portal* (Phase 3).
+- **"Social sign-in"**: enterprise-flavored (Google, Entra) — *shipped in 1.12.0*; GitHub and Okta — *GitHub and Okta OIDC Presets*. Full consumer breadth (Apple/Microsoft/Facebook/etc.) — *Social Sign-In Providers*. As primary login for invited externals — *External/Guest Invitations + Passwordless* (Phase 3).
 
 ---
 
@@ -406,7 +406,7 @@ So that group-based app access follows the upstream directory without a separate
 
 **Context:**
 
-Split from **OIDC Upstream IdP Support** (on the `oidc-upstream` branch without group claims; see
+Split from **OIDC Upstream IdP Support** (shipped in 1.12.0 without group claims; see
 BACKLOG_ARCHIVE.md). The connector already stores a reserved `group_claim_source`
 column (written by the admin form, read by nothing). Group claim shapes are
 per-vendor:
@@ -435,7 +435,7 @@ synced on sign-in), mirroring the SAML group-assertion behavior.
 **Effort:** M
 **Value:** Medium-High (group-based access is the reason many tenants federate)
 
-**Dependencies:** OIDC Upstream IdP Support ✅ (oidc-upstream branch)
+**Dependencies:** OIDC Upstream IdP Support ✅ (1.12.0)
 
 ---
 
@@ -448,7 +448,7 @@ So that setup is pre-filled instead of manual generic configuration.
 
 **Context:**
 
-Split from **OIDC Upstream IdP Support** (on the `oidc-upstream` branch with Generic + Google +
+Split from **OIDC Upstream IdP Support** (shipped in 1.12.0 with Generic + Google +
 Entra; see BACKLOG_ARCHIVE.md). The preset registry
 (`app/services/oidc_upstream/presets.py`) makes a preset a set of defaults, not a
 code path, so each is a small addition -- except GitHub, which is not spec OIDC
@@ -470,7 +470,7 @@ GitHub because it is developer-niche. Revisit when a customer asks.
 **Effort:** M (GitHub is most of it)
 **Value:** Medium
 
-**Dependencies:** OIDC Upstream IdP Support ✅ (oidc-upstream branch). GitHub group
+**Dependencies:** OIDC Upstream IdP Support ✅ (1.12.0). GitHub group
 mapping belongs to **OIDC Upstream Group Claim Handling**.
 
 ---
@@ -523,7 +523,7 @@ This item is deliberately kept **separate** from the two functional OIDC items s
 **Version impact:** Minor (additive endpoints, grant types, and discovery metadata; no breaking change to the functional OIDC surface)
 
 **Dependencies:**
-- Builds on **OIDC Provider (Downstream IdP for Apps)** (the functional OP) and **OIDC Upstream IdP Support** (the functional RP). Start only after those are usable.
+- Builds on **OIDC Provider (Downstream IdP for Apps)** (the functional OP, 1.11.0) and **OIDC Upstream IdP Support** (the functional RP, 1.12.0). Both have shipped; this item is unblocked.
 - Gating prerequisite for the **Embedder Enablement** theme (per 2026-06 sequencing).
 
 **Suggested implementation order** (when broken into iterations by `/lead`):
@@ -545,7 +545,7 @@ So that "social sign-in" is a complete, marketable capability and not just the e
 
 **Context:**
 
-The **OIDC Upstream IdP Support** item delivers a generic OIDC connector plus enterprise-leaning presets (Entra, Google Workspace, GitHub, Okta). That covers the *enterprise* half of "social sign-in," but not the consumer breadth product teams expect when they say "let users log in with Apple/Facebook/Microsoft." This item extends the same generic OIDC/OAuth connector with consumer providers, reusing the existing connector, claim-mapping, and JIT plumbing rather than building bespoke flows.
+**OIDC Upstream IdP Support** (1.12.0) delivers a generic OIDC connector plus enterprise-leaning presets (Entra, Google Workspace; GitHub and Okta are a separate open item). That covers the *enterprise* half of "social sign-in," but not the consumer breadth product teams expect when they say "let users log in with Apple/Facebook/Microsoft." This item extends the same generic OIDC/OAuth connector with consumer providers, reusing the existing connector, claim-mapping, and JIT plumbing rather than building bespoke flows.
 
 It sits in **Phase 2** of the Recommended Path Forward (social-sign-in breadth), alongside OIDC hardening, after functional OIDC lands.
 
@@ -576,7 +576,7 @@ It sits in **Phase 2** of the Recommended Path Forward (social-sign-in breadth),
 **Version impact:** Minor (additive provider presets; no change to existing flows)
 
 **Dependencies:**
-- Builds on **OIDC Upstream IdP Support** (the generic connector + preset mechanism). Do not start before that connector exists.
+- Builds on **OIDC Upstream IdP Support** (the generic connector + preset mechanism, shipped in 1.12.0).
 - Composes with the Embedder **External/Guest Invitations + Passwordless** item (social as a primary login method for externals).
 
 ---
@@ -635,7 +635,7 @@ The items in this theme reposition WeftID from a *federation tool an organizatio
 
 **Two ways to set a customer up.** Connection setup (IdPs, SCIM, groups, attributes) can happen either way, and both are always available with no mode flag — the SaaS picks per customer: *delegated* (hand the customer's IT admin a magic link to self-configure — the **Self-Service SSO/SCIM Admin Portal**) or *managed* (the SaaS provider's own staff do it on the customer's behalf via the **Operator Backoffice / master tenant**). The two items are deliberate mirror images.
 
-**Sequencing (product owner, 2026-06):** this entire theme is **deferred behind the OIDC work.** WeftID must first be an exceptionally strong and versatile authentication middleware — both OIDC directions solid (the **OIDC Upstream IdP Support** and **OIDC Provider (Downstream IdP for Apps)** items, plus any OIDC-completeness follow-ups) — before the embedder go-to-market is pursued. Do not start Embedder Enablement items until the OIDC surface is complete. The dependency graph already reflects this: the hosted-login item builds on the OIDC provider, and the self-serve SSO portal leans on the upstream OIDC presets.
+**Sequencing (product owner, 2026-06):** this entire theme is **deferred behind the OIDC work.** WeftID must first be an exceptionally strong and versatile authentication middleware before the embedder go-to-market is pursued. Both functional OIDC directions have now shipped (downstream in 1.11.0, upstream in 1.12.0); the remaining gate is **OIDC Hardening & Certification** (Phase 2). Do not start Embedder Enablement items until that lands. The dependency graph already reflects this: the hosted-login item builds on the OIDC provider, and the self-serve SSO portal leans on the upstream OIDC presets.
 
 ---
 
@@ -774,7 +774,7 @@ This is the theme's **killer differentiator** and the direct answer to the state
 
 - Embedder calls `POST /api/v1/organizations/{id}/portal-links` (control-plane) → returns a short-lived signed URL scoped to that Organization and a specific intent (`sso`, `scim`, or `both`).
 - The portal is a **restricted, branded UI** that exposes *only* connection setup for that one Organization — not the full admin app. Reuses the existing SAML/OIDC IdP and inbound-SCIM configuration surfaces, wrapped in a guarded, single-purpose flow.
-- Guided setup per IdP preset (reuse the upstream SAML presets and, once shipped, the OIDC upstream presets): copy-paste redirect URIs/ACS URLs/metadata, upload/import IdP metadata, generate SCIM bearer token.
+- Guided setup per IdP preset (reuse the upstream SAML presets and the OIDC upstream presets): copy-paste redirect URIs/ACS URLs/metadata, upload/import IdP metadata, generate SCIM bearer token.
 - Link is single-Organization, expiring, optionally single-use; all actions inside it audit as the customer admin (or a portal-actor), not the platform.
 - On completion, fire `sso.connection.activated` / `scim.connection.activated` webhooks (#3) so the embedder knows the customer is live.
 
@@ -782,7 +782,7 @@ This is the theme's **killer differentiator** and the direct answer to the state
 
 - [ ] `POST /api/v1/organizations/{id}/portal-links` issues a short-lived, signed, Organization-scoped portal URL with an intent (sso/scim/both)
 - [ ] Portal UI exposes only connection setup for that Organization; cannot navigate to users, billing, or other orgs (enforced server-side, not just UI)
-- [ ] Guided SSO setup (SAML now; OIDC upstream when that item ships) with preset walkthroughs and metadata/cert import
+- [ ] Guided SSO setup (SAML and OIDC upstream) with preset walkthroughs and metadata/cert import
 - [ ] Guided SCIM receiver setup (generate/show bearer token, endpoint URLs)
 - [ ] Portal is brandable per embedder/Organization
 - [ ] Links expire; actions inside audit to the customer admin/portal actor; completion fires connection-activated webhooks
@@ -795,7 +795,7 @@ This is the theme's **killer differentiator** and the direct answer to the state
 
 **Dependencies:**
 - Requires **Platform API keys** (#2) to issue links; **Webhooks** (#3) for completion signals.
-- Reuses existing SAML IdP + inbound-SCIM config; gains OIDC upstream presets when that item ships.
+- Reuses existing SAML IdP, OIDC upstream, and inbound-SCIM config surfaces.
 
 ---
 
@@ -821,7 +821,7 @@ This is the **inverse and complement** of the **Self-Service SSO/SCIM Admin Port
 - **Master-tenant designation:** a deployment-level setting marking one existing tenant as master/operator. Default: none (no cross-tenant operator surface exists unless explicitly designated). Designation is itself an audited, operator-only action.
 - **Authorization:** cross-tenant operator powers gated by master-tenant membership **plus** explicit operator scopes (share the scope model with Platform API keys #2 — e.g. `organizations:read`, `connections:write`, `directory:write`). Distinct from in-tenant `super_admin`, which stays single-tenant.
 - **Execution:** cross-tenant operations reuse the existing per-tenant service functions, invoked with a *target* `tenant_id` by an authorized master operator (the legitimate, bounded `UNSCOPED` → re-scope-to-target pattern). No existing per-tenant endpoint may be widened; ordinary tenant admins must still be unable to reach another tenant.
-- **Operable surface (target Org):** upstream IdP setup (SAML now; OIDC upstream when shipped), inbound/outbound SCIM connection setup, groups, user attributes, branding, guest invitations, entitlements — the Organization admin configuration surface, reachable from the master side.
+- **Operable surface (target Org):** upstream IdP setup (SAML and OIDC), inbound/outbound SCIM connection setup, groups, user attributes, branding, guest invitations, entitlements — the Organization admin configuration surface, reachable from the master side.
 - **Backoffice UI (first-party operator console):** list all Organizations, drill into one, perform the above. The API underlies it and is non-negotiable (API-first); the UI is the turnkey path for SaaS ops/support staff who don't want to build their own tooling.
 - **Audit & attribution:** every on-behalf action writes to the **target** Org's audit trail, distinctly flagged as performed on-behalf by `<master operator>`, **and** to the master tenant's own operator log (who entered which Org and what they changed). Both sides stay legible.
 - **Open grooming questions:** per-Organization opt-out of on-behalf access (some embedders may contractually need to disable it for a given customer); whether to reconcile/rename the master-tenant operator role against `super_admin`.
@@ -830,7 +830,7 @@ This is the **inverse and complement** of the **Self-Service SSO/SCIM Admin Port
 
 - [ ] A deployment can designate exactly one master tenant; default none; designation is audited and restricted to operator/super-admin
 - [ ] Authorized master-tenant members can list every Organization and select one to operate within (read + configure), gated by explicit operator scopes
-- [ ] On-behalf operations cover, for any target Organization: upstream IdP config (SAML; OIDC when shipped), SCIM connection setup, groups, user attributes, branding, guest invitations, entitlements
+- [ ] On-behalf operations cover, for any target Organization: upstream IdP config (SAML and OIDC), SCIM connection setup, groups, user attributes, branding, guest invitations, entitlements
 - [ ] **No impersonation:** operators never assume a customer user's identity/session; operations carry the master operator identity
 - [ ] Every on-behalf action is audited in the **target** Organization's trail, distinctly flagged as on-behalf by `<master operator>`, and also recorded in the master tenant's operator log
 - [ ] Cross-tenant (`UNSCOPED` → target) access is reachable **only** via master-tenant operators (or platform keys #2) and only for whitelisted configuration operations; tests assert ordinary per-tenant admins cannot reach another tenant
@@ -847,7 +847,6 @@ This is the **inverse and complement** of the **Self-Service SSO/SCIM Admin Port
 - Shares the scope model with **Platform API keys** (#2) — unify during grooming (one scope set, two principals: human operator and machine key).
 - Complements **Self-Service SSO/SCIM Admin Portal** (#4): same target config surfaces, opposite actor (SaaS operator vs. customer admin).
 - Operates over the org list/lifecycle from **Organizations / Tenant Lifecycle API** (#1).
-- Gains OIDC-upstream config as a target surface when **OIDC Upstream IdP Support** ships.
 - Sequenced within the Embedder theme (deferred behind the OIDC work per the 2026-06 decision).
 
 ---
@@ -888,7 +887,7 @@ This is the second half of the stated pain: enterprises force their *own* staff 
 
 **Dependencies:**
 - Complements **Per-organization auth policy** (#6) for SSO-required-vs-guest coexistence.
-- Optional social login reuses the **OIDC Upstream IdP Support** work.
+- Optional social login reuses the **OIDC Upstream IdP Support** work (shipped in 1.12.0).
 
 ---
 

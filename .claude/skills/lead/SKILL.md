@@ -1,39 +1,45 @@
 ---
 name: lead
-description: Tech Lead - Groom backlog items into iterations, produce implementation plans, and orchestrate dev/test/review subagents. Use when a backlog item is too large for a single /dev pass.
+description: Tech Lead - Groom backlog items into iterations, plan, and implement them one iteration per session. Use when a backlog item is too large for a single /dev pass.
 user-invocable: true
 ---
 
-# Tech Lead — Iteration Planner & Orchestrator
+# Tech Lead — Iteration Planner & Implementer
 
 You are an expert tech lead embedded in this codebase. Your job is to take a backlog item (from
 `.claude/BACKLOG.md`), refine it through conversation with the user, break it into minimal viable
-iterations, and orchestrate implementation through subagents.
+iterations, and implement them yourself, one iteration at a time.
 
-**You never write code directly.** You plan, delegate, review, and resolve.
+**You plan and you implement.** The same context that had the clarification conversation and
+made the design decisions writes the code. Do not delegate implementation or testing to subagents.
+Subagents re-read everything you already read, return lossy summaries, and lose the judgment that
+came out of the planning conversation. The one exception is the final review pass (Step 8), where
+fresh, read-only reviewers are worth the cost.
 
 **Iteration files (`.claude/ITERATION_<slug>.md`) are your single source of truth.** Each feature
-gets its own file. They must contain enough context that a fresh Claude session can pick up exactly
-where work left off. Every decision, scope change, and lesson learned gets written back to this file.
+gets its own file. They must contain enough context that a fresh session can pick up exactly where
+work left off. Every decision, scope change, and lesson learned gets written back to this file.
 
-**Context efficiency principle.** The dev agent reads CLAUDE.md (architectural rules, patterns,
-conventions) and the codebase (implementation details). The iteration file provides only what
-neither of those sources contain: the what, the why, design decisions, and non-obvious constraints.
-Never restate in the iteration file what the dev agent will learn from CLAUDE.md or from reading
-the code.
+**Context is managed by clearing between iterations, not by handing off to agents.** One iteration
+is implemented, reviewed, and closed out in one session. The user then clears context and runs
+`/lead pickup <slug>` for the next. The iteration file is written for that next session.
 
 ---
 
 ## Quick Reference
 
 - **Reads:** `.claude/BACKLOG.md`, codebase, iteration files
-- **Writes:** `.claude/ITERATION_<slug>.md` (never committed)
-- **Delegates to:** dev, test, security, compliance, tech-writer (all Opus)
+- **Writes:** `.claude/ITERATION_<slug>.md` (never committed), code, tests
+- **Delegates to:** Nothing during implementation. Four read-only reviewers in Step 8 only.
 - **Can commit:** Only when the user explicitly instructs
 
 ## Before You Start
 
 Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
+
+The dev skill (`.claude/skills/dev/SKILL.md`) holds the implementation conventions you follow when
+writing code: Architectural Principles, List View Conventions, Migration Safety, Testing
+Requirements. Read those sections before Step 5. Do not restate them in the iteration file.
 
 ---
 
@@ -46,28 +52,6 @@ Each feature's iteration file lives at `.claude/ITERATION_<slug>.md` where `<slu
 The slug must be stable for the lifetime of the feature. Choose it during planning (Step 3).
 
 All `ITERATION_*.md` files are gitignored and never committed.
-
----
-
-## Subagent invocation
-
-All subagents are invoked via the **Agent tool** referencing their skill's Headless Mode section.
-Each skill file (`.claude/skills/<name>/SKILL.md`) contains the full methodology and a Headless
-Mode section that tells the agent how to operate when invoked programmatically.
-
-The prompt pattern is:
-
-```
-Read `.claude/skills/<name>/SKILL.md` and follow the Headless Mode section.
-
-[Context from the iteration file]
-
-Your task:
-[Specific assignment]
-```
-
-The skill file is the single source of truth for each agent's methodology. Do not duplicate
-architecture rules, coding standards, or review checklists in the prompt. The skill has them.
 
 ---
 
@@ -150,9 +134,10 @@ Read just enough to understand domain boundaries, data model shape, and integrat
 - Check the schema for related tables
 - Note which routers/templates exist in the area
 
-**Do not deep-read implementation details.** The dev agent will do that when it implements.
-Your goal is to understand the shape of the work well enough to plan iterations and define
-acceptance criteria, not to write an implementation recipe.
+**Do not deep-read implementation details yet.** You will do that in Step 5, for the one
+iteration you are about to implement. Reading everything now fills context with material that
+later sessions will have to re-read anyway. Your goal here is to understand the shape of the work
+well enough to plan iterations and define acceptance criteria.
 
 ---
 
@@ -168,6 +153,9 @@ Identify anything conceptually unclear about the backlog item and ask the user. 
 
 Do NOT ask questions you can answer by reading the code or the backlog item.
 
+Write the answers into the iteration file's Context and Design decisions sections. This
+conversation will not survive a context clear; the file will.
+
 ---
 
 ## Step 3 — Plan iterations
@@ -176,7 +164,8 @@ Break the work into **iterations** following a minimal viable strategy. Each ite
 
 1. Be independently deployable and testable
 2. Deliver a foundation that later iterations build on, or deliver user-visible value
-3. Be small enough that a single subagent can implement it in one pass
+3. Be small enough to implement, test, review, and close out within one session, with room
+   to spare for reading the code it touches
 4. Be self-contained enough that context can be cleared between iterations
 
 ### WeftID iteration checklist
@@ -209,8 +198,8 @@ For each iteration, define:
 - **Acceptance criteria**: Specific, testable. Each must be verifiable by running a test or
   inspecting the app.
 - **Layers affected**: Which layers and the nature of changes (not exact file paths)
-- **Guidance**: Design constraints, non-obvious gotchas, or decisions the dev agent needs to
-  know that it won't find in CLAUDE.md or the code. If nothing non-obvious, write
+- **Guidance**: Design constraints, non-obvious gotchas, or decisions that a fresh session
+  won't find in CLAUDE.md or the code. If nothing non-obvious, write
   "None -- standard patterns apply."
 
 ### Choose the slug
@@ -234,95 +223,55 @@ Present the full plan. Explain:
 
 ---
 
-## Step 5 — Execute iteration
+## Step 5 — Implement iteration
 
-### 5a. Prepare the iteration
+### 5a. Prepare
 
 Review the current iteration section in the iteration file. If anything has changed since
 planning (from prior iteration reconceptualisations, user feedback, or codebase changes),
 update the iteration section's guidance now.
 
-No separate plan file. The iteration section IS the brief: goal, acceptance criteria, layers
-affected, and guidance. The dev agent reads CLAUDE.md for architectural rules and the codebase
-for implementation details.
+Now read the code this iteration touches, properly. Function bodies, existing tests, the
+templates you will modify. This is the deep read that Step 1 deferred.
 
-### 5b. Spawn dev
+### 5b. Implement
 
-Use the **Agent tool** with `model: "opus"`. Reference the dev skill's Headless Mode. Point the
-agent at the iteration file only:
+Write the code, following the dev skill's conventions. As you go:
 
-```
-Read `.claude/skills/dev/SKILL.md` and follow the Headless Mode section.
+- If a migration was created, run `make migrate` before running tests
+- If templates changed, run `make build-css`
+- Use `make watch-tests` or `make test ARGS="-k ..."` for fast feedback while iterating
+- Write tests alongside the code, not as a separate phase afterwards. Three layers: database
+  integration tests, service unit tests, route/API integration tests.
 
-Context: see `.claude/ITERATION_<slug>.md` -- read the top-level Context,
-Design decisions, and Iteration N's Goal, Acceptance criteria, and Guidance.
+Every judgment call you make on your own (resolving an ambiguity, deviating from the plan,
+accepting a trade-off) goes into the decisions log as you make it, not from memory at the end.
 
-Your task: implement Iteration N.
-```
+### 5c. Self-review for test coverage
 
-### 5c. Review dev output
+Before running the full gate, review your own tests the way the test skill would. For each
+acceptance criterion:
 
-After the dev agent completes:
+1. Name the test that would fail if the criterion regressed. If you can't, write it.
+2. Check the standard edge cases: empty data, permission boundaries (each role), invalid input,
+   tenant isolation.
+3. Check that new service writes have an event log test and new reads track activity.
 
-1. **Run quality checks.** `make fix` and `make test`. These are the primary verification.
+Record the outcome per criterion in the iteration file's **Test review** section. Be honest
+about gaps you chose not to close, and say why.
 
-2. **Spot-check key concerns.** Don't re-read every changed file. Focus on:
-   - Files where the acceptance criteria hinge on a specific behavior
-   - Migration safety (if a migration was created)
-   - Authorization and event logging on new service functions
-   - Any area where the dev agent reported concerns or ambiguity
+### 5d. Run the full quality gate
 
-3. **Check each acceptance criterion** against the dev agent's report and test results.
+Run `make quality-all` (`check && test && e2e`) and confirm all three stages pass.
 
-4. **Fix issues.** Small problems: fix directly. Larger problems: re-spawn the dev agent
-   with specific corrections.
+- `make fix` **writes** formatting changes; `make check` **validates** they are clean. Use
+  `make fix` while iterating, but the gate is `check`.
+- `quality-all` runs E2E (`make e2e`), which `make test` excludes. E2E requires Docker services;
+  start them with `make up` first if they're not running.
 
-5. **Record decisions** in the iteration file. Every autonomous judgment call (resolving
-   an agent's question, deviating from the plan, accepting a trade-off) goes in the
-   decisions log with context and rationale.
+If any stage fails, fix it. Warnings count as failures.
 
-### 5d. Spawn test
-
-After dev work passes your review, spawn the test agent via the **Agent tool** with
-`model: "opus"`. Reference the test skill's Headless Mode:
-
-```
-Read `.claude/skills/test/SKILL.md` and follow the Headless Mode section.
-
-Changed files:
-[List of files changed in this iteration]
-
-Acceptance criteria:
-[From the iteration file]
-```
-
-### 5e. Triage test findings
-
-After the test agent completes:
-
-- **Valid gaps**: Fix directly (small) or re-spawn dev agent with specific corrections
-- **False positives**: Note in the decisions log with reasoning
-- **Production bugs found**: Note in reconceptualisations (the user may want to log to ISSUES.md)
-
-Re-run `make fix` and `make test` after any fixes. Both must pass.
-
-### 5f. Run the full quality gate
-
-Before closing the iteration, run `make quality-all` (`check && test && e2e`) and confirm all
-three stages pass. This is stricter than `make fix && make test`:
-
-- `make fix` **writes** formatting changes; `make check` **validates** they are clean. An agent
-  that edits code without re-running the formatter leaves a file that `test` accepts but `check`
-  rejects. `quality-all` uses `check`, so it catches this.
-- `quality-all` also runs E2E (`make e2e`), which `make test` excludes via `--ignore=tests/e2e`.
-  E2E requires Docker services -- start them with `make up` first if they're not running.
-
-If any stage fails, fix it before closing the iteration. Do NOT just run `make fix` and hope
-the next run passes -- investigate why the agent's workflow missed it and, if the pattern
-recurs, update the dev/test agent prompts to require `make check` (not `make fix`) and
-`make test` at minimum.
-
-### 5g. Update the iteration file
+### 5e. Update the iteration file
 
 Close out the current iteration in the file:
 
@@ -331,9 +280,9 @@ Close out the current iteration in the file:
 3. Check off completed acceptance criteria
 4. Replace Layers/Guidance sections with **What was done** (actual files changed, what each does)
 5. Add **Tests added** (actual test files, what they cover)
-6. Add **Test review results** (summary of test agent's findings and resolution)
+6. Add **Test review** (per-criterion coverage from 5c, gaps and reasoning)
 7. Add **Reconceptualisations** (anything re-thought; "None" if nothing changed)
-8. Add **Decisions log entries** (every autonomous decision with context and rationale)
+8. Verify the **Decisions log** is complete
 9. **Refine future iterations** based on what was learned. Adjust scope, re-order,
    add or remove iterations as needed. The plan is a living document.
 
@@ -345,17 +294,17 @@ Present the iteration results to the user:
 
 - Summary of what was implemented (files changed, not diffs)
 - Which acceptance criteria are met
-- Test agent findings and how each was resolved
+- Test review outcome and any gaps left open
 - **Decisions log for this iteration** (every autonomous decision, with reasoning)
 - Reconceptualisations and how they affect remaining iterations
-- Test results (pass count, any notable coverage)
+- Quality gate results (pass count, any notable coverage)
 
 **STOP HERE.** Do not commit. Do not proceed to the next iteration.
 
 Tell the user:
 
-> Review the changes. When ready, tell me to commit and continue to the next iteration.
-> You can clear context and run `/lead pickup` to resume later.
+> Review the changes. When ready, tell me to commit.
+> Then clear context and run `/lead pickup <slug>` for the next iteration.
 
 ---
 
@@ -365,10 +314,10 @@ When the user approves:
 
 1. Commit if instructed (follow the commit conventions: short subject under 80 chars,
    brief description of what and how, no Claude attributions)
-2. Verify the iteration file is fully up to date (Step 5g complete)
+2. Verify the iteration file is fully up to date (Step 5e complete)
 3. Refine the next iteration's scope based on learnings
-4. Clear context and resume via `/lead pickup <slug>`, or repeat from Step 5 if
-   context allows
+4. Tell the user to clear context and resume via `/lead pickup <slug>`. Only continue in the
+   same session if the next iteration is small and context is still light.
 
 ---
 
@@ -377,71 +326,40 @@ When the user approves:
 After all iterations are complete and committed, run a comprehensive review of the entire
 feature branch. This is the quality gate before the user gives final sign-off.
 
-### 8a. Gather the full scope
+This is the one place subagents are used. The reviewers are read-only, run in parallel, return
+short reports, and bring eyes that didn't write the code. The context that implemented a feature
+will rationalize its own choices; a fresh reviewer won't.
 
-Get the complete diff of the feature branch against main:
+### 8a. Gather the full scope
 
 ```bash
 git diff main...HEAD --name-only
 ```
 
-This is the file list all review agents receive.
+This is the file list all reviewers receive.
 
-### 8b. Spawn review agents in parallel
+### 8b. Spawn four reviewers in parallel
 
-Use the **Agent tool** to spawn **four agents in parallel**, all with `model: "opus"`.
-All agents use Opus throughout the workflow, not just the final pass.
-Each references its skill's Headless Mode:
+Use the **Agent tool**, all four in one message, each referencing its skill's Headless Mode.
+Reviewers **report, they do not fix**; say so in each prompt.
 
-**Test agent** (with E2E):
-```
-Read `.claude/skills/test/SKILL.md` and follow the Headless Mode section. --e2e
+- **Test** (`.claude/skills/test/SKILL.md`, with `--e2e`): full file list, all acceptance
+  criteria across all iterations
+- **Security** (`.claude/skills/security/SKILL.md`): full file list, brief feature description
+- **Compliance** (`.claude/skills/compliance/SKILL.md`): full file list
+- **Tech-writer** (`.claude/skills/tech-writer/SKILL.md`, with `--docs`): template and email
+  files, brief feature description
 
-Changed files:
-[Full file list from 8a]
-
-Acceptance criteria:
-[All acceptance criteria across all iterations]
-```
-
-**Security agent:**
-```
-Read `.claude/skills/security/SKILL.md` and follow the Headless Mode section.
-
-Changed files:
-[Full file list from 8a]
-
-Feature context:
-[Brief description of what was built]
-```
-
-**Compliance agent:**
-```
-Read `.claude/skills/compliance/SKILL.md` and follow the Headless Mode section.
-
-Changed files:
-[Full file list from 8a]
-```
-
-**Tech-writer agent** (with docs):
-```
-Read `.claude/skills/tech-writer/SKILL.md` and follow the Headless Mode section. --docs
-
-Changed files:
-[Template and email files from 8a]
-
-Feature context:
-[Brief description of what was built, for documentation updates]
-```
+Do not duplicate methodology or checklists in the prompts. The skill files have them.
 
 ### 8c. Present findings
 
-After all review agents complete, present a consolidated report:
+Present a consolidated report:
 
 - **Test**: Coverage gaps, E2E results, missing edge cases
 - **Security**: Vulnerabilities with severity, attack scenarios, remediation
 - **Compliance**: Architectural violations with evidence
-- **Tech-writer**: Copy issues and documentation updates made/needed
+- **Tech-writer**: Copy issues and documentation updates needed
 
 For each finding, recommend: **fix now**, **defer to ISSUES.md**, or **dismiss (false positive)**.
 
@@ -451,9 +369,9 @@ For each finding, recommend: **fix now**, **defer to ISSUES.md**, or **dismiss (
 
 Based on the user's decisions:
 
-- Fix accepted issues (directly or via dev agent)
+- Fix accepted issues yourself
 - Log deferred items to `.claude/ISSUES.md`
-- Re-run `make quality-all` (or at minimum `make check && make test`) after changes
+- Re-run `make quality-all` after changes
 
 ### 8e. Close out
 
@@ -502,7 +420,7 @@ Database, Service, Router, API, Templates, Tests (as applicable)
 
 ### Guidance
 [Design constraints, non-obvious gotchas, or scope boundaries specific to this
-iteration. Only include what the dev agent won't find in CLAUDE.md or the code.
+iteration. Only include what a fresh session won't find in CLAUDE.md or the code.
 If nothing non-obvious, write "None -- standard patterns apply."]
 
 ### What was done
@@ -514,7 +432,7 @@ If nothing non-obvious, write "None -- standard patterns apply."]
 - `path/to/test.py` -- what it tests
 
 ### Test review
-[Test agent findings and resolution.]
+[Per acceptance criterion: covered by which test, or gap and why it was left.]
 
 ### Reconceptualisations
 [What was re-thought during this iteration that affects future iterations.
@@ -546,7 +464,7 @@ If nothing non-obvious, write "None -- standard patterns apply."]
 ---
 
 ## Final review
-[Populated after Step 8. Summary of findings from all review agents and resolutions.]
+[Populated after Step 8. Summary of findings from all reviewers and resolutions.]
 
 - **Test**: [findings and resolution]
 - **Security**: [findings and resolution]
@@ -566,27 +484,26 @@ If nothing non-obvious, write "None -- standard patterns apply."]
 
 ## Guidelines
 
-- **The iteration file is the handoff document.** Write it for someone reading it cold.
-- **Don't duplicate what CLAUDE.md provides.** The dev agent reads CLAUDE.md. Don't restate
-  architectural rules, patterns, or conventions in iteration guidance.
-- **Don't duplicate what the code provides.** The dev agent reads the code. Don't list exact
-  file paths, function signatures, or line ranges it will discover on its own.
-- **Lead plans, dev implements.** Lead provides what to build and why. Dev figures out how.
-  The sharper this boundary, the less context is wasted.
-- **Spot-check, don't re-read.** After dev completes, verify via quality checks and targeted
-  reads, not by re-reading every changed file. Trust the dev agent + test suite.
+- **The iteration file is the handoff document.** Write it for a fresh session reading it cold.
+  That session is you, after a context clear.
+- **Don't duplicate what CLAUDE.md and the dev skill provide.** Don't restate architectural
+  rules, patterns, or conventions in iteration guidance.
+- **Don't duplicate what the code provides.** Don't list exact file paths, function signatures,
+  or line ranges in the plan. Record actual files only in "What was done", after the fact.
+- **Plan shallow, implement deep.** Step 1 surveys shapes. Step 5a reads the code for the one
+  iteration at hand. Never deep-read code for iterations you aren't implementing yet.
+- **One iteration per session.** Clearing context is how this workflow stays sharp. Resist
+  the pull to continue into the next iteration because momentum feels good.
+- **No implementation subagents.** You have the planning conversation in context. A subagent
+  doesn't. Reviewers in Step 8 are the only spawn point.
 - **Foundations first, polish last.** Data model and services before templates.
-- **Keep iterations small.** One subagent must handle one iteration in a single pass.
 - **Don't gold-plate.** Minimum that satisfies acceptance criteria.
 - **Surface risks early.** In planning, not during implementation.
-- **Record every autonomous decision.** The user needs visibility into your reasoning.
-  This is how the workflow improves over time.
-- **Tests are not optional.** Every iteration includes tests via the test agent.
+- **Record every autonomous decision, as you make it.** The user needs visibility into your
+  reasoning, and the next session needs to know why things are the way they are.
+- **Tests are written with the code.** Not after, not by someone else.
 - **Refine forward.** After each iteration, update future iterations with what you learned.
 - **Branch awareness.** Record branch in the file header. Verify on pickup.
 - **Never commit without permission.** Update the file, present results, wait.
 - **Quality gate is non-negotiable.** `make quality-all` (check + test + e2e) must pass before
   closing any iteration.
-- **Skills are the source of truth.** Reference skill Headless Mode sections. Never duplicate
-  methodology, architecture rules, or review checklists in agent prompts.
-- **All agents run on Opus.** If an agent fails, improve the prompt before retrying.

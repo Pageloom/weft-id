@@ -553,7 +553,7 @@ All checks must pass before committing.
 ## Agent Workflow
 
 - Use `/pm` to add items to the product backlog
-- Use `/lead` to groom a backlog item into iterations and orchestrate implementation through subagents (for M/L/XL items)
+- Use `/lead` to groom a backlog item into iterations and implement them one per session (for M/L/XL items)
 - Use `/dev` to implement items from the backlog (checks `.claude/ISSUES.md` first, for S/M standalone items)
 - Use `/test` to review quality and push coverage intelligently
 - Use `/compliance` to verify architectural principles are followed

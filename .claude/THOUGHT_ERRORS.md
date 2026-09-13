@@ -579,3 +579,35 @@ broke three E2E tests (`test_admin_setup.py`, `test_idp_setup_variants.py`,
 `test_sp_setup_variants.py`) that clicked `get_by_role("button", name="Create Identity Provider")`.
 The unit suite stayed green because it never asserts on that button's label. Found 2026-09-06 when
 the user ran `make e2e` and reported widespread failures.
+
+## `curl` Resolves `*.localhost` to Loopback Regardless of DNS
+
+**Wrong:** Proving container-to-container reachability of a `*.weftid.localhost` host with
+`curl` inside the container and concluding from "connection refused on 127.0.0.1" that the
+Docker network alias is not working.
+**Right:** curl 8.x special-cases names ending in `.localhost` and resolves them to
+127.0.0.1/::1 itself (RFC 6761), bypassing the resolver. Use `getent ahosts <name>` to see what
+`getaddrinfo` (and therefore Java, Python, etc.) returns, and `curl --resolve host:443:<ip>` to
+test TLS/HTTP against the real address. Found 2026-09-13 wiring the OIDC conformance suite onto
+`devnet`: the alias resolved fine for the suite's Java process all along.
+
+## HtmlUnit Cannot Parse ES2020 Page Scripts
+
+**Wrong:** Assuming a headless-browser harness (the OIDF conformance suite uses HtmlUnit) will
+run WeftID's inline page scripts. Rhino fails on ES2020 syntax ("missing formal parameter"),
+so JS that reveals or wires up UI (for example the passkey-first fallback that un-hides the
+password form) never runs.
+**Right:** Script the harness against the server-rendered DOM only, and disable CSS parsing in
+HtmlUnit (`options.browsercontrol_css_enable=false` in the suite config) so Tailwind's `hidden`
+class does not make elements non-interactable. Anything a scripted browser needs must exist in
+the HTML without JS.
+
+## Stashed Return Paths Must Not Contain a Literal `://`
+
+**Wrong:** Stashing a same-origin path with its raw query (for example
+`/oauth2/authorize?redirect_uri=https://rp/cb`) for `safe_redirect()` to honour after login.
+`is_safe_path()` rejects any target containing `://`, so the stash is silently discarded and the
+user lands on `/dashboard`. Router tests miss this because `TestClient` percent-encodes query
+values that real clients send raw.
+**Right:** Re-encode the query with `urlencode(parse_qsl(query, keep_blank_values=True))` before
+stashing, and add a test that requests the raw, unencoded form of the URL.

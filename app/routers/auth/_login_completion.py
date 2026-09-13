@@ -10,7 +10,11 @@ import services.settings as settings_service
 import services.users as users_service
 from fastapi import Request
 from fastapi.responses import RedirectResponse
-from routers.saml_idp._helpers import extract_pending_sso, get_post_auth_redirect
+from routers.saml_idp._helpers import (
+    extract_pending_returns,
+    extract_pending_sso,
+    get_post_auth_redirect,
+)
 from services.event_log import log_event
 from utils.redirects import safe_redirect
 from utils.session import regenerate_session
@@ -53,6 +57,11 @@ def complete_authenticated_login(
     # Extract pending SSO context (if user was redirected from an SP's AuthnRequest)
     pending_sso = extract_pending_sso(request.session)
 
+    # Extract pending return paths (forward-auth or OAuth2 authorize requests
+    # that sent the user to log in). Regeneration clears the session, so these
+    # must ride along as additional data to be honoured by the redirect below.
+    pending_returns = extract_pending_returns(request.session)
+
     # Log successful sign-in event (also updates last_activity_at via log_event)
     log_event(
         tenant_id=tenant_id,
@@ -82,7 +91,9 @@ def complete_authenticated_login(
         max_age = 30 * 24 * 3600  # 30 days as default for persistent
 
     # CRITICAL: Regenerate session to prevent session fixation attacks
-    regenerate_session(request, user_id, max_age, additional_data=pending_sso)
+    regenerate_session(
+        request, user_id, max_age, additional_data={**pending_returns, **(pending_sso or {})}
+    )
 
     # Bind pending SSO context to the authenticated user (defense-in-depth)
     if pending_sso:
@@ -107,6 +118,6 @@ def complete_authenticated_login(
     else:
         users_service.update_last_login(tenant_id, user_id)
 
-    # Redirect to consent page if pending SSO, otherwise dashboard
+    # Redirect to SSO consent, a pending authorize request, or the dashboard
     redirect_url = get_post_auth_redirect(request.session)
     return safe_redirect(redirect_url)

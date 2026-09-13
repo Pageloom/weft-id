@@ -13,6 +13,17 @@ PENDING_SSO_KEYS = (
     "pending_sso_sp_name",
 )
 
+# Session keys holding a server-built relative path to resume after login.
+# Each key is honoured by ``get_post_auth_redirect`` only when its value is a
+# rooted path under the matching prefix (open-redirect guard). Login completion
+# carries these keys across session regeneration (``extract_pending_returns``).
+PENDING_FORWARD_AUTH_KEY = "pending_forward_auth_authorize"
+PENDING_OAUTH2_AUTHORIZE_KEY = "pending_oauth2_authorize"
+PENDING_RETURN_PREFIXES = {
+    PENDING_FORWARD_AUTH_KEY: "/forward-auth/authorize",
+    PENDING_OAUTH2_AUTHORIZE_KEY: "/oauth2/authorize",
+}
+
 
 def get_base_url(request: Request) -> str:
     """Get base URL from request for building SAML URLs (always HTTPS)."""
@@ -55,28 +66,51 @@ def extract_pending_sso(session: dict) -> dict[str, str] | None:
     return {key: session.get(key, "") for key in PENDING_SSO_KEYS}
 
 
+def extract_pending_returns(session: dict) -> dict[str, str]:
+    """Extract the pending return-path keys from the session.
+
+    Returns only the keys that are present, so the result can be passed as
+    ``additional_data`` to ``regenerate_session`` and survive the clear.
+    """
+    return {
+        key: session[key]
+        for key in PENDING_RETURN_PREFIXES
+        if isinstance(session.get(key), str) and session[key]
+    }
+
+
+def _is_safe_return_path(target: str, prefix: str) -> bool:
+    """True when ``target`` is a rooted relative path under ``prefix``."""
+    return (
+        target.startswith(prefix)
+        and not target.startswith("//")
+        and "://" not in target
+        and "\r" not in target
+        and "\n" not in target
+    )
+
+
 def get_post_auth_redirect(session: dict, default: str = "/dashboard") -> str:
     """Return the post-login destination.
 
     Priority:
       1. Pending SAML SSO consent (``/saml/idp/consent``).
       2. A pending forward-auth authorize step (``pending_forward_auth_authorize``),
-         consumed here. Only a safe rooted-relative path is honored; anything else
-         is ignored (open-redirect guard).
-      3. ``default`` (``/dashboard``).
+         consumed here.
+      3. A pending OAuth2/OIDC authorize request (``pending_oauth2_authorize``),
+         consumed here.
+      4. ``default`` (``/dashboard``).
+
+    For 2 and 3 only a safe rooted-relative path under the expected prefix is
+    honored; anything else is ignored (open-redirect guard). The keys are
+    popped either way so a stale or tampered value is never replayed.
     """
     if session.get("pending_sso_sp_entity_id"):
         return "/saml/idp/consent"
 
-    fa_target = session.pop("pending_forward_auth_authorize", None)
-    if (
-        isinstance(fa_target, str)
-        and fa_target.startswith("/forward-auth/authorize")
-        and not fa_target.startswith("//")
-        and "://" not in fa_target
-        and "\r" not in fa_target
-        and "\n" not in fa_target
-    ):
-        return fa_target
+    for key, prefix in PENDING_RETURN_PREFIXES.items():
+        target = session.pop(key, None)
+        if isinstance(target, str) and _is_safe_return_path(target, prefix):
+            return target
 
     return default

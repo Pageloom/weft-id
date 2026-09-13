@@ -36,3 +36,9 @@ site/
 # who bootstraps a testbed under dev/ keeps it out of source.
 dev/authentik/
 dev/scim-testbed/
+
+# OIDC conformance suite: rendered config (holds client secrets) and the
+# exported results live outside source. The runtime itself is under
+# ~/.local/share/weft-id/oidc-conformance/ (see dev/oidc-conformance.sh).
+dev/oidc-conformance/export/
+dev/oidc-conformance/config.json

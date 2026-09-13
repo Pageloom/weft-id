@@ -228,9 +228,75 @@ class TestAuthorizePage:
         assert "Invalid" not in response.text or "code_challenge_method" not in response.text
 
     def test_authorize_page_requires_authentication(
-        self, client, test_tenant_host, normal_oauth2_client
+        self, client, test_tenant_host, normal_oauth2_client, mocker
     ):
-        """Test authorization page redirects unauthenticated users to login."""
+        """Unauthenticated users are sent to login with the request stashed.
+
+        The stash is what lets login completion resume the authorization
+        request instead of dropping the user on the dashboard.
+        """
+        session_data: dict = {}
+        mocker.patch(
+            "starlette.requests.Request.session",
+            new_callable=lambda: property(lambda self: session_data),
+        )
+        response = client.get(
+            "/oauth2/authorize",
+            headers={"Host": test_tenant_host},
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+                "state": "xyz",
+            },
+            follow_redirects=False,
+        )
+
+        # Should redirect to login
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
+        stashed = session_data["pending_oauth2_authorize"]
+        assert stashed.startswith("/oauth2/authorize?")
+        assert f"client_id={normal_oauth2_client['client_id']}" in stashed
+        assert "state=xyz" in stashed
+        assert "redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback" in stashed
+
+    def test_authorize_page_stash_reencodes_raw_query(
+        self, client, test_tenant_host, normal_oauth2_client, mocker
+    ):
+        """A raw ``redirect_uri=https://...`` in the query (as real RPs send it)
+        must not leave a literal scheme separator in the stash, or the
+        redirect validator would discard it at login completion."""
+        session_data: dict = {}
+        mocker.patch(
+            "starlette.requests.Request.session",
+            new_callable=lambda: property(lambda self: session_data),
+        )
+        raw = (
+            f"/oauth2/authorize?client_id={normal_oauth2_client['client_id']}"
+            "&redirect_uri=https://localhost:3000/callback&scope=openid%20profile&state=a+b"
+        )
+        response = client.get(raw, headers={"Host": test_tenant_host}, follow_redirects=False)
+        assert response.status_code == 303
+        stashed = session_data["pending_oauth2_authorize"]
+        assert "://" not in stashed
+        assert "redirect_uri=https%3A%2F%2Flocalhost%3A3000%2Fcallback" in stashed
+        # Round-trips to the same parameters the RP sent.
+        from urllib.parse import parse_qs, urlsplit
+
+        params = parse_qs(urlsplit(stashed).query)
+        assert params["redirect_uri"] == ["https://localhost:3000/callback"]
+        assert params["scope"] == ["openid profile"]
+        assert params["state"] == ["a b"]
+        # And the login-completion guard accepts it.
+        from routers.saml_idp._helpers import get_post_auth_redirect
+
+        assert get_post_auth_redirect({"pending_oauth2_authorize": stashed}) == stashed
+
+    def test_authorize_page_force_profile_completion_gate(
+        self, client, test_tenant_host, normal_oauth2_client, test_user, override_auth
+    ):
+        """A user flagged for profile completion is gated exactly like other pages."""
+        override_auth({**test_user, "force_profile_completion": True})
         response = client.get(
             "/oauth2/authorize",
             headers={"Host": test_tenant_host},
@@ -240,10 +306,8 @@ class TestAuthorizePage:
             },
             follow_redirects=False,
         )
-
-        # Should redirect to login
         assert response.status_code == 303
-        assert response.headers["location"] == "/login"
+        assert response.headers["location"] == "/account/profile"
 
 
 # ============================================================================

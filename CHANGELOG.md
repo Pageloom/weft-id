@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-09-13
+
 ### Added
 
 - **OIDC upstream identity providers.** WeftID can now consume OpenID Connect
@@ -29,10 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   that still match what the provider supplied.
 - Optional per-connection `require_platform_mfa`, so WeftID's own two-step
   verification can be required after the upstream provider authenticates.
+- Providers without a discovery document can be configured from the admin UI:
+  the create form has an "Advanced: manual endpoints" section for the Generic
+  preset, and the details tab has an Endpoints editor. Manual endpoints must be
+  HTTPS, enforced by the same rule in the UI and the API.
 - Documentation: [OIDC Setup](docs/admin-guide/identity-providers/oidc-setup.md)
   plus Google Workspace and Entra ID walkthroughs, and glossary entries for OIDC
   discovery, JWKS, the UserInfo endpoint, and correlation claims.
-
 - The OAuth2 token endpoint accepts `client_secret_basic` (HTTP Basic) client
   authentication in addition to `client_secret_post` form fields, as RFC 6749
   requires. The discovery document now advertises
@@ -41,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   upstream IdP for a second tenant (`tests/e2e/test_oidc_upstream_loopback_e2e.py`,
   provisioned by `app/dev/oidc_loopback_testbed.py`). Covers JIT provisioning on
   first sign-in and subject correlation on the second.
+- Hourly worker job that purges expired forward-auth handshake nonces.
+  Abandoned handshakes previously left their rows in the database
+  indefinitely.
 
 ### Changed
 
@@ -81,6 +89,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (`services.auth_routing`, `schemas.auth_routing`) now that login routing
   resolves OIDC connections as well as SAML IdPs. The previous
   `services.saml.routing` import continues to work.
+- The Directory requests badge count is cached per tenant for 30 seconds and
+  invalidated when a request is approved, denied, or force-completed, instead
+  of running two uncached counts on every page render.
+- Updated runtime dependencies (starlette 1.6.0, pydantic 2.13.5,
+  argon2-cffi-bindings 26.1.0, cairosvg 2.9.1).
 
 ### Fixed
 
@@ -95,6 +108,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Upstream OIDC discovery, JWKS, token, and userinfo fetches now use the SSRF
   guard's dev-only base-domain rewrite so a dev-stack tenant can be its own
   upstream IdP. No production behavior change.
+- Downloading a historical user export returned a 500 when the configured
+  storage backend no longer matched the backend the export was written to.
+  It now returns a 404 with a clear message.
 
 ### Security
 
@@ -107,6 +123,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Linking an upstream subject to an existing WeftID account by email address is
   off by default. When enabled it additionally requires the ID token to assert
   `email_verified`.
+- An admin could deactivate or reactivate a super-admin-tier B2B service
+  account through the Applications routes, bypassing the super admin
+  boundary. The edit, deactivate, and reactivate handlers now reject
+  non-normal client types, matching the sibling handlers.
+- The Directory router is mounted behind the admin requirement again, with
+  the authenticated index redirect split into its own router. Previously
+  each handler carried its own admin check, so a future handler that forgot
+  it would have been reachable by regular users without the compliance
+  checker noticing.
+- Updated httpx2 and httpcore2 to 2.12.0 to address CVE-2026-84379,
+  CVE-2026-84380, CVE-2026-84381, and CVE-2026-84382. These are development
+  dependencies (test client) and are not in the production image.
 
 ## [1.11.1] - 2026-08-30
 

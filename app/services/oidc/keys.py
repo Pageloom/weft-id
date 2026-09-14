@@ -178,6 +178,24 @@ def get_active_signing_key(tenant_id: str, actor_user_id: str | None = None) -> 
     )
 
 
+def get_verification_public_keys(tenant_id: str) -> dict[str, str]:
+    """Return ``{kid: public_key_pem}`` for every key that may have signed a
+    WeftID-issued token: the active key plus the previous key when one is
+    still recorded after a rotation.
+
+    Used to verify an ``id_token_hint`` at the authorization endpoint. The
+    previous key is honoured regardless of the JWKS grace window: a hint is
+    a token the RP received from us earlier, and the cleanup job removes the
+    previous key row once the grace period has elapsed, so this can never
+    accept a key that is not also known to be ours.
+    """
+    row = _get_or_provision(tenant_id)
+    keys = {row["kid"]: row["public_key_pem"]}
+    if row.get("previous_public_key_pem") and row.get("previous_kid"):
+        keys[row["previous_kid"]] = row["previous_public_key_pem"]
+    return keys
+
+
 def get_jwks(tenant_id: str) -> JWKS:
     """Return the tenant's JWKS: the active key plus any within-grace retired key.
 

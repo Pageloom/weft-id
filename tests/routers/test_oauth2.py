@@ -56,6 +56,7 @@ class TestAuthorizePage:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -75,6 +76,7 @@ class TestAuthorizePage:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
         )
         assert response.status_code == 200
@@ -95,6 +97,7 @@ class TestAuthorizePage:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "state": "random_state_123",
             },
             follow_redirects=False,
@@ -111,6 +114,7 @@ class TestAuthorizePage:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
                 "code_challenge_method": "S256",
             },
@@ -126,6 +130,7 @@ class TestAuthorizePage:
             params={
                 "client_id": "nonexistent_client_id",
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -142,6 +147,7 @@ class TestAuthorizePage:
             params={
                 "client_id": b2b_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -165,6 +171,7 @@ class TestAuthorizePage:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -183,6 +190,7 @@ class TestAuthorizePage:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://malicious.com/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -193,20 +201,26 @@ class TestAuthorizePage:
     def test_authorize_page_invalid_pkce_method(
         self, authenticated_client_with_host, normal_oauth2_client
     ):
-        """Test authorization page rejects invalid PKCE method."""
+        """An invalid PKCE method is reported to the RP as invalid_request:
+        the redirect_uri is verified first, so the error can be redirected."""
         response = authenticated_client_with_host.get(
             "/oauth2/authorize",
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "code_challenge": "some_challenge",
                 "code_challenge_method": "invalid_method",
+                "state": "pk",
             },
             follow_redirects=False,
         )
 
-        assert response.status_code == 200
-        assert "Invalid" in response.text or "S256" in response.text
+        assert response.status_code == 303
+        location = response.headers["location"]
+        assert location.startswith("http://localhost:3000/callback?error=invalid_request")
+        assert "code_challenge_method" in location
+        assert "state=pk" in location
 
     def test_authorize_page_pkce_plain_method_allowed(
         self, authenticated_client_with_host, normal_oauth2_client
@@ -217,6 +231,7 @@ class TestAuthorizePage:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "code_challenge": "plain_challenge_value",
                 "code_challenge_method": "plain",
             },
@@ -246,6 +261,7 @@ class TestAuthorizePage:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "state": "xyz",
             },
             follow_redirects=False,
@@ -263,7 +279,7 @@ class TestAuthorizePage:
     def test_authorize_page_stash_reencodes_raw_query(
         self, client, test_tenant_host, normal_oauth2_client, mocker
     ):
-        """A raw ``redirect_uri=https://...`` in the query (as real RPs send it)
+        """A raw ``redirect_uri=http://...`` in the query (as real RPs send it)
         must not leave a literal scheme separator in the stash, or the
         redirect validator would discard it at login completion."""
         session_data: dict = {}
@@ -273,18 +289,19 @@ class TestAuthorizePage:
         )
         raw = (
             f"/oauth2/authorize?client_id={normal_oauth2_client['client_id']}"
-            "&redirect_uri=https://localhost:3000/callback&scope=openid%20profile&state=a+b"
+            "&redirect_uri=http://localhost:3000/callback&response_type=code"
+            "&scope=openid%20profile&state=a+b"
         )
         response = client.get(raw, headers={"Host": test_tenant_host}, follow_redirects=False)
         assert response.status_code == 303
         stashed = session_data["pending_oauth2_authorize"]
         assert "://" not in stashed
-        assert "redirect_uri=https%3A%2F%2Flocalhost%3A3000%2Fcallback" in stashed
+        assert "redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback" in stashed
         # Round-trips to the same parameters the RP sent.
         from urllib.parse import parse_qs, urlsplit
 
         params = parse_qs(urlsplit(stashed).query)
-        assert params["redirect_uri"] == ["https://localhost:3000/callback"]
+        assert params["redirect_uri"] == ["http://localhost:3000/callback"]
         assert params["scope"] == ["openid profile"]
         assert params["state"] == ["a b"]
         # And the login-completion guard accepts it.
@@ -303,6 +320,7 @@ class TestAuthorizePage:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -338,6 +356,7 @@ class TestAuthorizeGrant:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -346,7 +365,7 @@ class TestAuthorizeGrant:
 
         # Now POST with the auth_request_id
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": auth_request_id,
                 "action": "allow",
@@ -367,6 +386,7 @@ class TestAuthorizeGrant:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "state": "my_state_value",
             },
             follow_redirects=False,
@@ -376,7 +396,7 @@ class TestAuthorizeGrant:
 
         # POST with auth_request_id - state is retrieved from session
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": auth_request_id,
                 "action": "allow",
@@ -396,6 +416,7 @@ class TestAuthorizeGrant:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
                 "code_challenge_method": "S256",
             },
@@ -406,7 +427,7 @@ class TestAuthorizeGrant:
 
         # POST
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": auth_request_id,
                 "action": "allow",
@@ -428,6 +449,7 @@ class TestAuthorizeGrant:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -435,7 +457,7 @@ class TestAuthorizeGrant:
 
         # POST deny
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": auth_request_id,
                 "action": "deny",
@@ -456,6 +478,7 @@ class TestAuthorizeGrant:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "state": "my_state_value",
             },
             follow_redirects=False,
@@ -464,7 +487,7 @@ class TestAuthorizeGrant:
 
         # POST deny
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": auth_request_id,
                 "action": "deny",
@@ -487,6 +510,7 @@ class TestAuthorizeGrant:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -494,7 +518,7 @@ class TestAuthorizeGrant:
 
         # POST with invalid action
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": auth_request_id,
                 "action": "invalid_action",
@@ -516,6 +540,7 @@ class TestAuthorizeGrant:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -524,7 +549,7 @@ class TestAuthorizeGrant:
         database.oauth2.deactivate_client(test_tenant["id"], normal_oauth2_client["client_id"])
 
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={"auth_request_id": auth_request_id, "action": "allow"},
             follow_redirects=False,
         )
@@ -546,7 +571,7 @@ class TestAuthorizeGrantSecurity:
     def test_invalid_auth_request_id_rejected(self, authenticated_client_with_host):
         """Test that invalid/fabricated auth_request_id is rejected."""
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": "fabricated_invalid_id_12345",
                 "action": "allow",
@@ -566,6 +591,7 @@ class TestAuthorizeGrantSecurity:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -573,7 +599,7 @@ class TestAuthorizeGrantSecurity:
 
         # First POST - should succeed
         response1 = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": auth_request_id,
                 "action": "allow",
@@ -585,7 +611,7 @@ class TestAuthorizeGrantSecurity:
 
         # Second POST with same auth_request_id - should fail
         response2 = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": auth_request_id,
                 "action": "allow",
@@ -607,6 +633,7 @@ class TestAuthorizeGrantSecurity:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -619,7 +646,7 @@ class TestAuthorizeGrantSecurity:
 
         with patch("routers.oauth2.time.time", return_value=future_time):
             response = authenticated_client_with_host.post(
-                "/oauth2/authorize",
+                "/oauth2/authorize/decision",
                 data={
                     "auth_request_id": auth_request_id,
                     "action": "allow",
@@ -644,6 +671,7 @@ class TestAuthorizeGrantSecurity:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "state": "original_state",
             },
             follow_redirects=False,
@@ -652,7 +680,7 @@ class TestAuthorizeGrantSecurity:
 
         # POST - the response should use the original state from session
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={
                 "auth_request_id": auth_request_id,
                 "action": "allow",
@@ -1252,6 +1280,7 @@ class TestOidcAuthorizeAccessControl:
                 params={
                     "client_id": oidc["client_id"],
                     "redirect_uri": "http://localhost:3000/callback",
+                    "response_type": "code",
                     "scope": "openid profile",
                 },
                 follow_redirects=False,
@@ -1277,6 +1306,7 @@ class TestOidcAuthorizeAccessControl:
             params={
                 "client_id": oidc["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "scope": "openid",
             },
             follow_redirects=False,
@@ -1296,6 +1326,7 @@ class TestOidcAuthorizeAccessControl:
             params={
                 "client_id": oidc["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "scope": "openid",
             },
             follow_redirects=False,
@@ -1313,6 +1344,7 @@ class TestOidcAuthorizeAccessControl:
             params={
                 "client_id": normal_oauth2_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
             },
             follow_redirects=False,
         )
@@ -1332,6 +1364,7 @@ class TestOidcAuthorizeAccessControl:
             params={
                 "client_id": oidc["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "scope": "openid profile email groups",
             },
             follow_redirects=False,
@@ -1358,6 +1391,7 @@ class TestOidcAuthorizeAccessControl:
             params={
                 "client_id": oidc["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "scope": "openid",
             },
             follow_redirects=False,
@@ -1369,7 +1403,7 @@ class TestOidcAuthorizeAccessControl:
         database.groups.remove_group_member(test_tenant["id"], group["id"], test_user["id"])
 
         response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             data={"auth_request_id": auth_request_id, "action": "allow"},
             follow_redirects=False,
         )

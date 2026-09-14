@@ -19,7 +19,7 @@ After creation, WeftID displays the **client ID** and **client secret** in a dia
 1. Your application redirects the user to WeftID's authorization endpoint:
 
     ```
-    GET /oauth2/authorize?client_id=...&redirect_uri=...&state=...
+    GET /oauth2/authorize?response_type=code&client_id=...&redirect_uri=...&state=...
     ```
 
 2. The user sees a consent screen showing your application's name and their identity. They click **Allow** or **Deny**.

@@ -22,13 +22,13 @@
     },
     "browser": [
         {
-            "comment": "Interactive path: authorize -> login (email, password, MFA) -> consent -> suite callback. Every step is optional because an existing session or remembered consent skips it.",
+            "comment": "Interactive path: authorize -> login (email, password, MFA) -> consent -> suite callback. Every step is optional because an existing session or remembered consent skips it. The email step matches /login* because login_hint and re-authentication send the browser to /login?prefill_email=...",
             "match": "{WEFTID_ISSUER}/oauth2/authorize*",
             "tasks": [
                 {
                     "task": "Login: email step",
                     "optional": true,
-                    "match": "{WEFTID_ISSUER}/login",
+                    "match": "{WEFTID_ISSUER}/login*",
                     "commands": [
                         ["text", "id", "email", "{USER_EMAIL}"],
                         ["click", "css", "#emailForm button[type='submit']"]
@@ -81,7 +81,7 @@
                         {
                             "task": "Login: email step",
                             "optional": true,
-                            "match": "{WEFTID_ISSUER}/login",
+                            "match": "{WEFTID_ISSUER}/login*",
                             "commands": [
                                 ["wait", "xpath", "//*", 10, "Sign In", "update-image-placeholder-optional"],
                                 ["text", "id", "email", "{USER_EMAIL}"],
@@ -136,7 +136,7 @@
                         {
                             "task": "Login: email step",
                             "optional": true,
-                            "match": "{WEFTID_ISSUER}/login",
+                            "match": "{WEFTID_ISSUER}/login*",
                             "commands": [
                                 ["wait", "xpath", "//*", 10, "Sign In", "update-image-placeholder-optional"],
                                 ["text", "id", "email", "{USER_EMAIL}"],
@@ -220,6 +220,23 @@
             "browser": [
                 {
                     "comment": "A redirect_uri with an extra query component does not match the registered one.",
+                    "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                    "tasks": [
+                        {
+                            "task": "Expect redirect_uri error page",
+                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                            "commands": [
+                                ["wait", "xpath", "//*", 10, "redirect_uri", "update-image-placeholder"]
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "oidcc-ensure-request-object-with-redirect-uri": {
+            "browser": [
+                {
+                    "comment": "Request objects are rejected (request_not_supported); the plain query carries an unregistered redirect_uri (the registered one is inside the request object), so WeftID renders the error page and never redirects.",
                     "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                     "tasks": [
                         {

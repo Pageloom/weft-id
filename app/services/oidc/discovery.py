@@ -38,6 +38,14 @@ GRANT_TYPES_SUPPORTED = ["authorization_code", "refresh_token", "client_credenti
 # field is omitted; post is the form-field variant many SDKs send.
 TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED = ["client_secret_basic", "client_secret_post"]
 
+# Request objects (OpenID Connect Core 1.0, section 6) are not accepted: the
+# authorization endpoint rejects `request` with request_not_supported and
+# `request_uri` with request_uri_not_supported. Both flags are advertised
+# explicitly because the Discovery default for request_uri_parameter_supported
+# is true, and RPs (and the conformance suite) read the absence as support.
+REQUEST_PARAMETER_SUPPORTED = False
+REQUEST_URI_PARAMETER_SUPPORTED = False
+
 # Claims that may appear in an ID token or a userinfo response. This is the
 # union of the token-envelope claims added by the ID-token minter
 # (services.oidc.tokens) and the scope-gated identity claims produced by the
@@ -91,4 +99,6 @@ def build_discovery_metadata(issuer: str) -> OIDCProviderMetadata:
         id_token_signing_alg_values_supported=list(ID_TOKEN_SIGNING_ALG_VALUES_SUPPORTED),
         token_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
         claims_supported=list(CLAIMS_SUPPORTED),
+        request_parameter_supported=REQUEST_PARAMETER_SUPPORTED,
+        request_uri_parameter_supported=REQUEST_URI_PARAMETER_SUPPORTED,
     )

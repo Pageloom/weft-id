@@ -10,6 +10,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import jwt
+import pytest
 from jwt.algorithms import RSAAlgorithm
 from services import oidc as oidc_service
 from services.oidc import tokens as tokens_service
@@ -160,3 +161,135 @@ class TestIssueIdToken:
         assert kwargs["artifact_id"] == str(test_user["id"])
         assert kwargs["metadata"]["client_id"] == "cid"
         assert kwargs["metadata"]["nonce_echoed"] is True
+
+
+class TestVerifyIdTokenHint:
+    """``id_token_hint`` verification for the authorization endpoint."""
+
+    ISSUER = "https://tenant.example.com"
+
+    def _mint(self, test_tenant, test_user, *, client_id="rp-1", issuer=ISSUER) -> str:
+        return tokens_service.issue_id_token(
+            tenant_id=str(test_tenant["id"]),
+            issuer=issuer,
+            client_uuid=str(test_user["id"]),
+            client_id=client_id,
+            user_id=str(test_user["id"]),
+            scopes={"openid"},
+        )
+
+    def test_valid_hint_returns_claims(self, test_tenant, test_user):
+        token = self._mint(test_tenant, test_user)
+        claims = tokens_service.verify_id_token_hint(
+            tenant_id=str(test_tenant["id"]), issuer=self.ISSUER, client_id="rp-1", id_token=token
+        )
+        assert claims is not None
+        assert claims["sub"] == str(test_user["id"])
+        assert claims["aud"] == "rp-1"
+
+    def test_expired_hint_is_still_accepted(self, test_tenant, test_user, mocker):
+        """A hint is routinely presented after the token expired."""
+        mocker.patch.object(tokens_service, "ID_TOKEN_EXPIRY", timedelta(hours=-1))
+        token = self._mint(test_tenant, test_user)
+        # Under normal RP verification the token is expired...
+        with pytest.raises(jwt.ExpiredSignatureError):
+            _verify_against_jwks(token, str(test_tenant["id"]), audience="rp-1", issuer=self.ISSUER)
+        # ...but the hint verifier deliberately ignores exp.
+        claims = tokens_service.verify_id_token_hint(
+            tenant_id=str(test_tenant["id"]), issuer=self.ISSUER, client_id="rp-1", id_token=token
+        )
+        assert claims is not None and claims["sub"] == str(test_user["id"])
+
+    def test_wrong_audience_rejected(self, test_tenant, test_user):
+        token = self._mint(test_tenant, test_user, client_id="rp-1")
+        assert (
+            tokens_service.verify_id_token_hint(
+                tenant_id=str(test_tenant["id"]),
+                issuer=self.ISSUER,
+                client_id="rp-2",
+                id_token=token,
+            )
+            is None
+        )
+
+    def test_wrong_issuer_rejected(self, test_tenant, test_user):
+        token = self._mint(test_tenant, test_user, issuer="https://other.example.com")
+        assert (
+            tokens_service.verify_id_token_hint(
+                tenant_id=str(test_tenant["id"]),
+                issuer=self.ISSUER,
+                client_id="rp-1",
+                id_token=token,
+            )
+            is None
+        )
+
+    def test_garbage_and_tampered_rejected(self, test_tenant, test_user):
+        token = self._mint(test_tenant, test_user)
+        header, payload, signature = token.split(".")
+        tampered = f"{header}.{payload}.{signature[:-4]}AAAA"
+        for bad in ("", "not-a-jwt", "a.b.c", tampered):
+            assert (
+                tokens_service.verify_id_token_hint(
+                    tenant_id=str(test_tenant["id"]),
+                    issuer=self.ISSUER,
+                    client_id="rp-1",
+                    id_token=bad,
+                )
+                is None
+            ), bad
+
+    def test_unknown_kid_rejected(self, test_tenant, test_user):
+        token = self._mint(test_tenant, test_user)
+        payload = jwt.decode(token, options={"verify_signature": False})
+        # Sign with a key WeftID never issued, under a foreign kid.
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem = key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+        forged = jwt.encode(payload, pem, algorithm="RS256", headers={"kid": "foreign"})
+        assert (
+            tokens_service.verify_id_token_hint(
+                tenant_id=str(test_tenant["id"]),
+                issuer=self.ISSUER,
+                client_id="rp-1",
+                id_token=forged,
+            )
+            is None
+        )
+
+    def test_missing_kid_rejected(self, test_tenant, test_user):
+        token = self._mint(test_tenant, test_user)
+        payload = jwt.decode(token, options={"verify_signature": False})
+        signing_key = oidc_service.get_active_signing_key(str(test_tenant["id"]))
+        no_kid = jwt.encode(payload, signing_key.private_key_pem, algorithm="RS256")
+        assert (
+            tokens_service.verify_id_token_hint(
+                tenant_id=str(test_tenant["id"]),
+                issuer=self.ISSUER,
+                client_id="rp-1",
+                id_token=no_kid,
+            )
+            is None
+        )
+
+    def test_previous_key_after_rotation_still_verifies(
+        self, test_tenant, test_user, test_admin_user
+    ):
+        """A hint signed before a rotation is a token we issued; honour it."""
+        token = self._mint(test_tenant, test_user)
+        old_kid = jwt.get_unverified_header(token)["kid"]
+        oidc_service.rotate_signing_key(
+            {**test_admin_user, "tenant_id": str(test_tenant["id"]), "role": "super_admin"}
+        )
+        keys = oidc_service.get_verification_public_keys(str(test_tenant["id"]))
+        assert old_kid in keys and len(keys) == 2
+        claims = tokens_service.verify_id_token_hint(
+            tenant_id=str(test_tenant["id"]), issuer=self.ISSUER, client_id="rp-1", id_token=token
+        )
+        assert claims is not None and claims["sub"] == str(test_user["id"])

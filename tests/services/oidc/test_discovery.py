@@ -38,3 +38,13 @@ class TestBuildDiscoveryMetadata:
         assert {"sub", "iss", "aud", "exp", "iat", "auth_time", "nonce"} <= claims
         assert {"name", "email", "email_verified"} <= claims
         assert "groups" in claims
+
+    def test_request_objects_are_explicitly_unsupported(self):
+        """The Discovery default for request_uri_parameter_supported is true,
+        so both flags must be stated explicitly (the suite warns otherwise)."""
+        meta = discovery_service.build_discovery_metadata("https://t.example.com")
+        assert meta.request_parameter_supported is False
+        assert meta.request_uri_parameter_supported is False
+        dumped = meta.model_dump()
+        assert dumped["request_parameter_supported"] is False
+        assert dumped["request_uri_parameter_supported"] is False

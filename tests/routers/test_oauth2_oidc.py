@@ -464,6 +464,7 @@ class TestAuthorizeStoresScopeAndNonce:
             params={
                 "client_id": oidc_client["client_id"],
                 "redirect_uri": "http://localhost:3000/callback",
+                "response_type": "code",
                 "scope": "openid profile",
                 "nonce": "capture-me",
             },
@@ -475,7 +476,7 @@ class TestAuthorizeStoresScopeAndNonce:
         auth_request_id = match.group(1)
 
         post_resp = client.post(
-            "/oauth2/authorize",
+            "/oauth2/authorize/decision",
             headers={"Host": test_tenant_host},
             data={"auth_request_id": auth_request_id, "action": "allow"},
             follow_redirects=False,
@@ -501,6 +502,7 @@ class TestAuthorizeStoresScopeAndNonce:
         base = {
             "client_id": oidc_client["client_id"],
             "redirect_uri": "http://localhost:3000/callback",
+            "response_type": "code",
         }
         oversized_scope = client.get(
             "/oauth2/authorize",

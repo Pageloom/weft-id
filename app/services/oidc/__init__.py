@@ -22,16 +22,18 @@ from services.oidc.keys import (
     get_active_signing_key,
     get_jwks,
     get_signing_key_status,
+    get_verification_public_keys,
     list_signing_keys_needing_cleanup,
     rotate_signing_key,
 )
-from services.oidc.tokens import ID_TOKEN_EXPIRY, issue_id_token
+from services.oidc.tokens import ID_TOKEN_EXPIRY, issue_id_token, verify_id_token_hint
 from services.oidc.userinfo import get_userinfo
 
 __all__ = [
     "ActiveSigningKey",
     "get_active_signing_key",
     "get_jwks",
+    "get_verification_public_keys",
     "rotate_signing_key",
     "get_signing_key_status",
     "cleanup_previous_signing_key",
@@ -42,6 +44,7 @@ __all__ = [
     "SCOPE_DESCRIPTIONS",
     "user_can_access_client",
     "issue_id_token",
+    "verify_id_token_hint",
     "ID_TOKEN_EXPIRY",
     "build_discovery_metadata",
     "get_userinfo",

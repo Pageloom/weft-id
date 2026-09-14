@@ -29,7 +29,7 @@ from datetime import UTC, datetime, timedelta
 import jwt
 from services.event_log import log_event
 from services.oidc import claims as claims_service
-from services.oidc.keys import get_active_signing_key
+from services.oidc.keys import get_active_signing_key, get_verification_public_keys
 
 # ID tokens are short-lived: they assert authentication at a point in time and
 # are consumed immediately by the RP. One hour matches the OAuth2 access-token
@@ -117,3 +117,48 @@ def issue_id_token(
     )
 
     return id_token
+
+
+def verify_id_token_hint(
+    *,
+    tenant_id: str,
+    issuer: str,
+    client_id: str,
+    id_token: str,
+) -> dict | None:
+    """Verify an ``id_token_hint`` and return its claims, or ``None``.
+
+    Authorization: none -- the authorization endpoint calls this before any
+    user interaction. Read-only; nothing is logged.
+
+    The hint is a WeftID-issued ID token the RP received earlier (OpenID
+    Connect Core 1.0, section 3.1.2.1). It is accepted when it was signed by
+    one of this tenant's signing keys (active or previous, selected by the
+    ``kid`` header), carries this tenant's ``iss`` and the requesting client's
+    ``client_id`` in ``aud``. Expiry is deliberately **not** enforced: a hint
+    is routinely presented after the token has expired (the spec allows an
+    expired hint), and the caller only uses its ``sub`` to compare with the
+    current session. Any other verification failure returns ``None``.
+    """
+    try:
+        header = jwt.get_unverified_header(id_token)
+    except jwt.PyJWTError:
+        return None
+    kid = header.get("kid")
+    if not isinstance(kid, str):
+        return None
+    public_key_pem = get_verification_public_keys(tenant_id).get(kid)
+    if public_key_pem is None:
+        return None
+    try:
+        claims = jwt.decode(
+            id_token,
+            public_key_pem,
+            algorithms=["RS256"],
+            audience=client_id,
+            issuer=issuer,
+            options={"verify_exp": False, "require": ["iss", "sub", "aud"]},
+        )
+    except jwt.PyJWTError:
+        return None
+    return claims if isinstance(claims.get("sub"), str) else None

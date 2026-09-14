@@ -30,6 +30,14 @@ CSRF_EXEMPT_PATHS = [
     "/oauth2/token",  # OAuth2 token endpoint
 ]
 
+# Exact-path exemptions (no prefix match). The OAuth2 authorization endpoint
+# must accept a cross-site POST carrying the same parameters as the GET form
+# (OpenID Connect Core 1.0, section 3.1.2.1); the request is validated against
+# the client's registration, not the session. Its sibling
+# ``/oauth2/authorize/decision`` (the consent form) is NOT exempt, which is why
+# this is an exact match rather than a prefix.
+CSRF_EXEMPT_EXACT_PATHS = frozenset({"/oauth2/authorize"})
+
 # HTTP methods that require CSRF validation
 CSRF_PROTECTED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -79,6 +87,8 @@ def make_csrf_token_func(request: Request) -> Callable[[], str]:
 
 def _is_exempt(path: str) -> bool:
     """Check if a path is exempt from CSRF protection."""
+    if path in CSRF_EXEMPT_EXACT_PATHS:
+        return True
     for exempt_path in CSRF_EXEMPT_PATHS:
         if path.startswith(exempt_path):
             return True

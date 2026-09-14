@@ -33,7 +33,7 @@
             </div>
             {% endif %}
 
-            <form method="post" action="/oauth2/authorize">
+            <form method="post" action="/oauth2/authorize/decision">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="auth_request_id" value="{{ auth_request_id }}">
 

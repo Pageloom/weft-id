@@ -1,36 +1,114 @@
-"""OAuth2 authorization and token endpoints."""
+"""OAuth2 authorization and token endpoints.
+
+Architectural Note: this module contains a direct ``log_event()`` call for the
+``user_signed_out`` event raised when a relying party forces re-authentication
+(``prompt=login``, an exceeded ``max_age``, or an ``id_token_hint`` for another
+user). Like ``routers/auth/logout.py``, this is session termination at the HTTP
+boundary, an accepted exception to the "event logging in services" pattern.
+"""
 
 import base64
 import binascii
 import secrets
 import time
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Annotated
-from urllib.parse import parse_qsl, unquote, urlencode, urlparse
+from urllib.parse import unquote, urlencode, urlparse
 
 import oauth2
 import services.oauth2 as oauth2_service
 import services.oidc as oidc_service
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from middleware.csrf import make_csrf_token_func
 from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
+from services.event_log import log_event
 from services.oidc.claims import SCOPE_OPENID, parse_scope
 from utils.csp_nonce import get_csp_nonce
+from utils.redirects import safe_redirect
+from utils.request_metadata import extract_request_metadata
 from utils.templates import templates
 from utils.urls import tenant_base_url
 
 # Maximum age for authorization requests (10 minutes)
 AUTH_REQUEST_MAX_AGE_SECONDS = 600
 
+# Session key holding consent remembered for the life of the session:
+# ``{client_id: [granted scopes]}``. Lets ``prompt=none`` succeed without UI
+# after the user has allowed the same client and scopes once in this session.
+# Persisted, cross-session consent grants replace this in Iteration 3.
+SESSION_CONSENT_KEY = "oauth2_session_consents"
+
+# ``prompt`` values (OpenID Connect Core 1.0, section 3.1.2.1). Values that
+# demand a fresh authentication even when a session exists.
+REAUTH_PROMPT_VALUES = frozenset({"login", "select_account"})
+
+# The only response type the authorization endpoint issues.
+SUPPORTED_RESPONSE_TYPES = frozenset({"code"})
+
 router = APIRouter(prefix="/oauth2", tags=["oauth2"], include_in_schema=False)
 
 
 # ============================================================================
-# Authorization Endpoints (GET/POST /oauth2/authorize)
+# Authorization Endpoint (GET/POST /oauth2/authorize)
 # ============================================================================
+
+
+@dataclass(frozen=True)
+class AuthorizeParams:
+    """The authorization request parameters, identical for GET and POST.
+
+    Every OpenID Connect Core 1.0 section 3.1.2.1 parameter is declared so the
+    request can be stashed and resumed after login without loss. Parameters
+    that are accepted but have no effect today (``display``, ``ui_locales``,
+    ``claims_locales``, ``acr_values``, ``response_mode``) are kept so a
+    resumed request is the request the RP sent.
+    """
+
+    client_id: str | None = None
+    redirect_uri: str | None = None
+    response_type: str | None = None
+    state: str | None = None
+    scope: str | None = None
+    nonce: str | None = None
+    code_challenge: str | None = None
+    code_challenge_method: str | None = None
+    prompt: str | None = None
+    max_age: str | None = None
+    login_hint: str | None = None
+    id_token_hint: str | None = None
+    request_object: str | None = None  # the ``request`` parameter
+    request_uri: str | None = None
+    response_mode: str | None = None
+    display: str | None = None
+    ui_locales: str | None = None
+    claims_locales: str | None = None
+    acr_values: str | None = None
+
+    def as_query(self, *, strip_reauth: bool = False) -> list[tuple[str, str]]:
+        """Return the present parameters as query pairs, in declaration order.
+
+        With ``strip_reauth`` the parameters that demanded a fresh login
+        (``prompt=login``/``select_account`` and ``max_age``) are removed, so
+        the request resumed after that login does not demand another one.
+        """
+        pairs: list[tuple[str, str]] = []
+        for name, value in asdict(self).items():
+            if value is None:
+                continue
+            key = "request" if name == "request_object" else name
+            if strip_reauth:
+                if key == "max_age":
+                    continue
+                if key == "prompt":
+                    value = " ".join(v for v in value.split() if v not in REAUTH_PROMPT_VALUES)
+                    if not value:
+                        continue
+            pairs.append((key, value))
+        return pairs
 
 
 @router.get("/authorize", response_class=HTMLResponse)
@@ -38,58 +116,183 @@ def authorize_page(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict | None, Depends(get_current_user)],
-    client_id: str,
-    redirect_uri: str,
-    state: str | None = None,
-    code_challenge: str | None = None,
-    code_challenge_method: str | None = None,
+    client_id: Annotated[str | None, Query(max_length=255)] = None,
+    redirect_uri: Annotated[str | None, Query(max_length=2048)] = None,
+    response_type: Annotated[str | None, Query(max_length=50)] = None,
+    state: Annotated[str | None, Query(max_length=2048)] = None,
     scope: Annotated[str | None, Query(max_length=500)] = None,
     nonce: Annotated[str | None, Query(max_length=512)] = None,
+    code_challenge: Annotated[str | None, Query(max_length=255)] = None,
+    code_challenge_method: Annotated[str | None, Query(max_length=50)] = None,
+    prompt: Annotated[str | None, Query(max_length=50)] = None,
+    max_age: Annotated[str | None, Query(max_length=20)] = None,
+    login_hint: Annotated[str | None, Query(max_length=320)] = None,
+    id_token_hint: Annotated[str | None, Query(max_length=8192)] = None,
+    request_object: Annotated[str | None, Query(alias="request", max_length=8192)] = None,
+    request_uri: Annotated[str | None, Query(max_length=2048)] = None,
+    response_mode: Annotated[str | None, Query(max_length=50)] = None,
+    display: Annotated[str | None, Query(max_length=50)] = None,
+    ui_locales: Annotated[str | None, Query(max_length=255)] = None,
+    claims_locales: Annotated[str | None, Query(max_length=255)] = None,
+    acr_values: Annotated[str | None, Query(max_length=255)] = None,
 ):
     """
-    OAuth2 authorization endpoint - show authorization page.
+    OAuth2/OIDC authorization endpoint (GET).
 
-    User must be logged in (session cookie) to authorize a client. An
-    unauthenticated user is sent to the login flow with this request stashed
-    in the session; login completion returns them here so the authorization
-    request resumes (see ``get_post_auth_redirect``).
+    Validates the request, authenticates the user (sending them through the
+    login flow with this request stashed in the session when needed), then
+    shows the consent page. See ``_handle_authorize_request`` for the order
+    of operations and the ``prompt``/``max_age``/hint semantics.
 
-    Query Parameters:
-        client_id: OAuth2 client ID
-        redirect_uri: Redirect URI for authorization code
-        state: Optional state parameter
-        code_challenge: Optional PKCE code challenge
-        code_challenge_method: Optional PKCE challenge method (S256 or plain)
-        scope: Optional space-delimited OAuth2/OIDC scopes (e.g. "openid profile")
-        nonce: Optional OIDC nonce, bound to the resulting ID token
+    Query Parameters (OpenID Connect Core 1.0, section 3.1.2.1):
+        client_id: OAuth2 client ID (required; invalid values render an error page)
+        redirect_uri: Registered redirect URI (required; exact match; invalid
+            values render an error page and never redirect)
+        response_type: Must be "code"
+        state: Opaque value echoed back to the RP
+        scope: Space-delimited scopes (e.g. "openid profile email")
+        nonce: OIDC nonce, bound to the resulting ID token
+        code_challenge: PKCE code challenge
+        code_challenge_method: PKCE method (S256 or plain)
+        prompt: none | login | consent | select_account (space-separated)
+        max_age: Maximum authentication age in seconds
+        login_hint: Pre-fills the email step of the login page
+        id_token_hint: A WeftID-issued ID token identifying the expected user
+        request, request_uri: Not supported; rejected with
+            request_not_supported / request_uri_not_supported
+        response_mode, display, ui_locales, claims_locales, acr_values:
+            Accepted and ignored
     """
-    if not user:
-        # Stash the full authorize request (a server-built relative path, never
-        # a client-supplied redirect target) so the login flow can resume it.
-        # ``get_post_auth_redirect`` only honours a rooted ``/oauth2/authorize?``
-        # path, and login completion carries the key across session
-        # regeneration. Without this, an RP-initiated login ends on the
-        # dashboard and the authorization request is lost.
-        request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = _pending_authorize_path(request)
-        return RedirectResponse(url="/login", status_code=303)
-    if user.get("force_profile_completion"):
-        # Same gate as ``require_current_user``: the profile must be completed
-        # before any authenticated page, the consent page included.
-        return RedirectResponse(url="/account/profile", status_code=303)
+    return _handle_authorize_request(
+        request,
+        tenant_id,
+        user,
+        AuthorizeParams(
+            client_id=client_id,
+            redirect_uri=redirect_uri,
+            response_type=response_type,
+            state=state,
+            scope=scope,
+            nonce=nonce,
+            code_challenge=code_challenge,
+            code_challenge_method=code_challenge_method,
+            prompt=prompt,
+            max_age=max_age,
+            login_hint=login_hint,
+            id_token_hint=id_token_hint,
+            request_object=request_object,
+            request_uri=request_uri,
+            response_mode=response_mode,
+            display=display,
+            ui_locales=ui_locales,
+            claims_locales=claims_locales,
+            acr_values=acr_values,
+        ),
+    )
 
-    # Get client
-    client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
 
+@router.post("/authorize", response_class=HTMLResponse)
+def authorize_post(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict | None, Depends(get_current_user)],
+    client_id: Annotated[str | None, Form(max_length=255)] = None,
+    redirect_uri: Annotated[str | None, Form(max_length=2048)] = None,
+    response_type: Annotated[str | None, Form(max_length=50)] = None,
+    state: Annotated[str | None, Form(max_length=2048)] = None,
+    scope: Annotated[str | None, Form(max_length=500)] = None,
+    nonce: Annotated[str | None, Form(max_length=512)] = None,
+    code_challenge: Annotated[str | None, Form(max_length=255)] = None,
+    code_challenge_method: Annotated[str | None, Form(max_length=50)] = None,
+    prompt: Annotated[str | None, Form(max_length=50)] = None,
+    max_age: Annotated[str | None, Form(max_length=20)] = None,
+    login_hint: Annotated[str | None, Form(max_length=320)] = None,
+    id_token_hint: Annotated[str | None, Form(max_length=8192)] = None,
+    request_object: Annotated[str | None, Form(alias="request", max_length=8192)] = None,
+    request_uri: Annotated[str | None, Form(max_length=2048)] = None,
+    response_mode: Annotated[str | None, Form(max_length=50)] = None,
+    display: Annotated[str | None, Form(max_length=50)] = None,
+    ui_locales: Annotated[str | None, Form(max_length=255)] = None,
+    claims_locales: Annotated[str | None, Form(max_length=255)] = None,
+    acr_values: Annotated[str | None, Form(max_length=255)] = None,
+):
+    """
+    OAuth2/OIDC authorization endpoint (POST).
+
+    Accepts the same parameters as the GET form, as form-encoded body fields
+    (OpenID Connect Core 1.0, section 3.1.2.1 permits either method), and
+    behaves identically. This path is exempt from CSRF validation because the
+    request originates at the relying party; it is validated against the
+    client's registration, never trusted from the session. The consent form
+    submits to ``/oauth2/authorize/decision``, not here.
+
+    Form Data: see ``authorize_page`` for the parameter list.
+    """
+    return _handle_authorize_request(
+        request,
+        tenant_id,
+        user,
+        AuthorizeParams(
+            client_id=client_id,
+            redirect_uri=redirect_uri,
+            response_type=response_type,
+            state=state,
+            scope=scope,
+            nonce=nonce,
+            code_challenge=code_challenge,
+            code_challenge_method=code_challenge_method,
+            prompt=prompt,
+            max_age=max_age,
+            login_hint=login_hint,
+            id_token_hint=id_token_hint,
+            request_object=request_object,
+            request_uri=request_uri,
+            response_mode=response_mode,
+            display=display,
+            ui_locales=ui_locales,
+            claims_locales=claims_locales,
+            acr_values=acr_values,
+        ),
+    )
+
+
+def _handle_authorize_request(
+    request: Request,
+    tenant_id: str,
+    user: dict | None,
+    params: AuthorizeParams,
+) -> Response:
+    """Process an authorization request (shared by GET and POST).
+
+    Order of operations, per OpenID Connect Core 1.0 section 3.1.2.2 to
+    3.1.2.4 and RFC 6749 section 4.1.2.1:
+
+    1. ``client_id`` and ``redirect_uri`` are validated first. A failure here
+       renders the error page and never redirects, because there is no
+       trustworthy place to redirect to. This happens before any session
+       check so an unauthenticated request with a bad client is not bounced
+       through login.
+    2. Every other parameter error is reported to the RP by redirecting to
+       the (now verified) ``redirect_uri`` with ``error`` and ``state``.
+    3. Authentication: no session and ``prompt=none`` is ``login_required``;
+       no session otherwise stashes the request and enters the login flow.
+       ``prompt=login``/``select_account``, an exceeded ``max_age``, or an
+       ``id_token_hint`` for a different user force a fresh local login
+       (``_reauthenticate``) unless ``prompt=none`` (``login_required``).
+    4. Access control for OIDC-enabled clients (error page, or
+       ``access_denied`` under ``prompt=none``).
+    5. Consent: ``prompt=none`` issues the code directly when this session
+       already consented to the client and scopes, else ``consent_required``.
+       Everything else renders the consent page.
+    """
+    # -- 1. Client and redirect_uri: error page, never a redirect -------------
+    if not params.client_id:
+        return _error_page(request, "Invalid client_id", "The client_id parameter is required.")
+
+    client = oauth2_service.get_client_by_client_id(tenant_id, params.client_id)
     if not client:
-        return templates.TemplateResponse(
-            request,
-            "oauth2_error.html",
-            {
-                "error": "Invalid client_id",
-                "error_description": "The client_id provided is not registered.",
-                "nav": {},
-                "csp_nonce": get_csp_nonce(request),
-            },
+        return _error_page(
+            request, "Invalid client_id", "The client_id provided is not registered."
         )
 
     # Verify client type is 'normal' (authorization code flow only) and that the
@@ -99,43 +302,132 @@ def authorize_page(
     # the client_type rejection so the page does not disclose whether a client_id
     # exists-but-is-deactivated versus is-the-wrong-type.
     if client["client_type"] != "normal" or not client.get("is_active", True):
-        return templates.TemplateResponse(
-            request,
-            "oauth2_error.html",
-            {
-                "error": "Unauthorized client",
-                "error_description": "This client is not authorized for this flow.",
-                "nav": {},
-                "csp_nonce": get_csp_nonce(request),
-            },
+        return _error_page(
+            request, "Unauthorized client", "This client is not authorized for this flow."
         )
 
-    # Verify redirect_uri matches exactly
-    if redirect_uri not in (client["redirect_uris"] or []):
-        return templates.TemplateResponse(
-            request,
-            "oauth2_error.html",
-            {
-                "error": "Invalid redirect_uri",
-                "error_description": "The redirect_uri does not match registered URIs.",
-                "nav": {},
-                "csp_nonce": get_csp_nonce(request),
-            },
+    if not params.redirect_uri:
+        return _error_page(
+            request, "Invalid redirect_uri", "The redirect_uri parameter is required."
+        )
+    if params.redirect_uri not in (client["redirect_uris"] or []):
+        return _error_page(
+            request, "Invalid redirect_uri", "The redirect_uri does not match registered URIs."
+        )
+    redirect_uri = params.redirect_uri
+    state = params.state
+
+    # -- 2. Remaining parameters: error redirect to the verified redirect_uri --
+    if params.request_object is not None:
+        return _error_redirect(
+            redirect_uri,
+            "request_not_supported",
+            "Request objects passed by value are not supported.",
+            state,
+        )
+    if params.request_uri is not None:
+        return _error_redirect(
+            redirect_uri,
+            "request_uri_not_supported",
+            "Request objects passed by reference are not supported.",
+            state,
+        )
+    if not params.response_type:
+        return _error_redirect(
+            redirect_uri, "invalid_request", "The response_type parameter is required.", state
+        )
+    if params.response_type not in SUPPORTED_RESPONSE_TYPES:
+        return _error_redirect(
+            redirect_uri,
+            "unsupported_response_type",
+            "Only response_type=code is supported.",
+            state,
+        )
+    if params.code_challenge and params.code_challenge_method not in ("S256", "plain"):
+        return _error_redirect(
+            redirect_uri,
+            "invalid_request",
+            "Invalid code_challenge_method. Must be S256 or plain.",
+            state,
         )
 
-    # Verify PKCE parameters if provided
-    if code_challenge and code_challenge_method not in ("S256", "plain"):
-        return templates.TemplateResponse(
-            request,
-            "oauth2_error.html",
-            {
-                "error": "Invalid request",
-                "error_description": "Invalid code_challenge_method. Must be S256 or plain.",
-                "nav": {},
-                "csp_nonce": get_csp_nonce(request),
-            },
+    prompts = set(params.prompt.split()) if params.prompt else set()
+    if "none" in prompts and len(prompts) > 1:
+        return _error_redirect(
+            redirect_uri,
+            "invalid_request",
+            "prompt=none cannot be combined with other prompt values.",
+            state,
+        )
+    prompt_none = "none" in prompts
+
+    max_age = _parse_max_age(params.max_age)
+    if params.max_age is not None and max_age is None:
+        return _error_redirect(
+            redirect_uri, "invalid_request", "max_age must be a non-negative integer.", state
         )
 
+    hint_claims: dict | None = None
+    if params.id_token_hint is not None:
+        hint_claims = oidc_service.verify_id_token_hint(
+            tenant_id=tenant_id,
+            issuer=tenant_base_url(request),
+            client_id=client["client_id"],
+            id_token=params.id_token_hint,
+        )
+        if hint_claims is None:
+            return _error_redirect(
+                redirect_uri,
+                "invalid_request",
+                "The id_token_hint could not be verified for this client.",
+                state,
+            )
+
+    # -- 3. Authentication ----------------------------------------------------
+    if not user:
+        if prompt_none:
+            return _error_redirect(
+                redirect_uri, "login_required", "The user is not authenticated.", state
+            )
+        # Stash the full authorize request (a server-built relative path, never
+        # a client-supplied redirect target) so the login flow can resume it.
+        # ``get_post_auth_redirect`` only honours a rooted ``/oauth2/authorize?``
+        # path, and login completion carries the key across session
+        # regeneration. Without this, an RP-initiated login ends on the
+        # dashboard and the authorization request is lost.
+        request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = _pending_authorize_path(params)
+        return _login_redirect(params.login_hint)
+
+    if user.get("force_profile_completion"):
+        # Same gate as ``require_current_user``: the profile must be completed
+        # before any authenticated page, the consent page included.
+        if prompt_none:
+            return _error_redirect(
+                redirect_uri,
+                "interaction_required",
+                "The user must complete their profile before authorizing.",
+                state,
+            )
+        return RedirectResponse(url="/account/profile", status_code=303)
+
+    reauth_reason: str | None = None
+    if prompts & REAUTH_PROMPT_VALUES:
+        reauth_reason = "prompt"
+    elif max_age is not None and _max_age_exceeded(request.session, max_age):
+        reauth_reason = "max_age"
+    elif hint_claims is not None and hint_claims["sub"] != str(user["id"]):
+        reauth_reason = "id_token_hint"
+    if reauth_reason is not None:
+        if prompt_none:
+            return _error_redirect(
+                redirect_uri,
+                "login_required",
+                "The user must authenticate again.",
+                state,
+            )
+        return _reauthenticate(request, tenant_id, user, client, params, reauth_reason)
+
+    # -- 4. Access control ----------------------------------------------------
     # Group-based access control for OIDC-enabled clients ONLY. Plain OAuth2
     # clients are never gated (unchanged behavior). Enforced here, before any
     # authorization code can be issued, so a denied user never sees the consent
@@ -148,19 +440,39 @@ def authorize_page(
         client_id=client["client_id"],
         client_name=client.get("name"),
     ):
-        return templates.TemplateResponse(
+        if prompt_none:
+            return _error_redirect(
+                redirect_uri, "access_denied", "The user does not have access.", state
+            )
+        return _error_page(
             request,
-            "oauth2_error.html",
-            {
-                "error": "Access denied",
-                "error_description": (
-                    "You do not have access to this application. "
-                    "Contact your administrator to request access."
-                ),
-                "nav": {},
-                "csp_nonce": get_csp_nonce(request),
-            },
+            "Access denied",
+            "You do not have access to this application. "
+            "Contact your administrator to request access.",
             status_code=403,
+        )
+
+    # -- 5. Consent -----------------------------------------------------------
+    scopes = parse_scope(params.scope)
+    if prompt_none:
+        if not _session_consent_covers(request.session, client["client_id"], scopes):
+            return _error_redirect(
+                redirect_uri,
+                "consent_required",
+                "The user has not consented to this client and scope.",
+                state,
+            )
+        return _issue_code_redirect(
+            request,
+            tenant_id,
+            client=client,
+            user=user,
+            redirect_uri=redirect_uri,
+            state=state,
+            code_challenge=params.code_challenge,
+            code_challenge_method=params.code_challenge_method,
+            scope=params.scope,
+            nonce=params.nonce,
         )
 
     # Requested scopes to display on the consent page for OIDC requests, paired
@@ -168,7 +480,7 @@ def authorize_page(
     # name so nothing requested is hidden from the user.
     requested_scopes = [
         {"name": s, "description": oidc_service.SCOPE_DESCRIPTIONS.get(s, s)}
-        for s in sorted(parse_scope(scope))
+        for s in sorted(scopes)
     ]
 
     # Generate unique auth request ID and store parameters in session
@@ -179,13 +491,13 @@ def authorize_page(
     # modified (nested mutations do not trigger save in starlette 1.0+).
     auth_requests = dict(request.session.get("oauth2_auth_requests") or {})
     auth_requests[auth_request_id] = {
-        "client_id": client_id,
+        "client_id": client["client_id"],
         "redirect_uri": redirect_uri,
         "state": state,
-        "code_challenge": code_challenge,
-        "code_challenge_method": code_challenge_method,
-        "scope": scope,
-        "nonce": nonce,
+        "code_challenge": params.code_challenge,
+        "code_challenge_method": params.code_challenge_method,
+        "scope": params.scope,
+        "nonce": params.nonce,
         "created_at": time.time(),
     }
     request.session["oauth2_auth_requests"] = auth_requests
@@ -216,17 +528,182 @@ def authorize_page(
     )
 
 
-def _pending_authorize_path(request: Request) -> str:
+def _error_page(
+    request: Request, error: str, error_description: str, *, status_code: int = 200
+) -> Response:
+    """Render the WeftID-branded authorization error page (no redirect)."""
+    return templates.TemplateResponse(
+        request,
+        "oauth2_error.html",
+        {
+            "error": error,
+            "error_description": error_description,
+            "nav": {},
+            "csp_nonce": get_csp_nonce(request),
+        },
+        status_code=status_code,
+    )
+
+
+def _append_query(redirect_uri: str, pairs: list[tuple[str, str]]) -> str:
+    """Append percent-encoded query pairs to a registered redirect_uri,
+    joining with ``&`` when the registered URI already carries a query."""
+    separator = "&" if "?" in redirect_uri else "?"
+    return f"{redirect_uri}{separator}{urlencode(pairs)}"
+
+
+def _error_redirect(
+    redirect_uri: str, error: str, error_description: str, state: str | None
+) -> RedirectResponse:
+    """Redirect to the verified redirect_uri with an OAuth2 error response
+    (RFC 6749 section 4.1.2.1); ``state`` is echoed when the RP sent one."""
+    pairs = [("error", error), ("error_description", error_description)]
+    if state:
+        pairs.append(("state", state))
+    # redirect-ok: registered OAuth2 redirect_uri
+    return RedirectResponse(url=_append_query(redirect_uri, pairs), status_code=303)
+
+
+def _parse_max_age(raw: str | None) -> int | None:
+    """Parse ``max_age`` as a non-negative integer; ``None`` when absent or invalid."""
+    if raw is None:
+        return None
+    text = raw.strip()
+    if not text.isdigit():
+        return None
+    return int(text)
+
+
+def _max_age_exceeded(session: dict, max_age: int) -> bool:
+    """True when the session's authentication is older than ``max_age`` seconds.
+
+    ``max_age=0`` always demands a fresh login. A session without a recorded
+    authentication time cannot prove its age and is treated as exceeded.
+    """
+    if max_age == 0:
+        return True
+    session_start = session.get("session_start")
+    if not isinstance(session_start, int | float):
+        return True
+    return (time.time() - session_start) > max_age
+
+
+def _login_redirect(login_hint: str | None) -> RedirectResponse:
+    """Send the user to the login page, pre-filling the email step from
+    ``login_hint`` when the RP supplied one. The hint is only ever a form
+    prefill; routing decisions are made from what the user submits."""
+    if login_hint and login_hint.strip():
+        return safe_redirect("/login?" + urlencode({"prefill_email": login_hint.strip()}))
+    return RedirectResponse(url="/login", status_code=303)
+
+
+def _reauthenticate(
+    request: Request,
+    tenant_id: str,
+    user: dict,
+    client: dict,
+    params: AuthorizeParams,
+    reason: str,
+) -> RedirectResponse:
+    """Force a fresh local login for an authenticated user.
+
+    The current session is terminated (audited as ``user_signed_out`` with
+    reason ``reauthentication``) and the request is stashed with its re-auth
+    demands stripped, so the request resumed after login does not demand yet
+    another login. The full local flow (password, then MFA per tenant policy)
+    applies; forced re-authentication is not propagated to upstream IdPs.
+    """
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(user["id"]),
+        artifact_type="user",
+        artifact_id=str(user["id"]),
+        event_type="user_signed_out",
+        metadata={
+            "reason": "reauthentication",
+            "trigger": reason,
+            "client_id": client["client_id"],
+        },
+        request_metadata=extract_request_metadata(request),
+    )
+    request.session.clear()
+    request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = _pending_authorize_path(
+        params, strip_reauth=True
+    )
+    return _login_redirect(user.get("email"))
+
+
+def _session_consent_covers(session: dict, client_id: str, scopes: set[str]) -> bool:
+    """True when this session already consented to ``client_id`` for every
+    requested scope (a request with no scope needs a bare grant)."""
+    consents = session.get(SESSION_CONSENT_KEY) or {}
+    granted = consents.get(client_id)
+    if not isinstance(granted, list):
+        return False
+    return scopes <= set(granted)
+
+
+def _remember_session_consent(session: dict, client_id: str, scopes: set[str]) -> None:
+    """Record (or widen) this session's consent for ``client_id``."""
+    consents = dict(session.get(SESSION_CONSENT_KEY) or {})
+    existing = consents.get(client_id)
+    granted = set(existing) if isinstance(existing, list) else set()
+    consents[client_id] = sorted(granted | scopes)
+    # Reassign the top-level key so SessionMiddleware saves the change.
+    session[SESSION_CONSENT_KEY] = consents
+
+
+def _issue_code_redirect(
+    request: Request,
+    tenant_id: str,
+    *,
+    client: dict,
+    user: dict,
+    redirect_uri: str,
+    state: str | None,
+    code_challenge: str | None,
+    code_challenge_method: str | None,
+    scope: str | None,
+    nonce: str | None,
+) -> RedirectResponse:
+    """Create an authorization code and redirect the user agent to the RP."""
+    # Record the user's authentication time for the OIDC `auth_time` claim.
+    # Prefer the session login timestamp (when they actually authenticated);
+    # fall back to the code-issuance time when it is unavailable.
+    session_start = request.session.get("session_start")
+    auth_time = datetime.fromtimestamp(session_start, UTC) if session_start else datetime.now(UTC)
+
+    code = oauth2_service.create_authorization_code(
+        tenant_id=tenant_id,
+        client_id=client["id"],
+        user_id=user["id"],
+        redirect_uri=redirect_uri,
+        code_challenge=code_challenge,
+        code_challenge_method=code_challenge_method,
+        scope=scope,
+        nonce=nonce,
+        auth_time=auth_time,
+    )
+
+    pairs = [("code", code)]
+    if state:
+        pairs.append(("state", state))
+    # redirect-ok: registered OAuth2 redirect_uri
+    return RedirectResponse(url=_append_query(redirect_uri, pairs), status_code=303)
+
+
+def _pending_authorize_path(params: AuthorizeParams, *, strip_reauth: bool = False) -> str:
     """Rebuild this authorize request as a same-origin path for the login stash.
 
-    The query is re-encoded rather than copied verbatim: RPs commonly send
-    ``redirect_uri=https://...`` unescaped, and a literal ``://`` anywhere in
-    the target is (rightly) rejected by the redirect validator as a scheme.
-    Percent-encoding the values keeps the parameters byte-for-byte identical
-    once the resumed request decodes them again.
+    The parameters are re-encoded rather than copied from the URL: the request
+    may have arrived by POST, and RPs commonly send ``redirect_uri=https://...``
+    unescaped in a GET, where a literal ``://`` anywhere in the target is
+    (rightly) rejected by the redirect validator as a scheme. Percent-encoding
+    the values keeps the parameters byte-for-byte identical once the resumed
+    request decodes them again.
     """
-    query = urlencode(parse_qsl(request.url.query, keep_blank_values=True))
-    return f"{request.url.path}?{query}" if query else request.url.path
+    query = urlencode(params.as_query(strip_reauth=strip_reauth))
+    return f"/oauth2/authorize?{query}" if query else "/oauth2/authorize"
 
 
 def _form_action_origin(redirect_uri: str) -> str:
@@ -235,7 +712,12 @@ def _form_action_origin(redirect_uri: str) -> str:
     return f"{parts.scheme}://{parts.netloc}"
 
 
-@router.post("/authorize")
+# ============================================================================
+# Consent Decision (POST /oauth2/authorize/decision)
+# ============================================================================
+
+
+@router.post("/authorize/decision")
 def authorize_grant(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -244,11 +726,13 @@ def authorize_grant(
     action: Annotated[str, Form(max_length=20)],
 ):
     """
-    OAuth2 authorization endpoint - handle allow/deny.
+    Consent decision endpoint - handle allow/deny from the consent page.
 
     User submits form to allow or deny authorization. The auth_request_id
     references a stored authorization request from the session, preventing
-    parameter tampering and providing one-time-use semantics.
+    parameter tampering and providing one-time-use semantics. This is a
+    same-origin form POST protected by CSRF, distinct from the authorization
+    endpoint's own POST binding (``/oauth2/authorize``).
 
     Form Data:
         auth_request_id: Server-generated ID referencing stored auth request
@@ -262,15 +746,8 @@ def authorize_grant(
 
     if not stored_request:
         # Invalid or missing auth request - show error page
-        return templates.TemplateResponse(
-            request,
-            "oauth2_error.html",
-            {
-                "error": "Invalid request",
-                "error_description": "Authorization request not found or already used.",
-                "nav": {},
-                "csp_nonce": get_csp_nonce(request),
-            },
+        return _error_page(
+            request, "Invalid request", "Authorization request not found or already used."
         )
 
     # Extract stored parameters
@@ -290,15 +767,8 @@ def authorize_grant(
 
     # Validate request hasn't expired
     if time.time() - created_at > AUTH_REQUEST_MAX_AGE_SECONDS:
-        return templates.TemplateResponse(
-            request,
-            "oauth2_error.html",
-            {
-                "error": "Request expired",
-                "error_description": "Authorization request has expired. Please start over.",
-                "nav": {},
-                "csp_nonce": get_csp_nonce(request),
-            },
+        return _error_page(
+            request, "Request expired", "Authorization request has expired. Please start over."
         )
 
     # Get client
@@ -307,32 +777,19 @@ def authorize_grant(
     if not client or client["client_type"] != "normal" or not client.get("is_active", True):
         # Invalid, wrong-type, or deactivated client: redirect with error and
         # issue no authorization code (defense in depth alongside the GET check).
-        # redirect-ok: registered OAuth2 redirect_uri
-        return RedirectResponse(
-            url=f"{redirect_uri}?error=unauthorized_client" + (f"&state={state}" if state else ""),
-            status_code=303,
+        return _error_redirect(
+            redirect_uri, "unauthorized_client", "This client is not authorized.", state
         )
 
     # Verify redirect_uri matches (defense in depth - should always match since we stored it)
     if redirect_uri not in (client["redirect_uris"] or []):
-        return templates.TemplateResponse(
-            request,
-            "oauth2_error.html",
-            {
-                "error": "Invalid redirect_uri",
-                "error_description": "The redirect_uri does not match registered URIs.",
-                "nav": {},
-                "csp_nonce": get_csp_nonce(request),
-            },
+        return _error_page(
+            request, "Invalid redirect_uri", "The redirect_uri does not match registered URIs."
         )
 
     # Handle denial
     if action == "deny":
-        # redirect-ok: registered OAuth2 redirect_uri
-        return RedirectResponse(
-            url=f"{redirect_uri}?error=access_denied" + (f"&state={state}" if state else ""),
-            status_code=303,
-        )
+        return _error_redirect(redirect_uri, "access_denied", "The user denied the request.", state)
 
     # Handle approval - create authorization code
     if action == "allow":
@@ -348,44 +805,28 @@ def authorize_grant(
             client_id=client["client_id"],
             client_name=client.get("name"),
         ):
-            # redirect-ok: registered OAuth2 redirect_uri
-            return RedirectResponse(
-                url=f"{redirect_uri}?error=access_denied" + (f"&state={state}" if state else ""),
-                status_code=303,
+            return _error_redirect(
+                redirect_uri, "access_denied", "The user does not have access.", state
             )
 
-        # Record the user's authentication time for the OIDC `auth_time` claim.
-        # Prefer the session login timestamp (when they actually authenticated);
-        # fall back to the code-issuance time when it is unavailable.
-        session_start = request.session.get("session_start")
-        auth_time = (
-            datetime.fromtimestamp(session_start, UTC) if session_start else datetime.now(UTC)
-        )
+        _remember_session_consent(request.session, client["client_id"], parse_scope(scope))
 
-        code = oauth2_service.create_authorization_code(
-            tenant_id=tenant_id,
-            client_id=client["id"],
-            user_id=user["id"],
+        return _issue_code_redirect(
+            request,
+            tenant_id,
+            client=client,
+            user=user,
             redirect_uri=redirect_uri,
+            state=state,
             code_challenge=code_challenge,
             code_challenge_method=code_challenge_method,
             scope=scope,
             nonce=nonce,
-            auth_time=auth_time,
-        )
-
-        # Redirect with authorization code
-        # redirect-ok: registered OAuth2 redirect_uri
-        return RedirectResponse(
-            url=f"{redirect_uri}?code={code}" + (f"&state={state}" if state else ""),
-            status_code=303,
         )
 
     # Invalid action
-    # redirect-ok: registered OAuth2 redirect_uri
-    return RedirectResponse(
-        url=f"{redirect_uri}?error=invalid_request" + (f"&state={state}" if state else ""),
-        status_code=303,
+    return _error_redirect(
+        redirect_uri, "invalid_request", "The action must be allow or deny.", state
     )
 
 

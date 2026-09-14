@@ -32,6 +32,7 @@ def _authorize_url(cfg: dict) -> str:
         {
             "client_id": cfg["client_id"],
             "redirect_uri": cfg["redirect_uri"],
+            "response_type": "code",
             "scope": "openid profile email",
             "state": STATE,
             "nonce": NONCE,

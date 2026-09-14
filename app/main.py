@@ -81,23 +81,36 @@ app = FastAPI(
     redoc_url="/api/redoc" if settings.ENABLE_OPENAPI_DOCS else None,
 )
 
-# Reject requests without a tenant subdomain (outermost, runs first)
-# /healthz is exempt so load balancers can probe without a subdomain
+# Middleware ordering: ``app.add_middleware()`` PREPENDS. The first call
+# below becomes the INNERMOST layer (closest to the routers) and the last
+# call becomes the OUTERMOST (runs first on every request). Read this block
+# bottom-up to follow the order in which a request is processed. The
+# relative order is asserted by tests/test_csrf_route_coverage.py.
+
+# Reject requests without a tenant subdomain. Innermost: runs right before
+# the routers. /healthz is exempt so load balancers can probe without a
+# subdomain.
 app.add_middleware(TenantGuardMiddleware)
+
+# CSRF protection. Registered BEFORE the session middleware so it runs
+# INSIDE it and sees the decoded session (the token lives there), and
+# before the body limit so an oversized form is rejected before this layer
+# parses it. API routes, the inbound SCIM receiver, SAML endpoints, and the
+# OAuth2 token endpoint are exempt (see middleware/csrf.py). Getting this order wrong is silent:
+# the middleware fails closed on a missing session, so every form POST
+# would 403 rather than pass unchecked.
+app.add_middleware(CSRFMiddleware)
 
 # Reject oversized request bodies before they are parsed (1 MiB)
 app.add_middleware(BodyLimitMiddleware, max_bytes=1_048_576)
 
-# Add session middleware with dynamic per-tenant session configuration
+# Session middleware with dynamic per-tenant session configuration. Must
+# be OUTSIDE the CSRF middleware (registered after it).
 app.add_middleware(
     DynamicSessionMiddleware,
     secret_key=derive_session_key(),
     https_only=not settings.IS_DEV,
 )
-
-# Add CSRF protection middleware (must be after session middleware so it has access to session)
-# API routes, SAML ACS, and OAuth2 token endpoint are exempt
-app.add_middleware(CSRFMiddleware)
 
 # Add security headers middleware
 # Adds HTTP security headers to all responses

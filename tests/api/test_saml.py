@@ -1294,7 +1294,8 @@ def test_reimport_metadata_xml_as_super_admin(make_user_dict, override_api_auth)
 
     from main import app
     from schemas.saml import IdPConfig
-    from starlette.testclient import TestClient
+
+    from tests.helpers.client import TestClient
 
     super_admin = make_user_dict(role="super_admin")
     idp_id = str(uuid.uuid4())
@@ -1357,7 +1358,8 @@ def test_reimport_metadata_xml_admin_forbidden(make_user_dict, override_api_auth
     """Admin (non-super_admin) gets 403 on reimport-xml."""
     from main import app
     from services.exceptions import ForbiddenError
-    from starlette.testclient import TestClient
+
+    from tests.helpers.client import TestClient
 
     admin = make_user_dict(role="admin")
     idp_id = str(uuid.uuid4())
@@ -1382,7 +1384,8 @@ def test_reimport_metadata_xml_idp_not_found(make_user_dict, override_api_auth):
     """Non-existent IdP returns 404 on reimport-xml."""
     from main import app
     from services.exceptions import NotFoundError
-    from starlette.testclient import TestClient
+
+    from tests.helpers.client import TestClient
 
     super_admin = make_user_dict(role="super_admin")
     idp_id = str(uuid.uuid4())
@@ -1410,7 +1413,8 @@ def test_reimport_metadata_xml_invalid_xml(make_user_dict, override_api_auth):
     from main import app
     from schemas.saml import IdPConfig
     from services.exceptions import ValidationError
-    from starlette.testclient import TestClient
+
+    from tests.helpers.client import TestClient
 
     super_admin = make_user_dict(role="super_admin")
     idp_id = str(uuid.uuid4())
@@ -1467,7 +1471,8 @@ def test_list_debug_entries_returns_filtered_list(make_user_dict, override_api_a
     from datetime import UTC, datetime
 
     from main import app
-    from starlette.testclient import TestClient
+
+    from tests.helpers.client import TestClient
 
     super_admin = make_user_dict(role="super_admin")
     idp_id = str(uuid.uuid4())
@@ -1509,7 +1514,8 @@ def test_list_debug_entries_filters_by_idp_id(make_user_dict, override_api_auth)
     from datetime import UTC, datetime
 
     from main import app
-    from starlette.testclient import TestClient
+
+    from tests.helpers.client import TestClient
 
     super_admin = make_user_dict(role="super_admin")
     target_idp_id = str(uuid.uuid4())
@@ -1558,7 +1564,8 @@ def test_get_debug_entry_detail_with_xml(make_user_dict, override_api_auth):
     from datetime import UTC, datetime
 
     from main import app
-    from starlette.testclient import TestClient
+
+    from tests.helpers.client import TestClient
 
     super_admin = make_user_dict(role="super_admin")
     idp_id = str(uuid.uuid4())
@@ -1597,7 +1604,8 @@ def test_get_debug_entry_not_found(make_user_dict, override_api_auth):
     """Non-existent debug entry returns 404."""
     from main import app
     from services.exceptions import NotFoundError
-    from starlette.testclient import TestClient
+
+    from tests.helpers.client import TestClient
 
     super_admin = make_user_dict(role="super_admin")
     idp_id = str(uuid.uuid4())
@@ -1620,7 +1628,8 @@ def test_debug_entries_non_super_admin_forbidden(make_user_dict, override_api_au
     """Admin (non-super_admin) gets 403 on debug entries endpoints."""
     from main import app
     from services.exceptions import ForbiddenError
-    from starlette.testclient import TestClient
+
+    from tests.helpers.client import TestClient
 
     admin = make_user_dict(role="admin")
     idp_id = str(uuid.uuid4())

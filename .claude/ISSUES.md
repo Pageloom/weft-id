@@ -10,9 +10,11 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | CSRF middleware never enforces (middleware ordering) |
 | Medium | 1 | File Structure (pre-existing) |
 | Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
+
+Note: the HIGH CSRF-never-enforced finding (middleware ordering, discovered 2026-09-14 on
+the oidc-conformance branch) was resolved on 2026-09-14; see ISSUES_ARCHIVE.md.
 
 **Last code review:** 2026-09-06 (nav-restructure branch vs main, `/code-review`; 5 findings logged, all resolved 2026-09-06 -- see ISSUES_ARCHIVE.md)
 
@@ -46,52 +48,6 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 **Last test code audit:** 2026-04-09 (test hygiene audit: removed 21 redundant tests, fixed 6 weak assertions)
 **Last copy review:** 2026-09-06 (nav-restructure branch: app copy sweep across the 64 changed templates plus a docs spot-check. 7 stale docs breadcrumbs/labels fixed directly in `docs/`; 4 new issues found (duplicate Security/Branding tab rows, headings still using pre-restructure section names, Add User vs New Group verb split, Requests badge accessibility), all resolved 2026-09-06, see ISSUES_ARCHIVE.md)
 **Previous copy review:** 2026-04-24 (terminology sweep: "two-step verification" → "sign-in strength" / "sign-in methods" where passkeys make "two-step" inaccurate)
-
----
-
-## [SECURITY] CSRF middleware never enforces: it runs outside the session middleware
-
-**Discovered:** 2026-09-14 (oidc-conformance branch, Iteration 2, by a new router test asserting
-a 403 on the consent decision form without a token)
-**Severity:** High (A01 Broken Access Control / CSRF; every session-cookie form POST in the app
-is unprotected, e.g. `/logout`, `/account/*`, admin mutations, the OAuth2 consent decision)
-**Source:** `app/main.py` middleware registration order
-
-`app.add_middleware()` prepends: the last-added middleware runs first (outermost). `CSRFMiddleware`
-is added **after** `DynamicSessionMiddleware`, so it runs **outside** it. `_validate_csrf_token`
-begins with `if "session" not in request.scope: return True` ("session middleware not installed,
-skip"), and at that point the session middleware has not run yet, so the scope never has a
-session and **every** request skips validation. The comment on the registration says the
-opposite ("must be after session middleware so it has access to session"); the
-`ProxyHeadersMiddleware` comment a few lines down states the real rule.
-
-**Evidence:** `app.user_middleware` order is `[ProxyHeaders, RequestContext, SecurityHeaders,
-CSRF, DynamicSession, BodyLimit, TenantGuard]`. A bare `POST /login/send-code` with no
-`csrf_token` on a valid tenant host returns 303 (routed), not 403. Reordering the two
-registrations (CSRF added before the session middleware) makes the check live, and the
-full unit suite then fails **500+ router tests** (run stopped at `--maxfail=500`; the
-largest groups: `test_users.py` 96, `test_saml_idp.py` 92, `test_groups.py` 57,
-`test_auth.py` 55, `test_integrations.py` 42) because router tests POST without a token.
-This has been the state since CSRF was introduced (commit `5097fb27`, 2025-10-18): the tests
-were written against an app that never checked.
-
-**Not fixed in the iteration that found it** because the fix is one line but the test
-fallout is a suite-wide change (a CSRF-aware test client that seeds `_csrf_token` in the
-session and sends `X-CSRF-Token`, or per-test token plumbing), plus an E2E run to confirm
-every real form still submits. Tracked here instead; a strict `xfail` router test
-(`tests/routers/test_oauth2_authorize_conformance.py::TestPostBinding::test_consent_decision_still_requires_csrf`)
-starts passing (and fails the suite until its marker is removed) the moment the ordering is fixed.
-
-**Fix:** move `app.add_middleware(CSRFMiddleware)` above the `DynamicSessionMiddleware`
-registration in `app/main.py` (so it is added earlier and runs inside the session), correct
-the comment, then make the router test suite send tokens. Also reconsider the
-`"session" not in request.scope: return True` fail-open branch: after the reorder it can only
-mean misconfiguration and should fail closed (or at least log loudly). Keep the exact-path
-exemption for `/oauth2/authorize` (RP-originated POST binding) and the existing prefix
-exemptions.
-
-**Files Affected:** `app/main.py`, `app/middleware/csrf.py`, `tests/conftest.py`, most of
-`tests/routers/`
 
 ---
 

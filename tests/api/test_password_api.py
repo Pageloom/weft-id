@@ -7,8 +7,9 @@ from services.exceptions import NotFoundError, RateLimitError, ValidationError
 
 def test_change_password_api_success(test_user, override_api_auth, mocker):
     """Test PUT /api/v1/users/me/password succeeds."""
-    from fastapi.testclient import TestClient
     from main import app
+
+    from tests.helpers.client import TestClient
 
     override_api_auth(test_user, level="user")
 
@@ -30,8 +31,9 @@ def test_change_password_api_success(test_user, override_api_auth, mocker):
 
 def test_change_password_api_wrong_current(test_user, override_api_auth, mocker):
     """Test PUT /api/v1/users/me/password with wrong current password."""
-    from fastapi.testclient import TestClient
     from main import app
+
+    from tests.helpers.client import TestClient
 
     override_api_auth(test_user, level="user")
 
@@ -55,8 +57,9 @@ def test_change_password_api_wrong_current(test_user, override_api_auth, mocker)
 
 def test_force_password_reset_api_success(test_user, override_api_auth, mocker):
     """Test POST /api/v1/users/{id}/force-password-reset succeeds for admin."""
-    from fastapi.testclient import TestClient
     from main import app
+
+    from tests.helpers.client import TestClient
 
     test_user["role"] = "admin"
     override_api_auth(test_user, level="admin")
@@ -73,8 +76,9 @@ def test_force_password_reset_api_success(test_user, override_api_auth, mocker):
 
 def test_force_password_reset_api_not_found(test_user, override_api_auth, mocker):
     """Test POST /api/v1/users/{id}/force-password-reset returns 404."""
-    from fastapi.testclient import TestClient
     from main import app
+
+    from tests.helpers.client import TestClient
 
     test_user["role"] = "admin"
     override_api_auth(test_user, level="admin")
@@ -92,8 +96,9 @@ def test_force_password_reset_api_not_found(test_user, override_api_auth, mocker
 
 def test_change_password_api_rate_limited(test_user, override_api_auth, mocker):
     """Test PUT /api/v1/users/me/password returns 429 when rate limited."""
-    from fastapi.testclient import TestClient
     from main import app
+
+    from tests.helpers.client import TestClient
 
     override_api_auth(test_user, level="user")
 

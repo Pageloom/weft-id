@@ -6,8 +6,9 @@ from uuid import uuid4
 
 import pytest
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 
 def _make_group_list_response(items=None, total=0, page=1, limit=25):

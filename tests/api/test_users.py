@@ -25,7 +25,8 @@ from services.exceptions import (
     NotFoundError,
     ValidationError,
 )
-from starlette.testclient import TestClient
+
+from tests.helpers.client import TestClient
 
 # =============================================================================
 # Roles

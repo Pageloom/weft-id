@@ -25,7 +25,8 @@ import pytest  # noqa: E402
 
 # Import settings and patch DATABASE_URL to use localhost
 import settings  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+
+from tests.helpers.client import TestClient  # noqa: E402
 
 settings.DATABASE_URL = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@localhost:5432/{os.environ['POSTGRES_DB']}"
 settings.BASE_DOMAIN = os.environ["BASE_DOMAIN"]
@@ -190,7 +191,11 @@ def test_system_context():
 
 @pytest.fixture
 def client():
-    """Create a test client for the FastAPI application."""
+    """Create a CSRF-aware test client for the FastAPI application.
+
+    See tests/helpers/client.py: state-changing requests automatically carry
+    a valid CSRF token; use ``client.without_csrf()`` to test rejection.
+    """
     from main import app
 
     return TestClient(app)

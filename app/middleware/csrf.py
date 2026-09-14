@@ -9,6 +9,7 @@ API routes are exempt (they use Bearer tokens for authentication).
 SAML ACS is exempt (receives POST from external IdPs).
 """
 
+import logging
 import secrets
 from collections.abc import Awaitable, Callable
 
@@ -17,12 +18,16 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
+logger = logging.getLogger(__name__)
+
 # Routes that are exempt from CSRF protection
 # - API routes use Bearer token authentication
+# - Inbound SCIM is called by external IdPs with a per-connection bearer token
 # - SAML ACS receives POSTs from external Identity Providers
 # - OAuth2 token endpoint is called by OAuth clients
 CSRF_EXEMPT_PATHS = [
     "/api/",  # All API routes (prefix match)
+    "/scim/",  # Inbound SCIM receiver (bearer token from the IdP, prefix match)
     "/saml/acs",  # SAML Assertion Consumer Service
     "/saml/slo",  # SAML SP SLO endpoint (receives POST from external IdPs)
     "/saml/idp/sso",  # SAML IdP SSO endpoint (receives POST from external SPs)
@@ -150,14 +155,28 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         Returns True if valid, False otherwise.
         """
-        # Check if session is available
+        # Fail closed if there is no session in scope. The only way to get
+        # here is a middleware misordering (this middleware registered after,
+        # and therefore running outside of, the session middleware) or the
+        # session middleware missing altogether. Either way the token cannot
+        # be checked, and silently allowing the request would disable CSRF
+        # protection for the whole application. This exact fail-open bug
+        # shipped for eleven months; see .claude/ISSUES_ARCHIVE.md.
         if "session" not in request.scope:
-            # Session middleware not installed, skip CSRF validation
-            # This can happen in test environments
-            return True
+            logger.error(
+                "CSRF validation impossible: no session in request scope. "
+                "CSRFMiddleware must be registered before (inside) the session "
+                "middleware in app/main.py. Rejecting %s %s.",
+                request.method,
+                request.url.path,
+            )
+            return False
 
-        # Get token from session
-        session_token = request.session.get(CSRF_SESSION_KEY)
+        # Read the session from the ASGI scope rather than through the
+        # ``Request.session`` property. They are the same dict in production;
+        # reading the scope keeps this layer bound to the real signed cookie
+        # even when a test replaces ``Request.session`` for a route handler.
+        session_token = request.scope["session"].get(CSRF_SESSION_KEY)
         if not session_token:
             return False
 
@@ -169,24 +188,28 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # Check form data if not in header
         if not request_token:
-            # For form data, we need to parse the body
             content_type = request.headers.get("content-type", "")
-            if "application/x-www-form-urlencoded" in content_type:
+            if (
+                "application/x-www-form-urlencoded" in content_type
+                or "multipart/form-data" in content_type
+            ):
                 try:
-                    form = await request.form()
-                    form_token = form.get(CSRF_FORM_FIELD)
-                    # CSRF token is always a string, not an UploadFile
-                    if isinstance(form_token, str):
-                        request_token = form_token
-                except Exception:
-                    return False
-            elif "multipart/form-data" in content_type:
-                try:
-                    form = await request.form()
-                    form_token = form.get(CSRF_FORM_FIELD)
-                    # CSRF token is always a string, not an UploadFile
-                    if isinstance(form_token, str):
-                        request_token = form_token
+                    # Read the raw body BEFORE parsing the form. Starlette's
+                    # BaseHTTPMiddleware replays the body to the downstream
+                    # app only if it was read via ``request.body()``;
+                    # ``request.form()`` alone consumes the stream and the
+                    # route handler then sees an empty body (every Form()
+                    # parameter missing -> 422). ``form()`` reads from the
+                    # cached body once it exists, so parsing happens once.
+                    await request.body()
+                    # Context manager: closes any UploadFile temp files this
+                    # parse created. The handler re-parses from the replayed
+                    # body and gets its own file objects.
+                    async with request.form() as form:
+                        form_token = form.get(CSRF_FORM_FIELD)
+                        # CSRF token is always a string, not an UploadFile
+                        if isinstance(form_token, str):
+                            request_token = form_token
                 except Exception:
                     return False
 

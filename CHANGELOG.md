@@ -21,6 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   connection, renamed with it, and deleted with it. Every user who signs in
   through the connection is added to it, mirroring SAML identity providers.
 
+### Fixed
+
+- **CSRF protection was never enforced.** The CSRF middleware was registered
+  on the wrong side of the session middleware, so it ran before the session
+  was decoded and, finding none, allowed every request. Every session-cookie
+  form POST in the app (logout, account settings, admin mutations, the OAuth2
+  consent decision) was unprotected since CSRF was introduced. The middleware
+  now runs inside the session and body-limit layers, and a request with no
+  session in scope is rejected instead of allowed. API routes and the SAML
+  and OAuth2 protocol endpoints remain exempt as before, and the inbound SCIM
+  receiver (bearer-authenticated by the IdP) is now exempt too; correctly
+  built forms and `WeftUtils.apiFetch()` calls are unaffected.
+
 ### Changed
 
 - IdP groups can be sourced from an OIDC connection as well as a SAML

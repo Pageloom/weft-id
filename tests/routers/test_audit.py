@@ -9,9 +9,10 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
 from main import app
 from services.exceptions import ServiceError
+
+from tests.helpers.client import TestClient
 
 # =============================================================================
 # Section Index Redirect Tests

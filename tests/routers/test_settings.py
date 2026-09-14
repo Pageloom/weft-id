@@ -8,8 +8,9 @@ tests moved to tests/routers/test_security.py (see
 from unittest.mock import Mock
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 # Module path constants for cleaner patch targets
 ROUTERS_SETTINGS = "routers.settings"

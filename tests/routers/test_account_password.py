@@ -1,9 +1,10 @@
 """Tests for account password change routes."""
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
 from services.exceptions import RateLimitError, ValidationError
+
+from tests.helpers.client import TestClient
 
 
 def test_password_page_renders(test_user, override_auth, mocker):

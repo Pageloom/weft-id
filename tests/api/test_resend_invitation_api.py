@@ -5,7 +5,8 @@ from uuid import uuid4
 
 from main import app
 from services.exceptions import NotFoundError, ValidationError
-from starlette.testclient import TestClient
+
+from tests.helpers.client import TestClient
 
 
 def test_resend_invitation_api_set_password(make_user_dict, override_api_auth):

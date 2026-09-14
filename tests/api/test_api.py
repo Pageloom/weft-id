@@ -30,8 +30,9 @@ def test_tenant_root_redirect_to_login_when_not_authenticated(test_tenant):
     """Test that unauthenticated users are redirected to /login."""
 
     from dependencies import get_current_user, get_tenant_id_from_request
-    from fastapi.testclient import TestClient
     from main import app
+
+    from tests.helpers.client import TestClient
 
     # Override dependencies
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
@@ -53,8 +54,9 @@ def test_tenant_root_redirect_to_dashboard_when_authenticated(test_user):
     from unittest.mock import patch
 
     from dependencies import get_tenant_id_from_request
-    from fastapi.testclient import TestClient
     from main import app
+
+    from tests.helpers.client import TestClient
 
     # Override tenant ID dependency
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]

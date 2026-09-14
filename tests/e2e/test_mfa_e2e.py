@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 import pyotp
 import pytest
-from fastapi.testclient import TestClient
 
 from tests.helpers import maildev
+from tests.helpers.client import TestClient
 
 # Skip all tests in this module if maildev is not available
 # Also group all tests together for serial execution to avoid race conditions

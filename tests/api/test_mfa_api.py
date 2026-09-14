@@ -10,7 +10,8 @@ from uuid import uuid4
 from main import app
 from schemas.api import MFAEnableResponse
 from services.exceptions import ServiceError, ValidationError
-from starlette.testclient import TestClient
+
+from tests.helpers.client import TestClient
 
 # =============================================================================
 # /me/mfa - GET MFA status

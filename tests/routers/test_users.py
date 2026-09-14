@@ -1,8 +1,9 @@
 """Tests for routers/users/ package endpoints."""
 
 import pytest
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 # Module path constants for cleaner patch targets
 # Router sub-modules (split from routers.users)

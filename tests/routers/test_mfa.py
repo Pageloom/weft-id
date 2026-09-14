@@ -6,8 +6,9 @@ These tests verify redirect behavior when there's no pending MFA session.
 
 from unittest.mock import ANY
 
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 
 def test_mfa_verify_page_no_pending_session(test_tenant):

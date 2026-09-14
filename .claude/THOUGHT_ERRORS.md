@@ -611,3 +611,29 @@ user lands on `/dashboard`. Router tests miss this because `TestClient` percent-
 values that real clients send raw.
 **Right:** Re-encode the query with `urlencode(parse_qsl(query, keep_blank_values=True))` before
 stashing, and add a test that requests the raw, unencoded form of the URL.
+
+## The Conformance Suite Matches Task URLs as Simple Globs, Per Fresh Browser
+
+**Wrong:** Changing where a login-flow step lands (for example redirecting to
+`/login?prefill_email=...` instead of `/login`) and assuming the checked-in
+`dev/oidc-conformance/config.template.json` browser script still drives it.
+**Right:** The suite's `BrowserControl` compares each task's `match` with Spring's
+`PatternMatchUtils.simpleMatch` (only `*` is a wildcard, no trailing `*` means "ends here"),
+runs tasks strictly in order, and skips a mismatched task only when it is `optional`. Every
+module also starts a fresh browser, so every interactive module goes through the full login.
+Any change to a URL in the login/consent chain must be mirrored in the template's `match`
+globs, and a module that ends on an error page needs an `override` whose last task waits for
+that page (otherwise the "Verify complete" callback task fails the module as INTERRUPTED).
+Found 2026-09-14: `oidcc-login-hint` was interrupted because `/login` did not match
+`/login?prefill_email=...`.
+
+## `add_middleware` Runs the Last-Added Middleware First
+
+**Wrong:** Reading `app.add_middleware(A)` followed by `app.add_middleware(B)` as "B runs
+after A" and writing comments like "must be after the session middleware so it has access to
+session".
+**Right:** Starlette prepends, so B is *outside* A and runs first. Middleware that needs
+`request.scope["session"]` (CSRF) must be added **before** the session middleware. The
+CSRF middleware was added after it, found no session in scope, and has fail-opened on every
+request since it was introduced (tracked in `.claude/ISSUES.md`, HIGH). Do not trust a
+router test that POSTs without a token as proof that CSRF is off for that route.

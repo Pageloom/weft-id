@@ -70,6 +70,23 @@ class OIDCProviderMetadata(BaseModel):
     claims_supported: list[str] = Field(
         ..., description="Claims that may appear in ID tokens or userinfo responses."
     )
+    request_parameter_supported: bool = Field(
+        False,
+        description=(
+            "Whether the authorization endpoint accepts a request object by value "
+            "(the `request` parameter). Always false: such requests are rejected with "
+            "request_not_supported."
+        ),
+    )
+    request_uri_parameter_supported: bool = Field(
+        False,
+        description=(
+            "Whether the authorization endpoint accepts a request object by reference "
+            "(the `request_uri` parameter). Always false: such requests are rejected "
+            "with request_uri_not_supported. The OIDC Discovery default for this field "
+            "is true, so it is stated explicitly."
+        ),
+    )
 
 
 # ============================================================================

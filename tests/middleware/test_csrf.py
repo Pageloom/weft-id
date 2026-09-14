@@ -74,6 +74,14 @@ class TestIsExempt:
         """OAuth2 token endpoint should be exempt."""
         assert _is_exempt("/oauth2/token") is True
 
+    def test_oauth2_authorize_is_exempt_exactly(self):
+        """The authorization endpoint accepts cross-site POSTs from relying
+        parties, but the consent decision form beneath it must keep CSRF."""
+        assert _is_exempt("/oauth2/authorize") is True
+        assert _is_exempt("/oauth2/authorize/decision") is False
+        assert _is_exempt("/oauth2/authorize/") is False
+        assert _is_exempt("/oauth2/authorized") is False
+
     def test_regular_routes_not_exempt(self):
         """Regular web routes should not be exempt."""
         assert _is_exempt("/login") is False

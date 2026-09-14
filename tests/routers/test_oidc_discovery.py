@@ -87,6 +87,11 @@ class TestDiscoveryDocument:
         # groups claim (WeftID extension) is advertised in Iteration 4.
         assert "groups" in claims
 
+    def test_request_object_flags_are_explicit_false(self, client, test_tenant_host):
+        body = _discovery(client, test_tenant_host).json()
+        assert body["request_parameter_supported"] is False
+        assert body["request_uri_parameter_supported"] is False
+
     def test_does_not_advertise_unimplemented_capabilities(self, client, test_tenant_host):
         """Logout, introspection, revocation, device grant, DCR are out of scope."""
         body = _discovery(client, test_tenant_host).json()

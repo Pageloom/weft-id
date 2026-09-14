@@ -282,24 +282,15 @@ class TestPostBinding:
         assert response.status_code == 200
         assert "Invalid client_id" in response.text
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Pre-existing: CSRFMiddleware is added after DynamicSessionMiddleware in "
-            "app/main.py, so it runs outside the session and skips validation for every "
-            "request (see .claude/ISSUES.md). The exact-path exemption is unit-tested in "
-            "tests/middleware/test_csrf.py; this end-to-end assertion turns on when the "
-            "ordering is fixed (strict xfail forces removal of this marker)."
-        ),
-    )
-    def test_consent_decision_still_requires_csrf(self, authed, normal_oauth2_client):
+    def test_consent_decision_still_requires_csrf(self, client, authed, normal_oauth2_client):
         """Moving the decision form to its own path must not drop CSRF."""
         page = authed.get("/oauth2/authorize", params=_base_params(normal_oauth2_client))
         assert page.status_code == 200
-        response = authed.post(
-            "/oauth2/authorize/decision",
-            data={"auth_request_id": "whatever", "action": "allow"},
-        )
+        with client.without_csrf():
+            response = authed.post(
+                "/oauth2/authorize/decision",
+                data={"auth_request_id": "whatever", "action": "allow"},
+            )
         assert response.status_code == 403
 
 

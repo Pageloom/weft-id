@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 ROUTERS_DIRECTORY = "routers.directory"
 SERVICES_SETTINGS = "services.settings"

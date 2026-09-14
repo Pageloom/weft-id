@@ -5,9 +5,10 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
 from services.exceptions import ServiceError
+
+from tests.helpers.client import TestClient
 
 # =============================================================================
 # POST /users/bulk-ops/secondary-emails/prepare

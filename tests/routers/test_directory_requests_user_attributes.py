@@ -6,8 +6,9 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import database
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 
 def _seed_required(tenant_id, key, *, locked: bool = False):

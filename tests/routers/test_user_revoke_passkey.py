@@ -2,9 +2,10 @@
 
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
 from main import app
 from services.exceptions import NotFoundError
+
+from tests.helpers.client import TestClient
 
 USERS_DETAIL = "routers.users.detail"
 SERVICES_USERS = "services.users"

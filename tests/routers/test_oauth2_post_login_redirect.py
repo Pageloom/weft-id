@@ -8,7 +8,6 @@ The forward-auth stash shares the mechanism and is covered here too, since it
 was previously lost when the session was regenerated.
 """
 
-from fastapi.testclient import TestClient
 from main import app
 from routers.saml_idp._helpers import (
     PENDING_FORWARD_AUTH_KEY,
@@ -16,6 +15,8 @@ from routers.saml_idp._helpers import (
     extract_pending_returns,
     get_post_auth_redirect,
 )
+
+from tests.helpers.client import TestClient
 
 AUTHORIZE = "/oauth2/authorize?client_id=abc&redirect_uri=https%3A%2F%2Frp.example%2Fcb&state=s1"
 

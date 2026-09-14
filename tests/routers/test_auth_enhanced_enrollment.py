@@ -8,13 +8,14 @@ registration endpoints accept JSON and return either JSON error envelopes or a
 """
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
 from schemas.webauthn import (
     BeginRegistrationResponse,
     CompleteRegistrationResponse,
     PasskeyResponse,
 )
+
+from tests.helpers.client import TestClient
 
 
 def test_enroll_page_redirects_without_pending_session(test_tenant):

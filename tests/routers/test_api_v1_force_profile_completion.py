@@ -7,8 +7,9 @@
 from __future__ import annotations
 
 import database
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 
 def _seed_required(tenant_id, key, *, locked: bool = False):

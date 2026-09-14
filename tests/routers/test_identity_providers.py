@@ -8,8 +8,9 @@ routers/settings.py as part of the nav restructure -- see
 from unittest.mock import Mock
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 # Module path constants for cleaner patch targets
 ROUTERS_IDENTITY_PROVIDERS = "routers.identity_providers"

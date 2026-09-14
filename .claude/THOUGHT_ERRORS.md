@@ -634,6 +634,31 @@ after A" and writing comments like "must be after the session middleware so it h
 session".
 **Right:** Starlette prepends, so B is *outside* A and runs first. Middleware that needs
 `request.scope["session"]` (CSRF) must be added **before** the session middleware. The
-CSRF middleware was added after it, found no session in scope, and has fail-opened on every
-request since it was introduced (tracked in `.claude/ISSUES.md`, HIGH). Do not trust a
-router test that POSTs without a token as proof that CSRF is off for that route.
+CSRF middleware was added after it, found no session in scope, and fail-opened on every
+request from 2025-10-18 to 2026-09-14 (see `.claude/ISSUES_ARCHIVE.md`). The order is now
+asserted by `tests/test_csrf_route_coverage.py`; read the ordering block in `app/main.py`
+bottom-up.
+
+## A Security Control Needs a Negative Test Against the Real App
+
+**Wrong:** Proving a middleware works with unit tests on a throwaway `FastAPI()` app, an AST
+test that the class is registered somewhere in `main.py`, and E2E tests that submit real
+forms (which carry the token whether or not anyone checks it). All of those stayed green for
+eleven months while CSRF was off.
+**Right:** For every enforcement layer, one test must send the forbidden request to
+`main.app` and assert the rejection (`tests/routers/test_csrf_enforcement.py` is the model).
+Also never write a "no session, allow the request" style fail-open branch to make tests
+convenient: it converts a misconfiguration into silence. Fail closed and fix the tests.
+Router tests use `tests.helpers.client.TestClient`, which seeds a token into the signed
+session cookie and sends the header; use `client.without_csrf()` to test the negative path.
+
+## `BaseHTTPMiddleware` Replays the Body Only After `request.body()`
+
+**Wrong:** Calling `await request.form()` in a `BaseHTTPMiddleware.dispatch` and assuming
+the route handler still gets the form.
+**Right:** Call `await request.body()` first. Starlette's `_CachedRequest` replays `_body`
+to the downstream app; `form()` alone consumes the stream, and the handler then sees an
+empty body (every `Form()` parameter missing, so a 422). `form()` reads from the cached
+body once it exists, so parsing still happens once. Found 2026-09-14 when CSRF enforcement
+went live and every browser form POST in the E2E suite returned 422. Test the handler side
+too: a middleware test whose handler ignores the body proves nothing about replay.

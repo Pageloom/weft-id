@@ -2,7 +2,6 @@
 
 from unittest.mock import ANY, Mock
 
-from fastapi.testclient import TestClient
 from main import app
 
 from app.utils.email_verification import (
@@ -10,6 +9,7 @@ from app.utils.email_verification import (
     create_verification_cookie,
     get_trust_cookie_name,
 )
+from tests.helpers.client import TestClient
 
 # Module path constants for cleaner patch targets
 AUTH_LOGIN = "routers.auth.login"

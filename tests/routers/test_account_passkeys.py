@@ -1,12 +1,13 @@
 """Tests for routers.account_passkeys (HTML)."""
 
-from fastapi.testclient import TestClient
 from main import app
 from schemas.webauthn import (
     BeginRegistrationResponse,
     CompleteRegistrationResponse,
     PasskeyResponse,
 )
+
+from tests.helpers.client import TestClient
 
 
 def _fake_passkey() -> PasskeyResponse:

@@ -4,6 +4,69 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] CSRF middleware never enforced: it ran outside the session middleware
+
+**Fixed:** 2026-09-14
+**Discovered:** 2026-09-14 (oidc-conformance branch, Iteration 2, by a new router test asserting
+a 403 on the consent decision form without a token)
+**Severity:** High (A01 Broken Access Control / CSRF; every session-cookie form POST in the app
+was unprotected, e.g. `/logout`, `/account/*`, admin mutations, the OAuth2 consent decision)
+**Category:** Security
+
+`app.add_middleware()` prepends, so the last-added middleware runs first. `CSRFMiddleware`
+was added **after** `DynamicSessionMiddleware`, ran outside it, found no session in scope,
+and took the `"session" not in request.scope: return True` branch on every request. This was
+the state since CSRF was introduced (commit `5097fb27`, 2025-10-18). The comment on the
+registration asserted the opposite rule. Every guard checked a component or a positive path:
+the middleware's own integration test wired a throwaway app in the *correct* order, the
+fail-open branch had its own test enshrining it, the AST backstop checked registration but
+not order, 500+ router tests POSTed without a token and were green from day one, and E2E
+tests submit real forms that carry the token regardless.
+
+**Resolution.**
+- `app/main.py`: `CSRFMiddleware` is now registered first after `TenantGuardMiddleware`, so
+  it runs inside both the session middleware (sees the decoded session) and the body limit
+  (an oversized form is rejected before the CSRF layer parses it). The ordering block is
+  commented bottom-up with the prepend rule.
+- `app/middleware/csrf.py`: a missing session now **fails closed** (403 plus an error log
+  naming the misordering) instead of allowing the request. The token is read from
+  `request.scope["session"]` rather than the `Request.session` property, so the layer stays
+  bound to the real signed cookie even when a router test patches `Request.session`.
+- Tests: new `tests/helpers/client.py` provides a drop-in `TestClient` that, for
+  state-changing requests to `main.app`, seeds a fixed token into the signed session cookie
+  (preserving existing session state) and sends `X-CSRF-Token`; `client.without_csrf()`
+  disables it for negative tests. The `client` fixture and the 44 test modules that build a
+  client on the real app now import it. The strict `xfail` on
+  `test_consent_decision_still_requires_csrf` is removed and the test passes.
+- Turning enforcement on surfaced two more latent defects, caught by the E2E run (43 of 65
+  failing) and fixed in the same change: (a) the middleware parsed the form with
+  `request.form()` only, and `BaseHTTPMiddleware` replays a consumed body downstream only
+  when it was read with `request.body()`, so every browser form POST (token in the body, no
+  header) reached its handler with an empty body and returned 422; the middleware now reads
+  the body first. (b) The inbound SCIM receiver (`/scim/v2/inbound/...`, bearer-authenticated
+  by the IdP) had never been exempted, so every push returned 403; `/scim/` is now in
+  `CSRF_EXEMPT_PATHS`. Both were invisible to unit tests because the CSRF-aware client
+  tokens every route via the header, so three guardrails now walk `main.app`'s routing tree:
+  routes using non-session auth (`require_inbound_scim_auth`, `get_current_user_api`) must be
+  exempt, routes using session auth must never be exempt, and every exempt route must be
+  machine- or protocol-facing.
+- Guardrails: `tests/test_csrf_route_coverage.py` asserts the middleware order on
+  `main.app.user_middleware`; new `tests/routers/test_csrf_enforcement.py` (16 tests) sends
+  bare, wrong-header, wrong-form-field, session-only and request-only token requests to a
+  real form route and asserts 403, accepts header, urlencoded and multipart tokens, and
+  proves a route with `Form()` parameters still receives its fields after the middleware
+  parsed the body;
+  `tests/middleware/test_csrf_integration.py` replaces the fail-open test with fail-closed,
+  misordered-stack, and scope-vs-property tests.
+
+**Files changed:** `app/main.py`, `app/middleware/csrf.py`, `tests/helpers/client.py`,
+`tests/conftest.py`, `tests/routers/test_csrf_enforcement.py`,
+`tests/test_csrf_route_coverage.py`, `tests/middleware/test_csrf_integration.py`,
+`tests/routers/test_oauth2_authorize_conformance.py`, import swap in 44 test modules,
+`CHANGELOG.md`, `.claude/THOUGHT_ERRORS.md`
+
+---
+
 ## [COMPLIANCE] `form-input-length` checker misses `= Form("")` default-value syntax
 
 **Fixed:** 2026-09-07

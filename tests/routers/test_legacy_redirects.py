@@ -9,9 +9,10 @@ overrides are set up here on purpose -- that is the point of the test.
 import re
 
 import pytest
-from fastapi.testclient import TestClient
 from main import app
 from routers import legacy_redirects
+
+from tests.helpers.client import TestClient
 
 client = TestClient(app)
 

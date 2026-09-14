@@ -12,8 +12,9 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 MODULE = "routers.protected_domains"
 

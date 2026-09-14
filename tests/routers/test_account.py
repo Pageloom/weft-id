@@ -3,8 +3,9 @@
 from unittest.mock import ANY
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 
 def test_account_index_redirects_to_profile(test_user, override_auth):

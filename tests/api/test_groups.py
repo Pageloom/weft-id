@@ -30,7 +30,8 @@ from services.exceptions import (
     ServiceError,
     ValidationError,
 )
-from starlette.testclient import TestClient
+
+from tests.helpers.client import TestClient
 
 # =============================================================================
 # List Groups Tests

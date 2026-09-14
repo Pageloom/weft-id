@@ -1,8 +1,9 @@
 """Tests for routers.auth.passkey_login endpoints."""
 
-from fastapi.testclient import TestClient
 from main import app
 from schemas.webauthn import BeginAuthenticationResponse
+
+from tests.helpers.client import TestClient
 
 
 def _override_tenant(tenant_id):

@@ -9,8 +9,9 @@ nonexistent ones, triggers the passkey-first UI.
 
 from urllib.parse import quote
 
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 
 def _override_tenant(tenant_id: str) -> None:

@@ -5,9 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
 from schemas.api import UserDetail
+
+from tests.helpers.client import TestClient
 
 USERS_DETAIL = "routers.users.detail"
 SERVICES_USERS = "services.users"

@@ -53,9 +53,16 @@ def csrf_app():
         return {"csrf_token": token}
 
     @app.post("/test-form")
-    async def test_form():
-        """Protected endpoint that requires CSRF token."""
-        return {"status": "success"}
+    async def test_form(request: Request):
+        """Protected endpoint that requires CSRF token.
+
+        Echoes the form so tests can prove the body survives the middleware's
+        own form parsing (BaseHTTPMiddleware replays only a body read via
+        ``request.body()``).
+        """
+        form = await request.form()
+        fields = {k: (v if isinstance(v, str) else v.filename) for k, v in form.items()}
+        return {"status": "success", "form": fields}
 
     @app.post("/test-json")
     async def test_json():
@@ -111,9 +118,10 @@ def test_csrf_token_from_form_urlencoded(csrf_client):
         data={CSRF_FORM_FIELD: csrf_token, "other_field": "value"},
     )
 
-    # Should succeed
+    # Should succeed, and the handler must still see the whole form
     assert response.status_code == 200
     assert response.json()["status"] == "success"
+    assert response.json()["form"] == {CSRF_FORM_FIELD: csrf_token, "other_field": "value"}
 
 
 def test_csrf_token_from_multipart_form(csrf_client):
@@ -129,9 +137,10 @@ def test_csrf_token_from_multipart_form(csrf_client):
         files={"file": ("test.txt", b"test content", "text/plain")},
     )
 
-    # Should succeed
+    # Should succeed, and the handler must still see the fields and the file
     assert response.status_code == 200
     assert response.json()["status"] == "success"
+    assert response.json()["form"] == {CSRF_FORM_FIELD: csrf_token, "file": "test.txt"}
 
 
 def test_csrf_token_mismatch_returns_403_html(csrf_client):
@@ -241,8 +250,13 @@ def test_csrf_safe_methods_bypass_validation(csrf_client):
     assert "csrf_token" in response.json()
 
 
-def test_csrf_no_session_available_allows_request(csrf_app):
-    """Test that requests without session middleware available allow the request."""
+def test_csrf_no_session_available_rejects_request(caplog):
+    """No session in scope means the token cannot be checked: fail closed.
+
+    This is the misordering case (CSRF registered after, so running outside
+    of, the session middleware). It used to fail open, which silently
+    disabled CSRF for the whole app for eleven months.
+    """
     from fastapi.testclient import TestClient
 
     # Create app WITHOUT session middleware
@@ -255,11 +269,44 @@ def test_csrf_no_session_available_allows_request(csrf_app):
 
     client = TestClient(app)
 
-    # Should succeed because session middleware isn't available
-    # (CSRF middleware returns True when session not in scope)
-    response = client.post("/test", data={"field": "value"})
+    with caplog.at_level("ERROR", logger="middleware.csrf"):
+        response = client.post("/test", data={"field": "value"})
 
-    # Note: This might fail with a different error (session not found in endpoint)
-    # but it shouldn't be blocked by CSRF middleware
-    # The important thing is it's not a 403 CSRF error
-    assert response.status_code != 403 or "CSRF" not in response.text
+    assert response.status_code == 403
+    assert "CSRF" in response.text
+    assert any("no session in request scope" in r.getMessage() for r in caplog.records)
+
+
+def test_csrf_misordered_session_middleware_rejects_request():
+    """Session middleware registered BEFORE (inside) CSRF is the real-world bug shape."""
+    from fastapi.testclient import TestClient
+
+    app = FastAPI()
+    # Wrong order: session added first becomes the inner layer, so the CSRF
+    # middleware runs before the session is decoded.
+    app.add_middleware(SessionMiddleware, secret_key="test-secret-key")
+    app.add_middleware(CSRFMiddleware)
+
+    @app.post("/test")
+    async def test():
+        return {"status": "success"}
+
+    client = TestClient(app)
+    response = client.post("/test", data={"field": "value"})
+    assert response.status_code == 403
+
+
+def test_csrf_reads_session_from_scope_not_request_property(csrf_client, mocker):
+    """The middleware must use the real signed session even if ``Request.session`` is patched.
+
+    Router tests replace ``starlette.requests.Request.session`` with a plain
+    dict for the handler's benefit. The CSRF layer reads the ASGI scope
+    directly so that the cookie-backed token still counts.
+    """
+    token_response = csrf_client.get("/csrf-token")
+    token = token_response.json()["csrf_token"]
+
+    mocker.patch("starlette.requests.Request.session", {})
+
+    response = csrf_client.post("/test-form", headers={CSRF_HEADER_NAME: token})
+    assert response.status_code == 200

@@ -3,7 +3,8 @@
 from main import app
 from schemas.webauthn import PasskeyResponse
 from services.exceptions import ForbiddenError, NotFoundError
-from starlette.testclient import TestClient
+
+from tests.helpers.client import TestClient
 
 
 def _fake_passkey(name: str = "Target key") -> PasskeyResponse:

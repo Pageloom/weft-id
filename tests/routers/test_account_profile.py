@@ -6,8 +6,9 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi.responses import HTMLResponse
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 ROUTERS_ACCOUNT = "routers.account"
 SERVICES_SETTINGS = "services.settings"

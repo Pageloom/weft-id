@@ -3,8 +3,9 @@
 from uuid import uuid4
 
 from dependencies import get_tenant_id_from_request
-from fastapi.testclient import TestClient
 from main import app
+
+from tests.helpers.client import TestClient
 
 AUTH_PW_RESET = "routers.auth.password_reset"
 

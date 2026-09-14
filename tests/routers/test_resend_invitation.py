@@ -2,9 +2,10 @@
 
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
 from main import app
 from services.exceptions import NotFoundError, ValidationError
+
+from tests.helpers.client import TestClient
 
 
 def test_resend_invitation_success(test_user, override_auth, mocker):

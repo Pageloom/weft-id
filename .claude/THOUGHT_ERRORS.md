@@ -639,18 +639,28 @@ request from 2025-10-18 to 2026-09-14 (see `.claude/ISSUES_ARCHIVE.md`). The ord
 asserted by `tests/test_csrf_route_coverage.py`; read the ordering block in `app/main.py`
 bottom-up.
 
-## A Security Control Needs a Negative Test Against the Real App
+## Verify Negative Paths Against the Real App, Not a Throwaway One
 
-**Wrong:** Proving a middleware works with unit tests on a throwaway `FastAPI()` app, an AST
-test that the class is registered somewhere in `main.py`, and E2E tests that submit real
-forms (which carry the token whether or not anyone checks it). All of those stayed green for
-eleven months while CSRF was off.
-**Right:** For every enforcement layer, one test must send the forbidden request to
-`main.app` and assert the rejection (`tests/routers/test_csrf_enforcement.py` is the model).
-Also never write a "no session, allow the request" style fail-open branch to make tests
-convenient: it converts a misconfiguration into silence. Fail closed and fix the tests.
-Router tests use `tests.helpers.client.TestClient`, which seeds a token into the signed
-session cookie and sends the header; use `client.without_csrf()` to test the negative path.
+**Wrong:** Treating a rejection behaviour (CSRF, auth, rate limit, body limit, tenant guard,
+redirect validation) as proven because a unit test on a throwaway `FastAPI()` app rejects
+the bad request, an AST test finds the class registered in `main.py`, and E2E tests that
+send well-formed requests stay green. None of those exercise the assembled `main.app`, so
+none can see a wiring mistake: the wrong middleware order, a missing dependency on a router,
+a fail-open branch, an exemption prefix that is too wide or too narrow. CSRF was off for
+eleven months this way while every one of those tests passed.
+**Right:** For every enforcement layer, at least one test sends the forbidden request to
+`main.app` (the real routers, the real middleware stack, a real tenant host) and asserts the
+rejection, and one sends the allowed form of the same request and asserts it goes through.
+`tests/routers/test_csrf_enforcement.py` is the model. When a change makes an enforcement
+layer live for the first time, also run `make e2e`: the first CSRF E2E run failed 43 of 65
+and exposed two more defects (form body not replayed, SCIM receiver not exempt) that the
+unit suite could not see.
+**Also:** a test helper that makes every request pass (here `tests.helpers.client.TestClient`
+tokens every state-changing request to `main.app`) hides gaps in the same way the old
+fail-open branch did. Pair such a helper with a derived guardrail that walks the real app's
+routes (`TestCSRFExemptionsMatchAuthentication` in `tests/test_csrf_route_coverage.py`)
+and with `client.without_csrf()` negative tests. Never add a "no session, allow the
+request" style branch to make tests convenient; fail closed and fix the tests.
 
 ## `BaseHTTPMiddleware` Replays the Body Only After `request.body()`
 

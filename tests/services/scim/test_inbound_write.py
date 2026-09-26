@@ -515,12 +515,16 @@ def test_soft_delete_inactivates_and_logs_event():
             "services.scim.inbound_write.database.users.inactivate_user", return_value=1
         ) as inactivate,
         patch("services.scim.inbound_write.database.oauth2.revoke_all_user_tokens") as revoke,
+        patch(
+            "services.scim.inbound_write.database.oauth2.delete_consent_grants_for_user"
+        ) as forget,
         patch("services.scim.inbound_write._bump_updated_at"),
         patch("services.scim.inbound_write.log_event") as log,
     ):
         soft_delete_user("t", "i", uid)
     inactivate.assert_called_once()
     revoke.assert_called_once()
+    forget.assert_called_once()
     assert log.call_args.kwargs["event_type"] == "scim_user_deactivated"
     assert log.call_args.kwargs["actor_user_id"] == SYSTEM_ACTOR_ID
 

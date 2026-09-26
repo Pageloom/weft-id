@@ -617,6 +617,13 @@ PAGES = [
                 ],
             ),
             Page(
+                path="/account/authorized-apps",
+                title="Authorized Apps",
+                permission=PagePermission.AUTHENTICATED,
+                show_in_nav=True,
+                docs_path="/docs/user-guide/authorized-apps/",
+            ),
+            Page(
                 path="/account/background-jobs",
                 title="Background Jobs",
                 permission=PagePermission.AUTHENTICATED,

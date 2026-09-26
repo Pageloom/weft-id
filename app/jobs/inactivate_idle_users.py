@@ -163,8 +163,9 @@ def _process_tenant(tenant_id: str, threshold_days: int) -> dict[str, Any]:
                 # Inactivate the user
                 database.users.inactivate_user(tenant_id, user_id)
 
-                # Revoke OAuth tokens
+                # Revoke OAuth tokens and remembered consents
                 database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+                database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
 
                 # Log the event (with system as actor since this is automated)
                 log_event(

@@ -970,3 +970,120 @@ def test_mfa_setup_verify_validation_no_pending(test_user, override_auth, mocker
 
     assert response.status_code == 303
     assert response.headers["location"] == "/account/mfa"
+
+
+# =============================================================================
+# Authorized Apps
+# =============================================================================
+
+
+def _grant_row(test_tenant, test_admin_user, test_user, scopes=("openid", "email")):
+    """Persist a real consent grant for test_user on a fresh client."""
+    import database
+
+    client = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Grant App",
+        redirect_uris=["http://localhost:3000/callback"],
+        created_by=str(test_admin_user["id"]),
+    )
+    return database.oauth2.upsert_consent_grant(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        client_id=str(client["id"]),
+        user_id=str(test_user["id"]),
+        scopes=list(scopes),
+    )
+
+
+def test_authorized_apps_page_lists_grants(test_tenant, test_admin_user, test_user, override_auth):
+    override_auth(test_user)
+    _grant_row(test_tenant, test_admin_user, test_user)
+
+    client = TestClient(app)
+    response = client.get("/account/authorized-apps")
+
+    assert response.status_code == 200
+    assert "Grant App" in response.text
+    assert "email, openid" in response.text
+    assert "/revoke" in response.text
+
+
+def test_authorized_apps_page_empty(test_user, override_auth):
+    override_auth(test_user)
+
+    client = TestClient(app)
+    response = client.get("/account/authorized-apps")
+
+    assert response.status_code == 200
+    assert "not allowed any applications" in response.text
+
+
+def test_authorized_apps_page_shows_banners(test_user, override_auth):
+    override_auth(test_user)
+
+    client = TestClient(app)
+    assert "Access revoked." in client.get("/account/authorized-apps?success=revoked").text
+    assert "was not found" in client.get("/account/authorized-apps?error=not_found").text
+
+
+def test_authorized_apps_page_requires_login(client, test_tenant_host):
+    response = client.get(
+        "/account/authorized-apps", headers={"Host": test_tenant_host}, follow_redirects=False
+    )
+    assert response.status_code in (302, 303)
+    assert "/login" in response.headers["location"]
+
+
+def test_revoke_authorized_app_success(test_tenant, test_admin_user, test_user, override_auth):
+    import database
+
+    override_auth(test_user)
+    grant = _grant_row(test_tenant, test_admin_user, test_user)
+
+    client = TestClient(app)
+    response = client.post(f"/account/authorized-apps/{grant['id']}/revoke", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/authorized-apps?success=revoked"
+    assert database.oauth2.get_consent_grant_by_id(test_tenant["id"], str(grant["id"])) is None
+
+
+def test_revoke_authorized_app_not_found(test_user, override_auth):
+    from uuid import uuid4
+
+    override_auth(test_user)
+
+    client = TestClient(app)
+    response = client.post(f"/account/authorized-apps/{uuid4()}/revoke", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/authorized-apps?error=not_found"
+
+
+def test_revoke_authorized_app_of_another_user_is_not_found(
+    test_tenant, test_admin_user, test_user, override_auth
+):
+    """A grant id belonging to someone else cannot be revoked (and is not leaked)."""
+    import database
+
+    override_auth(test_user)
+    grant = _grant_row(test_tenant, test_admin_user, test_admin_user)
+
+    client = TestClient(app)
+    response = client.post(f"/account/authorized-apps/{grant['id']}/revoke", follow_redirects=False)
+
+    assert response.headers["location"] == "/account/authorized-apps?error=not_found"
+    assert database.oauth2.get_consent_grant_by_id(test_tenant["id"], str(grant["id"]))
+
+
+def test_revoke_authorized_app_requires_csrf(test_user, override_auth, mocker):
+    override_auth(test_user)
+    mock_revoke = mocker.patch("services.oidc.consent.revoke_my_grant")
+
+    client = TestClient(app)
+    with client.without_csrf():
+        response = client.post("/account/authorized-apps/g1/revoke", follow_redirects=False)
+    assert response.status_code == 403
+    mock_revoke.assert_not_called()

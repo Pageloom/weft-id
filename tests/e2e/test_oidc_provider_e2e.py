@@ -108,6 +108,26 @@ class TestOidcProviderHappyPath:
             assert userinfo["sub"] == claims["sub"]
             assert userinfo["email"] == cfg["user_email"]
 
+        # --- 5. Remembered consent: the same request again lands straight on
+        # the RP callback with a fresh code and no consent page in between.
+        page.goto(_authorize_url(cfg))
+        page.wait_for_url(f"{cfg['redirect_uri']}?*", timeout=10000)
+        second = parse_qs(urlparse(page.url).query)
+        assert second["state"] == [STATE]
+        assert second["code"][0] and second["code"][0] != code
+
+        # --- 6. The grant is visible under User Settings and revocable; the
+        # next request shows the consent page again.
+        page.goto(f"{base_url}/account/authorized-apps")
+        page.wait_for_selector("form[action$='/revoke'] button", timeout=10000)
+        assert "openid" in page.content()
+        page.locator("form[action$='/revoke'] button").first.click()
+        page.locator("#weft-confirm-ok").click()
+        page.wait_for_url(f"{base_url}/account/authorized-apps?success=revoked", timeout=10000)
+
+        page.goto(_authorize_url(cfg))
+        page.wait_for_selector("button[name='action'][value='allow']", timeout=10000)
+
 
 class TestOidcProviderLoginResume:
     def test_unauthenticated_authorize_resumes_after_real_login(self, page, oidc_config):

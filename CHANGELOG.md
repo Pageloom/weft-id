@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Remembered consent.** WeftID now remembers a user's **Allow** on the
+  OAuth2 / OIDC consent screen per application and scope set. Later
+  authorization requests covered by the grant skip the screen, `prompt=none`
+  completes silently, and `prompt=consent` still shows it. A request for a
+  scope not yet allowed shows the screen with the already-allowed scopes
+  marked. Users see and revoke their grants under **User Settings >
+  Authorized Apps** (`/api/v1/account/authorized-apps`); admins see and
+  revoke them per app on the app's detail page
+  (`/api/v1/oauth2/clients/{client_id}/consents`). Deactivating an app or a
+  user forgets the grants; deleting an app cascades. Audit events
+  `oauth2_consent_granted`, `oauth2_consent_widened`, and
+  `oauth2_consent_revoked`. Migration 0061.
 - **OIDC upstream group claim handling.** An OIDC connection can name a group
   claim (Claim mapping tab, or `group_claim_source` and
   `group_claim_name_key` on the API). On every sign-in the claim's values are

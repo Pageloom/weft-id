@@ -4,6 +4,7 @@ This module provides all OAuth2-related database operations including:
 - Client management (normal and B2B clients)
 - Authorization code flow
 - Token operations (access/refresh tokens)
+- Remembered consent grants
 """
 
 from database.oauth2.authorization import (
@@ -25,6 +26,16 @@ from database.oauth2.clients import (
     update_b2b_client_role,
     update_client,
     update_client_oidc_settings,
+)
+from database.oauth2.consent import (
+    delete_consent_grant,
+    delete_consent_grants_for_client,
+    delete_consent_grants_for_user,
+    get_consent_grant,
+    get_consent_grant_by_id,
+    list_consent_grants_for_client,
+    list_consent_grants_for_user,
+    upsert_consent_grant,
 )
 from database.oauth2.tokens import (
     cleanup_expired_tokens,
@@ -65,4 +76,13 @@ __all__ = [
     "revoke_all_client_tokens",
     "cleanup_expired_tokens",
     "revoke_all_user_tokens",
+    # consent
+    "get_consent_grant",
+    "get_consent_grant_by_id",
+    "upsert_consent_grant",
+    "list_consent_grants_for_user",
+    "list_consent_grants_for_client",
+    "delete_consent_grant",
+    "delete_consent_grants_for_user",
+    "delete_consent_grants_for_client",
 ]

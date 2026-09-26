@@ -22,7 +22,7 @@ After creation, WeftID displays the **client ID** and **client secret** in a dia
     GET /oauth2/authorize?response_type=code&client_id=...&redirect_uri=...&state=...
     ```
 
-2. The user sees a consent screen showing your application's name and their identity. They click **Allow** or **Deny**.
+2. The user sees a consent screen showing your application's name, their identity, and the requested scopes. They click **Allow** or **Deny**. WeftID remembers an **Allow** per user and application: later requests for the same (or a subset of the) scopes skip the screen, and `prompt=none` succeeds silently. A request for a scope the user has not allowed shows the screen again with the already-allowed scopes marked, and `prompt=consent` always shows it.
 
 3. If allowed, WeftID redirects to your `redirect_uri` with an authorization code:
 
@@ -83,8 +83,9 @@ Click the app name in the list to open its detail page. From there you can:
 - **Edit** the name, description, and redirect URIs
 - **Enable OIDC** -- Turn the app into an OpenID Connect provider (see [Sign in with WeftID (OIDC)](oidc-provider-setup.md)).
 - **Regenerate the client secret** -- Immediately invalidates the old secret. A new secret is shown once.
-- **Deactivate** -- Disables the client and revokes all active tokens. The app can be reactivated later.
+- **Deactivate** -- Disables the client, revokes all active tokens, and forgets every user's consent. The app can be reactivated later.
 - **Reactivate** -- Re-enables a deactivated app. Users will need to re-authorize.
+- **Revoke a user's consent** -- The **User Consents** section lists every user who allowed the app and the scopes they granted. Revoking one makes that user see the consent screen again on their next sign-in; it does not revoke tokens the app already holds. Users can also revoke their own consents under **User Settings > Authorized Apps**.
 
 ## Access requirements
 

@@ -29,6 +29,7 @@ from pages import get_first_accessible_child, has_page_access
 from services import oauth2 as oauth2_service
 from services.exceptions import ServiceError
 from services.oidc import clients as oidc_client_service
+from services.oidc import consent as consent_service
 from utils.redirects import safe_redirect
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -263,6 +264,7 @@ def app_detail(
     available_groups = oidc_client_service.list_available_groups_for_client(
         requesting_user, client_id
     )
+    consent_grants = consent_service.list_client_grants(requesting_user, client_id)
 
     context = get_template_context(
         request,
@@ -271,6 +273,7 @@ def app_detail(
         oidc_urls=oidc_urls,
         assigned_groups=assigned_groups,
         available_groups=available_groups,
+        consent_grants=consent_grants,
         pending_credentials=pending_credentials,
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
@@ -506,6 +509,29 @@ def app_remove_group(
     except ServiceError as exc:
         logger.warning("Failed to remove group from App: %s", exc)
         return safe_redirect(f"{redirect_url}?error=group_remove_failed")
+
+
+@apps_router.post("/{client_id}/consents/{grant_id}/revoke", response_class=HTMLResponse)
+def app_revoke_consent(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    grant_id: str,
+):
+    """Revoke one user's remembered consent for an App."""
+    if not has_page_access("/applications/oauth", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    redirect_url = f"/applications/oauth/{client_id}"
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        consent_service.revoke_client_grant(requesting_user, client_id, grant_id)
+        return safe_redirect(f"{redirect_url}?success=consent_revoked")
+    except ServiceError as exc:
+        logger.warning("Failed to revoke consent for App: %s", exc)
+        return safe_redirect(f"{redirect_url}?error=consent_revoke_failed")
 
 
 # =============================================================================

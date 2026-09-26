@@ -1,4 +1,4 @@
-"""User account routes (profile, emails, MFA)."""
+"""User account routes (profile, emails, MFA, authorized apps)."""
 
 from pathlib import Path
 from typing import Annotated
@@ -28,6 +28,7 @@ from services.exceptions import (
     ServiceError,
     ValidationError,
 )
+from services.oidc import consent as consent_service
 from services.users.attribute_views import build_attribute_groups_for_self
 from utils.email import send_mfa_code_email
 from utils.qr import generate_qr_code_base64
@@ -340,6 +341,48 @@ def email_settings(
     return templates.TemplateResponse(
         request, "settings_emails.html", get_template_context(request, tenant_id, emails=emails)
     )
+
+
+@router.get("/authorized-apps", response_class=HTMLResponse)
+def authorized_apps(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """List the applications the user has allowed to access their account."""
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
+    grants = consent_service.list_my_grants(requesting_user)
+
+    return templates.TemplateResponse(
+        request,
+        "settings_authorized_apps.html",
+        get_template_context(
+            request,
+            tenant_id,
+            grants=grants,
+            success=request.query_params.get("success"),
+            error=request.query_params.get("error"),
+        ),
+    )
+
+
+@router.post("/authorized-apps/{grant_id}/revoke")
+def revoke_authorized_app(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    grant_id: str,
+):
+    """Revoke one of the user's own consent grants (HTML form post)."""
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
+    try:
+        consent_service.revoke_my_grant(requesting_user, grant_id)
+    except NotFoundError:
+        return RedirectResponse(url="/account/authorized-apps?error=not_found", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(url="/account/authorized-apps?success=revoked", status_code=303)
 
 
 @router.get("/mfa", response_class=HTMLResponse)

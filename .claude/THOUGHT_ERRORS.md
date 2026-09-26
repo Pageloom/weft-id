@@ -272,6 +272,14 @@ migration 0055.
   DEFINER function owned by `appowner` (table owners are exempt from RLS),
   with pinned `search_path`, exposing only the columns the sweep needs, and
   `GRANT EXECUTE ... TO appuser`.
+- **Two strict forms exist.** The baseline `schema.sql` policies cast
+  `current_setting('app.tenant_id', true)` straight to uuid and raise
+  `invalid input syntax for type uuid: ""` under UNSCOPED; migrations 0057+
+  wrap it in `NULLIF(..., '')` and return zero rows instead. New tables use
+  the NULLIF form. A "UNSCOPED returns nothing" test on a query that joins an
+  older table (`oauth2_clients`, `users`) will see the error, not an empty
+  list; assert fail-closed on a join-free lookup (found 2026-09-20 on
+  `oauth2_consent_grants`).
 - A new sweep must have a **database integration test** that exercises the
   real query path (tests connect as `appuser`, so a fail-closed query shows
   up as an empty result). Mock-only job tests cannot catch this.

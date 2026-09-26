@@ -105,6 +105,7 @@ nav:
     - Two-Step Verification: user-guide/two-step-verification.md
     - Passkeys: user-guide/passkeys.md
     - Signing In: user-guide/signing-in.md
+    - Authorized Apps: user-guide/authorized-apps.md
     - Background Jobs: user-guide/background-jobs.md
   - API:
     - api/index.md

@@ -111,6 +111,7 @@ def handle_bulk_inactivate_users(task: dict) -> dict[str, Any]:
 
                 database.users.inactivate_user(tenant_id, user_id)
                 database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+                database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
 
                 log_event(
                     tenant_id=tenant_id,

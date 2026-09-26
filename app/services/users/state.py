@@ -93,8 +93,10 @@ def inactivate_user(
     # Perform inactivation
     database.users.inactivate_user(tenant_id, user_id)
 
-    # Revoke all OAuth tokens to immediately cut API access
+    # Revoke all OAuth tokens to immediately cut API access, and forget the
+    # user's remembered consents so a reactivated account re-consents.
     database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+    database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
 
     # Log the event
     log_event(

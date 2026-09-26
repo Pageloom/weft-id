@@ -10,4 +10,5 @@ Most pages in WeftID show an information icon in the top-right corner of the nav
 - [Two-Step Verification](two-step-verification.md) — Set up an authenticator app, backup codes, and manage sign-in methods
 - [Passkeys](passkeys.md) — Register and sign in with passkeys (phishing-resistant, passwordless)
 - [Signing In](signing-in.md) — Sign-in flows, sign-out, and identity provider sign-in
+- [Authorized Apps](authorized-apps.md) — See and revoke the applications you have allowed
 - [Background Jobs](background-jobs.md) — Check export status and download files

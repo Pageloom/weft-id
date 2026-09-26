@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Authorized Apps - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Authorized Apps</h1>
+
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Applications you have allowed to access your account through WeftID. Revoking an app means you will see its consent screen again the next time you sign in to it.
+        </p>
+
+        {% if success == 'revoked' %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">Access revoked.</p>
+        </div>
+        {% endif %}
+        {% if error == 'not_found' %}
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">That authorization was not found. It may already have been revoked.</p>
+        </div>
+        {% endif %}
+
+        {% if grants %}
+        <div class="space-y-3">
+            {% for grant in grants %}
+            <div class="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-md p-4">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ grant.client_name }}</span>
+                        {% if not grant.client_is_active %}
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Deactivated</span>
+                        {% endif %}
+                    </div>
+                    {% if grant.client_description %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ grant.client_description }}</p>
+                    {% endif %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {% if grant.scopes %}
+                        Allowed: {{ grant.scopes | join(', ') }}
+                        {% else %}
+                        Allowed to sign you in
+                        {% endif %}
+                    </p>
+                    {% set granted = fmt_relative(grant.granted_at) %}
+                    {% set updated = fmt_relative(grant.updated_at) %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        First allowed <span title="{{ granted[1] }}">{{ granted[0] }}</span>{% if grant.updated_at != grant.granted_at %}, last updated <span title="{{ updated[1] }}">{{ updated[0] }}</span>{% endif %}
+                    </p>
+                </div>
+                <form method="post" action="/account/authorized-apps/{{ grant.id }}/revoke">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="confirm-btn text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                            data-confirm="Revoke access for {{ grant.client_name }}?&#10;&#10;You will be asked to allow it again the next time you sign in to it."
+                            data-destructive="true">
+                        Revoke
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-600 dark:text-gray-400">
+            You have not allowed any applications yet.
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script nonce="{{ csp_nonce }}">
+// Confirm-before-submit buttons (revoke)
+document.querySelectorAll('.confirm-btn').forEach((btn) => {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const form = this.closest('form');
+        WeftUtils.confirm(this.dataset.confirm, () => { form.submit(); }, { destructive: this.dataset.destructive === 'true' });
+    });
+});
+</script>
+{% endblock %}

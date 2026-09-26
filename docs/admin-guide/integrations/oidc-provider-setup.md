@@ -88,4 +88,4 @@ Admin or super admin role required to manage OIDC settings and group assignments
 
 ## What is not supported
 
-WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, and group-based access control. The following are intentionally out of scope: RP-initiated and back-channel logout, token introspection and revocation endpoints, the device grant, dynamic client registration, pairwise subject identifiers, and remembered/revocable consent.
+WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, and group-based access control. The following are intentionally out of scope: RP-initiated and back-channel logout, token introspection and revocation endpoints, the device grant, dynamic client registration, and pairwise subject identifiers.

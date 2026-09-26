@@ -40,6 +40,7 @@ from routers import saml_idp as saml_idp_router  # noqa: E402
 from routers import security as security_router  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
 from routers import settings_branding as settings_branding_router  # noqa: E402
+from routers.api.v1 import account_authorized_apps as account_authorized_apps_api  # noqa: E402
 from routers.api.v1 import account_passkeys as account_passkeys_api  # noqa: E402
 from routers.api.v1 import branding as branding_api  # noqa: E402
 from routers.api.v1 import events as events_api  # noqa: E402
@@ -191,6 +192,7 @@ app.include_router(oidc_router.router)
 app.include_router(oidc_upstream_router.router)
 
 # Include API routers (JSON)
+app.include_router(account_authorized_apps_api.router)
 app.include_router(account_passkeys_api.router)
 app.include_router(branding_api.router)
 app.include_router(events_api.router)

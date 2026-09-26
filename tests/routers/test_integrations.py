@@ -683,6 +683,7 @@ def test_app_detail_renders(test_admin_user, override_auth, mocker):
     mock_oidc.get_client_discovery_info.return_value = MagicMock()
     mock_oidc.list_client_group_assignments.return_value = MagicMock(items=[])
     mock_oidc.list_available_groups_for_client.return_value = []
+    mocker.patch(f"{ROUTERS_INTEGRATIONS}.consent_service.list_client_grants", return_value=[])
 
     mock_get.return_value = mock_client
     mock_ctx.return_value = {"request": MagicMock()}
@@ -1603,3 +1604,101 @@ def test_b2b_detail_wrong_type(test_super_admin_user, override_auth, mocker):
 
     assert response.status_code == 303
     assert "error=not_found" in response.headers["location"]
+
+
+# =============================================================================
+# App Consent Revocation
+# =============================================================================
+
+
+def test_app_revoke_consent_success(test_admin_user, override_auth, mocker):
+    """Revoking a user's consent redirects back to the app with a success flag."""
+    override_auth(test_admin_user, level="admin")
+    mock_revoke = mocker.patch(f"{ROUTERS_INTEGRATIONS}.consent_service.revoke_client_grant")
+
+    client = TestClient(app)
+    response = client.post(
+        "/applications/oauth/weft-id_client_abc/consents/grant-1/revoke", follow_redirects=False
+    )
+
+    assert response.status_code == 303
+    assert (
+        response.headers["location"]
+        == "/applications/oauth/weft-id_client_abc?success=consent_revoked"
+    )
+    args = mock_revoke.call_args[0]
+    assert args[0]["id"] == str(test_admin_user["id"])
+    assert args[1] == "weft-id_client_abc"
+    assert args[2] == "grant-1"
+
+
+def test_app_revoke_consent_service_error(test_admin_user, override_auth, mocker):
+    """A service error (unknown grant) redirects back with an error flag."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user, level="admin")
+    mocker.patch(
+        f"{ROUTERS_INTEGRATIONS}.consent_service.revoke_client_grant",
+        side_effect=NotFoundError(message="nope", code="consent_grant_not_found"),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/applications/oauth/weft-id_client_abc/consents/grant-1/revoke", follow_redirects=False
+    )
+
+    assert response.status_code == 303
+    assert (
+        response.headers["location"]
+        == "/applications/oauth/weft-id_client_abc?error=consent_revoke_failed"
+    )
+
+
+def test_app_revoke_consent_requires_csrf(test_admin_user, override_auth, mocker):
+    override_auth(test_admin_user, level="admin")
+    mock_revoke = mocker.patch(f"{ROUTERS_INTEGRATIONS}.consent_service.revoke_client_grant")
+
+    client = TestClient(app)
+    with client.without_csrf():
+        response = client.post(
+            "/applications/oauth/weft-id_client_abc/consents/grant-1/revoke",
+            follow_redirects=False,
+        )
+    assert response.status_code == 403
+    mock_revoke.assert_not_called()
+
+
+def test_app_detail_passes_consent_grants(test_admin_user, override_auth, mocker):
+    """The detail page hands the client's consent grants to the template."""
+    override_auth(test_admin_user, level="admin")
+    mock_client = {
+        "id": str(uuid4()),
+        "client_id": "weft-id_client_consents",
+        "client_type": "normal",
+        "name": "Consent App",
+        "description": None,
+        "redirect_uris": ["https://example.com/callback"],
+        "service_user_id": None,
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+    mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id", return_value=mock_client)
+    mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
+    mock_tmpl = mocker.patch(f"{ROUTERS_INTEGRATIONS}.templates.TemplateResponse")
+    mock_oidc = mocker.patch(f"{ROUTERS_INTEGRATIONS}.oidc_client_service")
+    mock_oidc.get_client_discovery_info.return_value = MagicMock()
+    mock_oidc.list_client_group_assignments.return_value = MagicMock(items=[])
+    mock_oidc.list_available_groups_for_client.return_value = []
+    grants = [MagicMock(id="g1")]
+    mock_list = mocker.patch(
+        f"{ROUTERS_INTEGRATIONS}.consent_service.list_client_grants", return_value=grants
+    )
+    mock_ctx.return_value = {"request": MagicMock()}
+    mock_tmpl.return_value = HTMLResponse(content="<html>detail</html>")
+
+    client = TestClient(app)
+    response = client.get("/applications/oauth/weft-id_client_consents")
+
+    assert response.status_code == 200
+    assert mock_ctx.call_args[1]["consent_grants"] == grants
+    assert mock_list.call_args[0][1] == "weft-id_client_consents"

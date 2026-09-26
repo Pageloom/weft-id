@@ -15,6 +15,7 @@ from schemas.oauth2 import (
     NormalClientCreate,
 )
 from schemas.oidc import (
+    ClientConsentGrantResponse,
     OIDCClientDiscoveryInfo,
     OIDCClientGroupAssignAdd,
     OIDCClientGroupAssignmentList,
@@ -23,6 +24,7 @@ from schemas.oidc import (
 )
 from services.exceptions import ServiceError
 from services.oidc import clients as oidc_client_service
+from services.oidc import consent as consent_service
 from utils.service_errors import translate_to_http_exception
 from utils.urls import tenant_base_url
 
@@ -580,3 +582,61 @@ def remove_oidc_client_group(
         oidc_client_service.remove_client_group_assignment(requesting_user, client_id, group_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Remembered consent (per client)
+# =============================================================================
+
+
+@router.get("/{client_id}/consents", response_model=list[ClientConsentGrantResponse])
+def list_client_consents(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+):
+    """List the users who have allowed this App and the scopes they granted.
+
+    Requires admin role. Only Apps (authorization-code clients) have consent.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+
+    Response (per grant):
+    - id: grant UUID (use this to revoke)
+    - user_id, user_email, user_name: the granting user
+    - scopes: the granted scope set (union of every Allow)
+    - granted_at / updated_at: first Allow and last widening
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        return consent_service.list_client_grants(requesting_user, client_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.delete("/{client_id}/consents/{grant_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_client_consent(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    grant_id: str,
+):
+    """Revoke one user's remembered consent for this App.
+
+    The user sees the consent page again on their next sign-in to the App.
+    Existing tokens are not revoked. Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+        grant_id: UUID of the grant (from the consents listing)
+
+    Returns:
+        204 No Content on success; 404 when the grant does not belong to the App.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        consent_service.revoke_client_grant(requesting_user, client_id, grant_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+    return None

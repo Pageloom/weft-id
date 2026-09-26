@@ -1048,3 +1048,141 @@ def test_deactivated_client_cannot_get_token(
     data = token_response.json()
     assert data["detail"]["error"] == "invalid_client"
     assert "deactivated" in data["detail"]["error_description"].lower()
+
+
+# =============================================================================
+# Remembered consent (per client)
+# =============================================================================
+
+
+def _consent_grant(test_tenant, client_row, user, scopes=("openid",)):
+    import database
+
+    return database.oauth2.upsert_consent_grant(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        client_id=str(client_row["id"]),
+        user_id=str(user["id"]),
+        scopes=list(scopes),
+    )
+
+
+def test_list_client_consents_as_admin(
+    client,
+    test_tenant_host,
+    test_tenant,
+    test_user,
+    oauth2_admin_authorization_header,
+    normal_oauth2_client,
+):
+    grant = _consent_grant(test_tenant, normal_oauth2_client, test_user, ("openid", "profile"))
+
+    response = client.get(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/consents",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["id"] == str(grant["id"])
+    assert body[0]["user_id"] == str(test_user["id"])
+    assert body[0]["user_email"] == test_user["email"]
+    assert body[0]["user_name"] == f"{test_user['first_name']} {test_user['last_name']}"
+    assert body[0]["scopes"] == ["openid", "profile"]
+
+
+def test_list_client_consents_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    response = client.get(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/consents",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+    assert response.status_code == 403
+
+
+def test_list_client_consents_unknown_client(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.get(
+        "/api/v1/oauth2/clients/weft-id_client_missing/consents",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 404
+
+
+def test_list_client_consents_b2b_rejected(
+    client, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+):
+    response = client.get(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}/consents",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 400
+
+
+def test_revoke_client_consent_as_admin(
+    client,
+    test_tenant_host,
+    test_tenant,
+    test_user,
+    oauth2_admin_authorization_header,
+    normal_oauth2_client,
+):
+    import database
+
+    grant = _consent_grant(test_tenant, normal_oauth2_client, test_user)
+
+    response = client.delete(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/consents/{grant['id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 204
+    assert database.oauth2.get_consent_grant_by_id(test_tenant["id"], str(grant["id"])) is None
+
+
+def test_revoke_client_consent_wrong_client_is_404(
+    client,
+    test_tenant_host,
+    test_tenant,
+    test_admin_user,
+    test_user,
+    oauth2_admin_authorization_header,
+    normal_oauth2_client,
+):
+    import database
+
+    other = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Other App",
+        redirect_uris=["http://localhost:3000/callback"],
+        created_by=str(test_admin_user["id"]),
+    )
+    grant = _consent_grant(test_tenant, other, test_user)
+
+    response = client.delete(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/consents/{grant['id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 404
+    assert database.oauth2.get_consent_grant_by_id(test_tenant["id"], str(grant["id"]))
+
+
+def test_revoke_client_consent_as_member_forbidden(
+    client,
+    test_tenant_host,
+    test_tenant,
+    test_user,
+    oauth2_authorization_header,
+    normal_oauth2_client,
+):
+    grant = _consent_grant(test_tenant, normal_oauth2_client, test_user)
+    response = client.delete(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/consents/{grant['id']}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+    assert response.status_code == 403

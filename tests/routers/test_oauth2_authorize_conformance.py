@@ -10,8 +10,9 @@ binding, request-object rejection, ``prompt``, ``max_age``, ``login_hint``,
 import time
 from urllib.parse import parse_qs, urlsplit
 
+import database
 import pytest
-from routers.oauth2 import SESSION_CONSENT_KEY, AuthorizeParams
+from routers.oauth2 import AuthorizeParams
 from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY, get_post_auth_redirect
 from services import oidc as oidc_service
 
@@ -65,6 +66,29 @@ def anon(client, test_tenant, test_tenant_host, session_data):
             return client.post(url, headers=headers, **kw)
 
     return _Client()
+
+
+@pytest.fixture
+def grant(test_tenant, test_user):
+    """Factory: persist a consent grant for ``test_user`` on a client."""
+
+    def _grant(client_row: dict, scopes: list[str], *, user=None) -> dict:
+        return database.oauth2.upsert_consent_grant(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            client_id=str(client_row["id"]),
+            user_id=str((user or test_user)["id"]),
+            scopes=scopes,
+        )
+
+    return _grant
+
+
+def _granted_scopes(test_tenant, client_row, user) -> list[str] | None:
+    row = database.oauth2.get_consent_grant(
+        test_tenant["id"], str(client_row["id"]), str(user["id"])
+    )
+    return None if row is None else list(row["scopes"])
 
 
 @pytest.fixture
@@ -320,12 +344,10 @@ class TestPromptNone:
         assert query["error"] == ["consent_required"]
         assert query["state"] == ["st-1"]
 
-    def test_logged_in_with_session_consent_issues_code_without_ui(
-        self, authed, normal_oauth2_client, session_data
+    def test_logged_in_with_remembered_consent_issues_code_without_ui(
+        self, authed, normal_oauth2_client, grant
     ):
-        session_data[SESSION_CONSENT_KEY] = {
-            normal_oauth2_client["client_id"]: ["openid", "profile"]
-        }
+        grant(normal_oauth2_client, ["openid", "profile"])
         response = authed.get(
             "/oauth2/authorize",
             params=_base_params(normal_oauth2_client, prompt="none", scope="openid"),
@@ -336,18 +358,18 @@ class TestPromptNone:
         assert query["state"] == ["st-1"]
         assert "error" not in query
 
-    def test_session_consent_must_cover_every_requested_scope(
-        self, authed, normal_oauth2_client, session_data
+    def test_remembered_consent_must_cover_every_requested_scope(
+        self, authed, normal_oauth2_client, grant
     ):
-        session_data[SESSION_CONSENT_KEY] = {normal_oauth2_client["client_id"]: ["openid"]}
+        grant(normal_oauth2_client, ["openid"])
         response = authed.get(
             "/oauth2/authorize",
             params=_base_params(normal_oauth2_client, prompt="none", scope="openid email"),
         )
         assert _location_query(response)["error"] == ["consent_required"]
 
-    def test_allow_remembers_consent_for_the_session(
-        self, authed, normal_oauth2_client, session_data
+    def test_allow_remembers_consent(
+        self, authed, normal_oauth2_client, session_data, test_tenant, test_user
     ):
         """The full loop: consent once, then prompt=none succeeds silently."""
         page = authed.get(
@@ -361,9 +383,7 @@ class TestPromptNone:
             data={"auth_request_id": auth_request_id, "action": "allow", "csrf_token": csrf},
         )
         assert decided.status_code == 303
-        assert session_data[SESSION_CONSENT_KEY] == {
-            normal_oauth2_client["client_id"]: ["email", "openid"]
-        }
+        assert _granted_scopes(test_tenant, normal_oauth2_client, test_user) == ["email", "openid"]
 
         silent = authed.get(
             "/oauth2/authorize",
@@ -372,7 +392,9 @@ class TestPromptNone:
         assert silent.status_code == 303
         assert "code" in _location_query(silent)
 
-    def test_deny_does_not_remember_consent(self, authed, normal_oauth2_client, session_data):
+    def test_deny_does_not_remember_consent(
+        self, authed, normal_oauth2_client, session_data, test_tenant, test_user
+    ):
         page = authed.get("/oauth2/authorize", params=_base_params(normal_oauth2_client))
         assert page.status_code == 200
         auth_request_id = next(iter(session_data["oauth2_auth_requests"]))
@@ -381,7 +403,7 @@ class TestPromptNone:
             "/oauth2/authorize/decision",
             data={"auth_request_id": auth_request_id, "action": "deny", "csrf_token": csrf},
         )
-        assert SESSION_CONSENT_KEY not in session_data
+        assert _granted_scopes(test_tenant, normal_oauth2_client, test_user) is None
 
     def test_prompt_none_with_reauth_needed_is_login_required(
         self, authed, normal_oauth2_client, session_data
@@ -405,17 +427,106 @@ class TestPromptNone:
         assert _location_query(response)["error"] == ["interaction_required"]
 
     def test_prompt_none_access_denied_redirects(
-        self, authed, test_tenant, test_admin_user, session_data
+        self, authed, test_tenant, test_admin_user, session_data, grant
     ):
         from tests.routers.test_oauth2 import _make_oidc_client
 
         oidc_client = _make_oidc_client(test_tenant, test_admin_user, available_to_all=False)
-        session_data[SESSION_CONSENT_KEY] = {oidc_client["client_id"]: ["openid"]}
+        grant(oidc_client, ["openid"])
         response = authed.get(
             "/oauth2/authorize",
             params=_base_params(oidc_client, prompt="none", scope="openid"),
         )
         assert _location_query(response)["error"] == ["access_denied"]
+
+
+# ============================================================================
+# 4b. Remembered consent skips the page for interactive requests
+# ============================================================================
+
+
+class TestRememberedConsent:
+    def test_covered_request_issues_code_without_page(
+        self, authed, normal_oauth2_client, grant, session_data
+    ):
+        grant(normal_oauth2_client, ["openid", "email"])
+        response = authed.get(
+            "/oauth2/authorize", params=_base_params(normal_oauth2_client, scope="openid")
+        )
+        assert response.status_code == 303
+        query = _location_query(response)
+        assert query["code"][0]
+        assert query["state"] == ["st-1"]
+        assert "oauth2_auth_requests" not in session_data
+
+    def test_bare_grant_covers_scopeless_request(self, authed, normal_oauth2_client, grant):
+        grant(normal_oauth2_client, [])
+        response = authed.get("/oauth2/authorize", params=_base_params(normal_oauth2_client))
+        assert response.status_code == 303
+        assert "code" in _location_query(response)
+
+    def test_uncovered_scope_shows_page_with_granted_marked(
+        self, authed, normal_oauth2_client, grant
+    ):
+        grant(normal_oauth2_client, ["openid"])
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, scope="openid email"),
+        )
+        assert response.status_code == 200
+        assert "Already allowed" in response.text
+        assert response.text.count("Already allowed") == 1
+        assert "button" in response.text and 'value="allow"' in response.text
+
+    def test_prompt_consent_always_shows_page(self, authed, normal_oauth2_client, grant):
+        grant(normal_oauth2_client, ["openid", "email"])
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, scope="openid", prompt="consent"),
+        )
+        assert response.status_code == 200
+        assert 'value="allow"' in response.text
+
+    def test_first_visit_shows_page_without_badge(self, authed, normal_oauth2_client):
+        response = authed.get(
+            "/oauth2/authorize", params=_base_params(normal_oauth2_client, scope="openid")
+        )
+        assert response.status_code == 200
+        assert "Already allowed" not in response.text
+
+    def test_grant_is_per_user(self, authed, normal_oauth2_client, grant, test_admin_user):
+        grant(normal_oauth2_client, ["openid"], user=test_admin_user)
+        response = authed.get(
+            "/oauth2/authorize", params=_base_params(normal_oauth2_client, scope="openid")
+        )
+        assert response.status_code == 200
+
+    def test_allow_then_plain_request_skips_page(self, authed, normal_oauth2_client, session_data):
+        page = authed.get(
+            "/oauth2/authorize", params=_base_params(normal_oauth2_client, scope="openid")
+        )
+        assert page.status_code == 200
+        auth_request_id = next(iter(session_data["oauth2_auth_requests"]))
+        csrf = session_data["_csrf_token"]
+        authed.post(
+            "/oauth2/authorize/decision",
+            data={"auth_request_id": auth_request_id, "action": "allow", "csrf_token": csrf},
+        )
+        again = authed.get(
+            "/oauth2/authorize", params=_base_params(normal_oauth2_client, scope="openid")
+        )
+        assert again.status_code == 303
+        assert "code" in _location_query(again)
+
+    def test_covered_request_still_enforces_access_control(
+        self, authed, test_tenant, test_admin_user, grant
+    ):
+        from tests.routers.test_oauth2 import _make_oidc_client
+
+        oidc_client = _make_oidc_client(test_tenant, test_admin_user, available_to_all=False)
+        grant(oidc_client, ["openid"])
+        response = authed.get("/oauth2/authorize", params=_base_params(oidc_client, scope="openid"))
+        assert response.status_code == 403
 
 
 # ============================================================================
@@ -514,7 +625,7 @@ class TestReauthentication:
         assert 'name="auth_request_id"' in resumed.text
 
     def test_code_issued_after_reauth_uses_fresh_auth_time(
-        self, authed, normal_oauth2_client, session_data, mocker
+        self, authed, normal_oauth2_client, session_data, mocker, grant
     ):
         """auth_time comes from session_start, which a real login refreshes."""
         create_code = mocker.patch(
@@ -522,7 +633,7 @@ class TestReauthentication:
         )
         now = int(time.time())
         session_data["session_start"] = now
-        session_data[SESSION_CONSENT_KEY] = {normal_oauth2_client["client_id"]: []}
+        grant(normal_oauth2_client, [])
         authed.get("/oauth2/authorize", params=_base_params(normal_oauth2_client, prompt="none"))
         assert int(create_code.call_args.kwargs["auth_time"].timestamp()) == now
 

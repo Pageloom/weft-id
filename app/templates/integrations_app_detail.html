@@ -59,6 +59,10 @@
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">Group removed.</p>
         </div>
+        {% elif success == 'consent_revoked' %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">Consent revoked. The user will see the consent screen again on their next sign-in.</p>
+        </div>
         {% endif %}
 
         {% if error %}
@@ -78,6 +82,8 @@
                 Failed to assign the group. It may already be assigned.
                 {% elif error == 'group_remove_failed' %}
                 Failed to remove the group assignment.
+                {% elif error == 'consent_revoke_failed' %}
+                Failed to revoke the consent. It may already have been revoked.
                 {% else %}
                 An error occurred. Try again.
                 {% endif %}
@@ -244,6 +250,42 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">No groups assigned. Assign groups to control who can sign in{% if client.available_to_all %} (currently available to all users){% endif %}.</p>
                 {% endif %}
             </div>
+            {% endif %}
+        </div>
+
+        <!-- User Consents Section -->
+        <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">User Consents ({{ consent_grants|length }})</h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Users who allowed this app and the scopes they granted. WeftID skips the consent screen for them until the consent is revoked. Deactivating the app revokes every consent.</p>
+
+            {% if consent_grants %}
+            <div class="space-y-2">
+                {% for grant in consent_grants %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md">
+                    <div>
+                        <a href="/users/{{ grant.user_id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">{{ grant.user_name or grant.user_email or grant.user_id }}</a>
+                        {% if grant.user_email and grant.user_name %}
+                        <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">{{ grant.user_email }}</span>
+                        {% endif %}
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {% if grant.scopes %}Scopes: {{ grant.scopes | join(', ') }}{% else %}Sign-in only (no scopes){% endif %}
+                            {% set granted = fmt_relative(grant.granted_at) %}
+                            &middot; allowed <span title="{{ granted[1] }}">{{ granted[0] }}</span>
+                        </p>
+                    </div>
+                    <form method="post" action="/applications/oauth/{{ client.client_id }}/consents/{{ grant.id }}/revoke">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400"
+                                data-confirm="Revoke consent for {{ grant.user_name or grant.user_email }}?&#10;&#10;They will see the consent screen again the next time they sign in to {{ client.name }}."
+                                data-destructive="true">
+                            Revoke
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">No user has allowed this app yet.</p>
             {% endif %}
         </div>
 

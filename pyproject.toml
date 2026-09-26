@@ -41,6 +41,12 @@ webauthn = "^3.0.0"
 idna = ">=3.15"  # CVE-2026-45409, transitive via requests/urllib3
 starlette = ">=1.3.1"
 pyjwt = "^2.10.1"
+# anyio: held on the 4.14 line for CVE-2026-64847 (fixed in 4.14.2) because
+# starlette 1.x testclient imports the anyio.abc.BlockingPortal alias that
+# 4.15 deprecates (DeprecationWarning at import, fatal under
+# filterwarnings=error). Drop the upper bound once starlette stops using
+# the alias.
+anyio = ">=4.14.2,<4.15"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"

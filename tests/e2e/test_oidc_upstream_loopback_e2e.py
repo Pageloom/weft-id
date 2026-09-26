@@ -30,6 +30,7 @@ All assertions are SQL via `psql`, matching `test_scim_loopback_e2e.py`.
 """
 
 import json
+import re
 import subprocess
 
 import pytest
@@ -175,8 +176,13 @@ def _assert_group_claim_synced(cfg: dict, rp_user_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _sign_in_via_upstream_oidc(page, login, cfg: dict) -> None:
-    """Drive one full upstream-OIDC sign-in and land on the RP dashboard."""
+def _sign_in_via_upstream_oidc(page, login, cfg: dict) -> bool:
+    """Drive one full upstream-OIDC sign-in and land on the RP dashboard.
+
+    Returns True when the OP showed its consent page (first sign-in). On
+    later sign-ins the OP remembers the consent and the browser passes
+    straight through /oauth2/authorize to the RP callback.
+    """
     op = cfg["op"]
     rp = cfg["rp"]
 
@@ -190,15 +196,22 @@ def _sign_in_via_upstream_oidc(page, login, cfg: dict) -> None:
     page.locator("#email").fill(op["user_email"])
     page.locator("#emailForm button[type='submit']").click()
 
-    # 3. Consent on the OP. The URL proves the hop went through the RP's
-    #    /auth/oidc/{id}/login (state/nonce/PKCE were minted on the RP host).
-    page.wait_for_url(f"{op['base_url']}/oauth2/authorize?*", timeout=15000)
-    page.wait_for_selector("button[name='action'][value='allow']", timeout=10000)
-    page.locator("button[name='action'][value='allow']").click()
+    # 3. Consent on the OP, unless the OP remembers it from an earlier
+    #    sign-in and redirects straight to the RP. Either URL proves the hop
+    #    went through the RP's /auth/oidc/{id}/login (state/nonce/PKCE were
+    #    minted on the RP host).
+    consent_url = re.escape(f"{op['base_url']}/oauth2/authorize?")
+    dashboard_url = re.escape(f"{rp['base_url']}/dashboard")
+    page.wait_for_url(re.compile(f"^({consent_url}|{dashboard_url})"), timeout=15000)
+    consent_shown = "/oauth2/authorize" in page.url
+    if consent_shown:
+        page.wait_for_selector("button[name='action'][value='allow']", timeout=10000)
+        page.locator("button[name='action'][value='allow']").click()
 
     # 4 + 5. Callback on the RP, then the dashboard.
     page.wait_for_url(f"{rp['base_url']}/dashboard**", timeout=20000)
     assert "error=" not in page.url, f"Login landed with an error: {page.url}"
+    return consent_shown
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +258,7 @@ class TestUpstreamOidcFirstSignIn:
         assert _rp_user_ids(rp["tenant_id"], email) == []
         assert _links(rp["connection_id"]) == []
 
-        _sign_in_via_upstream_oidc(page, login, cfg)
+        assert _sign_in_via_upstream_oidc(page, login, cfg), "first sign-in must show OP consent"
 
         # Exactly one RP user was created, with the OP's profile claims mapped.
         user_ids = _rp_user_ids(rp["tenant_id"], email)
@@ -311,7 +324,7 @@ class TestUpstreamOidcSecondSignIn:
 
         # Fresh browser context (function-scoped `page`): both sessions are gone,
         # so this is a cold second sign-in, not a session resume.
-        _sign_in_via_upstream_oidc(page, login, cfg)
+        assert not _sign_in_via_upstream_oidc(page, login, cfg), "OP must remember the consent"
 
         # Same single user, same single link, same subject.
         assert _rp_user_ids(rp["tenant_id"], email) == before_users

@@ -514,7 +514,8 @@ def deactivate_client(tenant_id: str, client_id: str, actor_user_id: str) -> dic
     """
     Deactivate an OAuth2 client (soft delete).
 
-    Also revokes all tokens for this client.
+    Also revokes all tokens for this client and deletes every remembered
+    consent grant, so users re-consent if the client is reactivated.
 
     Args:
         tenant_id: Tenant ID
@@ -532,8 +533,11 @@ def deactivate_client(tenant_id: str, client_id: str, actor_user_id: str) -> dic
     result = database.oauth2.deactivate_client(tenant_id, client_id)
 
     if result:
-        # Revoke all tokens for this client
+        # Revoke all tokens for this client and forget every consent grant
         database.oauth2.revoke_all_client_tokens(tenant_id, str(old_client["id"]))
+        consents_revoked = database.oauth2.delete_consent_grants_for_client(
+            tenant_id, str(old_client["id"])
+        )
 
         log_event(
             tenant_id=tenant_id,
@@ -545,6 +549,7 @@ def deactivate_client(tenant_id: str, client_id: str, actor_user_id: str) -> dic
                 "name": result["name"],
                 "client_id": client_id,
                 "client_type": result["client_type"],
+                "consents_revoked": consents_revoked,
             },
         )
 

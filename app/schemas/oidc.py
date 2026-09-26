@@ -157,6 +157,31 @@ class OIDCClientGroupAssignmentList(BaseModel):
     total: int
 
 
+class ConsentGrantResponse(BaseModel):
+    """A remembered consent grant, as seen by the user who gave it."""
+
+    id: str
+    client_id: str = Field(..., description="The application's public client_id")
+    client_name: str
+    client_description: str | None = None
+    client_is_active: bool
+    scopes: list[str]
+    granted_at: datetime
+    updated_at: datetime
+
+
+class ClientConsentGrantResponse(BaseModel):
+    """A remembered consent grant, as seen by an admin managing the client."""
+
+    id: str
+    user_id: str
+    user_email: str | None = None
+    user_name: str
+    scopes: list[str]
+    granted_at: datetime
+    updated_at: datetime
+
+
 class OIDCClientGroupAssignAdd(BaseModel):
     """Request to assign a group to an OIDC client."""
 

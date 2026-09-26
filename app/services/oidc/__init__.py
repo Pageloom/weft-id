@@ -14,6 +14,15 @@ from services.oidc.claims import (
     build_claims,
     parse_scope,
 )
+from services.oidc.consent import (
+    consent_covers,
+    get_granted_scopes,
+    list_client_grants,
+    list_my_grants,
+    record_consent,
+    revoke_client_grant,
+    revoke_my_grant,
+)
 from services.oidc.discovery import build_discovery_metadata
 from services.oidc.keys import (
     ActiveSigningKey,
@@ -48,4 +57,11 @@ __all__ = [
     "ID_TOKEN_EXPIRY",
     "build_discovery_metadata",
     "get_userinfo",
+    "consent_covers",
+    "get_granted_scopes",
+    "record_consent",
+    "list_my_grants",
+    "revoke_my_grant",
+    "list_client_grants",
+    "revoke_client_grant",
 ]

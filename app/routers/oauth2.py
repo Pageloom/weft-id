@@ -36,12 +36,6 @@ from utils.urls import tenant_base_url
 # Maximum age for authorization requests (10 minutes)
 AUTH_REQUEST_MAX_AGE_SECONDS = 600
 
-# Session key holding consent remembered for the life of the session:
-# ``{client_id: [granted scopes]}``. Lets ``prompt=none`` succeed without UI
-# after the user has allowed the same client and scopes once in this session.
-# Persisted, cross-session consent grants replace this in Iteration 3.
-SESSION_CONSENT_KEY = "oauth2_session_consents"
-
 # ``prompt`` values (OpenID Connect Core 1.0, section 3.1.2.1). Values that
 # demand a fresh authentication even when a session exists.
 REAUTH_PROMPT_VALUES = frozenset({"login", "select_account"})
@@ -281,9 +275,10 @@ def _handle_authorize_request(
        (``_reauthenticate``) unless ``prompt=none`` (``login_required``).
     4. Access control for OIDC-enabled clients (error page, or
        ``access_denied`` under ``prompt=none``).
-    5. Consent: ``prompt=none`` issues the code directly when this session
-       already consented to the client and scopes, else ``consent_required``.
-       Everything else renders the consent page.
+    5. Consent: a remembered grant covering every requested scope issues the
+       code directly (``prompt=none`` answers ``consent_required`` otherwise;
+       ``prompt=consent`` always shows the page). Everything else renders the
+       consent page, which marks the scopes already allowed.
     """
     # -- 1. Client and redirect_uri: error page, never a redirect -------------
     if not params.client_id:
@@ -454,14 +449,18 @@ def _handle_authorize_request(
 
     # -- 5. Consent -----------------------------------------------------------
     scopes = parse_scope(params.scope)
-    if prompt_none:
-        if not _session_consent_covers(request.session, client["client_id"], scopes):
-            return _error_redirect(
-                redirect_uri,
-                "consent_required",
-                "The user has not consented to this client and scope.",
-                state,
-            )
+    granted_scopes = oidc_service.get_granted_scopes(tenant_id, str(client["id"]), user["id"])
+    covered = granted_scopes is not None and scopes <= granted_scopes
+    if prompt_none and not covered:
+        return _error_redirect(
+            redirect_uri,
+            "consent_required",
+            "The user has not consented to this client and scope.",
+            state,
+        )
+    if covered and "consent" not in prompts:
+        # A remembered grant covers the request: no UI (OpenID Connect Core
+        # 3.1.2.1; ``prompt=consent`` is the RP's way to ask for the page).
         return _issue_code_redirect(
             request,
             tenant_id,
@@ -476,10 +475,15 @@ def _handle_authorize_request(
         )
 
     # Requested scopes to display on the consent page for OIDC requests, paired
-    # with a human-readable description. Unknown scopes fall back to their raw
-    # name so nothing requested is hidden from the user.
+    # with a human-readable description and whether the user already allowed
+    # them. Unknown scopes fall back to their raw name so nothing requested is
+    # hidden from the user.
     requested_scopes = [
-        {"name": s, "description": oidc_service.SCOPE_DESCRIPTIONS.get(s, s)}
+        {
+            "name": s,
+            "description": oidc_service.SCOPE_DESCRIPTIONS.get(s, s),
+            "granted": s in (granted_scopes or set()),
+        }
         for s in sorted(scopes)
     ]
 
@@ -631,26 +635,6 @@ def _reauthenticate(
         params, strip_reauth=True
     )
     return _login_redirect(user.get("email"))
-
-
-def _session_consent_covers(session: dict, client_id: str, scopes: set[str]) -> bool:
-    """True when this session already consented to ``client_id`` for every
-    requested scope (a request with no scope needs a bare grant)."""
-    consents = session.get(SESSION_CONSENT_KEY) or {}
-    granted = consents.get(client_id)
-    if not isinstance(granted, list):
-        return False
-    return scopes <= set(granted)
-
-
-def _remember_session_consent(session: dict, client_id: str, scopes: set[str]) -> None:
-    """Record (or widen) this session's consent for ``client_id``."""
-    consents = dict(session.get(SESSION_CONSENT_KEY) or {})
-    existing = consents.get(client_id)
-    granted = set(existing) if isinstance(existing, list) else set()
-    consents[client_id] = sorted(granted | scopes)
-    # Reassign the top-level key so SessionMiddleware saves the change.
-    session[SESSION_CONSENT_KEY] = consents
 
 
 def _issue_code_redirect(
@@ -809,7 +793,9 @@ def authorize_grant(
                 redirect_uri, "access_denied", "The user does not have access.", state
             )
 
-        _remember_session_consent(request.session, client["client_id"], parse_scope(scope))
+        # Remember the consent (create or widen the persisted grant) so the
+        # next request from this client is answered without the page.
+        oidc_service.record_consent(tenant_id, client, user["id"], parse_scope(scope))
 
         return _issue_code_redirect(
             request,

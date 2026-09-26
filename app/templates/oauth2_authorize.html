@@ -24,14 +24,23 @@
                 <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">This application is requesting:</p>
                 <ul class="border border-gray-200 dark:border-gray-700 rounded divide-y divide-gray-200 dark:divide-gray-700">
                     {% for scope in requested_scopes %}
-                    <li class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                        <span class="font-medium">{{ scope.description }}</span>
-                        <span class="text-gray-500 dark:text-gray-400">({{ scope.name }})</span>
+                    <li class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100 flex items-center justify-between gap-2">
+                        <span>
+                            <span class="font-medium">{{ scope.description }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">({{ scope.name }})</span>
+                        </span>
+                        {% if scope.granted %}
+                        <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 whitespace-nowrap">Already allowed</span>
+                        {% endif %}
                     </li>
                     {% endfor %}
                 </ul>
             </div>
             {% endif %}
+
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                If you allow, WeftID remembers your choice for this application. You can revoke it at any time under User Settings.
+            </p>
 
             <form method="post" action="/oauth2/authorize/decision">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

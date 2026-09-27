@@ -98,11 +98,15 @@ class TestDiscoveryDocument:
         assert body["response_modes_supported"] == ["query", "form_post"]
         assert body["claims_parameter_supported"] is False
 
+    def test_advertises_frontchannel_logout_with_session(self, client, test_tenant_host):
+        body = _discovery(client, test_tenant_host).json()
+        assert body["frontchannel_logout_supported"] is True
+        assert body["frontchannel_logout_session_supported"] is True
+
     def test_does_not_advertise_unimplemented_capabilities(self, client, test_tenant_host):
-        """Channel logout, introspection, revocation, device grant, DCR do not exist yet."""
+        """Back-channel logout, introspection, revocation, device grant, DCR do not exist yet."""
         body = _discovery(client, test_tenant_host).json()
         for absent in (
-            "frontchannel_logout_supported",
             "backchannel_logout_supported",
             "introspection_endpoint",
             "revocation_endpoint",

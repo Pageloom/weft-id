@@ -246,3 +246,148 @@ def test_other_tenant_client_is_unknown(test_tenant, test_user, rp_client):
         database.execute(
             database.UNSCOPED, "delete from tenants where id = :id", {"id": other["id"]}
         )
+
+
+# ---------------------------------------------------------------------------
+# end_oidc_session (Front-Channel Logout 1.0)
+# ---------------------------------------------------------------------------
+
+FC_URI = "https://rp.example/fc-logout"
+
+
+def _fc_client(test_tenant, test_admin_user, name, *, uri=FC_URI, session_required=True):
+    client = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        name=name,
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+        frontchannel_logout_uri=uri,
+        frontchannel_logout_session_required=session_required,
+    )
+    database.oauth2.update_client_oidc_settings(
+        test_tenant["id"], client["client_id"], oidc_enabled=True
+    )
+    return client
+
+
+def _end(test_tenant, sid, **kw):
+    return logout_service.end_oidc_session(
+        tenant_id=str(test_tenant["id"]), issuer=ISSUER, sid=sid, **kw
+    )
+
+
+class TestEndOidcSession:
+    def test_session_required_url_carries_iss_and_sid(
+        self, test_tenant, test_user, test_admin_user
+    ):
+        client = _fc_client(test_tenant, test_admin_user, "FC")
+        _hint(test_tenant, test_user, client, sid="s-1")
+
+        assert _end(test_tenant, "s-1") == [
+            "https://rp.example/fc-logout?iss=https%3A%2F%2Ftenant.example.com&sid=s-1"
+        ]
+
+    def test_url_without_session_required_is_sent_as_registered(
+        self, test_tenant, test_user, test_admin_user
+    ):
+        client = _fc_client(test_tenant, test_admin_user, "FC", session_required=False)
+        _hint(test_tenant, test_user, client, sid="s-1")
+
+        assert _end(test_tenant, "s-1") == [FC_URI]
+
+    def test_parameters_join_a_registered_query(self, test_tenant, test_user, test_admin_user):
+        client = _fc_client(test_tenant, test_admin_user, "FC", uri=f"{FC_URI}?app=1")
+        _hint(test_tenant, test_user, client, sid="s-1")
+
+        (url,) = _end(test_tenant, "s-1")
+        assert url.startswith(f"{FC_URI}?app=1&iss=") and url.endswith("&sid=s-1")
+
+    def test_records_are_consumed(self, test_tenant, test_user, test_admin_user):
+        """A session ends once: a second call finds nothing."""
+        client = _fc_client(test_tenant, test_admin_user, "FC")
+        _hint(test_tenant, test_user, client, sid="s-1")
+
+        assert len(_end(test_tenant, "s-1")) == 1
+        assert _end(test_tenant, "s-1") == []
+
+    def test_only_the_ending_session_is_touched(self, test_tenant, test_user, test_admin_user):
+        client = _fc_client(test_tenant, test_admin_user, "FC")
+        _hint(test_tenant, test_user, client, sid="s-1")
+        _hint(test_tenant, test_user, client, sid="s-2")
+
+        assert _end(test_tenant, "s-1") != []
+        assert _end(test_tenant, "s-2") != []
+
+    def test_several_clients_in_first_issued_order(self, test_tenant, test_user, test_admin_user):
+        first = _fc_client(test_tenant, test_admin_user, "First", uri="https://rp.example/a")
+        second = _fc_client(test_tenant, test_admin_user, "Second", uri="https://rp.example/b")
+        _hint(test_tenant, test_user, first, sid="s-1")
+        _hint(test_tenant, test_user, second, sid="s-1")
+
+        urls = _end(test_tenant, "s-1")
+        assert [u.split("?")[0] for u in urls] == ["https://rp.example/a", "https://rp.example/b"]
+
+    def test_identical_urls_are_loaded_once(self, test_tenant, test_user, test_admin_user):
+        first = _fc_client(test_tenant, test_admin_user, "First", session_required=False)
+        second = _fc_client(test_tenant, test_admin_user, "Second", session_required=False)
+        _hint(test_tenant, test_user, first, sid="s-1")
+        _hint(test_tenant, test_user, second, sid="s-1")
+
+        assert _end(test_tenant, "s-1") == [FC_URI]
+
+    def test_clients_that_are_not_notified(self, test_tenant, test_user, test_admin_user):
+        """No URI, deactivated, or OIDC switched off: record removed, no iframe."""
+        no_uri = _fc_client(test_tenant, test_admin_user, "No URI", uri=None)
+        inactive = _fc_client(test_tenant, test_admin_user, "Inactive")
+        database.oauth2.deactivate_client(test_tenant["id"], inactive["client_id"])
+        not_oidc = _fc_client(test_tenant, test_admin_user, "Not OIDC")
+        database.oauth2.update_client_oidc_settings(
+            test_tenant["id"], not_oidc["client_id"], oidc_enabled=False
+        )
+        for client in (no_uri, inactive, not_oidc):
+            _hint(test_tenant, test_user, client, sid="s-1")
+
+        assert _end(test_tenant, "s-1") == []
+        rows = database.fetchall(str(test_tenant["id"]), "select 1 from oidc_session_clients")
+        assert rows == []
+
+    def test_excluded_client_is_not_notified_but_forgotten(
+        self, test_tenant, test_user, test_admin_user
+    ):
+        asking = _fc_client(test_tenant, test_admin_user, "Asking", uri="https://rp.example/a")
+        other = _fc_client(test_tenant, test_admin_user, "Other", uri="https://rp.example/b")
+        _hint(test_tenant, test_user, asking, sid="s-1")
+        _hint(test_tenant, test_user, other, sid="s-1")
+
+        urls = _end(test_tenant, "s-1", exclude_client_uuid=str(asking["id"]))
+        assert [u.split("?")[0] for u in urls] == ["https://rp.example/b"]
+        assert _end(test_tenant, "s-1") == []
+
+    @pytest.mark.parametrize("sid", [None, ""])
+    def test_no_session_identifier(self, test_tenant, sid):
+        assert _end(test_tenant, sid) == []
+
+    def test_unknown_session(self, test_tenant):
+        assert _end(test_tenant, "never-issued") == []
+
+    def test_other_tenant_cannot_consume_the_session(self, test_tenant, test_user, test_admin_user):
+        import uuid
+
+        client = _fc_client(test_tenant, test_admin_user, "FC")
+        _hint(test_tenant, test_user, client, sid="s-1")
+        other = database.fetchone(
+            database.UNSCOPED,
+            "insert into tenants (subdomain, name) values (:s, 'Other') returning id",
+            {"s": f"other-{uuid.uuid4().hex[:8]}"},
+        )
+        try:
+            urls = logout_service.end_oidc_session(
+                tenant_id=str(other["id"]), issuer=ISSUER, sid="s-1"
+            )
+            assert urls == []
+        finally:
+            database.execute(
+                database.UNSCOPED, "delete from tenants where id = :id", {"id": other["id"]}
+            )
+        assert len(_end(test_tenant, "s-1")) == 1

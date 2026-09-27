@@ -200,15 +200,25 @@ def _code_and_id_token(page, cfg: dict) -> str:
 
 class TestOidcProviderRpInitiatedLogout:
     def test_verified_hint_signs_out_and_returns_to_the_rp(self, page, login, oidc_config):
-        """A valid id_token_hint ends the session with no page in between and
-        lands on the registered post_logout_redirect_uri with state; the ID
-        token carries the session's sid."""
+        """A valid id_token_hint ends the session without asking. The RP's
+        front-channel logout page loads in an iframe (with iss and sid), then
+        the browser lands on the registered post_logout_redirect_uri with
+        state; the ID token carries the session's sid."""
         cfg = oidc_config
         base_url = cfg["base_url"]
         login(base_url, cfg["user_email"])
 
         id_token = _code_and_id_token(page, cfg)
-        assert jwt.decode(id_token, options={"verify_signature": False})["sid"]
+        sid = jwt.decode(id_token, options={"verify_signature": False})["sid"]
+        assert sid
+
+        frontchannel_hits: list[str] = []
+
+        def _rp_logout_page(route):
+            frontchannel_hits.append(route.request.url)
+            route.fulfill(status=200, body="", headers={"Cache-Control": "no-store"})
+
+        page.route(f"{cfg['frontchannel_logout_uri']}*", _rp_logout_page)
 
         query = urlencode(
             {
@@ -220,6 +230,10 @@ class TestOidcProviderRpInitiatedLogout:
         page.goto(f"{base_url}/oauth2/logout?{query}")
         page.wait_for_url(f"{cfg['post_logout_redirect_uri']}?*", timeout=10000)
         assert parse_qs(urlparse(page.url).query) == {"state": ["bye-42"]}
+
+        # The front-channel iframe loaded before the browser moved on.
+        (hit,) = frontchannel_hits
+        assert parse_qs(urlparse(hit).query) == {"iss": [base_url], "sid": [sid]}
 
         # The WeftID session is gone.
         page.goto(f"{base_url}/dashboard")

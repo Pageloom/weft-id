@@ -6,7 +6,8 @@ Provisions everything the OIDC provider E2E test needs:
   * a WeftID tenant (``e2e-oidc.weftid.localhost``),
   * a member user (the relying party's end user),
   * a normal OAuth2 client with ``oidc_enabled`` and ``available_to_all`` set,
-    registered with a redirect URI on the tenant host.
+    registered with a redirect URI, a post-logout redirect URI, and a
+    front-channel logout URI (with ``iss``/``sid``) on the tenant host.
 
 The E2E test drives a real browser through /oauth2/authorize (session-cookie
 boundary), exchanges the code at /oauth2/token, and calls /userinfo (bearer
@@ -44,6 +45,9 @@ CLIENT_NAME = "OIDC E2E Relying Party"
 CALLBACK_PATH = "/dev/oidc-rp-callback"
 # Same idea for the RP's post-logout landing page (RP-initiated logout).
 POST_LOGOUT_PATH = "/dev/oidc-rp-logged-out"
+# The RP's front-channel logout page. The E2E test intercepts the iframe
+# request in the browser, so nothing has to serve it.
+FRONTCHANNEL_LOGOUT_PATH = "/dev/oidc-rp-frontchannel-logout"
 
 
 def _tenant_id(subdomain: str) -> str:
@@ -80,6 +84,7 @@ def setup() -> dict:
     base_url = f"https://{SUBDOMAIN}.{BASE_DOMAIN}"
     redirect_uri = f"{base_url}{CALLBACK_PATH}"
     post_logout_redirect_uri = f"{base_url}{POST_LOGOUT_PATH}"
+    frontchannel_logout_uri = f"{base_url}{FRONTCHANNEL_LOGOUT_PATH}"
 
     # Recreate the client on every run: the plaintext secret is only returned
     # at creation, and the test needs it for the token exchange.
@@ -95,6 +100,8 @@ def setup() -> dict:
         redirect_uris=[redirect_uri],
         created_by=str(uid),
         post_logout_redirect_uris=[post_logout_redirect_uri],
+        frontchannel_logout_uri=frontchannel_logout_uri,
+        frontchannel_logout_session_required=True,
     )
     assert client is not None, "client not created"
 
@@ -117,6 +124,7 @@ def setup() -> dict:
         "client_secret": client["client_secret"],
         "redirect_uri": redirect_uri,
         "post_logout_redirect_uri": post_logout_redirect_uri,
+        "frontchannel_logout_uri": frontchannel_logout_uri,
     }
 
 

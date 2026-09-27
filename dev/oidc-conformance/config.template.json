@@ -71,7 +71,7 @@
             ]
         },
         {
-            "comment": "End-session path (RP-Initiated OP plan). A verified id_token_hint signs the user out at once and returns to the suite's post_logout_redirect. The modules without one see the confirmation page, click Sign out, and the signed-out page fulfils their screenshot placeholder. The first task also matches the signed-out page, where its optional click finds nothing and is skipped.",
+            "comment": "End-session path (RP-Initiated OP plan). A verified id_token_hint signs the user out at once and returns to the suite's post_logout_redirect. The modules without one see the confirmation page, click Sign out, and the signed-out page fulfils their screenshot placeholder. The first task also matches the signed-out page, where its optional click finds nothing and is skipped. With front-channel logout (client4 only), an intermediate page loads the logout iframe and continues by itself (meta refresh), so none of these tasks acts on it.",
             "match": "{WEFTID_ISSUER}/oauth2/logout*",
             "tasks": [
                 {
@@ -99,6 +99,12 @@
         }
     ],
     "override": {
+        "oidcc-frontchannel-rp-initiated-logout": {
+            "client": {
+                "client_id": "{CLIENT4_ID}",
+                "client_secret": "{CLIENT4_SECRET}"
+            }
+        },
         "oidcc-prompt-login": {
             "browser": [
                 {

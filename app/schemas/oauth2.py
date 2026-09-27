@@ -28,6 +28,22 @@ class NormalClientCreate(BaseModel):
             "(absolute http/https, no fragment). Optional."
         ),
     )
+    frontchannel_logout_uri: str | None = Field(
+        None,
+        max_length=2048,
+        description=(
+            "OpenID Connect Front-Channel Logout: URL WeftID loads in an iframe when "
+            "the user's session ends (absolute http/https, no fragment, same scheme, "
+            "host and port as a redirect URI). Optional."
+        ),
+    )
+    frontchannel_logout_session_required: bool = Field(
+        True,
+        description=(
+            "Whether the front-channel logout URL receives the iss and sid parameters "
+            "(default true)."
+        ),
+    )
 
 
 class B2BClientCreate(BaseModel):
@@ -62,6 +78,19 @@ class ClientUpdate(BaseModel):
             "list clears them."
         ),
     )
+    frontchannel_logout_uri: str | None = Field(
+        None,
+        max_length=2048,
+        description=(
+            "Front-channel logout URL (normal clients only; absolute http/https, no "
+            "fragment, same scheme, host and port as a redirect URI). An empty string "
+            "clears it."
+        ),
+    )
+    frontchannel_logout_session_required: bool | None = Field(
+        None,
+        description="Whether the front-channel logout URL receives iss and sid (normal clients).",
+    )
 
 
 class ClientRoleUpdate(BaseModel):
@@ -87,6 +116,8 @@ class ClientResponse(BaseModel):
     description: str | None = None
     redirect_uris: list[str] | None
     post_logout_redirect_uris: list[str] = Field(default_factory=list)
+    frontchannel_logout_uri: str | None = None
+    frontchannel_logout_session_required: bool = True
     service_user_id: str | None
     is_active: bool = True
     oidc_enabled: bool = False

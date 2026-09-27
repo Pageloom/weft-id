@@ -26,6 +26,7 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from middleware.csrf import make_csrf_token_func
+from routers.auth.logout import end_oidc_session_quietly, frontchannel_logout_response
 from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
 from services.event_log import log_event
@@ -657,12 +658,20 @@ def _max_age_exceeded(session: dict, max_age: int) -> bool:
     return (time.time() - session_start) > max_age
 
 
+def _login_path(login_hint: str | None) -> str:
+    """The same-origin login path ``_login_redirect`` sends the user to."""
+    if login_hint and login_hint.strip():
+        return "/login?" + urlencode({"prefill_email": login_hint.strip()})
+    return "/login"
+
+
 def _login_redirect(login_hint: str | None) -> RedirectResponse:
     """Send the user to the login page, pre-filling the email step from
     ``login_hint`` when the RP supplied one. The hint is only ever a form
     prefill; routing decisions are made from what the user submits."""
-    if login_hint and login_hint.strip():
-        return safe_redirect("/login?" + urlencode({"prefill_email": login_hint.strip()}))
+    path = _login_path(login_hint)
+    if path != "/login":
+        return safe_redirect(path)
     return RedirectResponse(url="/login", status_code=303)
 
 
@@ -673,7 +682,7 @@ def _reauthenticate(
     client: dict,
     params: AuthorizeParams,
     reason: str,
-) -> RedirectResponse:
+) -> Response:
     """Force a fresh local login for an authenticated user.
 
     The current session is terminated (audited as ``user_signed_out`` with
@@ -681,7 +690,15 @@ def _reauthenticate(
     demands stripped, so the request resumed after login does not demand yet
     another login. The full local flow (password, then MFA per tenant policy)
     applies; forced re-authentication is not propagated to upstream IdPs.
+
+    Other relying parties that received ID tokens in the ended session are
+    told by front channel (an intermediate page loads their logout iframes on
+    the way to the login page). The requesting client is not: it is mid-login
+    and its logout page would clear the state it keeps for this request.
     """
+    frontchannel_logout_urls = end_oidc_session_quietly(
+        request, tenant_id, exclude_client_uuid=str(client["id"])
+    )
     log_event(
         tenant_id=tenant_id,
         actor_user_id=str(user["id"]),
@@ -692,6 +709,7 @@ def _reauthenticate(
             "reason": "reauthentication",
             "trigger": reason,
             "client_id": client["client_id"],
+            "frontchannel_logout_count": len(frontchannel_logout_urls),
         },
         request_metadata=extract_request_metadata(request),
     )
@@ -699,6 +717,10 @@ def _reauthenticate(
     request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = _pending_authorize_path(
         params, strip_reauth=True
     )
+    if frontchannel_logout_urls:
+        return frontchannel_logout_response(
+            request, frontchannel_logout_urls, _login_path(user.get("email"))
+        )
     return _login_redirect(user.get("email"))
 
 

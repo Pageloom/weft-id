@@ -106,6 +106,20 @@ class OIDCProviderMetadata(BaseModel):
             "claims are released by scope only."
         ),
     )
+    frontchannel_logout_supported: bool = Field(
+        True,
+        description=(
+            "OpenID Connect Front-Channel Logout 1.0: ending a WeftID session loads "
+            "each relying party's registered frontchannel_logout_uri in an iframe."
+        ),
+    )
+    frontchannel_logout_session_supported: bool = Field(
+        True,
+        description=(
+            "Whether the front-channel logout request can carry `iss` and `sid` "
+            "(for clients that require them), and ID tokens carry the `sid` claim."
+        ),
+    )
 
 
 # ============================================================================

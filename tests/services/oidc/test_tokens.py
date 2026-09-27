@@ -80,14 +80,14 @@ class TestIssueIdToken:
         decoded = jwt.decode(token, options={"verify_signature": False})
         assert set(decoded) == {"iss", "sub", "aud", "iat", "exp", "auth_time", "nonce"}
 
-    def test_sid_carried_only_when_supplied(self, test_tenant, test_user):
+    def test_sid_carried_only_when_supplied(self, test_tenant, test_user, normal_oauth2_client):
         """``sid`` names the WeftID session (Front/Back-Channel Logout 1.0);
         codes issued before the identifier existed mint tokens without it."""
         common = {
             "tenant_id": str(test_tenant["id"]),
             "issuer": "https://t.example.com",
-            "client_uuid": str(test_user["id"]),
-            "client_id": "cid",
+            "client_uuid": str(normal_oauth2_client["id"]),
+            "client_id": normal_oauth2_client["client_id"],
             "user_id": str(test_user["id"]),
             "scopes": {"openid"},
         }
@@ -96,6 +96,30 @@ class TestIssueIdToken:
 
         without_sid = tokens_service.issue_id_token(**common)
         assert "sid" not in jwt.decode(without_sid, options={"verify_signature": False})
+
+    def test_issuance_with_sid_is_recorded_against_the_session(
+        self, test_tenant, test_user, normal_oauth2_client
+    ):
+        """Front-channel logout finds the client through the session's record."""
+        import database
+
+        tid = str(test_tenant["id"])
+        common = {
+            "tenant_id": tid,
+            "issuer": "https://t.example.com",
+            "client_uuid": str(normal_oauth2_client["id"]),
+            "client_id": normal_oauth2_client["client_id"],
+            "user_id": str(test_user["id"]),
+            "scopes": {"openid"},
+        }
+        tokens_service.issue_id_token(**common, sid="sess-rec")
+        tokens_service.issue_id_token(**common, sid="sess-rec")  # repeat: one row
+        tokens_service.issue_id_token(**common)  # no sid: nothing recorded
+
+        rows = database.fetchall(tid, "select sid, client_id, user_id from oidc_session_clients")
+        assert [(r["sid"], str(r["client_id"]), str(r["user_id"])) for r in rows] == [
+            ("sess-rec", str(normal_oauth2_client["id"]), str(test_user["id"]))
+        ]
 
     def test_nonce_echoed_only_when_supplied(self, test_tenant, test_user):
         with_nonce = tokens_service.issue_id_token(

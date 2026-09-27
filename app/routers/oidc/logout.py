@@ -13,9 +13,12 @@ A relying party sends the browser here to end the user's WeftID session:
 
 Pages are server-rendered and work without JavaScript. Ending a session goes
 through ``routers.auth.logout.terminate_session``, the same path as the
-logout button (audit event, downstream SAML SP propagation). Upstream SAML
-Single Logout is not started from here: it is a browser round trip through
-the IdP that would lose the RP's return address.
+logout button (audit event, downstream SAML SP propagation). When relying
+parties registered front-channel logout, an intermediate page loads their
+iframes before the browser continues to its destination (OpenID Connect
+Front-Channel Logout 1.0). Upstream SAML Single Logout is not started from
+here: it is a browser round trip through the IdP that would lose the RP's
+return address.
 """
 
 import logging
@@ -26,7 +29,7 @@ from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from middleware.csrf import make_csrf_token_func
-from routers.auth.logout import terminate_session
+from routers.auth.logout import frontchannel_logout_response, terminate_session
 from services import oidc as oidc_service
 from services.oidc.logout import EndSessionRequest
 from utils.csp_nonce import get_csp_nonce
@@ -115,9 +118,13 @@ def end_session_confirm(
     when the RP's redirect target could not be verified.
     """
     if user:
-        terminate_session(
+        terminated = terminate_session(
             request, tenant_id, metadata=_audit_metadata(EndSessionRequest(), confirmed=True)
         )
+        if terminated.frontchannel_logout_urls:
+            return frontchannel_logout_response(
+                request, terminated.frontchannel_logout_urls, SIGNED_OUT_PATH
+            )
     return RedirectResponse(url="/oauth2/logout/done", status_code=303)
 
 
@@ -162,21 +169,27 @@ def _handle_end_session(
     )
 
     if verified_for_session:
+        frontchannel_logout_urls: list[str] = []
         if user:
-            terminate_session(
+            terminated = terminate_session(
                 request,
                 tenant_id,
                 metadata=_audit_metadata(resolved, confirmed=False),
             )
+            frontchannel_logout_urls = terminated.frontchannel_logout_urls
         if resolved.post_logout_redirect_uri:
             target = resolved.post_logout_redirect_uri
             if state:
                 separator = "&" if "?" in target else "?"
                 target = f"{target}{separator}{urlencode({'state': state})}"
+            if frontchannel_logout_urls:
+                return frontchannel_logout_response(request, frontchannel_logout_urls, target)
             # Exact match against the client's registered post-logout redirect URIs,
             # backed by a verified id_token_hint for that client.
             # redirect-ok: registered post_logout_redirect_uri, verified id_token_hint
             return RedirectResponse(url=target, status_code=303)
+        if frontchannel_logout_urls:
+            return frontchannel_logout_response(request, frontchannel_logout_urls, SIGNED_OUT_PATH)
         return RedirectResponse(url="/oauth2/logout/done", status_code=303)
 
     if user is None:

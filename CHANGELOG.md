@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **OpenID Foundation conformance.** WeftID's OpenID Provider passes the
   OpenID Foundation conformance suite (release 5.2.4) for the Basic OP,
-  Config OP, Form Post OP, and RP-Initiated OP profiles, with no failures. The accepted
+  Config OP, Form Post OP, RP-Initiated OP, and Front-Channel OP profiles,
+  with no failures. The accepted
   warnings (no `acr` claim, no `claims` request parameter, a partial
   `profile` claim set) and expected skips are listed with their reasons on
   the new [OpenID Connect Conformance](docs/conformance/oidc.md) docs page,
@@ -28,6 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   URIs** on their edit form or as `post_logout_redirect_uris` on
   `/api/v1/oauth2/clients`. Audited as `user_signed_out` with reason
   `rp_initiated_logout`. Migration 0063.
+- **Front-channel logout (OIDC).** Apps can register a **Front-channel
+  logout URI** (edit form, or `frontchannel_logout_uri` on
+  `/api/v1/oauth2/clients`). When a WeftID session ends (sign-out button,
+  end session endpoint, or a forced re-authentication), a short "Signing you
+  out" page loads that URI in a hidden frame for every app that received an
+  ID token in the session, then continues. The request carries `iss` and
+  `sid` unless the app turns off **Send the issuer and session ID**
+  (`frontchannel_logout_session_required`, on by default). The URI must share a redirect URI's scheme, host and port. Discovery
+  advertises `frontchannel_logout_supported` and
+  `frontchannel_logout_session_supported`. The `user_signed_out` audit event
+  records `frontchannel_logout_count`. Migration 0064.
 - **`sid` claim.** ID tokens now carry `sid`, an opaque identifier of the
   WeftID session the user signed in with, renewed at every sign-in.
 - **Remembered consent.** WeftID now remembers a user's **Allow** on the

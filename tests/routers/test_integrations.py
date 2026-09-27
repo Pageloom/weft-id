@@ -4,6 +4,7 @@ The module is still named integrations.py for historical reasons -- see its
 docstring and .claude/ITERATION_nav_restructure.md.
 """
 
+import re
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -1805,3 +1806,106 @@ def test_app_detail_renders_post_logout_uris_and_end_session_url(
     assert 'name="post_logout_redirect_uris"' in response.text
     assert "https://rp.example/bye</textarea>" in response.text
     assert "/oauth2/logout</code>" in response.text
+
+
+# =============================================================================
+# Front-channel logout (real database)
+# =============================================================================
+
+
+def test_app_edit_saves_frontchannel_logout(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(
+            normal_oauth2_client,
+            frontchannel_logout_uri="  http://localhost:3000/fc  ",
+            frontchannel_logout_session_required="true",
+        ),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=updated" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["frontchannel_logout_uri"] == "http://localhost:3000/fc"
+    assert saved["frontchannel_logout_session_required"] is True
+
+
+def test_app_edit_unchecked_box_and_blank_uri_clear_frontchannel_logout(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        frontchannel_logout_uri="http://localhost:3000/fc",
+        frontchannel_logout_session_required=True,
+    )
+    override_auth(test_admin_user, level="admin")
+    TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(normal_oauth2_client),
+        follow_redirects=False,
+    )
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["frontchannel_logout_uri"] is None
+    assert saved["frontchannel_logout_session_required"] is False
+
+
+def test_app_edit_cross_origin_frontchannel_uri_shows_error(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(normal_oauth2_client, frontchannel_logout_uri="https://evil.example/fc"),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=invalid_frontchannel_logout_uri" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["frontchannel_logout_uri"] is None
+
+
+def test_app_detail_renders_frontchannel_logout_settings(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        frontchannel_logout_uri="http://localhost:3000/fc",
+        frontchannel_logout_session_required=True,
+    )
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
+    assert response.status_code == 200
+    assert 'value="http://localhost:3000/fc"' in response.text
+    assert re.search(r'id="frontchannel_logout_session_required"[^>]*\s+checked', response.text), (
+        "session-required box should be checked"
+    )
+
+
+def test_app_detail_error_banner_for_frontchannel_uri(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}"
+        "?error=invalid_frontchannel_logout_uri"
+    )
+    assert "same scheme, host and port as one of the redirect URIs" in response.text

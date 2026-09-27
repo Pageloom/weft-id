@@ -6,6 +6,8 @@ operations for the database/oauth2.py module.
 
 import database
 import oauth2
+import psycopg
+import pytest
 
 # =============================================================================
 # Client Operations Tests
@@ -1423,9 +1425,6 @@ def test_update_without_post_logout_field_keeps_it(test_tenant, normal_oauth2_cl
 
 
 def test_post_logout_redirect_uris_are_bounded(test_tenant, normal_oauth2_client):
-    import psycopg
-    import pytest
-
     with pytest.raises(psycopg.errors.CheckViolation):
         database.oauth2.update_client(
             test_tenant["id"],
@@ -1437,3 +1436,108 @@ def test_post_logout_redirect_uris_are_bounded(test_tenant, normal_oauth2_client
 def test_client_listing_includes_post_logout_redirect_uris(test_tenant, normal_oauth2_client):
     rows = database.oauth2.get_all_clients(test_tenant["id"], client_type="normal")
     assert all("post_logout_redirect_uris" in row for row in rows)
+
+
+# ============================================================================
+# Front-channel logout: client columns and session-to-client records
+# ============================================================================
+
+
+def test_new_client_frontchannel_logout_defaults(test_tenant, normal_oauth2_client):
+    assert normal_oauth2_client["frontchannel_logout_uri"] is None
+    # iss/sid on by default (the spec's default is false; see migration 0064).
+    assert normal_oauth2_client["frontchannel_logout_session_required"] is True
+
+
+def test_create_client_with_frontchannel_logout(test_tenant, test_admin_user):
+    client = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        name="FC",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+        frontchannel_logout_uri="https://rp.example/fc",
+        frontchannel_logout_session_required=True,
+    )
+    for row in (
+        client,
+        database.oauth2.get_client_by_client_id(test_tenant["id"], client["client_id"]),
+        database.oauth2.get_client_by_id(test_tenant["id"], client["id"]),
+    ):
+        assert row["frontchannel_logout_uri"] == "https://rp.example/fc"
+        assert row["frontchannel_logout_session_required"] is True
+
+
+def test_update_sets_keeps_and_clears_frontchannel_logout(test_tenant, normal_oauth2_client):
+    tid, cid = test_tenant["id"], normal_oauth2_client["client_id"]
+    updated = database.oauth2.update_client(
+        tid,
+        cid,
+        frontchannel_logout_uri="http://localhost:3000/fc",
+        frontchannel_logout_session_required=True,
+    )
+    assert updated["frontchannel_logout_uri"] == "http://localhost:3000/fc"
+    assert updated["frontchannel_logout_session_required"] is True
+
+    kept = database.oauth2.update_client(tid, cid, name="Renamed")
+    assert kept["frontchannel_logout_uri"] == "http://localhost:3000/fc"
+    assert kept["frontchannel_logout_session_required"] is True
+
+    cleared = database.oauth2.update_client(
+        tid, cid, frontchannel_logout_uri="", frontchannel_logout_session_required=False
+    )
+    assert cleared["frontchannel_logout_uri"] is None
+    assert cleared["frontchannel_logout_session_required"] is False
+
+
+def test_client_listing_includes_frontchannel_logout(test_tenant, normal_oauth2_client):
+    for client_type in (None, "normal"):
+        rows = database.oauth2.get_all_clients(test_tenant["id"], client_type=client_type)
+        assert all("frontchannel_logout_uri" in row for row in rows)
+
+
+def test_session_client_upsert_and_delete(test_tenant, normal_oauth2_client, test_user):
+    tid = test_tenant["id"]
+    for _ in range(2):
+        database.oauth2.upsert_session_client(
+            tid, tid, sid="s-1", client_id=normal_oauth2_client["id"], user_id=test_user["id"]
+        )
+    database.oauth2.upsert_session_client(
+        tid, tid, sid="s-2", client_id=normal_oauth2_client["id"], user_id=test_user["id"]
+    )
+
+    (row,) = database.oauth2.delete_session_clients(tid, "s-1")
+    assert str(row["id"]) == str(normal_oauth2_client["id"])
+    assert row["client_id"] == normal_oauth2_client["client_id"]
+    assert str(row["user_id"]) == str(test_user["id"])
+    assert {"frontchannel_logout_uri", "frontchannel_logout_session_required"} <= set(row)
+
+    assert database.oauth2.delete_session_clients(tid, "s-1") == []
+    assert len(database.oauth2.delete_session_clients(tid, "s-2")) == 1
+
+
+def test_session_clients_cascade_with_the_client(test_tenant, normal_oauth2_client, test_user):
+    tid = test_tenant["id"]
+    database.oauth2.upsert_session_client(
+        tid, tid, sid="s-1", client_id=normal_oauth2_client["id"], user_id=test_user["id"]
+    )
+    database.oauth2.delete_client(tid, normal_oauth2_client["client_id"])
+    assert database.oauth2.delete_session_clients(tid, "s-1") == []
+
+
+def test_session_clients_are_tenant_isolated(test_tenant, normal_oauth2_client, test_user):
+    """Strict RLS: an UNSCOPED read sees nothing and an UNSCOPED write fails."""
+    tid = test_tenant["id"]
+    database.oauth2.upsert_session_client(
+        tid, tid, sid="s-1", client_id=normal_oauth2_client["id"], user_id=test_user["id"]
+    )
+    assert database.fetchall(database.UNSCOPED, "select * from oidc_session_clients") == []
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        database.oauth2.upsert_session_client(
+            database.UNSCOPED,
+            tid,
+            sid="s-2",
+            client_id=normal_oauth2_client["id"],
+            user_id=test_user["id"],
+        )
+    assert len(database.oauth2.delete_session_clients(tid, "s-1")) == 1

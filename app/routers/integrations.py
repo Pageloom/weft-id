@@ -291,6 +291,8 @@ def app_edit(
     redirect_uris: str = Form("", max_length=20000),
     description: str = Form("", max_length=2000),
     post_logout_redirect_uris: str = Form("", max_length=20000),
+    frontchannel_logout_uri: str = Form("", max_length=2048),
+    frontchannel_logout_session_required: str = Form("", max_length=10),
 ):
     """Update a normal OAuth2 client (App)."""
     if not has_page_access("/applications/oauth", user.get("role")):
@@ -320,6 +322,8 @@ def app_edit(
             description=description.strip() or None,
             redirect_uris=uri_list,
             post_logout_redirect_uris=post_logout_redirect_uris.splitlines(),
+            frontchannel_logout_uri=frontchannel_logout_uri.strip(),
+            frontchannel_logout_session_required=frontchannel_logout_session_required == "true",
         )
 
         if not client:
@@ -329,6 +333,8 @@ def app_edit(
     except ServiceError as exc:
         if exc.code == "invalid_post_logout_redirect_uri":
             return safe_redirect(f"{redirect_url}?error=invalid_post_logout_redirect_uri")
+        if exc.code == "invalid_frontchannel_logout_uri":
+            return safe_redirect(f"{redirect_url}?error=invalid_frontchannel_logout_uri")
         logger.warning("Failed to update OAuth2 app: %s", exc)
         return safe_redirect(f"{redirect_url}?error=update_failed")
 

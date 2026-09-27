@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Signing Out - {{ site_title }}{% endblock %}
+
+{% block extra_head %}
+{# A declarative refresh comes due only once the document has completely
+   loaded, which includes every iframe below, so the relying parties see
+   their logout requests before the browser moves on. #}
+<meta http-equiv="refresh" content="0; url={{ continue_url }}">
+{% endblock %}
+
+{% block content %}
+<div class="flex justify-center">
+    <div class="w-full max-w-md">
+        <div id="logout-frontchannel" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 text-center">
+            <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Signing you out</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">Signing you out of connected applications. This takes a moment.</p>
+            <a id="logout-frontchannel-continue" href="{{ continue_url }}" class="text-blue-600 dark:text-blue-400 hover:underline">Continue</a>
+        </div>
+    </div>
+</div>
+{% for url in frontchannel_logout_urls %}
+<iframe src="{{ url }}" class="hidden" width="0" height="0" title="Application sign-out" aria-hidden="true" tabindex="-1"></iframe>
+{% endfor %}
+<script type="application/json" id="page-data">{{ {"continue_url": continue_url} | tojson }}</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script nonce="{{ csp_nonce }}">
+    // Backstop for an application whose logout page never finishes loading
+    // (the refresh above waits for every iframe).
+    (() => {
+        const data = JSON.parse(document.getElementById('page-data').textContent);
+        setTimeout(() => { window.location.replace(data.continue_url); }, 5000);
+    })();
+</script>
+{% endblock %}

@@ -35,7 +35,11 @@ from services.oidc.keys import (
     list_signing_keys_needing_cleanup,
     rotate_signing_key,
 )
-from services.oidc.logout import EndSessionRequest, resolve_end_session_request
+from services.oidc.logout import (
+    EndSessionRequest,
+    end_oidc_session,
+    resolve_end_session_request,
+)
 from services.oidc.tokens import ID_TOKEN_EXPIRY, issue_id_token, verify_id_token_hint
 from services.oidc.userinfo import get_userinfo
 
@@ -57,6 +61,7 @@ __all__ = [
     "verify_id_token_hint",
     "EndSessionRequest",
     "resolve_end_session_request",
+    "end_oidc_session",
     "ID_TOKEN_EXPIRY",
     "build_discovery_metadata",
     "get_userinfo",

@@ -1496,7 +1496,13 @@ def test_client_listing_includes_frontchannel_logout(test_tenant, normal_oauth2_
         assert all("frontchannel_logout_uri" in row for row in rows)
 
 
-def test_session_client_upsert_and_delete(test_tenant, normal_oauth2_client, test_user):
+def _consume_session(tid, sid, **kw):
+    return database.oauth2.consume_session_clients(
+        tid, tid, sid, issuer="https://tenant.example.com", **kw
+    )
+
+
+def test_session_client_upsert_and_consume(test_tenant, normal_oauth2_client, test_user):
     tid = test_tenant["id"]
     for _ in range(2):
         database.oauth2.upsert_session_client(
@@ -1506,14 +1512,20 @@ def test_session_client_upsert_and_delete(test_tenant, normal_oauth2_client, tes
         tid, tid, sid="s-2", client_id=normal_oauth2_client["id"], user_id=test_user["id"]
     )
 
-    (row,) = database.oauth2.delete_session_clients(tid, "s-1")
+    (row,) = _consume_session(tid, "s-1")
     assert str(row["id"]) == str(normal_oauth2_client["id"])
     assert row["client_id"] == normal_oauth2_client["client_id"]
     assert str(row["user_id"]) == str(test_user["id"])
-    assert {"frontchannel_logout_uri", "frontchannel_logout_session_required"} <= set(row)
+    assert {
+        "frontchannel_logout_uri",
+        "frontchannel_logout_session_required",
+        "backchannel_logout_uri",
+        "backchannel_queued",
+    } <= set(row)
+    assert row["backchannel_queued"] is False
 
-    assert database.oauth2.delete_session_clients(tid, "s-1") == []
-    assert len(database.oauth2.delete_session_clients(tid, "s-2")) == 1
+    assert _consume_session(tid, "s-1") == []
+    assert len(_consume_session(tid, "s-2")) == 1
 
 
 def test_session_clients_cascade_with_the_client(test_tenant, normal_oauth2_client, test_user):
@@ -1522,7 +1534,7 @@ def test_session_clients_cascade_with_the_client(test_tenant, normal_oauth2_clie
         tid, tid, sid="s-1", client_id=normal_oauth2_client["id"], user_id=test_user["id"]
     )
     database.oauth2.delete_client(tid, normal_oauth2_client["client_id"])
-    assert database.oauth2.delete_session_clients(tid, "s-1") == []
+    assert _consume_session(tid, "s-1") == []
 
 
 def test_session_clients_are_tenant_isolated(test_tenant, normal_oauth2_client, test_user):
@@ -1540,4 +1552,4 @@ def test_session_clients_are_tenant_isolated(test_tenant, normal_oauth2_client, 
             client_id=normal_oauth2_client["id"],
             user_id=test_user["id"],
         )
-    assert len(database.oauth2.delete_session_clients(tid, "s-1")) == 1
+    assert len(_consume_session(tid, "s-1")) == 1

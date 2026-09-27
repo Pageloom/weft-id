@@ -16,6 +16,9 @@ WeftID as an OpenID Provider with static client registration:
     front-channel logout module (a config override). The other three must
     not have one: any module that ends a session would then load the logout
     iframe, and a suite module that does not expect the request fails.
+  * a fifth client, registered with the suite's ``backchannel_logout`` URL
+    (session required), used only by the back-channel logout module, for
+    the same reason.
 
 The host-side runner (``dev/oidc_conformance.py``) calls this inside the app
 container with ``--json-output`` and renders the suite's plan config from the
@@ -67,6 +70,10 @@ CLIENTS = (
 # oidcc-frontchannel-rp-initiated-logout override).
 FRONTCHANNEL_CLIENT = ("client4", "Conformance client 4 (front-channel logout)")
 
+# The back-channel logout client (the ``client`` section of the
+# oidcc-backchannel-rp-initiated-logout override).
+BACKCHANNEL_CLIENT = ("client5", "Conformance client 5 (back-channel logout)")
+
 
 def _tenant_id(subdomain: str) -> str:
     row = database.fetchone(
@@ -86,6 +93,7 @@ def _recreate_client(
     post_logout_redirect_uri: str,
     created_by: str,
     frontchannel_logout_uri: str | None = None,
+    backchannel_logout_uri: str | None = None,
 ) -> dict:
     """Delete any client with this name and create a fresh OIDC-enabled one."""
     for existing in database.oauth2.get_all_clients(tid, client_type="normal"):
@@ -102,6 +110,8 @@ def _recreate_client(
         post_logout_redirect_uris=[post_logout_redirect_uri],
         frontchannel_logout_uri=frontchannel_logout_uri,
         frontchannel_logout_session_required=frontchannel_logout_uri is not None,
+        backchannel_logout_uri=backchannel_logout_uri,
+        backchannel_logout_session_required=backchannel_logout_uri is not None,
     )
     assert client is not None, f"client '{name}' not created"
 
@@ -160,6 +170,17 @@ def setup(suite_base_url: str, alias: str) -> dict:
         created_by=str(uid),
         frontchannel_logout_uri=frontchannel_logout_uri,
     )
+    # And for the back-channel logout plan: /backchannel_logout.
+    backchannel_logout_uri = f"{test_base}/backchannel_logout"
+    key, name = BACKCHANNEL_CLIENT
+    clients[key] = _recreate_client(
+        tid,
+        name,
+        redirect_uri,
+        post_logout_redirect_uri,
+        created_by=str(uid),
+        backchannel_logout_uri=backchannel_logout_uri,
+    )
 
     return {
         "tenant_id": tid,
@@ -170,6 +191,7 @@ def setup(suite_base_url: str, alias: str) -> dict:
         "redirect_uri": redirect_uri,
         "post_logout_redirect_uri": post_logout_redirect_uri,
         "frontchannel_logout_uri": frontchannel_logout_uri,
+        "backchannel_logout_uri": backchannel_logout_uri,
         "alias": alias,
         **clients,
     }

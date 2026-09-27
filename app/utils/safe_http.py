@@ -22,11 +22,14 @@ request:
 Redirect following is disabled: a 3xx to a private IP would otherwise be
 followed without re-validation.
 
-Two dev-only escape hatches keep local development working; both are inert
+Three dev-only escape hatches keep local development working; all are inert
 in production (`IS_DEV` is false):
 
 - `dev_hostname_allowlist`: hostnames that resolve to private docker-bridge
   addresses and are intentionally permitted (e.g. the SCIM testbed).
+- `dev_skip_tls_verify`: turn TLS verification off, for allowlisted dev
+  services with self-signed certificates (the OIDC conformance suite, which
+  receives back-channel logout tokens).
 - `dev_base_domain_rewrite`: when the target is a `*.BASE_DOMAIN` host,
   rewrite the connection to the `reverse-proxy` container (Host header
   preserved, TLS verification skipped), mirroring
@@ -149,6 +152,7 @@ def build_safe_client(
     timeout: float = _DEFAULT_TIMEOUT_SECONDS,
     dev_hostname_allowlist: frozenset[str] = frozenset(),
     dev_base_domain_rewrite: bool = False,
+    dev_skip_tls_verify: bool = False,
 ) -> httpx.Client:
     """Build an `httpx.Client` hardened against SSRF.
 
@@ -159,11 +163,14 @@ def build_safe_client(
         dev_base_domain_rewrite: Dev-only; route `*.BASE_DOMAIN` targets
             through the reverse-proxy container with TLS verification off.
             Inert in production.
+        dev_skip_tls_verify: Dev-only; turn TLS verification off for this
+            client, for allowlisted dev services with self-signed certificates
+            (the OIDC conformance suite). Inert in production.
     """
     # The dev reverse-proxy serves tenant subdomains with a local cert, so TLS
     # verification must be skipped when that rewrite is active. This only ever
     # loosens verification in dev; production keeps full verification.
-    verify = not (settings.IS_DEV and dev_base_domain_rewrite)
+    verify = not (settings.IS_DEV and (dev_base_domain_rewrite or dev_skip_tls_verify))
     transport = PinnedResolveTransport(
         dev_hostname_allowlist=dev_hostname_allowlist,
         dev_base_domain_rewrite=dev_base_domain_rewrite,

@@ -63,6 +63,7 @@ oauth2_consent_revoked
 oauth2_consent_widened
 oauth2_user_tokens_revoked
 oidc_access_denied
+oidc_backchannel_logout_failed
 oidc_client_availability_changed
 oidc_client_disabled
 oidc_client_enabled

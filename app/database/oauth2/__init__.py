@@ -6,12 +6,22 @@ This module provides all OAuth2-related database operations including:
 - Token operations (access/refresh tokens)
 - Remembered consent grants
 - Which clients received an ID token in which session (logout fan-out)
+- Back-channel logout deliveries (queue and delivery log)
 """
 
 from database.oauth2.authorization import (
     cleanup_expired_codes,
     create_authorization_code,
     validate_and_consume_code,
+)
+from database.oauth2.backchannel import (
+    claim_due_deliveries,
+    list_tenants_with_due_deliveries,
+    mark_delivered,
+    mark_failed,
+    mark_retry,
+    purge_finished_deliveries,
+    sweep_stale_session_clients,
 )
 from database.oauth2.clients import (
     create_b2b_client,
@@ -39,7 +49,7 @@ from database.oauth2.consent import (
     upsert_consent_grant,
 )
 from database.oauth2.sessions import (
-    delete_session_clients,
+    consume_session_clients,
     upsert_session_client,
 )
 from database.oauth2.tokens import (
@@ -96,5 +106,13 @@ __all__ = [
     "delete_consent_grants_for_client",
     # sessions
     "upsert_session_client",
-    "delete_session_clients",
+    "consume_session_clients",
+    # back-channel logout deliveries
+    "list_tenants_with_due_deliveries",
+    "claim_due_deliveries",
+    "mark_delivered",
+    "mark_retry",
+    "mark_failed",
+    "purge_finished_deliveries",
+    "sweep_stale_session_clients",
 ]

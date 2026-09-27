@@ -118,6 +118,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oidc_signing_key_rotated": "OIDC signing key rotated",
     "oidc_signing_key_cleanup_completed": "OIDC retired signing key removed after grace period",
     "oidc_id_token_issued": "OIDC ID token issued to a downstream application",
+    "oidc_backchannel_logout_failed": (
+        "OIDC back-channel logout could not be delivered to a downstream application"
+    ),
     "oidc_userinfo_accessed": "OIDC userinfo claims released to a downstream application",
     "oidc_access_denied": "OIDC client login denied (no group grant)",
     "oidc_client_enabled": "OIDC enabled on an application",
@@ -417,6 +420,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oidc_signing_key_rotated": "admin",
     "oidc_signing_key_cleanup_completed": "admin",
     "oidc_id_token_issued": "operational",
+    "oidc_backchannel_logout_failed": "security",
     "oidc_userinfo_accessed": "operational",
     "oidc_access_denied": "security",
     "oidc_client_enabled": "admin",

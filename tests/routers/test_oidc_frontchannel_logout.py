@@ -352,7 +352,12 @@ class TestReauthentication:
         assert response.status_code == 303
         assert response.headers["location"].startswith("/login")
         assert _last_signed_out(test_tenant)["metadata"]["frontchannel_logout_count"] == 0
-        assert database.oauth2.delete_session_clients(test_tenant["id"], SID) == []
+        assert (
+            database.oauth2.consume_session_clients(
+                test_tenant["id"], test_tenant["id"], SID, issuer="https://x.example"
+            )
+            == []
+        )
 
 
 # ============================================================================

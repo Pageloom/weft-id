@@ -124,6 +124,39 @@ def validate_frontchannel_logout_uri(uri: str | None, redirect_uris: list[str]) 
     return cleaned
 
 
+def validate_backchannel_logout_uri(uri: str | None) -> str | None:
+    """Normalise and validate a client's back-channel logout URI.
+
+    Blank means "none" and returns None. Otherwise the URI must be absolute
+    ``http``/``https`` with a host (and a valid port, if any) and no fragment
+    (OpenID Connect Back-Channel Logout 1.0, section 2.2). Unlike the
+    front-channel URI it need not share a redirect URI's origin: WeftID calls
+    it server to server, through the SSRF-guarded HTTP client.
+
+    Raises:
+        ValidationError: code ``invalid_backchannel_logout_uri``.
+    """
+    cleaned = (uri or "").strip()
+    if not cleaned:
+        return None
+    try:
+        parts = urlsplit(cleaned)
+    except ValueError:
+        parts = None
+    if (
+        parts is None
+        or _origin(parts) is None
+        or parts.scheme.lower() not in ("http", "https")
+        or parts.fragment
+        or "#" in cleaned
+    ):
+        raise ValidationError(
+            f"Invalid back-channel logout URI: {cleaned[:200]}",
+            code="invalid_backchannel_logout_uri",
+        )
+    return cleaned
+
+
 # =============================================================================
 # Client Operations
 # =============================================================================
@@ -408,6 +441,8 @@ def create_normal_client(
     post_logout_redirect_uris: list[str] | None = None,
     frontchannel_logout_uri: str | None = None,
     frontchannel_logout_session_required: bool = True,
+    backchannel_logout_uri: str | None = None,
+    backchannel_logout_session_required: bool = True,
 ) -> dict:
     """
     Create a normal OAuth2 client (authorization code flow).
@@ -424,16 +459,21 @@ def create_normal_client(
             user's session ends (same origin as a redirect URI)
         frontchannel_logout_session_required: Whether that URL receives
             ``iss`` and ``sid``
+        backchannel_logout_uri: Optional RP URL the logout token is POSTed to
+            when the user's session ends
+        backchannel_logout_session_required: Whether the logout token carries
+            ``sid``
 
     Returns:
         Client dict including plaintext client_secret
 
     Raises:
-        ValidationError: a post-logout redirect URI or the front-channel
-            logout URI is malformed
+        ValidationError: a post-logout redirect URI or a front- or
+            back-channel logout URI is malformed
     """
     post_logout_uris = validate_post_logout_redirect_uris(post_logout_redirect_uris or [])
     frontchannel_uri = validate_frontchannel_logout_uri(frontchannel_logout_uri, redirect_uris)
+    backchannel_uri = validate_backchannel_logout_uri(backchannel_logout_uri)
     result = database.oauth2.create_normal_client(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
@@ -444,6 +484,8 @@ def create_normal_client(
         post_logout_redirect_uris=post_logout_uris,
         frontchannel_logout_uri=frontchannel_uri,
         frontchannel_logout_session_required=frontchannel_logout_session_required,
+        backchannel_logout_uri=backchannel_uri,
+        backchannel_logout_session_required=backchannel_logout_session_required,
     )
 
     if result is None:
@@ -595,6 +637,8 @@ def update_client(
     post_logout_redirect_uris: list[str] | None = None,
     frontchannel_logout_uri: str | None = None,
     frontchannel_logout_session_required: bool | None = None,
+    backchannel_logout_uri: str | None = None,
+    backchannel_logout_session_required: bool | None = None,
 ) -> dict | None:
     """
     Update an OAuth2 client's name, description, redirect URIs, and logout settings.
@@ -612,15 +656,20 @@ def update_client(
             clients (optional; an empty string clears it)
         frontchannel_logout_session_required: Whether the front-channel
             logout URI receives ``iss`` and ``sid`` (optional)
+        backchannel_logout_uri: New back-channel logout URI for normal
+            clients (optional; an empty string clears it)
+        backchannel_logout_session_required: Whether the logout token carries
+            ``sid`` (optional)
 
     Returns:
         Updated client dict, or None if not found
 
     Raises:
         ValidationError: URIs or logout settings given for a B2B client, a
-            malformed post-logout redirect URI, or a front-channel logout URI
+            malformed post-logout redirect URI, a front-channel logout URI
             that is malformed or not on a redirect URI's origin (checked
-            against the redirect URIs the client will have after the update)
+            against the redirect URIs the client will have after the update),
+            or a malformed back-channel logout URI
     """
     # Get current client for comparison
     old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
@@ -646,6 +695,14 @@ def update_client(
                 "Front-channel logout can only be set for normal clients",
                 code="redirect_uris_not_allowed",
             )
+    if backchannel_logout_uri is not None or backchannel_logout_session_required is not None:
+        if old_client["client_type"] != "normal":
+            raise ValidationError(
+                "Back-channel logout can only be set for normal clients",
+                code="redirect_uris_not_allowed",
+            )
+        if backchannel_logout_uri is not None:
+            backchannel_logout_uri = validate_backchannel_logout_uri(backchannel_logout_uri) or ""
     # Re-check the front-channel URI whenever it or the redirect URIs change:
     # it must stay on the origin of a registered redirect URI.
     if frontchannel_logout_uri is not None or redirect_uris is not None:
@@ -670,6 +727,8 @@ def update_client(
         post_logout_redirect_uris=post_logout_redirect_uris,
         frontchannel_logout_uri=frontchannel_logout_uri,
         frontchannel_logout_session_required=frontchannel_logout_session_required,
+        backchannel_logout_uri=backchannel_logout_uri,
+        backchannel_logout_session_required=backchannel_logout_session_required,
     )
 
     if result:
@@ -694,6 +753,15 @@ def update_client(
             != bool(old_client.get("frontchannel_logout_session_required"))
         ):
             changed_fields.append("frontchannel_logout_session_required")
+        if backchannel_logout_uri is not None and (backchannel_logout_uri or None) != (
+            old_client.get("backchannel_logout_uri")
+        ):
+            changed_fields.append("backchannel_logout_uri")
+        if backchannel_logout_session_required is not None and (
+            backchannel_logout_session_required
+            != bool(old_client.get("backchannel_logout_session_required"))
+        ):
+            changed_fields.append("backchannel_logout_session_required")
 
         if changed_fields:
             log_event(

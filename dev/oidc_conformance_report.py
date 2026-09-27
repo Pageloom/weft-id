@@ -48,6 +48,7 @@ PROFILES = (
     ("Form Post OP", "oidcc-formpost-basic-certification-test-plan"),
     ("RP-Initiated OP", "oidcc-rp-initiated-logout-certification-test-plan"),
     ("Front-Channel OP", "oidcc-frontchannel-rp-initiated-logout-certification-test-plan"),
+    ("Back-Channel OP", "oidcc-backchannel-rp-initiated-logout-certification-test-plan"),
 )
 
 GREEN_RESULTS = {"PASSED", "WARNING", "REVIEW", "SKIPPED"}
@@ -228,7 +229,7 @@ def weftid_version(project_root: Path = PROJECT_ROOT) -> str:
             check=True,
             timeout=10,
         ).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         return version
     return f"{version} (`{sha}`)" if sha else version
 
@@ -244,8 +245,7 @@ def _bullets(reports: list[ProfileReport], attr: str) -> list[str]:
         for name, comment in getattr(report, attr):
             profiles.setdefault((name, comment), []).append(report.run.profile)
     return [
-        f"* `{name}` ({', '.join(names)}): {comment}"
-        for (name, comment), names in profiles.items()
+        f"* `{name}` ({', '.join(names)}): {comment}" for (name, comment), names in profiles.items()
     ]
 
 

@@ -1,7 +1,9 @@
 """OpenID Connect logout: end_session requests and the relying-party fan-out.
 
 ``resolve_end_session_request`` implements RP-Initiated Logout 1.0;
-``end_oidc_session`` implements the OP side of Front-Channel Logout 1.0.
+``end_oidc_session`` implements the OP side of Front-Channel Logout 1.0 and
+queues the logout tokens of Back-Channel Logout 1.0 (sent by the worker, see
+``services.oidc.backchannel``).
 
 A relying party sends the browser to the end_session endpoint with any of
 ``id_token_hint``, ``client_id``, ``post_logout_redirect_uri`` and ``state``.
@@ -26,12 +28,13 @@ Front-channel fan-out: every ID token issued in a session is recorded
 against the session's ``sid`` (``issue_id_token``). When the session ends,
 ``end_oidc_session`` deletes those records and returns the front-channel
 logout URLs of the clients that registered one, for the logout page to load
-in iframes.
+in iframes, and queues a back-channel delivery for each client that
+registered a back-channel logout URI.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urlencode
 
 import database
@@ -174,41 +177,68 @@ def _frontchannel_logout_url(client: dict, *, issuer: str, sid: str) -> str:
     return f"{uri}{separator}{urlencode({'iss': issuer, 'sid': sid})}"
 
 
+@dataclass(frozen=True)
+class OidcSessionEnd:
+    """How the relying parties of an ending session are being notified.
+
+    Attributes:
+        frontchannel_logout_urls: Front-channel logout URLs for the logout
+            page to load in iframes, in first-issued order, deduplicated.
+        backchannel_logout_count: Back-channel logout deliveries queued for
+            the worker.
+    """
+
+    frontchannel_logout_urls: list[str] = field(default_factory=list)
+    backchannel_logout_count: int = 0
+
+
 def end_oidc_session(
     *,
     tenant_id: str,
     issuer: str,
     sid: str | None,
     exclude_client_uuid: str | None = None,
-) -> list[str]:
-    """Forget which clients received ID tokens in a session that is ending.
+) -> OidcSessionEnd:
+    """Notify the clients that received ID tokens in a session that is ending.
 
     Authorization: none -- called only while the session itself is being
     terminated (logout button, end_session endpoint, forced
     re-authentication), for that session's own ``sid``.
 
-    No audit: the caller's ``user_signed_out`` event records the logout,
-    including how many front-channel URLs were returned.
+    No audit of its own: the caller's ``user_signed_out`` event records the
+    logout, including the front-channel URL and back-channel delivery counts.
+
+    The session's records are consumed, and a back-channel logout delivery is
+    queued for every active OIDC client that registered a
+    ``backchannel_logout_uri``, in the same database statement; the worker
+    sends the logout tokens (``services.oidc.backchannel``).
 
     Args:
         tenant_id: Tenant ID for RLS scoping.
-        issuer: The tenant issuer, sent as ``iss`` to clients that require it.
+        issuer: The tenant issuer, sent as ``iss`` to front-channel clients
+            that require it and as the logout token's ``iss``.
         sid: The ending session's identifier; None (a session that never
-            had one) returns nothing.
+            had one) notifies nobody.
         exclude_client_uuid: A client not to notify (its record is still
             removed). Forced re-authentication passes the client that asked
-            for it: that RP is mid-login, and a logout iframe would clear the
-            state it keeps for the authorization response.
+            for it: that RP is mid-login, and a logout would clear the state it
+            keeps for the authorization response.
 
     Returns:
-        The front-channel logout URLs to load, one per active OIDC client
-        that registered a ``frontchannel_logout_uri``, in first-issued order
-        and without duplicates.
+        The front-channel logout URLs to load (one per active OIDC client that
+        registered a ``frontchannel_logout_uri``) and how many back-channel
+        deliveries were queued.
     """
     if not sid:
-        return []
+        return OidcSessionEnd()
     urls: list[str] = []
-    rows = database.oauth2.delete_session_clients(tenant_id, sid)
+    rows = database.oauth2.consume_session_clients(
+        tenant_id,
+        tenant_id,
+        sid,
+        issuer=issuer,
+        exclude_client_id=exclude_client_uuid,
+    )
     for client in sorted(rows, key=lambda row: row["created_at"]):
         if (
             not client.get("frontchannel_logout_uri")
@@ -221,4 +251,7 @@ def end_oidc_session(
         url = _frontchannel_logout_url(client, issuer=issuer, sid=sid)
         if url not in urls:
             urls.append(url)
-    return urls
+    return OidcSessionEnd(
+        frontchannel_logout_urls=urls,
+        backchannel_logout_count=sum(1 for row in rows if row.get("backchannel_queued")),
+    )

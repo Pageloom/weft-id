@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **OpenID Foundation conformance.** WeftID's OpenID Provider passes the
   OpenID Foundation conformance suite (release 5.2.4) for the Basic OP,
-  Config OP, Form Post OP, RP-Initiated OP, and Front-Channel OP profiles,
-  with no failures. The accepted
+  Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP, and
+  Back-Channel OP profiles, with no failures. The accepted
   warnings (no `acr` claim, no `claims` request parameter, a partial
   `profile` claim set) and expected skips are listed with their reasons on
   the new [OpenID Connect Conformance](docs/conformance/oidc.md) docs page,
@@ -40,6 +40,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   advertises `frontchannel_logout_supported` and
   `frontchannel_logout_session_supported`. The `user_signed_out` audit event
   records `frontchannel_logout_count`. Migration 0064.
+- **Back-channel logout (OIDC).** Apps can register a **Back-channel logout
+  URI** (edit form, or `backchannel_logout_uri` on `/api/v1/oauth2/clients`).
+  When a WeftID session ends (the same three ways), WeftID sends a signed
+  logout token to that URI, server to server, for every app that received an
+  ID token in the session. The token carries `sub`, and `sid` unless the app
+  turns off **Include the session ID** (`backchannel_logout_session_required`,
+  on by default). Delivery runs in the background worker within about ten
+  seconds and is retried for several hours when the app is unreachable; a
+  delivery that is given up is audited as `oidc_backchannel_logout_failed`.
+  Discovery advertises `backchannel_logout_supported` and
+  `backchannel_logout_session_supported`. The `user_signed_out` audit event
+  records `backchannel_logout_count`. Migration 0065.
 - **`sid` claim.** ID tokens now carry `sid`, an opaque identifier of the
   WeftID session the user signed in with, renewed at every sign-in.
 - **Remembered consent.** WeftID now remembers a user's **Allow** on the

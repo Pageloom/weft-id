@@ -52,10 +52,13 @@ warning).
    `post_logout_redirect` URL, plus a fourth that also has the suite's
    `frontchannel_logout` URL (used only by the front-channel module, through
    a config override: any other module that ends a session would otherwise
-   load a logout iframe it does not expect),
+   load a logout iframe it does not expect), and a fifth with the suite's
+   `backchannel_logout` URL (used only by the back-channel module, for the
+   same reason),
 3. renders `dev/oidc-conformance/config.template.json` with those values,
-4. runs the Basic OP, Config OP, Form Post OP, RP-Initiated OP, and
-   Front-Channel OP certification plans and exports the results.
+4. runs the Basic OP, Config OP, Form Post OP, RP-Initiated OP,
+   Front-Channel OP, and Back-Channel OP certification plans and exports the
+   results.
 
 The run exits non-zero unless every module finished and the outcome
 matches `dev/oidc-conformance/expected-failures.json` exactly.
@@ -135,6 +138,12 @@ it to snapshot that page instead. In the Front-Channel OP plan the end
 session request lands on the "Signing you out" page, whose iframe calls the
 suite's `frontchannel_logout` endpoint and whose meta refresh continues to
 the suite's `post_logout_redirect`; none of the logout tasks acts on it.
+In the Back-Channel OP plan the browser goes straight back to the suite;
+the logout token arrives separately from WeftID's worker (within about ten
+seconds, its polling interval), which reaches the suite over the dev network.
+The suite's certificate is self-signed and its address is private, so the
+worker's HTTP client allows that one host and skips TLS verification for it,
+in dev only (`IS_DEV`).
 
 The suite replaces the whole `browser` list for an overridden module, so an
 override that still needs the login script names it as `"$browser[0]"`. The

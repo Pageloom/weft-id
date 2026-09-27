@@ -96,6 +96,8 @@ PLANS = (
     "[response_type=code][client_registration=static_client]",
     "oidcc-frontchannel-rp-initiated-logout-certification-test-plan"
     "[response_type=code][client_registration=static_client]",
+    "oidcc-backchannel-rp-initiated-logout-certification-test-plan"
+    "[response_type=code][client_registration=static_client]",
 )
 
 # An override's ``browser`` list may name a top-level browser entry as
@@ -120,6 +122,8 @@ PLACEHOLDERS = {
     "{CLIENT3_SECRET}": ("client3", "client_secret"),
     "{CLIENT4_ID}": ("client4", "client_id"),
     "{CLIENT4_SECRET}": ("client4", "client_secret"),
+    "{CLIENT5_ID}": ("client5", "client_id"),
+    "{CLIENT5_SECRET}": ("client5", "client_secret"),
 }
 
 

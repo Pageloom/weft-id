@@ -1909,3 +1909,106 @@ def test_app_detail_error_banner_for_frontchannel_uri(
         "?error=invalid_frontchannel_logout_uri"
     )
     assert "same scheme, host and port as one of the redirect URIs" in response.text
+
+
+# =============================================================================
+# Back-channel logout (real database)
+# =============================================================================
+
+
+def test_app_edit_saves_backchannel_logout(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(
+            normal_oauth2_client,
+            backchannel_logout_uri="  https://api.rp.example/bc  ",
+            backchannel_logout_session_required="true",
+        ),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=updated" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["backchannel_logout_uri"] == "https://api.rp.example/bc"
+    assert saved["backchannel_logout_session_required"] is True
+
+
+def test_app_edit_unchecked_box_and_blank_uri_clear_backchannel_logout(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        backchannel_logout_uri="https://rp.example/bc",
+        backchannel_logout_session_required=True,
+    )
+    override_auth(test_admin_user, level="admin")
+    TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(normal_oauth2_client),
+        follow_redirects=False,
+    )
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["backchannel_logout_uri"] is None
+    assert saved["backchannel_logout_session_required"] is False
+
+
+def test_app_edit_bad_backchannel_uri_shows_error(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(normal_oauth2_client, backchannel_logout_uri="https://rp.example/bc#x"),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=invalid_backchannel_logout_uri" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["backchannel_logout_uri"] is None
+
+
+def test_app_detail_renders_backchannel_logout_settings(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        backchannel_logout_uri="https://api.rp.example/bc",
+        backchannel_logout_session_required=True,
+    )
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
+    assert response.status_code == 200
+    assert 'value="https://api.rp.example/bc"' in response.text
+    assert re.search(r'id="backchannel_logout_session_required"[^>]*\s+checked', response.text), (
+        "sid box should be checked"
+    )
+
+
+def test_app_detail_error_banner_for_backchannel_uri(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}"
+        "?error=invalid_backchannel_logout_uri"
+    )
+    assert "The back-channel logout URI must be an absolute http or https URI" in response.text

@@ -48,7 +48,7 @@ def test_worker_init_defaults():
 
     assert worker.poll_interval == 10
     assert worker.running is True
-    assert len(worker._periodic_jobs) == 11
+    assert len(worker._periodic_jobs) == 13
 
     cleanup = worker._periodic_jobs[0]
     assert cleanup.name == "cleanup"
@@ -84,6 +84,16 @@ def test_worker_init_defaults():
     assert forward_auth_nonce_cleanup.name == "forward-auth nonce cleanup"
     assert forward_auth_nonce_cleanup.interval == timedelta(hours=1)
     assert forward_auth_nonce_cleanup.last_run is None
+
+    backchannel_delivery = worker._periodic_jobs[11]
+    assert backchannel_delivery.name == "OIDC back-channel logout delivery"
+    assert backchannel_delivery.interval == timedelta(seconds=10)
+    assert backchannel_delivery.quiet is True
+
+    backchannel_cleanup = worker._periodic_jobs[12]
+    assert backchannel_cleanup.name == "OIDC back-channel logout cleanup"
+    assert backchannel_cleanup.interval == timedelta(hours=24)
+    assert backchannel_cleanup.quiet is False
 
 
 def test_worker_init_custom_values():
@@ -145,7 +155,7 @@ def test_check_periodic_jobs_first_run(mock_datetime):
 
     worker._check_periodic_jobs()
 
-    assert worker._run_job.call_count == 11
+    assert worker._run_job.call_count == 13
     for job in worker._periodic_jobs:
         assert job.last_run == now
 
@@ -579,3 +589,41 @@ def test_main_handles_import_failure(mock_logger, mock_signal, mock_worker_class
     mock_logger.warning.assert_called_once()
     warning_message = mock_logger.warning.call_args[0][0]
     assert "Could not import job handlers" in warning_message
+
+
+def test_run_job_quiet_logs_at_debug():
+    """A quiet job (every few seconds) does not log its start and result at INFO."""
+    from worker import PeriodicJob, Worker
+
+    job = PeriodicJob("chatty", MagicMock(return_value={}), timedelta(seconds=10), quiet=True)
+    with patch("worker.logger") as mock_logger:
+        Worker()._run_job(job)
+    mock_logger.info.assert_not_called()
+    assert mock_logger.debug.call_count == 2
+
+
+def test_run_job_not_quiet_logs_at_info():
+    from worker import PeriodicJob, Worker
+
+    job = PeriodicJob("normal", MagicMock(return_value={}), timedelta(hours=1))
+    with patch("worker.logger") as mock_logger:
+        Worker()._run_job(job)
+    assert mock_logger.info.call_count == 2
+
+
+@patch("jobs.deliver_oidc_backchannel_logouts.deliver_oidc_backchannel_logouts")
+def test_load_oidc_backchannel_delivery(mock_job):
+    from worker import _load_oidc_backchannel_delivery
+
+    mock_job.return_value = {"delivered": 1}
+    assert _load_oidc_backchannel_delivery() == {"delivered": 1}
+    mock_job.assert_called_once()
+
+
+@patch("jobs.cleanup_oidc_backchannel_logouts.cleanup_oidc_backchannel_logouts")
+def test_load_oidc_backchannel_cleanup(mock_job):
+    from worker import _load_oidc_backchannel_cleanup
+
+    mock_job.return_value = {"deliveries_purged": 0, "session_records_swept": 0}
+    assert _load_oidc_backchannel_cleanup() == {"deliveries_purged": 0, "session_records_swept": 0}
+    mock_job.assert_called_once()

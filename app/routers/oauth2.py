@@ -693,12 +693,12 @@ def _reauthenticate(
 
     Other relying parties that received ID tokens in the ended session are
     told by front channel (an intermediate page loads their logout iframes on
-    the way to the login page). The requesting client is not: it is mid-login
-    and its logout page would clear the state it keeps for this request.
+    the way to the login page) and back channel (logout tokens queued for the
+    worker). The requesting client is not: it is mid-login and its logout
+    handler would clear the state it keeps for this request.
     """
-    frontchannel_logout_urls = end_oidc_session_quietly(
-        request, tenant_id, exclude_client_uuid=str(client["id"])
-    )
+    oidc_end = end_oidc_session_quietly(request, tenant_id, exclude_client_uuid=str(client["id"]))
+    frontchannel_logout_urls = oidc_end.frontchannel_logout_urls
     log_event(
         tenant_id=tenant_id,
         actor_user_id=str(user["id"]),
@@ -710,6 +710,7 @@ def _reauthenticate(
             "trigger": reason,
             "client_id": client["client_id"],
             "frontchannel_logout_count": len(frontchannel_logout_urls),
+            "backchannel_logout_count": oidc_end.backchannel_logout_count,
         },
         request_metadata=extract_request_metadata(request),
     )

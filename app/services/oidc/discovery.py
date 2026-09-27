@@ -7,12 +7,12 @@ document is assembled from the request's tenant base URL so the advertised
 arrives on tenant A's host can never surface tenant B's issuer.
 
 Advertisement policy: this document reflects ONLY what is actually implemented.
-Logout, introspection, revocation, device grant, PAR, and dynamic client
-registration are intentionally absent -- they are the separate "OIDC Hardening"
-item. `scopes_supported` is sourced from the shared claim assembler's
-``SUPPORTED_SCOPES`` so the advertised scopes and the scopes actually gated by
-claim release can never drift; the `groups` scope is therefore advertised only
-once Iteration 4 adds it to that tuple.
+RP-initiated logout (``end_session_endpoint``) is advertised; front- and
+back-channel logout, introspection, revocation, device grant, PAR, and dynamic
+client registration are absent until they exist. `scopes_supported` is sourced
+from the shared claim assembler's ``SUPPORTED_SCOPES`` so the advertised scopes
+and the scopes actually gated by claim release can never drift; the `groups`
+scope is therefore advertised only once Iteration 4 adds it to that tuple.
 """
 
 from __future__ import annotations
@@ -70,6 +70,7 @@ CLAIMS_SUPPORTED = [
     "iat",
     "auth_time",
     "nonce",
+    "sid",
     # profile-scope claims.
     "name",
     "given_name",
@@ -103,6 +104,7 @@ def build_discovery_metadata(issuer: str) -> OIDCProviderMetadata:
         token_endpoint=f"{base}/oauth2/token",
         userinfo_endpoint=f"{base}/userinfo",
         jwks_uri=f"{base}/.well-known/jwks.json",
+        end_session_endpoint=f"{base}/oauth2/logout",
         scopes_supported=list(claims_service.SUPPORTED_SCOPES),
         response_types_supported=list(RESPONSE_TYPES_SUPPORTED),
         response_modes_supported=list(RESPONSE_MODES_SUPPORTED),

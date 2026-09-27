@@ -46,6 +46,7 @@ PROFILES = (
     ("Basic OP", "oidcc-basic-certification-test-plan"),
     ("Config OP", "oidcc-config-certification-test-plan"),
     ("Form Post OP", "oidcc-formpost-basic-certification-test-plan"),
+    ("RP-Initiated OP", "oidcc-rp-initiated-logout-certification-test-plan"),
 )
 
 GREEN_RESULTS = {"PASSED", "WARNING", "REVIEW", "SKIPPED"}

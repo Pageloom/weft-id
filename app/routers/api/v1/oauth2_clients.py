@@ -42,6 +42,7 @@ def _client_to_response(
         "name": client["name"],
         "description": client.get("description"),
         "redirect_uris": client.get("redirect_uris"),
+        "post_logout_redirect_uris": client.get("post_logout_redirect_uris") or [],
         "service_user_id": (
             str(client["service_user_id"]) if client.get("service_user_id") else None
         ),
@@ -98,7 +99,10 @@ def create_normal_client(
 
     Request Body:
         name: Client name
+        description: Optional client description
         redirect_uris: List of exact redirect URIs
+        post_logout_redirect_uris: Optional list of exact URIs the end_session
+            endpoint may redirect to after logout (absolute http/https, no fragment)
 
     Returns:
         Client details including client_secret (shown only once!)
@@ -113,6 +117,7 @@ def create_normal_client(
             redirect_uris=client_data.redirect_uris,
             created_by=str(user["id"]),
             description=client_data.description,
+            post_logout_redirect_uris=client_data.post_logout_redirect_uris,
         )
 
         return _client_to_response(client, include_secret=True)
@@ -271,6 +276,8 @@ def update_client(
         name: New client name (optional)
         description: New description (optional)
         redirect_uris: New redirect URIs for normal clients (optional)
+        post_logout_redirect_uris: New post-logout redirect URIs for normal
+            clients (optional; absolute http/https, no fragment; [] clears them)
 
     Returns:
         Updated client details
@@ -289,6 +296,7 @@ def update_client(
             name=client_data.name,
             description=client_data.description,
             redirect_uris=client_data.redirect_uris,
+            post_logout_redirect_uris=client_data.post_logout_redirect_uris,
         )
 
         if not client:

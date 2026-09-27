@@ -37,9 +37,7 @@ class OIDCProviderMetadata(BaseModel):
 
     Every endpoint URL is derived from the request host so the advertised
     `issuer` and endpoints match the exact tenant host the relying party used.
-    Only capabilities actually implemented today are advertised; logout,
-    introspection, revocation, device grant, and dynamic registration are
-    deliberately omitted (they belong to the separate OIDC Hardening item).
+    Only capabilities actually implemented today are advertised.
     """
 
     issuer: str = Field(..., description="The tenant issuer (its https host).")
@@ -47,6 +45,13 @@ class OIDCProviderMetadata(BaseModel):
     token_endpoint: str = Field(..., description="OAuth2 token endpoint URL.")
     userinfo_endpoint: str = Field(..., description="OIDC userinfo endpoint URL.")
     jwks_uri: str = Field(..., description="JWKS endpoint URL (public verification keys).")
+    end_session_endpoint: str = Field(
+        ...,
+        description=(
+            "RP-initiated logout endpoint URL (OpenID Connect RP-Initiated Logout 1.0). "
+            "Accepts id_token_hint, client_id, post_logout_redirect_uri and state."
+        ),
+    )
     scopes_supported: list[str] = Field(..., description="Scopes this provider recognises.")
     response_types_supported: list[str] = Field(
         ..., description="OAuth2 response types supported at the authorization endpoint."
@@ -149,6 +154,7 @@ class OIDCClientDiscoveryInfo(BaseModel):
     authorization_endpoint: str = Field(..., description="OAuth2 authorization endpoint URL.")
     token_endpoint: str = Field(..., description="OAuth2 token endpoint URL.")
     userinfo_endpoint: str = Field(..., description="OIDC userinfo endpoint URL.")
+    end_session_endpoint: str = Field(..., description="RP-initiated logout endpoint URL.")
 
 
 class OIDCClientGroupAssignment(BaseModel):

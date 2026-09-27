@@ -28,8 +28,10 @@ Any argument not recognised here is passed through to ``run-test-plan.py``
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -90,7 +92,15 @@ PLANS = (
     "oidcc-config-certification-test-plan",
     "oidcc-formpost-basic-certification-test-plan"
     "[server_metadata=discovery][client_registration=static_client]",
+    "oidcc-rp-initiated-logout-certification-test-plan"
+    "[response_type=code][client_registration=static_client]",
 )
+
+# An override's ``browser`` list may name a top-level browser entry as
+# ``"$browser[N]"`` instead of repeating it. The suite replaces the whole list
+# for an overridden module, so every override that still needs the login
+# script would otherwise carry a full copy of it.
+_BROWSER_REF = re.compile(r"^\$browser\[(\d+)\]$")
 
 # Mapping from template placeholder to the testbed JSON path that fills it.
 # Placeholders use the same ``{NAME}`` convention as run-test-plan.py's own
@@ -151,8 +161,45 @@ def render_config(template_text: str, testbed: dict) -> str:
         raise ConformanceError(f"unrendered placeholders: {', '.join(leftover)}")
 
     # Must still be valid JSON (catches a template typo before the suite does).
-    json.loads(rendered)
-    return rendered
+    config = json.loads(rendered)
+    if not _has_browser_refs(config):
+        return rendered
+    return json.dumps(expand_browser_refs(config), indent=4) + "\n"
+
+
+def _has_browser_refs(config: dict) -> bool:
+    overrides = config.get("override") or {}
+    return any(
+        isinstance(entry, str)
+        for module in overrides.values()
+        if isinstance(module, dict)
+        for entry in module.get("browser") or []
+    )
+
+
+def expand_browser_refs(config: dict) -> dict:
+    """Replace ``"$browser[N]"`` entries in override browser lists.
+
+    Each reference becomes a copy of the config's top-level ``browser[N]``.
+    Any other string, or an index out of range, is an error: the suite would
+    reject the entry or, worse, silently drive the wrong page.
+    """
+    top_level = config.get("browser") or []
+    expanded = copy.deepcopy(config)
+    for name, module in (expanded.get("override") or {}).items():
+        if not isinstance(module, dict) or "browser" not in module:
+            continue
+        entries = []
+        for entry in module["browser"]:
+            if not isinstance(entry, str):
+                entries.append(entry)
+                continue
+            match = _BROWSER_REF.match(entry)
+            if not match or int(match.group(1)) >= len(top_level):
+                raise ConformanceError(f"override '{name}': bad browser reference {entry!r}")
+            entries.append(copy.deepcopy(top_level[int(match.group(1))]))
+        module["browser"] = entries
+    return expanded
 
 
 def plan_arguments(plans: tuple[str, ...], config_path: Path) -> list[str]:

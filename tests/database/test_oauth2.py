@@ -1351,3 +1351,89 @@ def test_rotate_legacy_token_without_grant(test_tenant, normal_oauth2_client, te
         test_tenant["id"], new_refresh, normal_oauth2_client["id"]
     )
     assert new["grant_id"] is None
+
+
+# =============================================================================
+# RP-initiated logout: sid on codes, post-logout redirect URIs on clients
+# =============================================================================
+
+
+def test_code_carries_sid(test_tenant, normal_oauth2_client, test_user):
+    code = database.oauth2.create_authorization_code(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        redirect_uri=normal_oauth2_client["redirect_uris"][0],
+        scope="openid",
+        sid="session-abc",
+    )
+    assert _consume(test_tenant, normal_oauth2_client, code)["sid"] == "session-abc"
+
+
+def test_code_without_sid_returns_none(test_tenant, normal_oauth2_client, test_user):
+    code = _grant_code(test_tenant, normal_oauth2_client, test_user)
+    assert _consume(test_tenant, normal_oauth2_client, code)["sid"] is None
+
+
+def test_new_client_has_no_post_logout_redirect_uris(test_tenant, normal_oauth2_client):
+    assert normal_oauth2_client["post_logout_redirect_uris"] == []
+    fetched = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert fetched["post_logout_redirect_uris"] == []
+
+
+def test_create_client_with_post_logout_redirect_uris(test_tenant, test_admin_user):
+    client = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        name="Logout App",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+        post_logout_redirect_uris=["https://rp.example/bye"],
+    )
+    assert client["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+    by_id = database.oauth2.get_client_by_id(test_tenant["id"], str(client["id"]))
+    assert by_id["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+
+
+def test_update_sets_and_clears_post_logout_redirect_uris(test_tenant, normal_oauth2_client):
+    client_id = normal_oauth2_client["client_id"]
+    updated = database.oauth2.update_client(
+        test_tenant["id"], client_id, post_logout_redirect_uris=["https://rp.example/bye"]
+    )
+    assert updated["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+    # Other fields untouched.
+    assert updated["redirect_uris"] == normal_oauth2_client["redirect_uris"]
+
+    cleared = database.oauth2.update_client(
+        test_tenant["id"], client_id, post_logout_redirect_uris=[]
+    )
+    assert cleared["post_logout_redirect_uris"] == []
+
+
+def test_update_without_post_logout_field_keeps_it(test_tenant, normal_oauth2_client):
+    client_id = normal_oauth2_client["client_id"]
+    database.oauth2.update_client(
+        test_tenant["id"], client_id, post_logout_redirect_uris=["https://rp.example/bye"]
+    )
+    renamed = database.oauth2.update_client(test_tenant["id"], client_id, name="Renamed")
+    assert renamed["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+
+
+def test_post_logout_redirect_uris_are_bounded(test_tenant, normal_oauth2_client):
+    import psycopg
+    import pytest
+
+    with pytest.raises(psycopg.errors.CheckViolation):
+        database.oauth2.update_client(
+            test_tenant["id"],
+            normal_oauth2_client["client_id"],
+            post_logout_redirect_uris=[f"https://rp.example/{i}" for i in range(51)],
+        )
+
+
+def test_client_listing_includes_post_logout_redirect_uris(test_tenant, normal_oauth2_client):
+    rows = database.oauth2.get_all_clients(test_tenant["id"], client_type="normal")
+    assert all("post_logout_redirect_uris" in row for row in rows)

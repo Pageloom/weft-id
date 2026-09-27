@@ -48,10 +48,11 @@ warning).
    runtime dir (once per release),
 2. runs `app/dev/oidc_conformance_testbed.py` inside the app container to
    provision the `oidc-conformance` tenant, a member user, and three
-   OIDC-enabled clients registered with the suite's callback URL,
+   OIDC-enabled clients registered with the suite's callback URL and its
+   `post_logout_redirect` URL,
 3. renders `dev/oidc-conformance/config.template.json` with those values,
-4. runs the Basic OP, Config OP, and Form Post OP certification plans and
-   exports the results.
+4. runs the Basic OP, Config OP, Form Post OP, and RP-Initiated OP
+   certification plans and exports the results.
 
 The run exits non-zero unless every module finished and the outcome
 matches `dev/oidc-conformance/expected-failures.json` exactly.
@@ -122,6 +123,19 @@ waits for the suite's own callback page. Per-module `override` entries
 handle tests that expect an error page instead of a redirect (for example
 an unregistered `redirect_uri`) or a second login page (`prompt=login`).
 
+A second top-level entry drives the end session endpoint for the
+RP-Initiated OP plan: it clicks **Sign out** on the confirmation page when
+one is shown, snapshots the signed-out page, and accepts the redirect back
+to the suite. The modules that must see the confirmation page (bad or
+missing `id_token_hint`, unregistered `post_logout_redirect_uri`) override
+it to snapshot that page instead.
+
+The suite replaces the whole `browser` list for an overridden module, so an
+override that still needs the login script names it as `"$browser[0]"`. The
+runner expands such references to a copy of the top-level entry when it
+renders the config; a reference to an entry that does not exist is an
+error.
+
 The browser reaches WeftID through the dev reverse proxy: the suite joins
 WeftID's `devnet` network and the proxy carries a network alias for the
 conformance tenant host. WeftID's containers reach the suite the same way
@@ -143,7 +157,7 @@ tests would see the resets.
 
 ## CI
 
-`.github/workflows/oidc-conformance.yml` runs the same three plans on the
+`.github/workflows/oidc-conformance.yml` runs the same plans on the
 E2E workflow's triggers: nightly when there were commits, the `run-e2e` pull
 request label, and manual dispatch. It brings up the dev stack exactly as the
 E2E job does, then calls `dev/oidc-conformance.sh up` and

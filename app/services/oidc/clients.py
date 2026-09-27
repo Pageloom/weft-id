@@ -144,7 +144,7 @@ def get_client_discovery_info(
         base_url: The tenant base URL (``https://<tenant-host>``) from the request.
 
     Returns:
-        The read-only discovery/JWKS/authorization/token/userinfo URLs.
+        The read-only discovery/JWKS/authorization/token/userinfo/end-session URLs.
     """
     require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
@@ -159,6 +159,7 @@ def get_client_discovery_info(
         authorization_endpoint=meta.authorization_endpoint,
         token_endpoint=meta.token_endpoint,
         userinfo_endpoint=meta.userinfo_endpoint,
+        end_session_endpoint=meta.end_session_endpoint,
     )
 
 

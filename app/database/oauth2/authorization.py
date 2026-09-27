@@ -17,6 +17,7 @@ def create_authorization_code(
     scope: str | None = None,
     nonce: str | None = None,
     auth_time: datetime | None = None,
+    sid: str | None = None,
 ) -> str:
     """
     Create an authorization code for the authorization code flow.
@@ -33,6 +34,8 @@ def create_authorization_code(
         nonce: OIDC nonce to bind to the resulting ID token (optional)
         auth_time: The user's authentication time to record in the ID token
             (optional; the session login timestamp, else the code-issuance time)
+        sid: The WeftID session identifier to record in the ID token's ``sid``
+            claim (optional)
 
     Returns:
         Plain text authorization code (shown once)
@@ -52,12 +55,12 @@ def create_authorization_code(
         insert into oauth2_authorization_codes (
             tenant_id, code_hash, code_lookup, client_id, user_id, redirect_uri,
             code_challenge, code_challenge_method, expires_at,
-            scope, nonce, auth_time
+            scope, nonce, auth_time, sid
         )
         values (
             :tenant_id, :code_hash, :code_lookup, :client_id, :user_id, :redirect_uri,
             :code_challenge, :code_challenge_method, :expires_at,
-            :scope, :nonce, :auth_time
+            :scope, :nonce, :auth_time, :sid
         )
         returning id
         """,
@@ -74,6 +77,7 @@ def create_authorization_code(
             "scope": scope,
             "nonce": nonce,
             "auth_time": auth_time,
+            "sid": sid,
         },
     )
 
@@ -107,7 +111,7 @@ def validate_and_consume_code(
         None when the code is unknown, expired, bound to another client or
         redirect_uri, or fails PKCE. Otherwise a dict with ``id`` (the code's
         id, which becomes the ``grant_id`` of the tokens issued from it),
-        ``user_id``, ``tenant_id``, ``scope``, ``nonce``, ``auth_time`` and
+        ``user_id``, ``tenant_id``, ``scope``, ``nonce``, ``auth_time``, ``sid`` and
         ``reused`` (True when the code had already been redeemed).
     """
     # Resolve exactly one candidate row by the indexed lookup digest, then run
@@ -117,7 +121,7 @@ def validate_and_consume_code(
         tenant_id,
         """
         select id, code_hash, user_id, tenant_id, code_challenge, code_challenge_method,
-               expires_at, scope, nonce, auth_time, consumed_at
+               expires_at, scope, nonce, auth_time, sid, consumed_at
         from oauth2_authorization_codes
         where client_id = :client_id
           and redirect_uri = :redirect_uri
@@ -164,6 +168,7 @@ def validate_and_consume_code(
         "scope": matching_code["scope"],
         "nonce": matching_code["nonce"],
         "auth_time": matching_code["auth_time"],
+        "sid": matching_code["sid"],
         "reused": reused,
     }
 

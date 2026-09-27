@@ -12,10 +12,57 @@ All functions:
 """
 
 from datetime import datetime
+from urllib.parse import urlsplit
 
 import database
 from services.event_log import log_event
 from services.exceptions import ValidationError
+
+# Upper bound on registered post-logout redirect URIs (matches the CHECK
+# constraint on oauth2_clients.post_logout_redirect_uris).
+MAX_POST_LOGOUT_REDIRECT_URIS = 50
+
+
+def validate_post_logout_redirect_uris(uris: list[str]) -> list[str]:
+    """Normalise and validate a client's post-logout redirect URIs.
+
+    Each URI must be absolute ``http``/``https`` with a host and no fragment
+    (OpenID Connect RP-Initiated Logout 1.0 section 3; the end_session
+    endpoint compares them by exact string match). Blank entries and
+    duplicates are dropped, order is kept.
+
+    Raises:
+        ValidationError: code ``invalid_post_logout_redirect_uri`` for a
+            malformed URI or too many URIs.
+    """
+    cleaned: list[str] = []
+    for raw in uris:
+        uri = raw.strip()
+        if not uri or uri in cleaned:
+            continue
+        try:
+            parts = urlsplit(uri)
+        except ValueError:
+            parts = None
+        if (
+            parts is None
+            or parts.scheme not in ("http", "https")
+            or not parts.netloc
+            or parts.fragment
+            or "#" in uri
+        ):
+            raise ValidationError(
+                f"Invalid post-logout redirect URI: {uri[:200]}",
+                code="invalid_post_logout_redirect_uri",
+            )
+        cleaned.append(uri)
+    if len(cleaned) > MAX_POST_LOGOUT_REDIRECT_URIS:
+        raise ValidationError(
+            f"At most {MAX_POST_LOGOUT_REDIRECT_URIS} post-logout redirect URIs are allowed",
+            code="invalid_post_logout_redirect_uri",
+        )
+    return cleaned
+
 
 # =============================================================================
 # Client Operations
@@ -51,6 +98,7 @@ def create_authorization_code(
     scope: str | None = None,
     nonce: str | None = None,
     auth_time: datetime | None = None,
+    sid: str | None = None,
 ) -> str:
     """
     Create an authorization code for OAuth2 authorization code flow.
@@ -65,6 +113,7 @@ def create_authorization_code(
         scope: Optional OIDC/OAuth2 space-delimited scope string
         nonce: Optional OIDC nonce to bind to the resulting ID token
         auth_time: Optional user authentication time to record in the ID token
+        sid: Optional WeftID session identifier to record in the ID token
 
     Returns:
         Authorization code string
@@ -84,6 +133,7 @@ def create_authorization_code(
         scope=scope,
         nonce=nonce,
         auth_time=auth_time,
+        sid=sid,
     )
 
 
@@ -112,7 +162,7 @@ def validate_and_consume_code(
 
     Returns:
         Code data dict (``id`` is the grant id for the tokens issued from it,
-        plus user_id, scope, nonce, auth_time), or None if invalid or reused
+        plus user_id, scope, nonce, auth_time, sid), or None if invalid or reused
     """
     code_data = database.oauth2.validate_and_consume_code(
         tenant_id=tenant_id,
@@ -295,6 +345,7 @@ def create_normal_client(
     redirect_uris: list[str],
     created_by: str,
     description: str | None = None,
+    post_logout_redirect_uris: list[str] | None = None,
 ) -> dict:
     """
     Create a normal OAuth2 client (authorization code flow).
@@ -305,10 +356,16 @@ def create_normal_client(
         redirect_uris: List of allowed redirect URIs
         created_by: User ID who created the client
         description: Optional client description
+        post_logout_redirect_uris: Optional URIs the end_session endpoint may
+            redirect to after logout
 
     Returns:
         Client dict including plaintext client_secret
+
+    Raises:
+        ValidationError: a post-logout redirect URI is malformed
     """
+    post_logout_uris = validate_post_logout_redirect_uris(post_logout_redirect_uris or [])
     result = database.oauth2.create_normal_client(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
@@ -316,6 +373,7 @@ def create_normal_client(
         redirect_uris=redirect_uris,
         created_by=created_by,
         description=description,
+        post_logout_redirect_uris=post_logout_uris,
     )
 
     if result is None:
@@ -464,6 +522,7 @@ def update_client(
     name: str | None = None,
     description: str | None = None,
     redirect_uris: list[str] | None = None,
+    post_logout_redirect_uris: list[str] | None = None,
 ) -> dict | None:
     """
     Update an OAuth2 client's name, description, and/or redirect URIs.
@@ -475,9 +534,15 @@ def update_client(
         name: New client name (optional)
         description: New description (optional)
         redirect_uris: New redirect URIs for normal clients (optional)
+        post_logout_redirect_uris: New post-logout redirect URIs for normal
+            clients (optional; an empty list clears them)
 
     Returns:
         Updated client dict, or None if not found
+
+    Raises:
+        ValidationError: URIs given for a B2B client, or a malformed
+            post-logout redirect URI
     """
     # Get current client for comparison
     old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
@@ -490,6 +555,13 @@ def update_client(
             "Redirect URIs can only be set for normal clients",
             code="redirect_uris_not_allowed",
         )
+    if post_logout_redirect_uris is not None:
+        if old_client["client_type"] != "normal":
+            raise ValidationError(
+                "Post-logout redirect URIs can only be set for normal clients",
+                code="redirect_uris_not_allowed",
+            )
+        post_logout_redirect_uris = validate_post_logout_redirect_uris(post_logout_redirect_uris)
 
     result = database.oauth2.update_client(
         tenant_id=tenant_id,
@@ -497,6 +569,7 @@ def update_client(
         name=name,
         description=description,
         redirect_uris=redirect_uris,
+        post_logout_redirect_uris=post_logout_redirect_uris,
     )
 
     if result:
@@ -508,6 +581,10 @@ def update_client(
             changed_fields.append("description")
         if redirect_uris is not None and redirect_uris != old_client.get("redirect_uris"):
             changed_fields.append("redirect_uris")
+        if post_logout_redirect_uris is not None and post_logout_redirect_uris != (
+            old_client.get("post_logout_redirect_uris") or []
+        ):
+            changed_fields.append("post_logout_redirect_uris")
 
         if changed_fields:
             log_event(

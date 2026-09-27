@@ -80,6 +80,23 @@ class TestIssueIdToken:
         decoded = jwt.decode(token, options={"verify_signature": False})
         assert set(decoded) == {"iss", "sub", "aud", "iat", "exp", "auth_time", "nonce"}
 
+    def test_sid_carried_only_when_supplied(self, test_tenant, test_user):
+        """``sid`` names the WeftID session (Front/Back-Channel Logout 1.0);
+        codes issued before the identifier existed mint tokens without it."""
+        common = {
+            "tenant_id": str(test_tenant["id"]),
+            "issuer": "https://t.example.com",
+            "client_uuid": str(test_user["id"]),
+            "client_id": "cid",
+            "user_id": str(test_user["id"]),
+            "scopes": {"openid"},
+        }
+        with_sid = tokens_service.issue_id_token(**common, sid="sess-123")
+        assert jwt.decode(with_sid, options={"verify_signature": False})["sid"] == "sess-123"
+
+        without_sid = tokens_service.issue_id_token(**common)
+        assert "sid" not in jwt.decode(without_sid, options={"verify_signature": False})
+
     def test_nonce_echoed_only_when_supplied(self, test_tenant, test_user):
         with_nonce = tokens_service.issue_id_token(
             tenant_id=str(test_tenant["id"]),

@@ -20,6 +20,14 @@ class NormalClientCreate(BaseModel):
         min_length=1,
         description="List of exact redirect URIs (no wildcards)",
     )
+    post_logout_redirect_uris: list[Annotated[str, Field(max_length=2048)]] = Field(
+        default_factory=list,
+        max_length=50,
+        description=(
+            "Exact URIs the end_session endpoint may redirect to after logout "
+            "(absolute http/https, no fragment). Optional."
+        ),
+    )
 
 
 class B2BClientCreate(BaseModel):
@@ -45,6 +53,15 @@ class ClientUpdate(BaseModel):
         min_length=1,
         description="List of exact redirect URIs (normal clients only)",
     )
+    post_logout_redirect_uris: list[Annotated[str, Field(max_length=2048)]] | None = Field(
+        None,
+        max_length=50,
+        description=(
+            "Exact URIs the end_session endpoint may redirect to after logout "
+            "(normal clients only; absolute http/https, no fragment). An empty "
+            "list clears them."
+        ),
+    )
 
 
 class ClientRoleUpdate(BaseModel):
@@ -69,6 +86,7 @@ class ClientResponse(BaseModel):
     name: str
     description: str | None = None
     redirect_uris: list[str] | None
+    post_logout_redirect_uris: list[str] = Field(default_factory=list)
     service_user_id: str | None
     is_active: bool = True
     oidc_enabled: bool = False

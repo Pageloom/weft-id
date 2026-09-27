@@ -20,28 +20,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/logout")
-def logout(
+def terminate_session(
     request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-):
-    """Handle logout with optional SAML SLO.
+    tenant_id: str,
+    *,
+    metadata: dict | None = None,
+) -> dict:
+    """End the WeftID session: audit, clear, and notify downstream SAML SPs.
 
-    If the user logged in via SAML and the IdP has SLO configured,
-    initiates Single Logout by redirecting to the IdP. Otherwise,
-    just clears the local session.
+    Shared by the local logout button and the OIDC end_session endpoint so
+    both terminate a session the same way. Logs ``user_signed_out`` (with
+    ``downstream_sp_count`` plus the caller's ``metadata``) when a user was
+    signed in, clears the session before anything else can fail, then
+    propagates the logout to downstream SAML SPs (best-effort, never blocks).
 
-    SLO errors are logged but never block local logout.
+    Returns:
+        The upstream SAML session context read before clearing
+        (``saml_idp_id``, ``saml_name_id``, ``saml_name_id_format``,
+        ``saml_session_index``; values may be None), for a caller that
+        continues with upstream Single Logout.
     """
-    from services import saml as saml_service
     from services.service_providers.slo import propagate_logout_to_sps
 
     # Get session data before clearing
     user_id = request.session.get("user_id")
-    saml_idp_id = request.session.get("saml_idp_id")
-    saml_name_id = request.session.get("saml_name_id")
-    saml_name_id_format = request.session.get("saml_name_id_format")
-    saml_session_index = request.session.get("saml_session_index")
+    upstream = {
+        key: request.session.get(key)
+        for key in ("saml_idp_id", "saml_name_id", "saml_name_id_format", "saml_session_index")
+    }
 
     # Get active downstream SP sessions before clearing
     active_sps = request.session.get("sso_active_sps", [])
@@ -54,10 +60,7 @@ def logout(
             artifact_type="user",
             artifact_id=user_id,
             event_type="user_signed_out",
-            metadata={
-                "saml_slo_attempted": saml_idp_id is not None and saml_name_id is not None,
-                "downstream_sp_count": len(active_sps),
-            },
+            metadata={"downstream_sp_count": len(active_sps), **(metadata or {})},
             request_metadata=extract_request_metadata(request),
         )
 
@@ -78,6 +81,34 @@ def logout(
         except Exception:
             logger.warning("IdP SLO propagation failed for user %s", user_id, exc_info=True)
 
+    return upstream
+
+
+@router.post("/logout")
+def logout(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+):
+    """Handle logout with optional SAML SLO.
+
+    If the user logged in via SAML and the IdP has SLO configured,
+    initiates Single Logout by redirecting to the IdP. Otherwise,
+    just clears the local session.
+
+    SLO errors are logged but never block local logout.
+    """
+    from services import saml as saml_service
+
+    user_id = request.session.get("user_id")
+    saml_idp_id = request.session.get("saml_idp_id")
+    saml_name_id = request.session.get("saml_name_id")
+
+    upstream = terminate_session(
+        request,
+        tenant_id,
+        metadata={"saml_slo_attempted": saml_idp_id is not None and saml_name_id is not None},
+    )
+
     # Attempt upstream SLO if this was a SAML session
     if saml_idp_id and saml_name_id:
         try:
@@ -88,8 +119,8 @@ def logout(
                 tenant_id=tenant_id,
                 saml_idp_id=saml_idp_id,
                 name_id=saml_name_id,
-                name_id_format=saml_name_id_format,
-                session_index=saml_session_index,
+                name_id_format=upstream["saml_name_id_format"],
+                session_index=upstream["saml_session_index"],
                 base_url=base_url,
             )
             if slo_redirect:

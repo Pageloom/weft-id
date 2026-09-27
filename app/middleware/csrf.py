@@ -42,8 +42,12 @@ CSRF_EXEMPT_PATHS = [
 # ``/oauth2/authorize/decision`` (the consent form) is NOT exempt, which is why
 # this is an exact match rather than a prefix. The OIDC userinfo endpoint
 # accepts POST (OpenID Connect Core 1.0, section 5.3.1) and authenticates only
-# by a bearer access token, never by the session cookie.
-CSRF_EXEMPT_EXACT_PATHS = frozenset({"/oauth2/authorize", "/userinfo"})
+# by a bearer access token, never by the session cookie. The OIDC end_session
+# endpoint accepts POST from the relying party (RP-Initiated Logout 1.0,
+# section 2); without a verified id_token_hint for the signed-in user it only
+# renders the confirmation page, whose form posts to the CSRF-protected
+# ``/oauth2/logout/confirm``.
+CSRF_EXEMPT_EXACT_PATHS = frozenset({"/oauth2/authorize", "/userinfo", "/oauth2/logout"})
 
 # HTTP methods that require CSRF validation
 CSRF_PROTECTED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}

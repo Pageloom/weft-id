@@ -1186,3 +1186,113 @@ def test_revoke_client_consent_as_member_forbidden(
         headers={"Host": test_tenant_host, **oauth2_authorization_header},
     )
     assert response.status_code == 403
+
+
+# =============================================================================
+# Post-logout redirect URIs (RP-initiated logout)
+# =============================================================================
+
+
+def test_create_normal_client_with_post_logout_redirect_uris(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Logout RP",
+            "redirect_uris": ["https://rp.example/cb"],
+            "post_logout_redirect_uris": ["https://rp.example/bye"],
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+
+
+def test_create_normal_client_defaults_to_no_post_logout_uris(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Plain RP", "redirect_uris": ["https://rp.example/cb"]},
+    )
+    assert response.json()["post_logout_redirect_uris"] == []
+
+
+def test_create_normal_client_rejects_bad_post_logout_uri(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Bad RP",
+            "redirect_uris": ["https://rp.example/cb"],
+            "post_logout_redirect_uris": ["https://rp.example/bye#frag"],
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_update_client_post_logout_uris_set_read_and_clear(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    url = f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}"
+    headers = {"Host": test_tenant_host, **oauth2_admin_authorization_header}
+
+    response = client.patch(
+        url, headers=headers, json={"post_logout_redirect_uris": ["https://rp.example/bye"]}
+    )
+    assert response.status_code == 200
+    assert response.json()["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+    assert client.get(url, headers=headers).json()["post_logout_redirect_uris"] == [
+        "https://rp.example/bye"
+    ]
+
+    response = client.patch(url, headers=headers, json={"post_logout_redirect_uris": []})
+    assert response.json()["post_logout_redirect_uris"] == []
+
+
+def test_update_client_rejects_bad_post_logout_uri(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"post_logout_redirect_uris": ["/relative"]},
+    )
+    assert response.status_code == 400
+
+
+def test_update_client_rejects_too_many_post_logout_uris(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"post_logout_redirect_uris": [f"https://rp.example/{i}" for i in range(51)]},
+    )
+    assert response.status_code == 422
+
+
+def test_update_client_post_logout_uris_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"post_logout_redirect_uris": ["https://rp.example/bye"]},
+    )
+    assert response.status_code == 403
+
+
+def test_oidc_urls_include_end_session_endpoint(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    response = client.get(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/oidc/urls",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 200
+    assert response.json()["end_session_endpoint"] == f"https://{test_tenant_host}/oauth2/logout"

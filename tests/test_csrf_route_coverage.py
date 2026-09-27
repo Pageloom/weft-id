@@ -315,8 +315,12 @@ SESSION_AUTH_DEPENDENCIES = frozenset(
 # Exempt routes that legitimately combine a session with an exemption, with
 # the reason. ``/oauth2/authorize`` accepts an RP-originated cross-site POST
 # (OpenID Connect Core 1.0, 3.1.2.1) validated against the client's
-# registration rather than the session.
-SESSION_ROUTES_EXEMPT_BY_DESIGN = {"/oauth2/authorize"}
+# registration rather than the session. ``/oauth2/logout`` (OIDC end_session)
+# accepts an RP-originated POST (RP-Initiated Logout 1.0, section 2); it ends
+# the session without asking only for a verified id_token_hint naming the
+# signed-in user, otherwise it renders a confirmation page whose form posts to
+# the CSRF-protected ``/oauth2/logout/confirm``.
+SESSION_ROUTES_EXEMPT_BY_DESIGN = {"/oauth2/authorize", "/oauth2/logout"}
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 

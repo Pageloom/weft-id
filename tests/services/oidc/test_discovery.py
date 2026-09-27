@@ -12,6 +12,7 @@ class TestBuildDiscoveryMetadata:
         assert meta.token_endpoint == "https://acme.example.com/oauth2/token"
         assert meta.userinfo_endpoint == "https://acme.example.com/userinfo"
         assert meta.jwks_uri == "https://acme.example.com/.well-known/jwks.json"
+        assert meta.end_session_endpoint == "https://acme.example.com/oauth2/logout"
 
     def test_trailing_slash_on_issuer_is_normalized(self):
         meta = discovery_service.build_discovery_metadata("https://acme.example.com/")
@@ -41,7 +42,7 @@ class TestBuildDiscoveryMetadata:
     def test_claims_supported_include_envelope_and_scope_claims(self):
         meta = discovery_service.build_discovery_metadata("https://t.example.com")
         claims = set(meta.claims_supported)
-        assert {"sub", "iss", "aud", "exp", "iat", "auth_time", "nonce"} <= claims
+        assert {"sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "sid"} <= claims
         assert {"name", "email", "email_verified", "zoneinfo"} <= claims
         assert "groups" in claims
 

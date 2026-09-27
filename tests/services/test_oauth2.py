@@ -811,3 +811,236 @@ def test_update_b2b_client_rejects_post_logout_uris(
             post_logout_redirect_uris=["https://rp.example/bye"],
         )
     assert exc.value.code == "redirect_uris_not_allowed"
+
+
+# =============================================================================
+# Front-channel logout URI
+# =============================================================================
+
+RP_REDIRECTS = ["https://rp.example/cb", "http://localhost:3000/callback"]
+
+
+class TestValidateFrontchannelLogoutUri:
+    @pytest.mark.parametrize(
+        "uri",
+        [
+            "https://rp.example/logout",
+            "https://rp.example:443/logout?app=1",
+            "HTTPS://RP.EXAMPLE/logout",
+            "http://localhost:3000/fc",
+        ],
+    )
+    def test_same_origin_as_a_redirect_uri(self, uri):
+        assert oauth2_service.validate_frontchannel_logout_uri(uri, RP_REDIRECTS) == uri
+
+    def test_surrounding_whitespace_is_trimmed(self):
+        assert (
+            oauth2_service.validate_frontchannel_logout_uri(" https://rp.example/l ", RP_REDIRECTS)
+            == "https://rp.example/l"
+        )
+
+    @pytest.mark.parametrize("blank", [None, "", "   "])
+    def test_blank_means_none(self, blank):
+        assert oauth2_service.validate_frontchannel_logout_uri(blank, RP_REDIRECTS) is None
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "not a uri",
+            "/relative/logout",
+            "ftp://rp.example/logout",
+            "https://rp.example/logout#frag",
+            "https://rp.example:notaport/logout",
+            "https:///logout",
+            "https://other.example/logout",  # other host
+            "http://rp.example/logout",  # other scheme
+            "https://rp.example:8443/logout",  # other port
+            "http://localhost/fc",  # port 80 vs 3000
+        ],
+    )
+    def test_rejected(self, bad):
+        with pytest.raises(ValidationError) as exc:
+            oauth2_service.validate_frontchannel_logout_uri(bad, RP_REDIRECTS)
+        assert exc.value.code == "invalid_frontchannel_logout_uri"
+
+    def test_malformed_redirect_uris_are_ignored(self):
+        with pytest.raises(ValidationError):
+            oauth2_service.validate_frontchannel_logout_uri(
+                "https://rp.example/l", ["https://rp.example:bad/cb", "nonsense"]
+            )
+
+
+def test_create_normal_client_with_frontchannel_logout(test_tenant, test_admin_user):
+    client = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="FC App",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+        frontchannel_logout_uri="https://rp.example/fc",
+        frontchannel_logout_session_required=True,
+    )
+    assert client["frontchannel_logout_uri"] == "https://rp.example/fc"
+    assert client["frontchannel_logout_session_required"] is True
+
+
+def test_create_normal_client_frontchannel_logout_defaults(test_tenant, test_admin_user):
+    client = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="Plain App",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+    )
+    assert client["frontchannel_logout_uri"] is None
+    assert client["frontchannel_logout_session_required"] is True
+
+
+def test_create_normal_client_rejects_cross_origin_frontchannel_uri_before_writing(
+    test_tenant, test_admin_user
+):
+    with pytest.raises(ValidationError) as exc:
+        oauth2_service.create_normal_client(
+            tenant_id=test_tenant["id"],
+            name="Never Created",
+            redirect_uris=["https://rp.example/cb"],
+            created_by=test_admin_user["id"],
+            frontchannel_logout_uri="https://evil.example/fc",
+        )
+    assert exc.value.code == "invalid_frontchannel_logout_uri"
+    names = [c["name"] for c in oauth2_service.get_all_clients(test_tenant["id"])]
+    assert "Never Created" not in names
+
+
+def _update(test_tenant, client, actor, **kw):
+    return oauth2_service.update_client(
+        tenant_id=test_tenant["id"],
+        client_id=client["client_id"],
+        actor_user_id=str(actor["id"]),
+        **kw,
+    )
+
+
+def test_update_client_sets_frontchannel_logout_and_logs(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    result = _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        frontchannel_logout_uri="http://localhost:3000/fc",
+        frontchannel_logout_session_required=False,
+    )
+    assert result["frontchannel_logout_uri"] == "http://localhost:3000/fc"
+    assert result["frontchannel_logout_session_required"] is False
+
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "oauth2_client_updated"
+    assert events[0]["metadata"]["changed_fields"] == [
+        "frontchannel_logout_uri",
+        "frontchannel_logout_session_required",
+    ]
+
+
+def test_update_client_empty_string_clears_frontchannel_uri(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        frontchannel_logout_uri="http://localhost:3000/fc",
+    )
+    result = _update(test_tenant, normal_oauth2_client, test_admin_user, frontchannel_logout_uri="")
+    assert result["frontchannel_logout_uri"] is None
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["metadata"]["changed_fields"] == ["frontchannel_logout_uri"]
+
+
+def test_update_client_unchanged_frontchannel_settings_log_nothing(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    before = database.event_log.list_events(test_tenant["id"], limit=1)
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        frontchannel_logout_uri="",
+        frontchannel_logout_session_required=True,
+    )
+    after = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert [e["id"] for e in after] == [e["id"] for e in before]
+
+
+def test_update_client_omitted_frontchannel_settings_are_kept(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        frontchannel_logout_uri="http://localhost:3000/fc",
+        frontchannel_logout_session_required=True,
+    )
+    result = _update(test_tenant, normal_oauth2_client, test_admin_user, name="Renamed")
+    assert result["frontchannel_logout_uri"] == "http://localhost:3000/fc"
+    assert result["frontchannel_logout_session_required"] is True
+
+
+def test_update_client_rejects_cross_origin_frontchannel_uri(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    with pytest.raises(ValidationError) as exc:
+        _update(
+            test_tenant,
+            normal_oauth2_client,
+            test_admin_user,
+            frontchannel_logout_uri="https://evil.example/fc",
+        )
+    assert exc.value.code == "invalid_frontchannel_logout_uri"
+
+
+def test_update_client_validates_frontchannel_uri_against_new_redirect_uris(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    """Both change at once: the URI is checked against the new redirect URIs."""
+    result = _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        redirect_uris=["https://new.example/cb"],
+        frontchannel_logout_uri="https://new.example/fc",
+    )
+    assert result["frontchannel_logout_uri"] == "https://new.example/fc"
+
+
+def test_update_client_redirect_change_cannot_orphan_the_frontchannel_uri(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        frontchannel_logout_uri="http://localhost:3000/fc",
+    )
+    with pytest.raises(ValidationError) as exc:
+        _update(
+            test_tenant,
+            normal_oauth2_client,
+            test_admin_user,
+            redirect_uris=["https://elsewhere.example/cb"],
+        )
+    assert exc.value.code == "invalid_frontchannel_logout_uri"
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"frontchannel_logout_uri": "https://rp.example/fc"},
+        {"frontchannel_logout_session_required": True},
+    ],
+)
+def test_update_b2b_client_rejects_frontchannel_settings(
+    test_tenant, b2b_oauth2_client, test_admin_user, kw
+):
+    with pytest.raises(ValidationError) as exc:
+        _update(test_tenant, b2b_oauth2_client, test_admin_user, **kw)
+    assert exc.value.code == "redirect_uris_not_allowed"

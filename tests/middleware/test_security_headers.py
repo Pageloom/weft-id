@@ -187,3 +187,16 @@ def test_csp_prevents_frames(client, test_tenant_host):
 
     # Verify CSP includes frame-ancestors 'none'
     assert "frame-ancestors 'none'" in csp
+
+
+def test_csp_frame_src_only_when_origins_are_given():
+    """Front-channel logout pages widen frame-src; every other page keeps the default."""
+    from middleware.security_headers import _build_csp_with_nonce
+
+    default = _build_csp_with_nonce("n")
+    assert "frame-src" not in default
+
+    widened = _build_csp_with_nonce("n", frame_src_origins=["https://a.example", "https://b:8443"])
+    assert "frame-src 'self' https://a.example https://b:8443; " in widened
+    assert "frame-ancestors 'none'" in widened
+    assert "script-src 'self' 'nonce-n'" in widened

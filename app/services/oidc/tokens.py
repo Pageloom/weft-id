@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import database
 import jwt
 from services.event_log import log_event
 from services.oidc.keys import get_active_signing_key, get_verification_public_keys
@@ -60,7 +61,9 @@ def issue_id_token(
     already authenticated the client, validated the code, and confirmed the
     client is `oidc_enabled` with the `openid` scope present.
 
-    Logs: ``oidc_id_token_issued`` (one write, one log).
+    Logs: ``oidc_id_token_issued`` (one issuance, one log). With a ``sid``
+    the issuance is also recorded against that session, so ending the session
+    can notify this client (front-channel logout).
 
     Args:
         tenant_id: Tenant ID for RLS scoping and signing-key resolution.
@@ -73,7 +76,8 @@ def issue_id_token(
         auth_time: The user's authentication time. Falls back to issuance time
             (`iat`) when not recorded on the code.
         sid: The session identifier recorded on the code. Omitted when absent
-            (codes issued before the identifier existed).
+            (codes issued before the identifier existed); such a token is not
+            tied to a session and no logout reaches its client.
 
     Returns:
         The compact-serialized signed JWT string.
@@ -108,6 +112,11 @@ def issue_id_token(
         algorithm=signing_key.algorithm,
         headers={"kid": signing_key.kid},
     )
+
+    if sid:
+        database.oauth2.upsert_session_client(
+            tenant_id, tenant_id, sid=sid, client_id=str(client_uuid), user_id=str(user_id)
+        )
 
     log_event(
         tenant_id=tenant_id,

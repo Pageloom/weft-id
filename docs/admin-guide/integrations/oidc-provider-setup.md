@@ -56,6 +56,17 @@ Signing out through the end session endpoint also ends the user's sessions at SA
 
 Add each address your app may return to after sign-out in the **Post-logout redirect URIs** box on the app's edit form, one per line. Each must be an absolute `http` or `https` URL without a fragment, and WeftID compares them exactly. Leave the box empty if your app does not need to be sent back. Through the API, set `post_logout_redirect_uris` with `PATCH /api/v1/oauth2/clients/{client_id}`.
 
+### Front-channel logout
+
+An app can also ask to be told when the user's WeftID session ends, however it ends: through the end session endpoint, the WeftID sign-out button, or WeftID asking the user to sign in again (`prompt=login` or an expired `max_age`). This is OpenID Connect Front-Channel Logout. Set the app's **Front-channel logout URI** on its edit form. When the session ends, WeftID shows a short "Signing you out" page that loads that URI in a hidden frame for every app that received an ID token during the session, and then continues on its way.
+
+* The URI must be an absolute `http` or `https` URL without a fragment, on the same scheme, host and port as one of the app's redirect URIs. It may have a query.
+* By default WeftID adds `iss` and `sid` to the request (**Send the issuer and session ID**, on for new apps). The `sid` matches the `sid` claim in the ID tokens the app received, so the app can find the session to end. Browsers that block third-party cookies do not send the app's own cookies to a hidden frame, so most apps need these parameters. Untick the box only if the app requires a bare request.
+* The app's page should end its local session and return quickly. WeftID moves on once every frame has loaded, or after five seconds at most.
+* When WeftID asks the user to sign in again for an app, that app is not sent a front-channel logout: it is in the middle of signing the user in.
+
+Through the API, set `frontchannel_logout_uri` and `frontchannel_logout_session_required` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`.
+
 ## Scopes and claims
 
 WeftID gates released claims by the scopes a relying party **requests** at authorize time. There is no per-app scope allowlist to configure: request the scopes your app needs, and WeftID releases only the matching claims.
@@ -95,7 +106,7 @@ Everything above is available through the REST API under `/api/v1/oauth2/clients
 * `POST /{client_id}/groups/bulk` -- assign several groups (`{"group_ids": [...]}`).
 * `DELETE /{client_id}/groups/{group_id}` -- remove a group assignment.
 
-Redirect URIs and post-logout redirect URIs are managed through the existing `PATCH /{client_id}` endpoint (`redirect_uris`, `post_logout_redirect_uris`).
+Redirect URIs, post-logout redirect URIs, and front-channel logout are managed through the existing `PATCH /{client_id}` endpoint (`redirect_uris`, `post_logout_redirect_uris`, `frontchannel_logout_uri`, `frontchannel_logout_session_required`).
 
 ## Signing key rotation
 
@@ -113,7 +124,7 @@ Admin or super admin role required to manage OIDC settings and group assignments
 
 ## What is not supported
 
-WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated logout, and group-based access control. The following are not available yet: front-channel and back-channel logout, token introspection and revocation endpoints, the device grant, dynamic client registration, and pairwise subject identifiers.
+WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated and front-channel logout, and group-based access control. The following are not available yet: back-channel logout, token introspection and revocation endpoints, the device grant, dynamic client registration, and pairwise subject identifiers.
 
 These parts of the specification are not supported, and discovery says so:
 

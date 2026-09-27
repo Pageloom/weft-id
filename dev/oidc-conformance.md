@@ -49,10 +49,13 @@ warning).
 2. runs `app/dev/oidc_conformance_testbed.py` inside the app container to
    provision the `oidc-conformance` tenant, a member user, and three
    OIDC-enabled clients registered with the suite's callback URL and its
-   `post_logout_redirect` URL,
+   `post_logout_redirect` URL, plus a fourth that also has the suite's
+   `frontchannel_logout` URL (used only by the front-channel module, through
+   a config override: any other module that ends a session would otherwise
+   load a logout iframe it does not expect),
 3. renders `dev/oidc-conformance/config.template.json` with those values,
-4. runs the Basic OP, Config OP, Form Post OP, and RP-Initiated OP
-   certification plans and exports the results.
+4. runs the Basic OP, Config OP, Form Post OP, RP-Initiated OP, and
+   Front-Channel OP certification plans and exports the results.
 
 The run exits non-zero unless every module finished and the outcome
 matches `dev/oidc-conformance/expected-failures.json` exactly.
@@ -128,7 +131,10 @@ RP-Initiated OP plan: it clicks **Sign out** on the confirmation page when
 one is shown, snapshots the signed-out page, and accepts the redirect back
 to the suite. The modules that must see the confirmation page (bad or
 missing `id_token_hint`, unregistered `post_logout_redirect_uri`) override
-it to snapshot that page instead.
+it to snapshot that page instead. In the Front-Channel OP plan the end
+session request lands on the "Signing you out" page, whose iframe calls the
+suite's `frontchannel_logout` endpoint and whose meta refresh continues to
+the suite's `post_logout_redirect`; none of the logout tasks acts on it.
 
 The suite replaces the whole `browser` list for an overridden module, so an
 override that still needs the login script names it as `"$browser[0]"`. The

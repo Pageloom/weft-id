@@ -11,6 +11,11 @@ WeftID as an OpenID Provider with static client registration:
     plan). The certification profiles exercise two clients with
     ``client_secret_basic`` and one with ``client_secret_post``; WeftID
     clients accept either method, so the three are identical apart from name.
+  * a fourth client, identical but also registered with the suite's
+    ``frontchannel_logout`` URL (session required), used only by the
+    front-channel logout module (a config override). The other three must
+    not have one: any module that ends a session would then load the logout
+    iframe, and a suite module that does not expect the request fails.
 
 The host-side runner (``dev/oidc_conformance.py``) calls this inside the app
 container with ``--json-output`` and renders the suite's plan config from the
@@ -58,6 +63,10 @@ CLIENTS = (
     ("client3", "Conformance client 3 (secret_post)"),
 )
 
+# The front-channel logout client (the ``client`` section of the
+# oidcc-frontchannel-rp-initiated-logout override).
+FRONTCHANNEL_CLIENT = ("client4", "Conformance client 4 (front-channel logout)")
+
 
 def _tenant_id(subdomain: str) -> str:
     row = database.fetchone(
@@ -71,7 +80,12 @@ def _tenant_id(subdomain: str) -> str:
 
 
 def _recreate_client(
-    tid: str, name: str, redirect_uri: str, post_logout_redirect_uri: str, created_by: str
+    tid: str,
+    name: str,
+    redirect_uri: str,
+    post_logout_redirect_uri: str,
+    created_by: str,
+    frontchannel_logout_uri: str | None = None,
 ) -> dict:
     """Delete any client with this name and create a fresh OIDC-enabled one."""
     for existing in database.oauth2.get_all_clients(tid, client_type="normal"):
@@ -86,6 +100,8 @@ def _recreate_client(
         redirect_uris=[redirect_uri],
         created_by=created_by,
         post_logout_redirect_uris=[post_logout_redirect_uri],
+        frontchannel_logout_uri=frontchannel_logout_uri,
+        frontchannel_logout_session_required=frontchannel_logout_uri is not None,
     )
     assert client is not None, f"client '{name}' not created"
 
@@ -133,6 +149,17 @@ def setup(suite_base_url: str, alias: str) -> dict:
         )
         for key, name in CLIENTS
     }
+    # Same convention for the front-channel logout plan: /frontchannel_logout.
+    frontchannel_logout_uri = f"{test_base}/frontchannel_logout"
+    key, name = FRONTCHANNEL_CLIENT
+    clients[key] = _recreate_client(
+        tid,
+        name,
+        redirect_uri,
+        post_logout_redirect_uri,
+        created_by=str(uid),
+        frontchannel_logout_uri=frontchannel_logout_uri,
+    )
 
     return {
         "tenant_id": tid,
@@ -142,6 +169,7 @@ def setup(suite_base_url: str, alias: str) -> dict:
         "password": DEV_PASSWORD,
         "redirect_uri": redirect_uri,
         "post_logout_redirect_uri": post_logout_redirect_uri,
+        "frontchannel_logout_uri": frontchannel_logout_uri,
         "alias": alias,
         **clients,
     }

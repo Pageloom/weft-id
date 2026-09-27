@@ -74,6 +74,8 @@
                 At least one redirect URI is required.
                 {% elif error == 'invalid_post_logout_redirect_uri' %}
                 Each post-logout redirect URI must be an absolute http or https URI without a fragment.
+                {% elif error == 'invalid_frontchannel_logout_uri' %}
+                The front-channel logout URI must be an absolute http or https URI without a fragment, on the same scheme, host and port as one of the redirect URIs.
                 {% elif error == 'update_failed' %}
                 Failed to update the app. Try again.
                 {% elif error == 'oidc_update_failed' %}
@@ -121,6 +123,19 @@
                 <textarea id="post_logout_redirect_uris" name="post_logout_redirect_uris" rows="2"
                           class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ (client.post_logout_redirect_uris or []) | join('\n') }}</textarea>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. Where the app may send users after they sign out through the end session endpoint (OpenID Connect only). One absolute http(s) URI per line, exact match.</p>
+            </div>
+
+            <div>
+                <label for="frontchannel_logout_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Front-channel logout URI</label>
+                <input type="url" id="frontchannel_logout_uri" name="frontchannel_logout_uri" maxlength="2048" value="{{ client.frontchannel_logout_uri or '' }}"
+                       class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. When a user's session ends, WeftID loads this page of the app in a hidden frame so the app can sign the user out too (OpenID Connect only). Must use the same scheme, host and port as a redirect URI.</p>
+                <label class="mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" id="frontchannel_logout_session_required" name="frontchannel_logout_session_required" value="true"
+                           {% if client.frontchannel_logout_session_required %}checked{% endif %}
+                           class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                    Send the issuer and session ID (<code>iss</code> and <code>sid</code>) with the request
+                </label>
             </div>
 
             <div class="flex justify-end">

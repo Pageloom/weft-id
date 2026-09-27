@@ -27,6 +27,12 @@ class TestBuildDiscoveryMetadata:
         assert meta.response_modes_supported == ["query", "form_post"]
         assert "authorization_code" in meta.grant_types_supported
 
+    def test_frontchannel_logout_with_session_advertised(self):
+        meta = discovery_service.build_discovery_metadata("https://t.example.com")
+        assert meta.frontchannel_logout_supported is True
+        assert meta.frontchannel_logout_session_supported is True
+        assert "sid" in meta.claims_supported
+
     def test_claims_parameter_explicitly_unsupported(self):
         meta = discovery_service.build_discovery_metadata("https://t.example.com")
         assert meta.claims_parameter_supported is False

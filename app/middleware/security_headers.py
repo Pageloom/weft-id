@@ -29,13 +29,19 @@ DEFAULT_CSP = (
 )
 
 
-def _build_csp_with_nonce(nonce: str, form_action_url: str | None = None) -> str:
+def _build_csp_with_nonce(
+    nonce: str,
+    form_action_url: str | None = None,
+    frame_src_origins: list[str] | None = None,
+) -> str:
     """Build CSP header with nonce for inline scripts and styles.
 
     Args:
         nonce: The cryptographic nonce for this request
         form_action_url: Optional external URL to allow in form-action
             (used for SAML IdP SSO post-binding to SP ACS URLs)
+        frame_src_origins: Optional external origins the page may frame
+            (used for OIDC front-channel logout iframes)
 
     Returns:
         CSP header value with nonce replacing unsafe-inline
@@ -44,11 +50,16 @@ def _build_csp_with_nonce(nonce: str, form_action_url: str | None = None) -> str
     if form_action_url:
         form_action = f"'self' {form_action_url}"
 
+    frame_src = ""
+    if frame_src_origins:
+        frame_src = f"frame-src 'self' {' '.join(frame_src_origins)}; "
+
     return (
         "default-src 'self'; "
         f"script-src 'self' 'nonce-{nonce}'; "
         "img-src 'self' data:; "
         "style-src 'self' 'unsafe-inline'; "
+        f"{frame_src}"
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         f"form-action {form_action}"
@@ -124,8 +135,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # (set by route handlers via get_csp_nonce)
         nonce = getattr(request.state, "csp_nonce", None)
         form_action_url = getattr(request.state, "csp_form_action_url", None)
+        frame_src_origins = getattr(request.state, "csp_frame_src_origins", None)
         if nonce:
-            csp = _build_csp_with_nonce(nonce, form_action_url)
+            csp = _build_csp_with_nonce(nonce, form_action_url, frame_src_origins)
         else:
             csp = self.csp
 

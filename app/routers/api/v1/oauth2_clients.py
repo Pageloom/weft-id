@@ -43,6 +43,10 @@ def _client_to_response(
         "description": client.get("description"),
         "redirect_uris": client.get("redirect_uris"),
         "post_logout_redirect_uris": client.get("post_logout_redirect_uris") or [],
+        "frontchannel_logout_uri": client.get("frontchannel_logout_uri"),
+        "frontchannel_logout_session_required": bool(
+            client.get("frontchannel_logout_session_required")
+        ),
         "service_user_id": (
             str(client["service_user_id"]) if client.get("service_user_id") else None
         ),
@@ -103,6 +107,11 @@ def create_normal_client(
         redirect_uris: List of exact redirect URIs
         post_logout_redirect_uris: Optional list of exact URIs the end_session
             endpoint may redirect to after logout (absolute http/https, no fragment)
+        frontchannel_logout_uri: Optional URL loaded in an iframe when the
+            user's WeftID session ends (absolute http/https, no fragment, same
+            scheme, host and port as a redirect URI)
+        frontchannel_logout_session_required: Whether that URL receives the
+            iss and sid query parameters (default true)
 
     Returns:
         Client details including client_secret (shown only once!)
@@ -118,6 +127,8 @@ def create_normal_client(
             created_by=str(user["id"]),
             description=client_data.description,
             post_logout_redirect_uris=client_data.post_logout_redirect_uris,
+            frontchannel_logout_uri=client_data.frontchannel_logout_uri,
+            frontchannel_logout_session_required=client_data.frontchannel_logout_session_required,
         )
 
         return _client_to_response(client, include_secret=True)
@@ -265,7 +276,7 @@ def update_client(
     client_data: ClientUpdate,
 ):
     """
-    Update an OAuth2 client's name, description, and/or redirect URIs.
+    Update an OAuth2 client's name, description, redirect URIs, and logout settings.
 
     Requires admin role.
 
@@ -278,6 +289,11 @@ def update_client(
         redirect_uris: New redirect URIs for normal clients (optional)
         post_logout_redirect_uris: New post-logout redirect URIs for normal
             clients (optional; absolute http/https, no fragment; [] clears them)
+        frontchannel_logout_uri: New front-channel logout URL for normal
+            clients (optional; same scheme, host and port as a redirect URI;
+            "" clears it)
+        frontchannel_logout_session_required: Whether the front-channel
+            logout URL receives iss and sid (optional, normal clients)
 
     Returns:
         Updated client details
@@ -297,6 +313,8 @@ def update_client(
             description=client_data.description,
             redirect_uris=client_data.redirect_uris,
             post_logout_redirect_uris=client_data.post_logout_redirect_uris,
+            frontchannel_logout_uri=client_data.frontchannel_logout_uri,
+            frontchannel_logout_session_required=client_data.frontchannel_logout_session_required,
         )
 
         if not client:

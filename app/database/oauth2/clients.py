@@ -13,6 +13,8 @@ def create_normal_client(
     created_by: str,
     description: str | None = None,
     post_logout_redirect_uris: list[str] | None = None,
+    frontchannel_logout_uri: str | None = None,
+    frontchannel_logout_session_required: bool = True,
 ) -> dict | None:
     """
     Create a normal OAuth2 client for authorization code flow.
@@ -26,6 +28,10 @@ def create_normal_client(
         description: Optional client description
         post_logout_redirect_uris: Exact URIs the end_session endpoint may
             redirect to after logout (optional, default none)
+        frontchannel_logout_uri: RP URL loaded in an iframe when the session
+            ends (optional)
+        frontchannel_logout_session_required: Whether that URL gets ``iss``
+            and ``sid`` (default True)
 
     Returns:
         Dict with client details including id, client_id, and plain text client_secret
@@ -42,14 +48,17 @@ def create_normal_client(
         """
         insert into oauth2_clients (
             tenant_id, client_id, client_secret_hash, client_type,
-            name, description, redirect_uris, post_logout_redirect_uris, created_by
+            name, description, redirect_uris, post_logout_redirect_uris,
+            frontchannel_logout_uri, frontchannel_logout_session_required, created_by
         )
         values (
             :tenant_id, :client_id, :client_secret_hash, 'normal',
-            :name, :description, :redirect_uris, :post_logout_redirect_uris, :created_by
+            :name, :description, :redirect_uris, :post_logout_redirect_uris,
+            :frontchannel_logout_uri, :frontchannel_logout_session_required, :created_by
         )
         returning id, tenant_id, client_id, client_type, name, description,
-                  redirect_uris, post_logout_redirect_uris, service_user_id, is_active, created_at
+                  redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+                  frontchannel_logout_session_required, service_user_id, is_active, created_at
         """,
         {
             "tenant_id": tenant_id_value,
@@ -59,6 +68,8 @@ def create_normal_client(
             "description": description,
             "redirect_uris": redirect_uris,
             "post_logout_redirect_uris": post_logout_redirect_uris or [],
+            "frontchannel_logout_uri": frontchannel_logout_uri,
+            "frontchannel_logout_session_required": frontchannel_logout_session_required,
             "created_by": created_by,
         },
     )
@@ -126,7 +137,8 @@ def create_b2b_client(
             :name, :description, :service_user_id, :created_by
         )
         returning id, tenant_id, client_id, client_type, name, description,
-                  redirect_uris, post_logout_redirect_uris, service_user_id, is_active, created_at
+                  redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+                  frontchannel_logout_session_required, service_user_id, is_active, created_at
         """,
         {
             "tenant_id": tenant_id_value,
@@ -151,14 +163,16 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
 
     Returns:
         Client record with id, tenant_id, client_id, client_secret_hash, client_type,
-        name, redirect_uris, post_logout_redirect_uris, service_user_id, created_at
+        name, redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+        frontchannel_logout_session_required, service_user_id, created_at
     """
     return fetchone(
         tenant_id,
         """
         select id, tenant_id, client_id, client_secret_hash, client_type,
-               name, description, redirect_uris, post_logout_redirect_uris,
-               service_user_id, is_active, oidc_enabled, available_to_all, created_at
+               name, description, redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+               frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
+               available_to_all, created_at
         from oauth2_clients
         where client_id = :client_id
         """,
@@ -175,13 +189,15 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
 
     Returns:
         Client record with id, tenant_id, client_id, client_type, name,
-        redirect_uris, post_logout_redirect_uris, service_user_id, created_at
+        redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+        frontchannel_logout_session_required, service_user_id, created_at
     """
     return fetchone(
         tenant_id,
         """
         select id, tenant_id, client_id, client_type, name, description,
-               redirect_uris, post_logout_redirect_uris, service_user_id, is_active, oidc_enabled,
+               redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+               frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
                available_to_all, created_at
         from oauth2_clients
         where id = :id
@@ -206,8 +222,9 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
             tenant_id,
             """
             select c.id, c.tenant_id, c.client_id, c.client_type, c.name,
-                   c.description, c.redirect_uris, c.post_logout_redirect_uris, c.service_user_id,
-                   c.is_active, c.created_at, u.role as service_role
+                   c.description, c.redirect_uris, c.post_logout_redirect_uris,
+                   c.frontchannel_logout_uri, c.frontchannel_logout_session_required,
+                   c.service_user_id, c.is_active, c.created_at, u.role as service_role
             from oauth2_clients c
             left join users u on c.service_user_id = u.id
             where c.client_type = :client_type
@@ -219,7 +236,8 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
         tenant_id,
         """
         select c.id, c.tenant_id, c.client_id, c.client_type, c.name,
-               c.description, c.redirect_uris, c.post_logout_redirect_uris, c.service_user_id,
+               c.description, c.redirect_uris, c.post_logout_redirect_uris,
+               c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.created_at, u.role as service_role
         from oauth2_clients c
         left join users u on c.service_user_id = u.id
@@ -302,9 +320,11 @@ def update_client(
     description: str | None = None,
     redirect_uris: list[str] | None = None,
     post_logout_redirect_uris: list[str] | None = None,
+    frontchannel_logout_uri: str | None = None,
+    frontchannel_logout_session_required: bool | None = None,
 ) -> dict | None:
     """
-    Update an OAuth2 client's name, description, and/or redirect URIs.
+    Update an OAuth2 client's name, description, redirect URIs, and logout settings.
 
     Args:
         tenant_id: Tenant ID for scoping
@@ -314,6 +334,9 @@ def update_client(
         redirect_uris: New redirect URIs for normal clients (optional)
         post_logout_redirect_uris: New post-logout redirect URIs (optional;
             an empty list clears them)
+        frontchannel_logout_uri: New front-channel logout URI (optional; an
+            empty string clears it)
+        frontchannel_logout_session_required: New ``iss``/``sid`` flag (optional)
 
     Returns:
         Updated client record, or None if not found
@@ -338,6 +361,16 @@ def update_client(
         updates.append("post_logout_redirect_uris = :post_logout_redirect_uris")
         params["post_logout_redirect_uris"] = post_logout_redirect_uris
 
+    if frontchannel_logout_uri is not None:
+        updates.append("frontchannel_logout_uri = :frontchannel_logout_uri")
+        params["frontchannel_logout_uri"] = frontchannel_logout_uri or None
+
+    if frontchannel_logout_session_required is not None:
+        updates.append(
+            "frontchannel_logout_session_required = :frontchannel_logout_session_required"
+        )
+        params["frontchannel_logout_session_required"] = frontchannel_logout_session_required
+
     if not updates:
         # No fields to update, just return current record
         return get_client_by_client_id(tenant_id, client_id)
@@ -347,7 +380,8 @@ def update_client(
         set {", ".join(updates)}
         where client_id = :client_id
         returning id, tenant_id, client_id, client_type, name, description,
-                  redirect_uris, post_logout_redirect_uris, service_user_id, is_active,
+                  redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+                  frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, created_at
     """
 
@@ -390,7 +424,8 @@ def update_client_oidc_settings(
         set {", ".join(updates)}
         where client_id = :client_id
         returning id, tenant_id, client_id, client_type, name, description,
-                  redirect_uris, post_logout_redirect_uris, service_user_id, is_active,
+                  redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+                  frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, created_at
     """
 
@@ -426,7 +461,8 @@ def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> d
         tenant_id,
         """
         select c.id, c.tenant_id, c.client_id, c.client_type, c.name,
-               c.description, c.redirect_uris, c.post_logout_redirect_uris, c.service_user_id,
+               c.description, c.redirect_uris, c.post_logout_redirect_uris,
+               c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.created_at, u.role as service_role
         from oauth2_clients c
         left join users u on c.service_user_id = u.id
@@ -454,7 +490,8 @@ def deactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
         set is_active = false
         where client_id = :client_id
         returning id, tenant_id, client_id, client_type, name, description,
-                  redirect_uris, post_logout_redirect_uris, service_user_id, is_active,
+                  redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+                  frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, created_at
         """,
         {"client_id": client_id},
@@ -479,7 +516,8 @@ def reactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
         set is_active = true
         where client_id = :client_id
         returning id, tenant_id, client_id, client_type, name, description,
-                  redirect_uris, post_logout_redirect_uris, service_user_id, is_active,
+                  redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+                  frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, created_at
         """,
         {"client_id": client_id},

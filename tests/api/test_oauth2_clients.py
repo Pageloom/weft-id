@@ -1296,3 +1296,116 @@ def test_oidc_urls_include_end_session_endpoint(
     )
     assert response.status_code == 200
     assert response.json()["end_session_endpoint"] == f"https://{test_tenant_host}/oauth2/logout"
+
+
+# =============================================================================
+# Front-channel logout
+# =============================================================================
+
+
+def test_create_normal_client_with_frontchannel_logout(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "FC RP",
+            "redirect_uris": ["https://rp.example/cb"],
+            "frontchannel_logout_uri": "https://rp.example/fc",
+            "frontchannel_logout_session_required": True,
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["frontchannel_logout_uri"] == "https://rp.example/fc"
+    assert body["frontchannel_logout_session_required"] is True
+
+
+def test_create_normal_client_frontchannel_logout_defaults(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Plain RP", "redirect_uris": ["https://rp.example/cb"]},
+    )
+    body = response.json()
+    assert body["frontchannel_logout_uri"] is None
+    assert body["frontchannel_logout_session_required"] is True
+
+
+def test_create_normal_client_rejects_cross_origin_frontchannel_uri(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Bad RP",
+            "redirect_uris": ["https://rp.example/cb"],
+            "frontchannel_logout_uri": "https://evil.example/fc",
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_create_normal_client_rejects_over_long_frontchannel_uri(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Long RP",
+            "redirect_uris": ["https://rp.example/cb"],
+            "frontchannel_logout_uri": "https://rp.example/" + "a" * 2048,
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_update_client_frontchannel_logout_set_read_and_clear(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    url = f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}"
+    headers = {"Host": test_tenant_host, **oauth2_admin_authorization_header}
+
+    response = client.patch(
+        url,
+        headers=headers,
+        json={
+            "frontchannel_logout_uri": "http://localhost:3000/fc",
+            "frontchannel_logout_session_required": True,
+        },
+    )
+    assert response.status_code == 200
+    fetched = client.get(url, headers=headers).json()
+    assert fetched["frontchannel_logout_uri"] == "http://localhost:3000/fc"
+    assert fetched["frontchannel_logout_session_required"] is True
+
+    response = client.patch(url, headers=headers, json={"frontchannel_logout_uri": ""})
+    assert response.json()["frontchannel_logout_uri"] is None
+    assert response.json()["frontchannel_logout_session_required"] is True
+
+
+def test_update_client_rejects_cross_origin_frontchannel_uri(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"frontchannel_logout_uri": "https://evil.example/fc"},
+    )
+    assert response.status_code == 400
+
+
+def test_update_client_frontchannel_logout_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"frontchannel_logout_uri": "http://localhost:3000/fc"},
+    )
+    assert response.status_code == 403

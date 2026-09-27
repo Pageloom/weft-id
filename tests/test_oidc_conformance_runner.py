@@ -41,6 +41,7 @@ def testbed() -> dict:
         "client1": {"client_id": "id1", "client_secret": "s1"},
         "client2": {"client_id": "id2", "client_secret": "s2"},
         "client3": {"client_id": "id3", "client_secret": "s3"},
+        "client4": {"client_id": "id4", "client_secret": "s4"},
     }
 
 
@@ -56,6 +57,11 @@ class TestRenderConfig:
         assert cfg["client"] == {"client_id": "id1", "client_secret": "s1"}
         assert cfg["client2"] == {"client_id": "id2", "client_secret": "s2"}
         assert cfg["client_secret_post"] == {"client_id": "id3", "client_secret": "s3"}
+        # Only the front-channel module uses the client registered with a
+        # frontchannel_logout_uri.
+        assert cfg["override"]["oidcc-frontchannel-rp-initiated-logout"] == {
+            "client": {"client_id": "id4", "client_secret": "s4"}
+        }
         # No WeftID placeholder survives; braces left are the suite's own.
         for placeholder in runner.PLACEHOLDERS:
             assert placeholder not in rendered
@@ -200,6 +206,10 @@ class TestPlanArguments:
         assert "oidcc-formpost-basic-certification-test-plan[" in joined
         assert (
             "oidcc-rp-initiated-logout-certification-test-plan"
+            "[response_type=code][client_registration=static_client]"
+        ) in runner.PLANS
+        assert (
+            "oidcc-frontchannel-rp-initiated-logout-certification-test-plan"
             "[response_type=code][client_registration=static_client]"
         ) in runner.PLANS
         # Static clients are what the testbed provisions.

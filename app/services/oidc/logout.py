@@ -1,4 +1,7 @@
-"""OpenID Connect RP-Initiated Logout 1.0: end_session request resolution.
+"""OpenID Connect logout: end_session requests and the relying-party fan-out.
+
+``resolve_end_session_request`` implements RP-Initiated Logout 1.0;
+``end_oidc_session`` implements the OP side of Front-Channel Logout 1.0.
 
 A relying party sends the browser to the end_session endpoint with any of
 ``id_token_hint``, ``client_id``, ``post_logout_redirect_uri`` and ``state``.
@@ -17,13 +20,19 @@ Trust rules:
   (section 2: the OP MUST NOT redirect unless it can confirm the target is
   legitimate), because anyone can put a ``client_id`` in a link.
 
-Nothing here writes or logs: resolution is a pure read, like
-``verify_id_token_hint``.
+Resolution writes and logs nothing, like ``verify_id_token_hint``.
+
+Front-channel fan-out: every ID token issued in a session is recorded
+against the session's ``sid`` (``issue_id_token``). When the session ends,
+``end_oidc_session`` deletes those records and returns the front-channel
+logout URLs of the clients that registered one, for the logout page to load
+in iframes.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from urllib.parse import urlencode
 
 import database
 import jwt
@@ -150,3 +159,66 @@ def resolve_end_session_request(
         hint_claims=hint_claims,
         post_logout_redirect_uri=post_logout_redirect_uri,
     )
+
+
+def _frontchannel_logout_url(client: dict, *, issuer: str, sid: str) -> str:
+    """The client's front-channel logout URI with ``iss``/``sid`` when required.
+
+    The parameters are appended to any query the RP registered (Front-Channel
+    Logout 1.0, section 2 allows one).
+    """
+    uri: str = client["frontchannel_logout_uri"]
+    if not client.get("frontchannel_logout_session_required"):
+        return uri
+    separator = "&" if "?" in uri else "?"
+    return f"{uri}{separator}{urlencode({'iss': issuer, 'sid': sid})}"
+
+
+def end_oidc_session(
+    *,
+    tenant_id: str,
+    issuer: str,
+    sid: str | None,
+    exclude_client_uuid: str | None = None,
+) -> list[str]:
+    """Forget which clients received ID tokens in a session that is ending.
+
+    Authorization: none -- called only while the session itself is being
+    terminated (logout button, end_session endpoint, forced
+    re-authentication), for that session's own ``sid``.
+
+    No audit: the caller's ``user_signed_out`` event records the logout,
+    including how many front-channel URLs were returned.
+
+    Args:
+        tenant_id: Tenant ID for RLS scoping.
+        issuer: The tenant issuer, sent as ``iss`` to clients that require it.
+        sid: The ending session's identifier; None (a session that never
+            had one) returns nothing.
+        exclude_client_uuid: A client not to notify (its record is still
+            removed). Forced re-authentication passes the client that asked
+            for it: that RP is mid-login, and a logout iframe would clear the
+            state it keeps for the authorization response.
+
+    Returns:
+        The front-channel logout URLs to load, one per active OIDC client
+        that registered a ``frontchannel_logout_uri``, in first-issued order
+        and without duplicates.
+    """
+    if not sid:
+        return []
+    urls: list[str] = []
+    rows = database.oauth2.delete_session_clients(tenant_id, sid)
+    for client in sorted(rows, key=lambda row: row["created_at"]):
+        if (
+            not client.get("frontchannel_logout_uri")
+            or client.get("client_type") != "normal"
+            or not client.get("is_active", True)
+            or not client.get("oidc_enabled")
+            or str(client["id"]) == exclude_client_uuid
+        ):
+            continue
+        url = _frontchannel_logout_url(client, issuer=issuer, sid=sid)
+        if url not in urls:
+            urls.append(url)
+    return urls

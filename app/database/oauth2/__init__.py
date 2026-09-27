@@ -5,6 +5,7 @@ This module provides all OAuth2-related database operations including:
 - Authorization code flow
 - Token operations (access/refresh tokens)
 - Remembered consent grants
+- Which clients received an ID token in which session (logout fan-out)
 """
 
 from database.oauth2.authorization import (
@@ -36,6 +37,10 @@ from database.oauth2.consent import (
     list_consent_grants_for_client,
     list_consent_grants_for_user,
     upsert_consent_grant,
+)
+from database.oauth2.sessions import (
+    delete_session_clients,
+    upsert_session_client,
 )
 from database.oauth2.tokens import (
     cleanup_expired_tokens,
@@ -89,4 +94,7 @@ __all__ = [
     "delete_consent_grant",
     "delete_consent_grants_for_user",
     "delete_consent_grants_for_client",
+    # sessions
+    "upsert_session_client",
+    "delete_session_clients",
 ]

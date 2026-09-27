@@ -54,9 +54,11 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 COPY dev/tailwind.config.js /app/
 COPY static/css/input.css /app/static/css/
 
-# Build CSS
+# Build CSS. The config's content glob is relative to the repo root
+# (./app/templates); in the image the templates live at /app/templates.
 RUN mkdir -p /app/static/css \
- && tailwindcss -i /app/static/css/input.css -o /app/static/css/output.css --minify
+ && tailwindcss --config /app/tailwind.config.js --content '/app/templates/**/*.html' \
+      -i /app/static/css/input.css -o /app/static/css/output.css --minify
 
 # Build documentation site
 COPY mkdocs.yml /tmp/

@@ -66,7 +66,7 @@ jobs:
         run: |
           curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-linux-x64
           chmod +x tailwindcss-linux-x64
-          ./tailwindcss-linux-x64 -i static/css/input.css -o static/css/output.css --minify
+          ./tailwindcss-linux-x64 --config dev/tailwind.config.js -i static/css/input.css -o static/css/output.css --minify
 
       - name: Generate self-signed TLS certificates
         run: |

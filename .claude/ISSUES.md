@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 2 | File Structure (pre-existing); SSRF blocklist gaps (IPv6 unspecified, NAT64/6to4) |
+| Medium | 3 | File Structure (pre-existing); SSRF blocklist gaps (IPv6 unspecified, NAT64/6to4); composite created_by FKs break user delete |
 | Low | 2 | Upload-auth temp-file leak (warning-ignored, tracked); expired OAuth2 tokens never swept |
 
 Note: the HIGH CSRF-never-enforced finding (middleware ordering, discovered 2026-09-14 on
@@ -99,6 +99,32 @@ this needs a coordinated change. When fixed, remove the `filterwarnings` ignore.
 routes share the latent pattern), `app/middleware/csrf.py`, `pyproject.toml`
 
 ---
+
+---
+
+## [BUG] Composite `created_by` foreign keys null `tenant_id` on user delete
+
+**Discovered:** 2026-09-27 (oidc-conformance Iteration 8a, while testing cascades)
+**Severity:** Medium (deleting a user who created one of these rows fails)
+**Found in:** ten foreign keys of the form
+`FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id) ON DELETE SET NULL`
+
+Without a column list, `ON DELETE SET NULL` nulls **both** referencing columns,
+including the row's `tenant_id` (NOT NULL). Deleting the referenced user then
+fails with a not-null violation instead of clearing `created_by`. Observed on
+`oidc_idp_connections` (deleting the connection's creator); the same shape is
+on `tenant_privileged_domains`, `tenant_security_settings` (`updated_by`),
+`saml_identity_providers`, `saml_idp_domain_bindings`, `saml_sp_certificates`,
+`oauth2_clients`, `service_providers`, `domain_group_links`, and
+`oidc_idp_domain_bindings`. Not verified whether the user-delete service
+blocks the case first (e.g. by refusing to delete admins).
+
+**Suggested fix:** Postgres 15+ supports `ON DELETE SET NULL (created_by)`.
+Re-create each constraint with the column list (add the new one `NOT VALID`,
+validate, drop the old one). Where `created_by` is itself NOT NULL
+(`oidc_idp_connections`), decide between making it nullable and blocking the
+delete with a clear error.
+**Files Affected:** a new migration; possibly `app/services/users/crud.py`
 
 ---
 

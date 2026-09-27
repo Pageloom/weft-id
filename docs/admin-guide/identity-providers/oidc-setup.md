@@ -57,6 +57,18 @@ A discovery document is rejected when its `issuer` does not match the configured
 
 Once the test passes, enable the connection.
 
+## Sign-out from the provider
+
+If your provider supports OpenID Connect Back-Channel Logout, WeftID can sign users out when they sign out at the provider. Copy the **Back-Channel Logout URL** from the connection's **Details** tab and register it in the provider's console (Keycloak calls it the backchannel logout URL, Auth0 the back-channel logout URI):
+
+```
+https://<your-tenant>.example.com/auth/oidc/<connection-id>/backchannel-logout
+```
+
+When the provider ends a session, it sends WeftID a signed logout token. WeftID checks it against the connection's signing keys, issuer and client ID, and signs the user out of every WeftID session that began with that provider session. When the token names only the user, every session the user started through this connection ends. The apps those sessions signed in to are notified by back-channel logout, and their refresh tokens stop working. Each ended session is audited as `user_signed_out` with reason `upstream_backchannel_logout`. A token that fails the checks, or is sent twice, is refused and audited as `oidc_idp_logout_rejected`.
+
+Registering the URL is optional. Without it, signing out at the provider leaves WeftID sessions running until they expire or the user signs out of WeftID.
+
 ## Providers without discovery
 
 A provider that does not publish `/.well-known/openid-configuration` can still be used by entering its endpoints by hand. This applies to the Generic provider type only. Google and Entra always publish discovery, so the manual fields are not shown for them.

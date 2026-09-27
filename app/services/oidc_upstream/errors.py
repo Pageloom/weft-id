@@ -86,3 +86,17 @@ class IDTokenNotYetValidError(IDTokenValidationError):
 
 class IDTokenMissingClaimsError(IDTokenValidationError):
     """ID token is missing a required claim."""
+
+
+class LogoutTokenError(OIDCUpstreamError):
+    """An upstream back-channel logout token was rejected.
+
+    ``reason`` is a short machine-readable code for the audit trail; the
+    message is the human-readable detail. The receiver answers every
+    rejection with the same ``400 invalid_request`` (Back-Channel Logout 1.0,
+    section 2.8) and never echoes the detail to the caller.
+    """
+
+    def __init__(self, reason: str, detail: str) -> None:
+        super().__init__(detail)
+        self.reason = reason

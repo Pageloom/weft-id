@@ -45,6 +45,15 @@ from database.oidc_upstream.links import (
     get_user_id_by_sub,
     list_links_for_connection,
 )
+from database.oidc_upstream.sessions import (
+    consume_logout_token_jti,
+    delete_idp_session,
+    find_idp_sessions,
+    get_idp_session,
+    purge_expired_logout_token_jtis,
+    record_idp_session,
+    sweep_stale_idp_sessions,
+)
 
 __all__ = [
     # connections
@@ -82,4 +91,12 @@ __all__ = [
     "unbind_domain_from_connection",
     "get_domain_binding_by_domain_id",
     "get_unbound_domains",
+    # upstream sessions
+    "record_idp_session",
+    "find_idp_sessions",
+    "get_idp_session",
+    "delete_idp_session",
+    "sweep_stale_idp_sessions",
+    "consume_logout_token_jti",
+    "purge_expired_logout_token_jtis",
 ]

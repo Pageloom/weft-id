@@ -232,6 +232,9 @@ def test_details_tab_renders_and_hides_secret(
     assert response.status_code == 200
     # The callback URL is displayed for pasting into the IdP console.
     assert f"/auth/oidc/{conn['id']}/callback" in response.text
+    # So is the back-channel logout URL, with its own copy button.
+    assert f"/auth/oidc/{conn['id']}/backchannel-logout" in response.text
+    assert 'id="copy-backchannel-logout-url"' in response.text
     # The secret is never rendered.
     assert "super-secret-value" not in response.text
 

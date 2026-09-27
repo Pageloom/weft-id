@@ -16,6 +16,21 @@
     </div>
 </div>
 
+{# Back-channel logout URL to paste into the IdP console #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Back-Channel Logout URL</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+        Optional. Register this as the back-channel logout URI in your IdP console. When a user signs out at the IdP, WeftID signs them out of the sessions that sign-in started.
+    </p>
+    <div class="flex items-center gap-2">
+        <code id="backchannel-logout-url" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ connection.backchannel_logout_url }}</code>
+        <button type="button" id="copy-backchannel-logout-url"
+                class="shrink-0 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+            Copy
+        </button>
+    </div>
+</div>
+
 {# Connection Configuration #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <dl class="grid grid-cols-1 gap-4">
@@ -269,16 +284,16 @@
 
 <script nonce="{{ csp_nonce }}">
 (function() {
-    const copyBtn = document.getElementById('copy-callback-url');
-    if (copyBtn) {
-        copyBtn.addEventListener('click', () => {
-            const url = document.getElementById('callback-url').textContent.trim();
+    [['copy-callback-url', 'callback-url'], ['copy-backchannel-logout-url', 'backchannel-logout-url']].forEach(([btnId, codeId]) => {
+        const copyBtn = document.getElementById(btnId);
+        copyBtn?.addEventListener('click', () => {
+            const url = document.getElementById(codeId).textContent.trim();
             navigator.clipboard.writeText(url).then(() => {
                 copyBtn.textContent = 'Copied!';
                 setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
             });
         });
-    }
+    });
     document.getElementById('edit-name-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-name-modal'); });
     document.getElementById('cancel-name-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-name-modal'); });
     document.getElementById('edit-endpoints-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-endpoints-modal'); });

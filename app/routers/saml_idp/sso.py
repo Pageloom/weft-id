@@ -15,6 +15,7 @@ from typing import Annotated
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from routers.auth.logout import end_oidc_session_quietly
 from services import branding as branding_service
 from services import service_providers as sp_service
 from services.event_log import log_event
@@ -23,7 +24,12 @@ from utils.saml_authn_request import parse_authn_request, validate_authn_request
 from utils.template_context import get_template_context
 from utils.templates import templates
 
-from ._helpers import PENDING_SSO_KEYS, get_base_url, redirect_if_force_profile_completion
+from ._helpers import (
+    PENDING_SSO_KEYS,
+    get_base_url,
+    redirect_if_force_profile_completion,
+    session_user_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +127,10 @@ def _handle_sso_request(
         logger.warning("AuthnRequest validation failed: %s", e)
         return _render_sso_error(request, tenant_id, "invalid_request", str(e))
 
+    # Resolve the session first: a stale or revoked session is cleared here,
+    # before the SSO context below is written into it.
+    user_id = session_user_id(request, tenant_id)
+
     # 4. Store SSO context in session
     request.session["pending_sso_sp_id"] = sp.id
     request.session["pending_sso_sp_entity_id"] = sp.entity_id
@@ -129,7 +139,6 @@ def _handle_sso_request(
     request.session["pending_sso_sp_name"] = sp.name
 
     # 5. Check if user is already authenticated
-    user_id = request.session.get("user_id")
     if user_id:
         # Bind SSO context to this user so no other user can complete it
         request.session["pending_sso_user_id"] = user_id
@@ -159,7 +168,7 @@ def consent_page(
 ):
     """Render consent screen showing what attributes will be shared."""
     # Require authenticated session
-    user_id = request.session.get("user_id")
+    user_id = session_user_id(request, tenant_id)
     if not user_id:
         logger.warning(
             "Consent page: no user_id in session. Keys: %s",
@@ -244,16 +253,23 @@ def consent_switch_account(
         k: request.session.get(k) for k in PENDING_SSO_KEYS if request.session.get(k) is not None
     }
 
-    # Log the sign-out event before clearing
+    # End the session like any sign-out (server-side revocation, downstream
+    # back-channel logouts, refresh tokens), then log it before clearing.
+    # Front-channel URLs are dropped: the user goes straight to the login page.
     user_id = request.session.get("user_id")
     if user_id:
+        oidc_end = end_oidc_session_quietly(request, tenant_id)
         log_event(
             tenant_id=tenant_id,
             actor_user_id=user_id,
             artifact_type="user",
             artifact_id=user_id,
             event_type="user_signed_out",
-            metadata={"reason": "sso_switch_account"},
+            metadata={
+                "reason": "sso_switch_account",
+                "backchannel_logout_count": oidc_end.backchannel_logout_count,
+                "refresh_tokens_revoked": oidc_end.refresh_tokens_revoked,
+            },
         )
 
     # Clear entire session (removes auth state)
@@ -274,7 +290,7 @@ def consent_respond(
 ):
     """Process consent form submission."""
     # Require authenticated session
-    user_id = request.session.get("user_id")
+    user_id = session_user_id(request, tenant_id)
     if not user_id:
         return _render_sso_error(request, tenant_id, "no_session")
 
@@ -379,7 +395,7 @@ def idp_initiated_launch(
     via group assignments, store SSO context in session, and redirect to consent.
     """
     # Require authenticated session
-    user_id = request.session.get("user_id")
+    user_id = session_user_id(request, tenant_id)
     if not user_id:
         return RedirectResponse(url="/login", status_code=303)
 

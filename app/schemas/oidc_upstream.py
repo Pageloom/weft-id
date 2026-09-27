@@ -152,6 +152,7 @@ class OIDCConnectionConfig(BaseModel):
     jit_provisioning: bool
     allow_email_linking: bool
     callback_url: str
+    backchannel_logout_url: str
     created_at: datetime
     updated_at: datetime
 

@@ -99,6 +99,7 @@ def test_create_connection_as_super_admin(
     assert data["client_secret_set"] is True
     assert "client_secret" not in data
     assert data["callback_url"].endswith(f"/auth/oidc/{data['id']}/callback")
+    assert data["backchannel_logout_url"].endswith(f"/auth/oidc/{data['id']}/backchannel-logout")
 
 
 def test_create_connection_invalid_provider_type(

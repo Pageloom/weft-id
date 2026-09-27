@@ -47,6 +47,21 @@ def mock_tenant_lookup(sso_user):
         yield
 
 
+@pytest.fixture(autouse=True)
+def session_user_from_cookie():
+    """Resolve the signed-in user from the session alone.
+
+    These tests fake the tenant and user (no database rows), so the real
+    ``session_user_id`` checks (timeout, deactivation, revocation) would find
+    no user. Those checks are covered in tests/routers/test_saml_idp_session_user.py.
+    """
+    with patch(
+        f"{ROUTER_MODULE}.session_user_id",
+        side_effect=lambda request, tenant_id: request.session.get("user_id"),
+    ):
+        yield
+
+
 def _make_authn_request_xml(
     issuer: str = "https://sp.example.com",
     request_id: str = "_req123",

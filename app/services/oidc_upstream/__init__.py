@@ -58,6 +58,7 @@ from services.oidc_upstream.errors import (
     IDTokenSignatureError,
     IDTokenValidationError,
     JwksError,
+    LogoutTokenError,
     OIDCUpstreamError,
 )
 from services.oidc_upstream.groups import (
@@ -74,6 +75,12 @@ from services.oidc_upstream.jwks import (
 from services.oidc_upstream.links import (
     list_connection_linked_users,
     unlink_user_from_connection,
+)
+from services.oidc_upstream.logout import (
+    BackchannelLogoutResult,
+    handle_backchannel_logout,
+    record_upstream_session,
+    validate_logout_token,
 )
 from services.oidc_upstream.presets import (
     compose_entra_authority,
@@ -125,6 +132,11 @@ __all__ = [
     "get_unbound_domains",
     "run_discovery",
     "validate_id_token",
+    "validate_logout_token",
+    "handle_backchannel_logout",
+    "record_upstream_session",
+    "BackchannelLogoutResult",
+    "LogoutTokenError",
     "get_jwks",
     "refresh_jwks",
     "clear_jwks_cache",

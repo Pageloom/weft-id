@@ -47,7 +47,7 @@ _LEEWAY_SECONDS = 60
 _REQUIRED_CLAIMS = ("iss", "aud", "exp", "iat", "sub")
 
 
-def _select_key(token: str, key_set: jwt.PyJWKSet) -> jwt.PyJWK:
+def select_signing_key(token: str, key_set: jwt.PyJWKSet) -> jwt.PyJWK:
     """Select the verification key by the token's ``kid`` header.
 
     Raises IDTokenSignatureError if the token has no ``kid`` or the key set
@@ -76,7 +76,7 @@ def _decode_with_key(
     client_id: str,
 ) -> dict:
     """Decode and verify the token against a key set, mapping PyJWT errors."""
-    key = _select_key(token, key_set)
+    key = select_signing_key(token, key_set)
     try:
         return jwt.decode(
             token,

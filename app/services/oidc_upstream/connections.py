@@ -99,6 +99,7 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         jit_provisioning=row["jit_provisioning"],
         allow_email_linking=row["allow_email_linking"],
         callback_url=f"{base_url}/auth/oidc/{connection_id}/callback",
+        backchannel_logout_url=f"{base_url}/auth/oidc/{connection_id}/backchannel-logout",
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

@@ -6,16 +6,19 @@ Provides HTTP routes for the consuming direction of OIDC:
 
 The package is split into focused modules:
 - authentication.py: Core auth flow (login initiation, callback)
+- logout.py: Back-channel logout receiver (logout tokens from the IdP)
 - admin.py: Admin-only management endpoints (list, create, detail tabs)
 """
 
 from fastapi import APIRouter
 from routers.oidc_upstream.admin import router as admin_router
 from routers.oidc_upstream.authentication import router as auth_router
+from routers.oidc_upstream.logout import router as logout_router
 
 router = APIRouter(tags=["oidc_upstream"], include_in_schema=False)
 
 # Include the auth router first (public /auth/oidc/* routes), then the admin
 # router (/identity-providers/oidc/*).
 router.include_router(auth_router)
+router.include_router(logout_router)
 router.include_router(admin_router)

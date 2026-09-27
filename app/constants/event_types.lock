@@ -81,6 +81,7 @@ oidc_idp_connection_disabled
 oidc_idp_connection_enabled
 oidc_idp_connection_set_default
 oidc_idp_connection_updated
+oidc_idp_logout_rejected
 oidc_login_completed
 oidc_login_failed
 oidc_login_started

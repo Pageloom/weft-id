@@ -3,6 +3,7 @@
 import database
 from fastapi import Request
 from utils.password import verify_password
+from utils.session import SESSION_ID_KEY
 
 
 def verify_login(tenant_id: str, email: str, password: str) -> dict | None:
@@ -97,6 +98,17 @@ def get_current_user(request: Request, tenant_id: str) -> dict | None:
                 # Session has expired, clear it
                 request.session.clear()
                 return None
+
+    # Revoked server-side (a logout elsewhere, or an upstream IdP's
+    # back-channel logout): the cookie still verifies, the session is over.
+    sid = request.session.get(SESSION_ID_KEY)
+    if (
+        isinstance(sid, str)
+        and sid
+        and database.revoked_sessions.is_session_revoked(tenant_id, sid)
+    ):
+        request.session.clear()
+        return None
 
     user = database.users.get_user_by_id(tenant_id, user_id)
 

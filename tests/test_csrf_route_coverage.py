@@ -406,17 +406,21 @@ class TestCSRFExemptionsMatchAuthentication:
 
         Every exempt state-changing route must either use non-session auth,
         be a protocol endpoint that authenticates the message itself (SAML
-        ACS/SLO/SSO, OAuth2 token), or be listed as exempt by design.
+        ACS/SLO/SSO, OAuth2 token, the upstream OIDC back-channel logout
+        receiver, which verifies the IdP's signed logout token), or be listed
+        as exempt by design.
         """
         from middleware.csrf import _is_exempt
 
         protocol_prefixes = ("/saml/", "/oauth2/token")
+        protocol_paths = {"/auth/oidc/{connection_id}/backchannel-logout"}
         offenders = [
             (sorted(methods), path)
             for path, methods, deps in unsafe_app_routes()
             if _is_exempt(path)
             and not deps & NON_SESSION_AUTH_DEPENDENCIES
             and not path.startswith(protocol_prefixes)
+            and path not in protocol_paths
             and path not in SESSION_ROUTES_EXEMPT_BY_DESIGN
         ]
         assert not offenders, f"Unexplained CSRF-exempt routes:\n{offenders}"

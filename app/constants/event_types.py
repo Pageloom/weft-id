@@ -111,6 +111,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oauth2_consent_granted": "User allowed an application to access their account",
     "oauth2_consent_widened": "User allowed additional scopes for an application",
     "oauth2_consent_revoked": "Application consent revoked",
+    "oauth2_authorization_code_reused": (
+        "Authorization code redeemed twice; tokens issued from it revoked"
+    ),
     # OIDC Provider
     "oidc_signing_key_rotated": "OIDC signing key rotated",
     "oidc_signing_key_cleanup_completed": "OIDC retired signing key removed after grace period",
@@ -410,6 +413,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oauth2_consent_granted": "security",
     "oauth2_consent_widened": "security",
     "oauth2_consent_revoked": "security",
+    "oauth2_authorization_code_reused": "security",
     "oidc_signing_key_rotated": "admin",
     "oidc_signing_key_cleanup_completed": "admin",
     "oidc_id_token_issued": "operational",

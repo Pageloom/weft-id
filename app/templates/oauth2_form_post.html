@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <title>Redirecting...</title>
+</head>
+<body>
+    <form id="oauth2-form-post" method="post" action="{{ redirect_uri }}">
+        {% for name, value in fields %}
+        <input type="hidden" name="{{ name }}" value="{{ value }}">
+        {% endfor %}
+        <noscript>
+            <p>Your browser has JavaScript disabled. Click the button below to continue.</p>
+            <input type="submit" value="Continue">
+        </noscript>
+    </form>
+    <script nonce="{{ csp_nonce }}">document.getElementById('oauth2-form-post').submit();</script>
+</body>
+</html>

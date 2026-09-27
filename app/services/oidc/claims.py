@@ -1,22 +1,24 @@
 """Scope-gated OIDC claim assembly.
 
-This is the single shared assembler for the identity claims WeftID releases as
-a downstream OIDC provider. It is deliberately the one code path used by both
-the ID token (this iteration) and the userinfo endpoint (Iteration 3), and it
-is the place Iteration 4 adds the `groups` claim. Keeping one assembler means a
-claim is gated by its scope in exactly one location, so the ID token and
-userinfo can never drift.
+This is the single assembler for the identity claims WeftID releases as a
+downstream OIDC provider, used by the userinfo endpoint. The ID token carries
+only envelope claims (OpenID Connect Core 1.0 section 5.4: in the code flow
+the profile, email, and groups scopes request claims from userinfo), so a
+claim is gated by its scope in exactly one location.
 
 What it does NOT do:
   * It does not emit `sub` / `iss` / `aud` / `exp` / `iat` / `auth_time` /
     `nonce`. Those are token-envelope claims added by the ID-token minter (and
-    `sub` is added by the userinfo endpoint in Iteration 3). `sub` is always the
-    stable WeftID user id, never derived here from a scope.
+    `sub` is added by the userinfo endpoint). `sub` is always the stable
+    WeftID user id, never derived here from a scope.
   * It does not perform the access-control decision that gates OIDC-client
     login (that lives in :mod:`services.oidc.access`, enforced at authorize).
 
 Scope semantics (OpenID Connect Core 1.0, section 5.4):
-  * ``profile`` -> name, given_name, family_name, locale, updated_at
+  * ``profile`` -> name, given_name, family_name, locale, zoneinfo, updated_at
+                   (the other standard profile claims, such as nickname,
+                   picture, or birthdate, have no WeftID attribute and are
+                   never released)
   * ``email``   -> email, email_verified
   * ``groups``  -> groups (WeftID extension: the user's effective group names,
                    DAG-aware via the group_lineage closure table)
@@ -108,6 +110,11 @@ def _add_profile_claims(claims: dict, row: dict) -> None:
 
     if row.get("locale"):
         claims["locale"] = row["locale"]
+
+    # The user's IANA time zone (e.g. "Europe/Stockholm"), the format the
+    # OIDC `zoneinfo` claim uses.
+    if row.get("tz"):
+        claims["zoneinfo"] = row["tz"]
 
     updated_at = row.get("updated_at")
     if updated_at is not None:

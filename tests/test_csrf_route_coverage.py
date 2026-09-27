@@ -302,7 +302,9 @@ class TestCSRFRouteCoverage:
 # Dependencies that authenticate a caller WITHOUT the session cookie. A route
 # using one of these is called by machines (an IdP, an API client) that can
 # never present a CSRF token, so it must be exempt.
-NON_SESSION_AUTH_DEPENDENCIES = frozenset({"require_inbound_scim_auth", "get_current_user_api"})
+NON_SESSION_AUTH_DEPENDENCIES = frozenset(
+    {"require_inbound_scim_auth", "get_current_user_api", "get_oidc_userinfo_token"}
+)
 
 # Dependencies that authenticate via the session cookie. A state-changing
 # route using one of these must NOT be exempt.

@@ -74,8 +74,8 @@ class TestTokenEndpointBasicAuth:
                 "redirect_uri": REDIRECT_URI,
             },
         )
-        assert response.status_code == 400
-        assert response.json()["detail"]["error"] == "invalid_client"
+        assert response.status_code == 401
+        assert response.json()["error"] == "invalid_client"
 
     def test_basic_and_form_together_rejected(
         self, client, test_tenant, test_tenant_host, normal_oauth2_client, test_user
@@ -98,8 +98,8 @@ class TestTokenEndpointBasicAuth:
                 "redirect_uri": REDIRECT_URI,
             },
         )
-        assert response.status_code == 400
-        assert response.json()["detail"]["error"] == "invalid_client"
+        assert response.status_code == 401
+        assert response.json()["error"] == "invalid_client"
 
     def test_malformed_basic_header_rejected(self, client, test_tenant_host):
         response = client.post(
@@ -107,8 +107,8 @@ class TestTokenEndpointBasicAuth:
             headers={"Host": test_tenant_host, "Authorization": "Basic not-base64!!"},
             data={"grant_type": "authorization_code", "code": "x", "redirect_uri": REDIRECT_URI},
         )
-        assert response.status_code == 400
-        assert response.json()["detail"]["error"] == "invalid_client"
+        assert response.status_code == 401
+        assert response.json()["error"] == "invalid_client"
 
     def test_missing_credentials_is_invalid_client_not_422(self, client, test_tenant_host):
         """Form fields are optional now; absent credentials must still be a
@@ -118,8 +118,8 @@ class TestTokenEndpointBasicAuth:
             headers={"Host": test_tenant_host},
             data={"grant_type": "authorization_code", "code": "x", "redirect_uri": REDIRECT_URI},
         )
-        assert response.status_code == 400
-        assert response.json()["detail"]["error"] == "invalid_client"
+        assert response.status_code == 401
+        assert response.json()["error"] == "invalid_client"
 
     def test_form_credentials_still_work(
         self, client, test_tenant, test_tenant_host, normal_oauth2_client, test_user

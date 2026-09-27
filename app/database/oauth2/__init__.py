@@ -43,7 +43,9 @@ from database.oauth2.tokens import (
     create_refresh_token,
     revoke_all_client_tokens,
     revoke_all_user_tokens,
+    revoke_grant_tokens,
     revoke_token,
+    rotate_refresh_token,
     validate_refresh_token,
     validate_token,
 )
@@ -76,6 +78,8 @@ __all__ = [
     "revoke_all_client_tokens",
     "cleanup_expired_tokens",
     "revoke_all_user_tokens",
+    "revoke_grant_tokens",
+    "rotate_refresh_token",
     # consent
     "get_consent_grant",
     "get_consent_grant_by_id",

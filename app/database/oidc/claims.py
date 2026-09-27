@@ -16,7 +16,7 @@ def get_user_claim_data(tenant_id: TenantArg, user_id: str) -> dict | None:
     claims can be released. Returns None if the user does not exist in scope.
 
     Returns:
-        Dict with id, first_name, last_name, locale, primary_email,
+        Dict with id, first_name, last_name, locale, tz, primary_email,
         email_verified, updated_at, or None.
     """
     return fetchone(
@@ -26,6 +26,7 @@ def get_user_claim_data(tenant_id: TenantArg, user_id: str) -> dict | None:
                u.first_name,
                u.last_name,
                u.locale,
+               u.tz,
                u.updated_at,
                ue.email as primary_email,
                (ue.verified_at is not null) as email_verified

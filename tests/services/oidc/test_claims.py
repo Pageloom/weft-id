@@ -42,6 +42,23 @@ class TestBuildClaims:
         assert isinstance(result["updated_at"], int)
         # Email must NOT appear without the email scope.
         assert "email" not in result
+        # No time zone set on the fixture user: zoneinfo is omitted, not null.
+        assert "zoneinfo" not in result
+
+    def test_profile_scope_releases_zoneinfo(self, test_tenant, test_user):
+        database.execute(
+            test_tenant["id"],
+            "update users set tz = 'Europe/Stockholm' where id = :id",
+            {"id": test_user["id"]},
+        )
+        result = claims_service.build_claims(
+            str(test_tenant["id"]), str(test_user["id"]), {"openid", "profile"}
+        )
+        assert result["zoneinfo"] == "Europe/Stockholm"
+        email_only = claims_service.build_claims(
+            str(test_tenant["id"]), str(test_user["id"]), {"openid", "email"}
+        )
+        assert "zoneinfo" not in email_only
 
     def test_email_scope_releases_email_claims(self, test_tenant, test_user):
         result = claims_service.build_claims(

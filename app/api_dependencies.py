@@ -135,18 +135,52 @@ def get_current_user_api(
     )
 
 
+async def _userinfo_bearer_token(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> str | None:
+    """Extract the userinfo access token from the request (RFC 6750).
+
+    Two methods are accepted: the ``Authorization: Bearer`` header (any HTTP
+    method, section 2.1) and, for a form-encoded POST, the ``access_token``
+    body field (section 2.2). Presenting both is ``invalid_request`` (section
+    3.1: a client must use one method). Returns None when neither is present.
+    """
+    header_token: str | None = None
+    if authorization and authorization.startswith("Bearer "):
+        header_token = authorization.split(" ", 1)[1].strip()
+
+    body_token: str | None = None
+    content_type = request.headers.get("content-type", "")
+    if request.method == "POST" and content_type.startswith("application/x-www-form-urlencoded"):
+        form = await request.form(max_fields=20)
+        value = form.get("access_token")
+        if isinstance(value, str) and value:
+            body_token = value.strip()
+
+    if header_token is not None and body_token is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Use exactly one method to present the access token",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_request"'},
+        )
+    return header_token if header_token is not None else body_token
+
+
 def get_oidc_userinfo_token(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    authorization: Annotated[str | None, Header()] = None,
+    token: Annotated[str | None, Depends(_userinfo_bearer_token)],
 ) -> dict:
     """Authenticate an OIDC userinfo request via its OAuth2 Bearer access token.
 
     Unlike `get_current_user_api`, this accepts ONLY a Bearer access token
-    (never a session cookie) and signals failures the way the OIDC/OAuth2 spec
-    requires for a protected resource (RFC 6750): a missing credential yields a
-    bare `WWW-Authenticate: Bearer` challenge, while a malformed / expired /
-    revoked / unknown token yields `WWW-Authenticate: Bearer error="invalid_token"`.
+    (never a session cookie), in the Authorization header or, for POST, the
+    ``access_token`` form field, and signals failures the way the OIDC/OAuth2
+    spec requires for a protected resource (RFC 6750): a missing credential
+    yields a bare `WWW-Authenticate: Bearer` challenge, while a malformed /
+    expired / revoked / unknown token yields
+    `WWW-Authenticate: Bearer error="invalid_token"`.
 
     Reuses `database.oauth2.validate_token`, the same bearer-validation path the
     rest of the API uses, so token expiry/revocation are honoured identically.
@@ -162,15 +196,13 @@ def get_oidc_userinfo_token(
     Raises:
         HTTPException: 401 with the appropriate `WWW-Authenticate` challenge.
     """
-    if not authorization or not authorization.startswith("Bearer "):
+    if token is None:
         # No credentials presented: challenge without an error code (RFC 6750 3.1).
         raise HTTPException(
             status_code=401,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    token = authorization.split(" ", 1)[1].strip()
 
     # Bound the token length before any hashing work (pre-auth input).
     if not token or len(token) > _MAX_BEARER_TOKEN_LEN:

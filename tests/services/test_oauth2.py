@@ -561,3 +561,124 @@ def test_validate_refresh_token_wrong_client(
     )
 
     assert result is None
+
+
+def test_reused_code_revokes_grant_and_logs(test_tenant, normal_oauth2_client, test_user, mocker):
+    """A second redemption returns None, deletes the grant's tokens, and logs."""
+    code = oauth2_service.create_authorization_code(
+        tenant_id=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        redirect_uri=normal_oauth2_client["redirect_uris"][0],
+    )
+    kwargs = {
+        "tenant_id": test_tenant["id"],
+        "code": code,
+        "client_id": normal_oauth2_client["id"],
+        "redirect_uri": normal_oauth2_client["redirect_uris"][0],
+    }
+    first = oauth2_service.validate_and_consume_code(**kwargs)
+    assert first is not None
+    assert "reused" not in first
+    access = oauth2_service.create_access_token(
+        tenant_id=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        grant_id=first["id"],
+    )
+
+    log = mocker.patch("services.oauth2.log_event")
+    assert oauth2_service.validate_and_consume_code(**kwargs) is None
+
+    assert database.oauth2.validate_token(access, test_tenant["id"]) is None
+    log.assert_called_once()
+    assert log.call_args.kwargs["event_type"] == "oauth2_authorization_code_reused"
+    assert log.call_args.kwargs["metadata"] == {"grant_id": first["id"], "tokens_revoked": 1}
+
+
+def test_first_redemption_logs_nothing(test_tenant, normal_oauth2_client, test_user, mocker):
+    code = oauth2_service.create_authorization_code(
+        tenant_id=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        redirect_uri=normal_oauth2_client["redirect_uris"][0],
+    )
+    log = mocker.patch("services.oauth2.log_event")
+    assert (
+        oauth2_service.validate_and_consume_code(
+            tenant_id=test_tenant["id"],
+            code=code,
+            client_id=normal_oauth2_client["id"],
+            redirect_uri=normal_oauth2_client["redirect_uris"][0],
+        )
+        is not None
+    )
+    log.assert_not_called()
+
+
+def test_rotate_refresh_token_service(test_tenant, normal_oauth2_client, test_user):
+    token, _ = oauth2_service.create_refresh_token(
+        tenant_id=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        scope="openid",
+        grant_id=None,
+    )
+    data = oauth2_service.validate_refresh_token(
+        tenant_id=test_tenant["id"], token=token, client_id=normal_oauth2_client["id"]
+    )
+    rotated = oauth2_service.rotate_refresh_token(
+        test_tenant["id"], normal_oauth2_client["id"], data
+    )
+    assert rotated is not None
+    new_token, _ = rotated
+    assert new_token != token
+    new = oauth2_service.validate_refresh_token(
+        tenant_id=test_tenant["id"], token=new_token, client_id=normal_oauth2_client["id"]
+    )
+    assert new["scope"] == "openid"
+    assert (
+        oauth2_service.rotate_refresh_token(test_tenant["id"], normal_oauth2_client["id"], data)
+        is None
+    )
+
+
+def test_create_authorization_code_sweeps_expired_codes(
+    test_tenant, normal_oauth2_client, test_user
+):
+    """Consumed codes are kept until expiry; issuing a new code removes the
+    tenant's expired ones so the table stays bounded."""
+    old = oauth2_service.create_authorization_code(
+        tenant_id=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        redirect_uri=normal_oauth2_client["redirect_uris"][0],
+    )
+    consumed = oauth2_service.validate_and_consume_code(
+        tenant_id=test_tenant["id"],
+        code=old,
+        client_id=normal_oauth2_client["id"],
+        redirect_uri=normal_oauth2_client["redirect_uris"][0],
+    )
+    database.execute(
+        test_tenant["id"],
+        "update oauth2_authorization_codes set expires_at = now() - interval '1 second' "
+        "where id = :id",
+        {"id": consumed["id"]},
+    )
+
+    oauth2_service.create_authorization_code(
+        tenant_id=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        redirect_uri=normal_oauth2_client["redirect_uris"][0],
+    )
+
+    rows = database.fetchall(
+        test_tenant["id"],
+        "select id from oauth2_authorization_codes where client_id = :c",
+        {"c": normal_oauth2_client["id"]},
+    )
+    assert [str(r["id"]) for r in rows] != [consumed["id"]]
+    assert consumed["id"] not in {str(r["id"]) for r in rows}
+    assert len(rows) == 1

@@ -40,8 +40,10 @@ CSRF_EXEMPT_PATHS = [
 # (OpenID Connect Core 1.0, section 3.1.2.1); the request is validated against
 # the client's registration, not the session. Its sibling
 # ``/oauth2/authorize/decision`` (the consent form) is NOT exempt, which is why
-# this is an exact match rather than a prefix.
-CSRF_EXEMPT_EXACT_PATHS = frozenset({"/oauth2/authorize"})
+# this is an exact match rather than a prefix. The OIDC userinfo endpoint
+# accepts POST (OpenID Connect Core 1.0, section 5.3.1) and authenticates only
+# by a bearer access token, never by the session cookie.
+CSRF_EXEMPT_EXACT_PATHS = frozenset({"/oauth2/authorize", "/userinfo"})
 
 # HTTP methods that require CSRF validation
 CSRF_PROTECTED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}

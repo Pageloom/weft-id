@@ -9,6 +9,7 @@ boundary, an accepted exception to the "event logging in services" pattern.
 
 import base64
 import binascii
+import json
 import secrets
 import time
 from dataclasses import asdict, dataclass
@@ -20,8 +21,10 @@ import oauth2
 import services.oauth2 as oauth2_service
 import services.oidc as oidc_service
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from middleware.csrf import make_csrf_token_func
 from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
@@ -43,6 +46,15 @@ REAUTH_PROMPT_VALUES = frozenset({"login", "select_account"})
 # The only response type the authorization endpoint issues.
 SUPPORTED_RESPONSE_TYPES = frozenset({"code"})
 
+# Upper bound for ``state``, matching the parameter's max_length.
+_MAX_STATE_LENGTH = 2048
+
+# How the authorization response is delivered (OAuth 2.0 Multiple Response
+# Type Encoding Practices; OAuth 2.0 Form Post Response Mode). ``query`` is the
+# default for ``response_type=code``.
+DEFAULT_RESPONSE_MODE = "query"
+SUPPORTED_RESPONSE_MODES = frozenset({"query", "form_post"})
+
 router = APIRouter(prefix="/oauth2", tags=["oauth2"], include_in_schema=False)
 
 
@@ -58,8 +70,8 @@ class AuthorizeParams:
     Every OpenID Connect Core 1.0 section 3.1.2.1 parameter is declared so the
     request can be stashed and resumed after login without loss. Parameters
     that are accepted but have no effect today (``display``, ``ui_locales``,
-    ``claims_locales``, ``acr_values``, ``response_mode``) are kept so a
-    resumed request is the request the RP sent.
+    ``claims_locales``, ``acr_values``) are kept so a resumed request is the
+    request the RP sent.
     """
 
     client_id: str | None = None
@@ -154,8 +166,10 @@ def authorize_page(
         id_token_hint: A WeftID-issued ID token identifying the expected user
         request, request_uri: Not supported; rejected with
             request_not_supported / request_uri_not_supported
-        response_mode, display, ui_locales, claims_locales, acr_values:
-            Accepted and ignored
+        response_mode: query (default) or form_post; decides how the code or
+            error is delivered to the redirect_uri. Other values are
+            invalid_request.
+        display, ui_locales, claims_locales, acr_values: Accepted and ignored
     """
     return _handle_authorize_request(
         request,
@@ -266,8 +280,10 @@ def _handle_authorize_request(
        trustworthy place to redirect to. This happens before any session
        check so an unauthenticated request with a bad client is not bounced
        through login.
-    2. Every other parameter error is reported to the RP by redirecting to
-       the (now verified) ``redirect_uri`` with ``error`` and ``state``.
+    2. Every other parameter error is reported to the RP at the (now
+       verified) ``redirect_uri`` with ``error`` and ``state``, delivered per
+       ``response_mode`` (a redirect with a query, or an auto-submitting form
+       POST for ``form_post``).
     3. Authentication: no session and ``prompt=none`` is ``login_required``;
        no session otherwise stashes the request and enters the login flow.
        ``prompt=login``/``select_account``, an exceeded ``max_age``, or an
@@ -312,55 +328,49 @@ def _handle_authorize_request(
     redirect_uri = params.redirect_uri
     state = params.state
 
-    # -- 2. Remaining parameters: error redirect to the verified redirect_uri --
+    # -- 2. Remaining parameters: error response to the verified redirect_uri -
+    # The response mode is settled first because it decides how every later
+    # response (errors included) reaches the RP. An unsupported mode is itself
+    # reported in the default mode.
+    response_mode = params.response_mode or DEFAULT_RESPONSE_MODE
+    if response_mode not in SUPPORTED_RESPONSE_MODES:
+        return _RpResponse(request, redirect_uri, state, DEFAULT_RESPONSE_MODE).error(
+            "invalid_request", "Unsupported response_mode. Use query or form_post."
+        )
+    rp = _RpResponse(request, redirect_uri, state, response_mode)
+
     if params.request_object is not None:
-        return _error_redirect(
-            redirect_uri,
-            "request_not_supported",
-            "Request objects passed by value are not supported.",
-            state,
+        # The rejection is delivered the way the RP asked inside the object
+        # when it put response_mode/state only there (see _request_object_hints).
+        # Query parameters the RP sent explicitly take precedence.
+        hints = _request_object_hints(params.request_object)
+        if not params.response_mode:
+            response_mode = hints.get("response_mode", response_mode)
+        rp = _RpResponse(request, redirect_uri, state or hints.get("state"), response_mode)
+        return rp.error(
+            "request_not_supported", "Request objects passed by value are not supported."
         )
     if params.request_uri is not None:
-        return _error_redirect(
-            redirect_uri,
-            "request_uri_not_supported",
-            "Request objects passed by reference are not supported.",
-            state,
+        return rp.error(
+            "request_uri_not_supported", "Request objects passed by reference are not supported."
         )
     if not params.response_type:
-        return _error_redirect(
-            redirect_uri, "invalid_request", "The response_type parameter is required.", state
-        )
+        return rp.error("invalid_request", "The response_type parameter is required.")
     if params.response_type not in SUPPORTED_RESPONSE_TYPES:
-        return _error_redirect(
-            redirect_uri,
-            "unsupported_response_type",
-            "Only response_type=code is supported.",
-            state,
-        )
+        return rp.error("unsupported_response_type", "Only response_type=code is supported.")
     if params.code_challenge and params.code_challenge_method not in ("S256", "plain"):
-        return _error_redirect(
-            redirect_uri,
-            "invalid_request",
-            "Invalid code_challenge_method. Must be S256 or plain.",
-            state,
-        )
+        return rp.error("invalid_request", "Invalid code_challenge_method. Must be S256 or plain.")
 
     prompts = set(params.prompt.split()) if params.prompt else set()
     if "none" in prompts and len(prompts) > 1:
-        return _error_redirect(
-            redirect_uri,
-            "invalid_request",
-            "prompt=none cannot be combined with other prompt values.",
-            state,
+        return rp.error(
+            "invalid_request", "prompt=none cannot be combined with other prompt values."
         )
     prompt_none = "none" in prompts
 
     max_age = _parse_max_age(params.max_age)
     if params.max_age is not None and max_age is None:
-        return _error_redirect(
-            redirect_uri, "invalid_request", "max_age must be a non-negative integer.", state
-        )
+        return rp.error("invalid_request", "max_age must be a non-negative integer.")
 
     hint_claims: dict | None = None
     if params.id_token_hint is not None:
@@ -371,19 +381,14 @@ def _handle_authorize_request(
             id_token=params.id_token_hint,
         )
         if hint_claims is None:
-            return _error_redirect(
-                redirect_uri,
-                "invalid_request",
-                "The id_token_hint could not be verified for this client.",
-                state,
+            return rp.error(
+                "invalid_request", "The id_token_hint could not be verified for this client."
             )
 
     # -- 3. Authentication ----------------------------------------------------
     if not user:
         if prompt_none:
-            return _error_redirect(
-                redirect_uri, "login_required", "The user is not authenticated.", state
-            )
+            return rp.error("login_required", "The user is not authenticated.")
         # Stash the full authorize request (a server-built relative path, never
         # a client-supplied redirect target) so the login flow can resume it.
         # ``get_post_auth_redirect`` only honours a rooted ``/oauth2/authorize?``
@@ -397,11 +402,8 @@ def _handle_authorize_request(
         # Same gate as ``require_current_user``: the profile must be completed
         # before any authenticated page, the consent page included.
         if prompt_none:
-            return _error_redirect(
-                redirect_uri,
-                "interaction_required",
-                "The user must complete their profile before authorizing.",
-                state,
+            return rp.error(
+                "interaction_required", "The user must complete their profile before authorizing."
             )
         return RedirectResponse(url="/account/profile", status_code=303)
 
@@ -414,12 +416,7 @@ def _handle_authorize_request(
         reauth_reason = "id_token_hint"
     if reauth_reason is not None:
         if prompt_none:
-            return _error_redirect(
-                redirect_uri,
-                "login_required",
-                "The user must authenticate again.",
-                state,
-            )
+            return rp.error("login_required", "The user must authenticate again.")
         return _reauthenticate(request, tenant_id, user, client, params, reauth_reason)
 
     # -- 4. Access control ----------------------------------------------------
@@ -436,9 +433,7 @@ def _handle_authorize_request(
         client_name=client.get("name"),
     ):
         if prompt_none:
-            return _error_redirect(
-                redirect_uri, "access_denied", "The user does not have access.", state
-            )
+            return rp.error("access_denied", "The user does not have access.")
         return _error_page(
             request,
             "Access denied",
@@ -452,22 +447,15 @@ def _handle_authorize_request(
     granted_scopes = oidc_service.get_granted_scopes(tenant_id, str(client["id"]), user["id"])
     covered = granted_scopes is not None and scopes <= granted_scopes
     if prompt_none and not covered:
-        return _error_redirect(
-            redirect_uri,
-            "consent_required",
-            "The user has not consented to this client and scope.",
-            state,
-        )
+        return rp.error("consent_required", "The user has not consented to this client and scope.")
     if covered and "consent" not in prompts:
         # A remembered grant covers the request: no UI (OpenID Connect Core
         # 3.1.2.1; ``prompt=consent`` is the RP's way to ask for the page).
-        return _issue_code_redirect(
-            request,
+        return _issue_code(
+            rp,
             tenant_id,
             client=client,
             user=user,
-            redirect_uri=redirect_uri,
-            state=state,
             code_challenge=params.code_challenge,
             code_challenge_method=params.code_challenge_method,
             scope=params.scope,
@@ -502,6 +490,7 @@ def _handle_authorize_request(
         "code_challenge_method": params.code_challenge_method,
         "scope": params.scope,
         "nonce": params.nonce,
+        "response_mode": response_mode,
         "created_at": time.time(),
     }
     request.session["oauth2_auth_requests"] = auth_requests
@@ -556,16 +545,91 @@ def _append_query(redirect_uri: str, pairs: list[tuple[str, str]]) -> str:
     return f"{redirect_uri}{separator}{urlencode(pairs)}"
 
 
-def _error_redirect(
-    redirect_uri: str, error: str, error_description: str, state: str | None
-) -> RedirectResponse:
-    """Redirect to the verified redirect_uri with an OAuth2 error response
-    (RFC 6749 section 4.1.2.1); ``state`` is echoed when the RP sent one."""
-    pairs = [("error", error), ("error_description", error_description)]
-    if state:
-        pairs.append(("state", state))
-    # redirect-ok: registered OAuth2 redirect_uri
-    return RedirectResponse(url=_append_query(redirect_uri, pairs), status_code=303)
+@dataclass(frozen=True)
+class _RpResponse:
+    """Where and how the authorization response reaches the RP.
+
+    Only built once ``redirect_uri`` has been matched against the client's
+    registration, so both delivery paths send the user agent to a verified
+    URI. ``query`` redirects with the parameters in the query string;
+    ``form_post`` renders a page that POSTs them there as form fields
+    (OAuth 2.0 Form Post Response Mode), so the code never appears in a URL.
+    """
+
+    request: Request
+    redirect_uri: str
+    state: str | None
+    response_mode: str
+
+    def error(self, error: str, error_description: str) -> Response:
+        """Deliver an OAuth2 error response (RFC 6749 section 4.1.2.1)."""
+        return self.deliver([("error", error), ("error_description", error_description)])
+
+    def deliver(self, pairs: list[tuple[str, str]]) -> Response:
+        """Deliver the response parameters, echoing ``state`` when present."""
+        if self.state:
+            pairs = [*pairs, ("state", self.state)]
+        if self.response_mode == "form_post":
+            return _form_post_response(self.request, self.redirect_uri, pairs)
+        # redirect-ok: registered OAuth2 redirect_uri
+        return RedirectResponse(url=_append_query(self.redirect_uri, pairs), status_code=303)
+
+
+def _form_post_response(
+    request: Request, redirect_uri: str, pairs: list[tuple[str, str]]
+) -> Response:
+    """Render the auto-submitting form that POSTs the response to the RP.
+
+    The page submits itself with a nonce'd script and shows a Continue button
+    when scripts do not run. The CSP ``form-action`` is widened to the
+    redirect_uri's origin (the same rule the consent form uses), and the page
+    is never cached because it carries a live authorization code.
+    """
+    request.state.csp_form_action_url = _form_action_origin(redirect_uri)
+    response = templates.TemplateResponse(
+        request,
+        "oauth2_form_post.html",
+        {
+            "redirect_uri": redirect_uri,
+            "fields": pairs,
+            "csp_nonce": get_csp_nonce(request),
+        },
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
+def _request_object_hints(request_object: str) -> dict[str, str]:
+    """Read ``response_mode`` and ``state`` from an unsupported request object.
+
+    Request objects are rejected (``request_not_supported``), but an RP that
+    sends one may carry ``response_mode`` and ``state`` only inside it (OpenID
+    Connect Core 1.0, section 6.1), and it then waits for the answer in that
+    mode. The payload is decoded without verification, and only these two
+    values are used, only to shape the rejection sent to the already verified
+    redirect_uri: the mode must be a supported one, and ``state`` is echoed
+    exactly as an RP could have sent it in the query. Anything unreadable
+    (a JWE, bad base64, non-JSON) yields no hints.
+    """
+    segments = request_object.split(".")
+    if len(segments) != 3:
+        return {}
+    try:
+        padded = segments[1] + "=" * (-len(segments[1]) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(padded))
+    except ValueError, binascii.Error:
+        return {}
+    if not isinstance(claims, dict):
+        return {}
+    hints: dict[str, str] = {}
+    mode = claims.get("response_mode")
+    if isinstance(mode, str) and mode in SUPPORTED_RESPONSE_MODES:
+        hints["response_mode"] = mode
+    state = claims.get("state")
+    if isinstance(state, str) and 0 < len(state) <= _MAX_STATE_LENGTH:
+        hints["state"] = state
+    return hints
 
 
 def _parse_max_age(raw: str | None) -> int | None:
@@ -637,43 +701,36 @@ def _reauthenticate(
     return _login_redirect(user.get("email"))
 
 
-def _issue_code_redirect(
-    request: Request,
+def _issue_code(
+    rp: _RpResponse,
     tenant_id: str,
     *,
     client: dict,
     user: dict,
-    redirect_uri: str,
-    state: str | None,
     code_challenge: str | None,
     code_challenge_method: str | None,
     scope: str | None,
     nonce: str | None,
-) -> RedirectResponse:
-    """Create an authorization code and redirect the user agent to the RP."""
+) -> Response:
+    """Create an authorization code and deliver it to the RP."""
     # Record the user's authentication time for the OIDC `auth_time` claim.
     # Prefer the session login timestamp (when they actually authenticated);
     # fall back to the code-issuance time when it is unavailable.
-    session_start = request.session.get("session_start")
+    session_start = rp.request.session.get("session_start")
     auth_time = datetime.fromtimestamp(session_start, UTC) if session_start else datetime.now(UTC)
 
     code = oauth2_service.create_authorization_code(
         tenant_id=tenant_id,
         client_id=client["id"],
         user_id=user["id"],
-        redirect_uri=redirect_uri,
+        redirect_uri=rp.redirect_uri,
         code_challenge=code_challenge,
         code_challenge_method=code_challenge_method,
         scope=scope,
         nonce=nonce,
         auth_time=auth_time,
     )
-
-    pairs = [("code", code)]
-    if state:
-        pairs.append(("state", state))
-    # redirect-ok: registered OAuth2 redirect_uri
-    return RedirectResponse(url=_append_query(redirect_uri, pairs), status_code=303)
+    return rp.deliver([("code", code)])
 
 
 def _pending_authorize_path(params: AuthorizeParams, *, strip_reauth: bool = False) -> str:
@@ -743,6 +800,9 @@ def authorize_grant(
     scope = stored_request.get("scope")
     nonce = stored_request.get("nonce")
     created_at = stored_request["created_at"]
+    rp = _RpResponse(
+        request, redirect_uri, state, stored_request.get("response_mode") or DEFAULT_RESPONSE_MODE
+    )
 
     # Delete from session immediately (one-time use). Reassign so the
     # session is marked modified and the cookie is rewritten.
@@ -761,9 +821,7 @@ def authorize_grant(
     if not client or client["client_type"] != "normal" or not client.get("is_active", True):
         # Invalid, wrong-type, or deactivated client: redirect with error and
         # issue no authorization code (defense in depth alongside the GET check).
-        return _error_redirect(
-            redirect_uri, "unauthorized_client", "This client is not authorized.", state
-        )
+        return rp.error("unauthorized_client", "This client is not authorized.")
 
     # Verify redirect_uri matches (defense in depth - should always match since we stored it)
     if redirect_uri not in (client["redirect_uris"] or []):
@@ -773,7 +831,7 @@ def authorize_grant(
 
     # Handle denial
     if action == "deny":
-        return _error_redirect(redirect_uri, "access_denied", "The user denied the request.", state)
+        return rp.error("access_denied", "The user denied the request.")
 
     # Handle approval - create authorization code
     if action == "allow":
@@ -789,21 +847,17 @@ def authorize_grant(
             client_id=client["client_id"],
             client_name=client.get("name"),
         ):
-            return _error_redirect(
-                redirect_uri, "access_denied", "The user does not have access.", state
-            )
+            return rp.error("access_denied", "The user does not have access.")
 
         # Remember the consent (create or widen the persisted grant) so the
         # next request from this client is answered without the page.
         oidc_service.record_consent(tenant_id, client, user["id"], parse_scope(scope))
 
-        return _issue_code_redirect(
-            request,
+        return _issue_code(
+            rp,
             tenant_id,
             client=client,
             user=user,
-            redirect_uri=redirect_uri,
-            state=state,
             code_challenge=code_challenge,
             code_challenge_method=code_challenge_method,
             scope=scope,
@@ -811,9 +865,7 @@ def authorize_grant(
         )
 
     # Invalid action
-    return _error_redirect(
-        redirect_uri, "invalid_request", "The action must be allow or deny.", state
-    )
+    return rp.error("invalid_request", "The action must be allow or deny.")
 
 
 # ============================================================================
@@ -881,6 +933,46 @@ def _resolve_client_credentials(
     return None
 
 
+# Token responses and errors must never be cached (RFC 6749 section 5.1).
+_TOKEN_RESPONSE_HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+
+
+def _token_error(error: str, error_description: str, *, status_code: int = 400) -> JSONResponse:
+    """Build an RFC 6749 section 5.2 token error: top-level ``error`` and
+    ``error_description``, never FastAPI's ``{"detail": ...}`` envelope.
+
+    ``invalid_client`` is always a 401 with a ``WWW-Authenticate: Basic``
+    challenge (required when the client authenticated with the Authorization
+    header, permitted otherwise).
+    """
+    headers = dict(_TOKEN_RESPONSE_HEADERS)
+    if error == "invalid_client":
+        status_code = 401
+        headers["WWW-Authenticate"] = 'Basic realm="oauth2"'
+    return JSONResponse(
+        {"error": error, "error_description": error_description},
+        status_code=status_code,
+        headers=headers,
+    )
+
+
+def _token_success(body: TokenResponse) -> JSONResponse:
+    """Serialise a token response with absent fields omitted (never ``null``)
+    and the no-store cache headers."""
+    return JSONResponse(body.model_dump(exclude_none=True), headers=_TOKEN_RESPONSE_HEADERS)
+
+
+async def token_request_validation_handler(
+    request: Request, exc: RequestValidationError
+) -> Response:
+    """Report form validation failures at the token endpoint as RFC 6749
+    ``invalid_request`` (a missing ``grant_type``, an over-long parameter)
+    instead of FastAPI's 422. Every other path keeps the default handler."""
+    if request.url.path == "/oauth2/token":
+        return _token_error("invalid_request", "The token request is malformed.")
+    return await request_validation_exception_handler(request, exc)
+
+
 @router.post("/token", response_model=TokenResponse, responses={400: {"model": TokenErrorResponse}})
 def token_endpoint(
     request: Request,
@@ -892,19 +984,29 @@ def token_endpoint(
     redirect_uri: Annotated[str | None, Form(max_length=2048)] = None,
     code_verifier: Annotated[str | None, Form(max_length=255)] = None,
     refresh_token: Annotated[str | None, Form(max_length=255)] = None,
-):
+) -> Response:
     """
     OAuth2 token endpoint - exchange authorization code or refresh token for access token.
 
     Supports three grant types:
     1. authorization_code - Exchange auth code for access + refresh tokens
-    2. refresh_token - Refresh access token using refresh token
+       (+ ID token for OIDC). Redeeming a code twice fails with invalid_grant
+       and revokes every token already issued from it.
+    2. refresh_token - Exchange a refresh token for a new access token and a
+       new refresh token (rotation: the presented refresh token stops working;
+       the grant's original expiry is kept)
     3. client_credentials - Get access token using client credentials (B2B)
 
     Client authentication (RFC 6749 section 2.3.1): either HTTP Basic
     (``client_secret_basic``, the Authorization header) or the ``client_id`` +
     ``client_secret`` form fields (``client_secret_post``). Exactly one method
     must be used per request.
+
+    Responses carry ``Cache-Control: no-store`` and ``Pragma: no-cache``.
+    Errors are RFC 6749 section 5.2 JSON objects with top-level ``error`` and
+    ``error_description``: HTTP 400, or 401 with ``WWW-Authenticate: Basic``
+    for ``invalid_client``. Absent fields (``refresh_token``, ``id_token``)
+    are omitted, never null.
 
     Form Data:
         grant_type: "authorization_code", "refresh_token", or "client_credentials"
@@ -917,72 +1019,31 @@ def token_endpoint(
     """
     credentials = _resolve_client_credentials(request, client_id, client_secret)
     if credentials is None:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "invalid_client",
-                "error_description": "Client authentication failed",
-            },
-        )
+        return _token_error("invalid_client", "Client authentication failed")
     client_id, client_secret = credentials
 
-    # Get and validate client
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
-
-    if not client:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "invalid_client",
-                "error_description": "Client authentication failed",
-            },
-        )
-
-    # Verify client secret
-    if not oauth2.verify_token_hash(client_secret, client["client_secret_hash"]):
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "invalid_client",
-                "error_description": "Client authentication failed",
-            },
-        )
-
-    # Check if client is active
+    if not client or not oauth2.verify_token_hash(client_secret, client["client_secret_hash"]):
+        return _token_error("invalid_client", "Client authentication failed")
     if not client.get("is_active", True):
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "invalid_client",
-                "error_description": "Client is deactivated",
-            },
-        )
+        return _token_error("invalid_client", "Client is deactivated")
 
     # ========================================================================
     # Grant Type: authorization_code
     # ========================================================================
     if grant_type == "authorization_code":
-        # Validate client type
         if client["client_type"] != "normal":
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "unauthorized_client",
-                    "error_description": "Client is not authorized for this grant type",
-                },
+            return _token_error(
+                "unauthorized_client", "Client is not authorized for this grant type"
             )
 
-        # Validate required parameters
         if not code or not redirect_uri:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "invalid_request",
-                    "error_description": "Missing required parameter: code or redirect_uri",
-                },
+            return _token_error(
+                "invalid_request", "Missing required parameter: code or redirect_uri"
             )
 
-        # Validate and consume authorization code
+        # Validate and consume the code. A second redemption returns None here
+        # after revoking everything issued from the first one.
         code_data = oauth2_service.validate_and_consume_code(
             tenant_id=tenant_id,
             code=code,
@@ -990,17 +1051,11 @@ def token_endpoint(
             redirect_uri=redirect_uri,
             code_verifier=code_verifier,
         )
-
         if not code_data:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "invalid_grant",
-                    "error_description": "Invalid or expired authorization code",
-                },
-            )
+            return _token_error("invalid_grant", "Invalid or expired authorization code")
 
         granted_scope = code_data.get("scope")
+        grant_id = code_data["id"]
 
         # Create refresh token (carrying the granted scope so the refresh_token
         # grant can mint access tokens with the same scope)
@@ -1009,6 +1064,7 @@ def token_endpoint(
             client_id=client["id"],
             user_id=code_data["user_id"],
             scope=granted_scope,
+            grant_id=grant_id,
         )
 
         # Create access token (carrying the granted scope for downstream userinfo)
@@ -1018,6 +1074,7 @@ def token_endpoint(
             user_id=code_data["user_id"],
             parent_token_id=refresh_token_id,
             scope=granted_scope,
+            grant_id=grant_id,
         )
 
         # Issue an OIDC ID token only when the client has opted into OIDC AND the
@@ -1036,43 +1093,32 @@ def token_endpoint(
                 auth_time=code_data.get("auth_time"),
             )
 
-        return TokenResponse(
-            access_token=access_token_str,
-            token_type="Bearer",
-            expires_in=int(oauth2.ACCESS_TOKEN_EXPIRY.total_seconds()),
-            refresh_token=refresh_token_str,
-            id_token=id_token_str,
+        return _token_success(
+            TokenResponse(
+                access_token=access_token_str,
+                token_type="Bearer",
+                expires_in=int(oauth2.ACCESS_TOKEN_EXPIRY.total_seconds()),
+                refresh_token=refresh_token_str,
+                id_token=id_token_str,
+            )
         )
 
     # ========================================================================
     # Grant Type: refresh_token
     # ========================================================================
     elif grant_type == "refresh_token":
-        # Validate required parameters
         if not refresh_token:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "invalid_request",
-                    "error_description": "Missing required parameter: refresh_token",
-                },
-            )
+            return _token_error("invalid_request", "Missing required parameter: refresh_token")
 
-        # Validate refresh token
+        # The lookup is bound to the authenticating client, so a refresh token
+        # issued to another client is simply not found (invalid_grant).
         token_data = oauth2_service.validate_refresh_token(
             tenant_id=tenant_id,
             token=refresh_token,
             client_id=client["id"],
         )
-
         if not token_data:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "invalid_grant",
-                    "error_description": "Invalid or expired refresh token",
-                },
-            )
+            return _token_error("invalid_grant", "Invalid or expired refresh token")
 
         # Re-check group-based access before minting a fresh access token. Access
         # is enforced only at authorize time, so without this a user whose grant
@@ -1088,56 +1134,51 @@ def token_endpoint(
             client_id=client["client_id"],
             client_name=client.get("name"),
         ):
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "invalid_grant",
-                    "error_description": "Access has been revoked",
-                },
-            )
+            return _token_error("invalid_grant", "Access has been revoked")
 
-        # Create new access token (linked to refresh token). Carry forward the
-        # scope granted at authorization so downstream userinfo keeps returning
-        # the same claims across refreshes. This grant does not rotate the
-        # refresh token, so there is no rotated token to re-persist scope onto.
+        # Rotate: the presented refresh token is replaced (same scope, grant,
+        # and absolute expiry). A concurrent refresh with the same token loses.
+        rotated = oauth2_service.rotate_refresh_token(tenant_id, client["id"], token_data)
+        if rotated is None:
+            return _token_error("invalid_grant", "Invalid or expired refresh token")
+        new_refresh_token, new_refresh_token_id = rotated
+
+        # New access token, linked to the new refresh token and carrying the
+        # scope granted at authorization so userinfo keeps returning the same
+        # claims across refreshes.
         access_token_str = oauth2_service.create_access_token(
             tenant_id=tenant_id,
             client_id=client["id"],
             user_id=token_data["user_id"],
-            parent_token_id=token_data["id"],
+            parent_token_id=new_refresh_token_id,
             scope=token_data.get("scope"),
+            grant_id=str(token_data["grant_id"]) if token_data.get("grant_id") else None,
         )
 
-        return TokenResponse(
-            access_token=access_token_str,
-            token_type="Bearer",
-            expires_in=int(oauth2.ACCESS_TOKEN_EXPIRY.total_seconds()),
-            refresh_token=None,  # Don't return refresh token on refresh
+        return _token_success(
+            TokenResponse(
+                access_token=access_token_str,
+                token_type="Bearer",
+                expires_in=int(oauth2.ACCESS_TOKEN_EXPIRY.total_seconds()),
+                refresh_token=new_refresh_token,
+            )
         )
 
     # ========================================================================
     # Grant Type: client_credentials
     # ========================================================================
     elif grant_type == "client_credentials":
-        # Validate client type
         if client["client_type"] != "b2b":
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "unauthorized_client",
-                    "error_description": "Client is not authorized for this grant type",
-                },
+            return _token_error(
+                "unauthorized_client", "Client is not authorized for this grant type"
             )
 
-        # Get service user ID
         service_user_id = client["service_user_id"]
         if not service_user_id:
-            raise HTTPException(
+            return _token_error(
+                "server_error",
+                "Client configuration error: missing service user",
                 status_code=500,
-                detail={
-                    "error": "server_error",
-                    "error_description": "Client configuration error: missing service user",
-                },
             )
 
         # Create access token (24h expiry, no refresh token)
@@ -1148,21 +1189,15 @@ def token_endpoint(
             is_client_credentials=True,
         )
 
-        return TokenResponse(
-            access_token=access_token_str,
-            token_type="Bearer",
-            expires_in=int(oauth2.CLIENT_CREDENTIALS_TOKEN_EXPIRY.total_seconds()),
-            refresh_token=None,  # No refresh token for client credentials
+        return _token_success(
+            TokenResponse(
+                access_token=access_token_str,
+                token_type="Bearer",
+                expires_in=int(oauth2.CLIENT_CREDENTIALS_TOKEN_EXPIRY.total_seconds()),
+            )
         )
 
     # ========================================================================
     # Unsupported grant type
     # ========================================================================
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "unsupported_grant_type",
-                "error_description": f"Grant type '{grant_type}' is not supported",
-            },
-        )
+    return _token_error("unsupported_grant_type", f"Grant type '{grant_type}' is not supported")

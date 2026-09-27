@@ -30,6 +30,12 @@ After creation, WeftID displays the **client ID** and **client secret** in a dia
     https://your-app.com/callback?code=...&state=...
     ```
 
+    To receive the code in a form POST instead of the URL, add
+    `response_mode=form_post` to the authorization request. WeftID then
+    renders a page that submits `code` and `state` to your `redirect_uri` as
+    form fields. Errors (for example `access_denied`) are delivered the same
+    way as the code.
+
 4. Your application exchanges the code for tokens at the token endpoint:
 
     ```
@@ -53,6 +59,28 @@ After creation, WeftID displays the **client ID** and **client secret** in a dia
     }
     ```
 
+    Fields that do not apply are left out of the response, not sent as
+    `null`. Token responses are marked `Cache-Control: no-store`.
+
+An authorization code works once. If the same code is redeemed a second time,
+WeftID rejects the request and revokes every token already issued from that
+code, since a reused code means it has leaked.
+
+### Token endpoint errors
+
+Errors follow RFC 6749: a JSON object with `error` and `error_description`
+at the top level.
+
+```json
+{
+  "error": "invalid_grant",
+  "error_description": "Invalid or expired authorization code"
+}
+```
+
+Errors use HTTP 400, except `invalid_client` (unknown client or wrong
+secret), which uses HTTP 401 with a `WWW-Authenticate: Basic` header.
+
 ### PKCE support
 
 WeftID supports Proof Key for Code Exchange (PKCE) for public clients that cannot securely store a client secret. Include `code_challenge` and `code_challenge_method` in the authorization request, and `code_verifier` in the token exchange. Supported methods: `S256` (recommended) and `plain`.
@@ -61,9 +89,9 @@ WeftID supports Proof Key for Code Exchange (PKCE) for public clients that canno
 
 | Token | Lifetime |
 |-------|----------|
-| Authorization code | 10 minutes |
+| Authorization code | 5 minutes |
 | Access token | 1 hour |
-| Refresh token | 90 days |
+| Refresh token | 30 days |
 
 Use the refresh token to obtain new access tokens without requiring the user to re-authorize:
 
@@ -71,6 +99,13 @@ Use the refresh token to obtain new access tokens without requiring the user to 
 POST /oauth2/token
 grant_type=refresh_token&refresh_token=...&client_id=...&client_secret=...
 ```
+
+Refresh tokens rotate. Each refresh returns a new access token **and a new
+refresh token**, and the refresh token you sent stops working immediately.
+Store the new one each time. Rotation does not extend the 30 days: the new
+refresh token expires when the original one would have. Access tokens issued
+earlier stay valid until they expire. A refresh token only works for the app
+it was issued to.
 
 ## Sign in with WeftID (OIDC)
 

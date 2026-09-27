@@ -40,15 +40,17 @@ WeftID gates released claims by the scopes a relying party **requests** at autho
 Supported scopes and the claims they release:
 
 * `openid` -- required for an ID token. Releases the envelope claims: `sub` (the stable WeftID user id, never the email), `iss`, `aud`, `exp`, `iat`, `auth_time`, and `nonce` (when supplied).
-* `profile` -- `name`, `given_name`, `family_name`, `locale`, `updated_at`.
+* `profile` -- `name`, `given_name`, `family_name`, `locale`, `zoneinfo`, `updated_at`. Claims WeftID has no data for (such as `nickname`, `picture`, or `birthdate`) are left out, never sent empty.
 * `email` -- `email`, `email_verified`.
 * `groups` -- `groups`, the user's effective group memberships (see below).
 
-The same scope-gated claims are available from both the ID token and the UserInfo endpoint. A UserInfo request must present an access token issued to an OIDC-enabled app.
+The ID token carries only the `openid` envelope claims. The `profile`, `email`, and `groups` claims come from the **UserInfo endpoint**, called with the access token from the same token response. This follows OpenID Connect Core section 5.4 for the authorization code flow, and it keeps personal data out of a token that the app may pass on to other parties. Most OIDC client libraries call UserInfo automatically after sign-in.
+
+The UserInfo endpoint accepts `GET` and `POST`. Send the access token in the `Authorization: Bearer` header, or, with `POST`, as the `access_token` form field (not both). The token must have been issued to an OIDC-enabled app.
 
 ## Group-claim behavior
 
-When the `groups` scope is granted, the ID token and UserInfo response include a `groups` claim listing the user's **effective** group names. Effective membership is DAG-aware: it includes groups the user belongs to directly plus all ancestor groups reachable through the group hierarchy. The claim is always present (as an empty list when the user has no groups) whenever the scope is granted, so relying parties can treat "no `groups` claim" and "empty `groups`" unambiguously.
+When the `groups` scope is granted, the UserInfo response includes a `groups` claim listing the user's **effective** group names. Effective membership is DAG-aware: it includes groups the user belongs to directly plus all ancestor groups reachable through the group hierarchy. The claim is always present (as an empty list when the user has no groups) whenever the scope is granted, so relying parties can treat "no `groups` claim" and "empty `groups`" unambiguously.
 
 ## Controlling who can sign in
 
@@ -88,4 +90,11 @@ Admin or super admin role required to manage OIDC settings and group assignments
 
 ## What is not supported
 
-WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, and group-based access control. The following are intentionally out of scope: RP-initiated and back-channel logout, token introspection and revocation endpoints, the device grant, dynamic client registration, and pairwise subject identifiers.
+WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, and group-based access control. The following are intentionally out of scope: RP-initiated and back-channel logout, token introspection and revocation endpoints, the device grant, dynamic client registration, and pairwise subject identifiers.
+
+These parts of the specification are not supported, and discovery says so:
+
+* **Request objects** (`request` and `request_uri`) are rejected with `request_not_supported` or `request_uri_not_supported`.
+* **The `claims` request parameter** is ignored (`claims_parameter_supported` is `false`). Claims are released by scope only.
+* **No `acr` claim.** WeftID defines no authentication context classes, so `acr_values` is accepted but has no effect.
+* **Response types other than `code`** (implicit and hybrid flows).

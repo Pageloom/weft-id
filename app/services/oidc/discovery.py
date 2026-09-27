@@ -30,6 +30,11 @@ ID_TOKEN_SIGNING_ALG_VALUES_SUPPORTED = ["RS256"]
 # The single authorization-endpoint response type the OAuth2 flow supports.
 RESPONSE_TYPES_SUPPORTED = ["code"]
 
+# How the authorization response reaches the RP: the redirect query (the
+# default for `code`) or an auto-submitting HTML form POST (OAuth 2.0 Form
+# Post Response Mode).
+RESPONSE_MODES_SUPPORTED = ["query", "form_post"]
+
 # Grant types the token endpoint accepts today.
 GRANT_TYPES_SUPPORTED = ["authorization_code", "refresh_token", "client_credentials"]
 
@@ -45,6 +50,11 @@ TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED = ["client_secret_basic", "client_secret_p
 # is true, and RPs (and the conformance suite) read the absence as support.
 REQUEST_PARAMETER_SUPPORTED = False
 REQUEST_URI_PARAMETER_SUPPORTED = False
+
+# The `claims` request parameter (OpenID Connect Core 1.0, section 5.5) is not
+# honoured: claims are released by scope only. Advertised explicitly because
+# RPs otherwise have to guess.
+CLAIMS_PARAMETER_SUPPORTED = False
 
 # Claims that may appear in an ID token or a userinfo response. This is the
 # union of the token-envelope claims added by the ID-token minter
@@ -65,6 +75,7 @@ CLAIMS_SUPPORTED = [
     "given_name",
     "family_name",
     "locale",
+    "zoneinfo",
     "updated_at",
     # email-scope claims.
     "email",
@@ -94,6 +105,7 @@ def build_discovery_metadata(issuer: str) -> OIDCProviderMetadata:
         jwks_uri=f"{base}/.well-known/jwks.json",
         scopes_supported=list(claims_service.SUPPORTED_SCOPES),
         response_types_supported=list(RESPONSE_TYPES_SUPPORTED),
+        response_modes_supported=list(RESPONSE_MODES_SUPPORTED),
         grant_types_supported=list(GRANT_TYPES_SUPPORTED),
         subject_types_supported=list(SUBJECT_TYPES_SUPPORTED),
         id_token_signing_alg_values_supported=list(ID_TOKEN_SIGNING_ALG_VALUES_SUPPORTED),
@@ -101,4 +113,5 @@ def build_discovery_metadata(issuer: str) -> OIDCProviderMetadata:
         claims_supported=list(CLAIMS_SUPPORTED),
         request_parameter_supported=REQUEST_PARAMETER_SUPPORTED,
         request_uri_parameter_supported=REQUEST_URI_PARAMETER_SUPPORTED,
+        claims_parameter_supported=CLAIMS_PARAMETER_SUPPORTED,
     )

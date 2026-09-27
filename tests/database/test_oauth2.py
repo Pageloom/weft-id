@@ -390,8 +390,10 @@ def test_validate_and_consume_code_success(test_tenant, normal_oauth2_client, te
     assert result is not None
     assert str(result["user_id"]) == str(test_user["id"])
     assert str(result["tenant_id"]) == str(test_tenant["id"])
+    assert result["reused"] is False
 
-    # Code should be consumed (can't use twice)
+    # Code is marked consumed: a second redemption reports the reuse (the
+    # service layer turns that into a rejection plus grant revocation).
     result2 = database.oauth2.validate_and_consume_code(
         tenant_id=test_tenant["id"],
         code=code,
@@ -399,7 +401,9 @@ def test_validate_and_consume_code_success(test_tenant, normal_oauth2_client, te
         redirect_uri=normal_oauth2_client["redirect_uris"][0],
     )
 
-    assert result2 is None  # Already consumed
+    assert result2 is not None
+    assert result2["reused"] is True
+    assert result2["id"] == result["id"]
 
 
 def test_validate_and_consume_code_with_pkce_success(test_tenant, normal_oauth2_client, test_user):
@@ -1125,3 +1129,225 @@ def test_cross_tenant_token_validation_blocked(test_tenant, normal_oauth2_client
             "DELETE FROM tenants WHERE id = :id",
             {"id": tenant2["id"]},
         )
+
+
+# =============================================================================
+# Code reuse detection, grant ids, and refresh token rotation (migration 0062)
+# =============================================================================
+
+
+def _grant_code(test_tenant, client_row, user):
+    return database.oauth2.create_authorization_code(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=client_row["id"],
+        user_id=user["id"],
+        redirect_uri=client_row["redirect_uris"][0],
+        scope="openid email",
+    )
+
+
+def _consume(test_tenant, client_row, code, **kw):
+    return database.oauth2.validate_and_consume_code(
+        tenant_id=test_tenant["id"],
+        code=code,
+        client_id=client_row["id"],
+        redirect_uri=client_row["redirect_uris"][0],
+        **kw,
+    )
+
+
+def _issue_grant(test_tenant, client_row, user, grant_id):
+    refresh, refresh_id = database.oauth2.create_refresh_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=client_row["id"],
+        user_id=user["id"],
+        scope="openid email",
+        grant_id=grant_id,
+    )
+    access = database.oauth2.create_access_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=client_row["id"],
+        user_id=user["id"],
+        parent_token_id=refresh_id,
+        scope="openid email",
+        grant_id=grant_id,
+    )
+    return refresh, refresh_id, access
+
+
+def test_consumed_code_is_kept_and_marked(test_tenant, normal_oauth2_client, test_user):
+    code = _grant_code(test_tenant, normal_oauth2_client, test_user)
+    result = _consume(test_tenant, normal_oauth2_client, code)
+    row = database.fetchone(
+        test_tenant["id"],
+        "select consumed_at from oauth2_authorization_codes where id = :id",
+        {"id": result["id"]},
+    )
+    assert row is not None
+    assert row["consumed_at"] is not None
+
+
+def test_reused_code_with_bad_pkce_is_invalid_not_reuse(
+    test_tenant, normal_oauth2_client, test_user
+):
+    """Reuse is only reported for a redemption that would otherwise be valid,
+    so a party without the PKCE verifier cannot trigger grant revocation."""
+    code = database.oauth2.create_authorization_code(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        redirect_uri=normal_oauth2_client["redirect_uris"][0],
+        code_challenge="verifier-of-sufficient-length-0123456789-abcdefghij",
+        code_challenge_method="plain",
+    )
+    first = _consume(
+        test_tenant,
+        normal_oauth2_client,
+        code,
+        code_verifier="verifier-of-sufficient-length-0123456789-abcdefghij",
+    )
+    assert first is not None and first["reused"] is False
+    assert _consume(test_tenant, normal_oauth2_client, code, code_verifier="wrong") is None
+
+
+def test_expired_consumed_code_is_cleaned_up(test_tenant, normal_oauth2_client, test_user):
+    code = _grant_code(test_tenant, normal_oauth2_client, test_user)
+    result = _consume(test_tenant, normal_oauth2_client, code)
+    database.execute(
+        test_tenant["id"],
+        "update oauth2_authorization_codes set expires_at = now() - interval '1 second' "
+        "where id = :id",
+        {"id": result["id"]},
+    )
+    assert database.oauth2.cleanup_expired_codes(test_tenant["id"]) >= 1
+    assert _consume(test_tenant, normal_oauth2_client, code) is None
+
+
+def test_tokens_carry_grant_id(test_tenant, normal_oauth2_client, test_user):
+    code = _grant_code(test_tenant, normal_oauth2_client, test_user)
+    grant_id = _consume(test_tenant, normal_oauth2_client, code)["id"]
+    refresh, _, _ = _issue_grant(test_tenant, normal_oauth2_client, test_user, grant_id)
+
+    data = database.oauth2.validate_refresh_token(
+        test_tenant["id"], refresh, normal_oauth2_client["id"]
+    )
+    assert str(data["grant_id"]) == grant_id
+    assert data["expires_at"] is not None
+    rows = database.fetchall(
+        test_tenant["id"],
+        "select grant_id from oauth2_tokens where grant_id = :g",
+        {"g": grant_id},
+    )
+    assert len(rows) == 2
+
+
+def test_revoke_grant_tokens_only_touches_that_grant(test_tenant, normal_oauth2_client, test_user):
+    grant_a = _consume(
+        test_tenant, normal_oauth2_client, _grant_code(test_tenant, normal_oauth2_client, test_user)
+    )["id"]
+    grant_b = _consume(
+        test_tenant, normal_oauth2_client, _grant_code(test_tenant, normal_oauth2_client, test_user)
+    )["id"]
+    _, _, access_a = _issue_grant(test_tenant, normal_oauth2_client, test_user, grant_a)
+    _, _, access_b = _issue_grant(test_tenant, normal_oauth2_client, test_user, grant_b)
+
+    assert database.oauth2.revoke_grant_tokens(test_tenant["id"], grant_a) == 2
+    assert database.oauth2.validate_token(access_a, test_tenant["id"]) is None
+    assert database.oauth2.validate_token(access_b, test_tenant["id"]) is not None
+
+
+def test_revoke_grant_tokens_is_tenant_scoped(test_tenant, normal_oauth2_client, test_user):
+    """RLS: revoking a grant id from another tenant's scope deletes nothing."""
+    import uuid
+
+    grant_id = _consume(
+        test_tenant, normal_oauth2_client, _grant_code(test_tenant, normal_oauth2_client, test_user)
+    )["id"]
+    _, _, access = _issue_grant(test_tenant, normal_oauth2_client, test_user, grant_id)
+    assert database.oauth2.revoke_grant_tokens(str(uuid.uuid4()), grant_id) == 0
+    assert database.oauth2.validate_token(access, test_tenant["id"]) is not None
+
+
+def _rotate(test_tenant, client_row, data):
+    return database.oauth2.rotate_refresh_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        old_token_id=str(data["id"]),
+        client_id=client_row["id"],
+        user_id=str(data["user_id"]),
+        scope=data["scope"],
+        grant_id=str(data["grant_id"]) if data["grant_id"] else None,
+        expires_at=data["expires_at"],
+    )
+
+
+def test_rotate_refresh_token(test_tenant, normal_oauth2_client, test_user):
+    grant_id = _consume(
+        test_tenant, normal_oauth2_client, _grant_code(test_tenant, normal_oauth2_client, test_user)
+    )["id"]
+    old_refresh, _, old_access = _issue_grant(
+        test_tenant, normal_oauth2_client, test_user, grant_id
+    )
+    old = database.oauth2.validate_refresh_token(
+        test_tenant["id"], old_refresh, normal_oauth2_client["id"]
+    )
+
+    new_refresh, new_id = _rotate(test_tenant, normal_oauth2_client, old)
+
+    # Old token gone, new one valid with the same scope, grant, and expiry.
+    assert (
+        database.oauth2.validate_refresh_token(
+            test_tenant["id"], old_refresh, normal_oauth2_client["id"]
+        )
+        is None
+    )
+    new = database.oauth2.validate_refresh_token(
+        test_tenant["id"], new_refresh, normal_oauth2_client["id"]
+    )
+    assert str(new["id"]) == new_id
+    assert new["scope"] == old["scope"]
+    assert str(new["grant_id"]) == grant_id
+    assert new["expires_at"] == old["expires_at"]
+    assert str(new["user_id"]) == str(test_user["id"])
+
+    # The old access token was re-parented, not cascade-deleted.
+    assert database.oauth2.validate_token(old_access, test_tenant["id"]) is not None
+    row = database.fetchone(
+        test_tenant["id"],
+        "select parent_token_id from oauth2_tokens where token_type = 'access' and grant_id = :g",
+        {"g": grant_id},
+    )
+    assert str(row["parent_token_id"]) == new_id
+
+
+def test_rotate_already_rotated_token_returns_none(test_tenant, normal_oauth2_client, test_user):
+    refresh, _, _ = _issue_grant(test_tenant, normal_oauth2_client, test_user, None)
+    data = database.oauth2.validate_refresh_token(
+        test_tenant["id"], refresh, normal_oauth2_client["id"]
+    )
+    assert _rotate(test_tenant, normal_oauth2_client, data) is not None
+    # A second rotation of the same (now deleted) token loses.
+    assert _rotate(test_tenant, normal_oauth2_client, data) is None
+    count = database.fetchone(
+        test_tenant["id"],
+        "select count(*) as n from oauth2_tokens where token_type = 'refresh' and client_id = :c",
+        {"c": normal_oauth2_client["id"]},
+    )
+    assert count["n"] == 1
+
+
+def test_rotate_legacy_token_without_grant(test_tenant, normal_oauth2_client, test_user):
+    refresh, _, _ = _issue_grant(test_tenant, normal_oauth2_client, test_user, None)
+    data = database.oauth2.validate_refresh_token(
+        test_tenant["id"], refresh, normal_oauth2_client["id"]
+    )
+    assert data["grant_id"] is None
+    new_refresh, _ = _rotate(test_tenant, normal_oauth2_client, data)
+    new = database.oauth2.validate_refresh_token(
+        test_tenant["id"], new_refresh, normal_oauth2_client["id"]
+    )
+    assert new["grant_id"] is None

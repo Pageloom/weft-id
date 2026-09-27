@@ -25,11 +25,17 @@ router = APIRouter(
 
 
 @router.get("/userinfo")
+@router.post("/userinfo")
 def userinfo(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     token_data: Annotated[dict, Depends(get_oidc_userinfo_token)],
 ) -> dict:
     """Return the scope-gated userinfo claims for the presented access token.
+
+    Accepts GET and POST (OpenID Connect Core 1.0, section 5.3.1). The access
+    token is presented in the ``Authorization: Bearer`` header, or for POST
+    alternatively as the ``access_token`` form field (RFC 6750 section 2.2);
+    not both.
 
     The response always includes `sub` (the stable WeftID user id) and,
     depending on the token's granted scope, the same profile/email claims the

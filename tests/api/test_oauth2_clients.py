@@ -1044,10 +1044,10 @@ def test_deactivated_client_cannot_get_token(
         },
     )
 
-    assert token_response.status_code == 400
+    assert token_response.status_code == 401
     data = token_response.json()
-    assert data["detail"]["error"] == "invalid_client"
-    assert "deactivated" in data["detail"]["error_description"].lower()
+    assert data["error"] == "invalid_client"
+    assert "deactivated" in data["error_description"].lower()
 
 
 # =============================================================================

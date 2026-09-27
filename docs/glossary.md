@@ -75,7 +75,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   An identity layer on top of [OAuth2](#oauth2). Where OAuth2 authorizes API access, OIDC adds a signed **ID token** and a standard set of identity claims, so an application can verify who the user is. WeftID acts as an OpenID Provider: an OIDC-enabled [App](admin-guide/integrations/apps.md) receives a signed ID token (via the [authorization code flow](#authorization-code-flow), with [PKCE](#pkce-proof-key-for-code-exchange) recommended) plus scope-gated claims from the UserInfo endpoint. See [Sign in with WeftID (OIDC)](admin-guide/integrations/oidc-provider-setup.md).
 
 **ID token** {#id-token}
-:   A signed JWT issued by an OpenID Provider that asserts a user's identity. Contains a stable subject (`sub`), the issuer, audience, expiry, and, per requested scope, profile/email/group claims. Relying parties verify its RS256 signature against the provider's [JWKS](admin-guide/integrations/oidc-provider-setup.md). Distinct from an [access token](#access-token), which authorizes API calls rather than asserting identity.
+:   A signed JWT issued by an OpenID Provider that asserts a user's identity. Contains a stable subject (`sub`), the issuer, audience, expiry, and authentication time. WeftID puts the profile, email, and group claims in the [UserInfo](#userinfo-endpoint) response rather than the ID token. Relying parties verify its RS256 signature against the provider's [JWKS](admin-guide/integrations/oidc-provider-setup.md). Distinct from an [access token](#access-token), which authorizes API calls rather than asserting identity.
 
 **Relying party (RP)**
 :   An application that delegates authentication to an OpenID Provider. WeftID is on both sides of this relationship: a downstream App is the relying party when WeftID is the provider, and WeftID is itself the relying party when it consumes an [upstream OIDC identity provider](admin-guide/identity-providers/oidc-setup.md).
@@ -86,8 +86,8 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 **JWKS (JSON Web Key Set)** {#jwks}
 :   The set of public keys an OpenID Provider publishes so relying parties can verify the signatures on its [ID tokens](#id-token). Fetched from the provider's `jwks_uri` and cached, then refreshed when a signature fails to verify so that key rotation does not interrupt sign-ins.
 
-**UserInfo endpoint**
-:   An OIDC endpoint returning identity claims for the user an access token was issued for. Supplements the claims carried in the [ID token](#id-token).
+**UserInfo endpoint** {#userinfo-endpoint}
+:   An OIDC endpoint returning identity claims for the user an access token was issued for. In WeftID it is where the profile, email, and group claims come from; the [ID token](#id-token) carries only the subject and authentication details.
 
 **Correlation claim**
 :   The claim WeftID uses to recognise a returning user from an upstream OIDC provider, recorded per connection alongside the provider's value for it. Usually `sub`; the [Entra](admin-guide/identity-providers/oidc-entra.md) preset uses `oid` because Entra's `sub` is unique per application. Correlating on a stable subject rather than on email means a user who changes their email address upstream keeps the same WeftID account.
@@ -96,7 +96,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   A short-lived credential (bearer token) that authorizes API requests. Issued by WeftID after a successful OAuth2 flow. Include it in the `Authorization` header as `Bearer <token>`.
 
 **Refresh token**
-:   A long-lived credential used to obtain new access tokens without re-authorization. Only issued in the authorization code flow. Stored securely by the client application.
+:   A long-lived credential used to obtain new access tokens without re-authorization. Only issued in the authorization code flow. Stored securely by the client application. WeftID rotates refresh tokens: every use returns a new one and retires the old one.
 
 ## SCIM Provisioning
 

@@ -1553,3 +1553,90 @@ def test_session_clients_are_tenant_isolated(test_tenant, normal_oauth2_client, 
             user_id=test_user["id"],
         )
     assert len(_consume_session(tid, "s-1")) == 1
+
+
+# =============================================================================
+# Session-bound refresh tokens (Back-Channel Logout 1.0, section 2.7)
+# =============================================================================
+
+
+def _session_tokens(test_tenant, client_row, user, sid):
+    """A refresh token issued in ``sid`` and the access token minted with it."""
+    tid = test_tenant["id"]
+    refresh, refresh_id = database.oauth2.create_refresh_token(
+        tid, tid, client_row["id"], str(user["id"]), scope="openid", sid=sid
+    )
+    access = database.oauth2.create_access_token(
+        tid, tid, client_row["id"], str(user["id"]), parent_token_id=refresh_id
+    )
+    return refresh, access
+
+
+def test_refresh_token_records_sid(test_tenant, normal_oauth2_client, test_user):
+    refresh, _ = _session_tokens(test_tenant, normal_oauth2_client, test_user, "sid-a")
+    data = database.oauth2.validate_refresh_token(
+        test_tenant["id"], refresh, normal_oauth2_client["id"]
+    )
+    assert data["sid"] == "sid-a"
+
+
+def test_refresh_token_sid_defaults_to_none(test_tenant, normal_oauth2_client, test_user):
+    refresh, _ = database.oauth2.create_refresh_token(
+        test_tenant["id"], test_tenant["id"], normal_oauth2_client["id"], str(test_user["id"])
+    )
+    data = database.oauth2.validate_refresh_token(
+        test_tenant["id"], refresh, normal_oauth2_client["id"]
+    )
+    assert data["sid"] is None
+
+
+def test_rotation_carries_sid(test_tenant, normal_oauth2_client, test_user):
+    tid = test_tenant["id"]
+    refresh, _ = _session_tokens(test_tenant, normal_oauth2_client, test_user, "sid-a")
+    old = database.oauth2.validate_refresh_token(tid, refresh, normal_oauth2_client["id"])
+    new_refresh, _ = database.oauth2.rotate_refresh_token(
+        tenant_id=tid,
+        tenant_id_value=tid,
+        old_token_id=str(old["id"]),
+        client_id=normal_oauth2_client["id"],
+        user_id=str(old["user_id"]),
+        scope=old["scope"],
+        grant_id=None,
+        expires_at=old["expires_at"],
+        sid=old["sid"],
+    )
+    new = database.oauth2.validate_refresh_token(tid, new_refresh, normal_oauth2_client["id"])
+    assert new["sid"] == "sid-a"
+
+
+def test_revoke_session_refresh_tokens(test_tenant, normal_oauth2_client, test_user):
+    """Only the session's refresh tokens go, with the access tokens minted from them."""
+    tid = test_tenant["id"]
+    refresh_a, access_a = _session_tokens(test_tenant, normal_oauth2_client, test_user, "sid-a")
+    refresh_b, access_b = _session_tokens(test_tenant, normal_oauth2_client, test_user, "sid-b")
+    refresh_none, access_none = _session_tokens(test_tenant, normal_oauth2_client, test_user, None)
+
+    assert database.oauth2.revoke_session_refresh_tokens(tid, "sid-a") == 1
+
+    client_uuid = normal_oauth2_client["id"]
+    assert database.oauth2.validate_refresh_token(tid, refresh_a, client_uuid) is None
+    assert database.oauth2.validate_token(access_a, tid) is None
+    assert database.oauth2.validate_refresh_token(tid, refresh_b, client_uuid) is not None
+    assert database.oauth2.validate_token(access_b, tid) is not None
+    assert database.oauth2.validate_refresh_token(tid, refresh_none, client_uuid) is not None
+    assert database.oauth2.validate_token(access_none, tid) is not None
+
+
+def test_revoke_session_refresh_tokens_is_tenant_scoped(
+    test_tenant, normal_oauth2_client, test_user
+):
+    import uuid
+
+    refresh, _ = _session_tokens(test_tenant, normal_oauth2_client, test_user, "sid-a")
+    assert database.oauth2.revoke_session_refresh_tokens(str(uuid.uuid4()), "sid-a") == 0
+    assert (
+        database.oauth2.validate_refresh_token(
+            test_tenant["id"], refresh, normal_oauth2_client["id"]
+        )
+        is not None
+    )

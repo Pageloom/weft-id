@@ -293,6 +293,7 @@ def create_refresh_token(
     user_id: str,
     scope: str | None = None,
     grant_id: str | None = None,
+    sid: str | None = None,
 ) -> tuple[str, str]:
     """
     Create a refresh token.
@@ -304,6 +305,9 @@ def create_refresh_token(
         scope: Optional granted space-delimited scope string (persisted so the
             refresh_token grant can carry it onto refreshed access tokens)
         grant_id: Optional id of the authorization code that started the grant
+        sid: Optional WeftID session the token is issued in. Set only when an
+            ID token carrying the same ``sid`` is issued with it; ending that
+            session then revokes the token (Back-Channel Logout 1.0, 2.7)
 
     Returns:
         Tuple of (refresh_token_string, refresh_token_id)
@@ -315,6 +319,7 @@ def create_refresh_token(
         user_id=user_id,
         scope=scope,
         grant_id=grant_id,
+        sid=sid,
     )
 
 
@@ -387,8 +392,8 @@ def rotate_refresh_token(
     """
     Replace a validated refresh token with a new one (refresh token rotation).
 
-    The new token keeps the old one's user, scope, grant, and absolute expiry,
-    so rotation never extends how long a grant lives; the old token stops
+    The new token keeps the old one's user, scope, grant, session, and absolute
+    expiry, so rotation never extends how long a grant lives; the old token stops
     working immediately. Access tokens issued under the old token stay valid
     until they expire.
 
@@ -410,6 +415,7 @@ def rotate_refresh_token(
         scope=token_data.get("scope"),
         grant_id=str(token_data["grant_id"]) if token_data.get("grant_id") else None,
         expires_at=token_data["expires_at"],
+        sid=token_data.get("sid"),
     )
 
 

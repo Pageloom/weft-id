@@ -503,3 +503,106 @@ class TestEndOidcSessionBackchannel:
         assert _end_session(test_tenant, "s-1").backchannel_logout_count == 1
         assert _end_session(test_tenant, "s-1").backchannel_logout_count == 0
         assert len(_deliveries(test_tenant)) == 1
+
+
+# ---------------------------------------------------------------------------
+# end_oidc_session: the session's refresh tokens are revoked (BCL 2.7)
+# ---------------------------------------------------------------------------
+
+
+def _session_refresh_token(test_tenant, client, user, sid):
+    tid = str(test_tenant["id"])
+    token, token_id = database.oauth2.create_refresh_token(
+        tid, tid, str(client["id"]), str(user["id"]), scope="openid", sid=sid
+    )
+    return token
+
+
+def _refresh_valid(test_tenant, client, token) -> bool:
+    return (
+        database.oauth2.validate_refresh_token(str(test_tenant["id"]), token, str(client["id"]))
+        is not None
+    )
+
+
+class TestEndOidcSessionRefreshTokens:
+    def test_session_refresh_tokens_revoked(self, test_tenant, test_user, rp_client):
+        mine = _session_refresh_token(test_tenant, rp_client, test_user, "s-1")
+        other = _session_refresh_token(test_tenant, rp_client, test_user, "s-2")
+
+        ended = _end_session(test_tenant, "s-1")
+
+        assert ended.refresh_tokens_revoked == 1
+        assert not _refresh_valid(test_tenant, rp_client, mine)
+        assert _refresh_valid(test_tenant, rp_client, other)
+
+    def test_excluded_client_tokens_revoked_too(self, test_tenant, test_user, rp_client):
+        """Re-authentication starts a new session: the old session's tokens go."""
+        token = _session_refresh_token(test_tenant, rp_client, test_user, "s-1")
+        ended = _end_session(test_tenant, "s-1", exclude_client_uuid=str(rp_client["id"]))
+        assert ended.refresh_tokens_revoked == 1
+        assert not _refresh_valid(test_tenant, rp_client, token)
+
+    def test_no_sid_revokes_nothing(self, test_tenant, test_user, rp_client):
+        token = _session_refresh_token(test_tenant, rp_client, test_user, None)
+        ended = logout_service.end_oidc_session(
+            tenant_id=str(test_tenant["id"]), issuer=ISSUER, sid=None
+        )
+        assert ended.refresh_tokens_revoked == 0
+        assert _refresh_valid(test_tenant, rp_client, token)
+
+
+# ---------------------------------------------------------------------------
+# end_user_oidc_sessions: deactivation / deletion fan-out
+# ---------------------------------------------------------------------------
+
+
+class TestEndUserOidcSessions:
+    def test_every_session_queued(self, test_tenant, test_user, test_admin_user):
+        client = _bc_client(test_tenant, test_admin_user, "BC")
+        _hint(test_tenant, test_user, client, sid="s-1", issuer="https://recorded.example")
+        _hint(test_tenant, test_user, client, sid="s-2", issuer="https://recorded.example")
+        _hint(test_tenant, test_admin_user, client, sid="s-3")
+
+        count = logout_service.end_user_oidc_sessions(
+            tenant_id=str(test_tenant["id"]), user_id=str(test_user["id"])
+        )
+
+        assert count == 2
+        rows = _deliveries(test_tenant)
+        assert sorted(r["sid"] for r in rows) == ["s-1", "s-2"]
+        assert {r["issuer"] for r in rows} == {"https://recorded.example"}
+        # The admin's session is untouched and still notifies at its own logout.
+        assert _end_session(test_tenant, "s-3").backchannel_logout_count == 1
+
+    def test_unrecorded_issuer_falls_back_to_canonical_host(
+        self, test_tenant, test_user, test_admin_user
+    ):
+        import settings
+
+        client = _bc_client(test_tenant, test_admin_user, "BC")
+        tid = str(test_tenant["id"])
+        database.oauth2.upsert_session_client(
+            tid, tid, sid="old", client_id=str(client["id"]), user_id=str(test_user["id"])
+        )
+
+        logout_service.end_user_oidc_sessions(tenant_id=tid, user_id=str(test_user["id"]))
+
+        (row,) = _deliveries(test_tenant)
+        assert row["issuer"] == f"https://{test_tenant['subdomain']}.{settings.BASE_DOMAIN}"
+
+    def test_no_sessions(self, test_tenant, test_user):
+        assert (
+            logout_service.end_user_oidc_sessions(
+                tenant_id=str(test_tenant["id"]), user_id=str(test_user["id"])
+            )
+            == 0
+        )
+
+
+def test_canonical_issuer_without_tenant_or_base_domain(test_tenant, mocker):
+    import uuid
+
+    assert logout_service._canonical_issuer(str(uuid.uuid4())) == ""
+    mocker.patch.object(logout_service.settings, "BASE_DOMAIN", "")
+    assert logout_service._canonical_issuer(str(test_tenant["id"])) == ""

@@ -329,3 +329,177 @@ def test_sweep_removes_only_stale_session_records(test_tenant, bc_client, test_u
     assert database.oauth2.sweep_stale_session_clients(older_than_days=90) >= 1
     rows = database.fetchall(tid, "select sid from oidc_session_clients")
     assert [row["sid"] for row in rows] == ["fresh"]
+
+
+# ---------------------------------------------------------------------------
+# Recorded issuer and per-user consumption
+# ---------------------------------------------------------------------------
+
+RECORDED = "https://recorded.example.com"
+
+
+def _record(tid, client, user, sid, issuer=RECORDED):
+    database.oauth2.upsert_session_client(
+        tid, tid, sid=sid, client_id=str(client["id"]), user_id=str(user["id"]), issuer=issuer
+    )
+
+
+def _session_rows(tid) -> list[dict]:
+    return database.fetchall(tid, "select * from oidc_session_clients order by sid")
+
+
+def test_upsert_records_issuer_and_keeps_it(test_tenant, bc_client, test_user):
+    tid = test_tenant["id"]
+    _record(tid, bc_client, test_user, "s-1")
+    assert _session_rows(tid)[0]["issuer"] == RECORDED
+    # A repeat issuance without an issuer does not erase the recorded one.
+    _record(tid, bc_client, test_user, "s-1", issuer=None)
+    assert _session_rows(tid)[0]["issuer"] == RECORDED
+
+
+def test_consume_prefers_recorded_issuer(test_tenant, bc_client, test_user):
+    tid = test_tenant["id"]
+    _record(tid, bc_client, test_user, "s-1")
+    (row,) = database.oauth2.consume_session_clients(tid, tid, "s-1", issuer=ISSUER)
+    assert row["issuer"] == RECORDED
+    assert _rows(tid)[0]["issuer"] == RECORDED
+
+
+def test_consume_user_takes_every_session(test_tenant, bc_client, test_user, test_admin_user):
+    tid = test_tenant["id"]
+    _record(tid, bc_client, test_user, "s-1")
+    _record(tid, bc_client, test_user, "s-2", issuer=None)
+    _record(tid, bc_client, test_admin_user, "s-3")
+
+    rows = database.oauth2.consume_user_session_clients(
+        tid, tid, str(test_user["id"]), issuer=ISSUER
+    )
+
+    assert sorted(row["sid"] for row in rows) == ["s-1", "s-2"]
+    assert all(row["backchannel_queued"] for row in rows)
+    deliveries = {d["sid"]: d for d in _rows(tid)}
+    assert set(deliveries) == {"s-1", "s-2"}
+    assert deliveries["s-1"]["issuer"] == RECORDED
+    assert deliveries["s-2"]["issuer"] == ISSUER  # recorded before issuers were kept
+    assert {d["sub"] for d in deliveries.values()} == {str(test_user["id"])}
+    # The other user's session is untouched.
+    assert [r["sid"] for r in _session_rows(tid)] == ["s-3"]
+
+
+def test_consume_user_queued_flag_is_per_session(
+    test_tenant, bc_client, normal_oauth2_client, test_user
+):
+    """A client without a back-channel URI is consumed but not queued."""
+    tid = test_tenant["id"]
+    _record(tid, bc_client, test_user, "s-1")
+    _record(tid, normal_oauth2_client, test_user, "s-1")
+    rows = database.oauth2.consume_user_session_clients(
+        tid, tid, str(test_user["id"]), issuer=ISSUER
+    )
+    queued = {str(row["id"]): row["backchannel_queued"] for row in rows}
+    assert queued == {str(bc_client["id"]): True, str(normal_oauth2_client["id"]): False}
+    assert _session_rows(tid) == []
+
+
+def test_consume_user_with_no_sessions(test_tenant, test_user):
+    tid = test_tenant["id"]
+    assert (
+        database.oauth2.consume_user_session_clients(tid, tid, str(test_user["id"]), issuer=ISSUER)
+        == []
+    )
+
+
+# ---------------------------------------------------------------------------
+# Delivery log reads (status view)
+# ---------------------------------------------------------------------------
+
+
+def _set_status(tid, sid, status, created_offset_s=0):
+    database.execute(
+        tid,
+        """
+        update oidc_backchannel_logout_deliveries
+        set status = :status, created_at = now() - make_interval(secs => :off)
+        where sid = :sid
+        """,
+        {"status": status, "sid": sid, "off": created_offset_s},
+    )
+
+
+def test_list_client_deliveries_newest_first_with_user(
+    test_tenant, bc_client, test_user, test_admin_user
+):
+    tid = test_tenant["id"]
+    _queue(tid, bc_client, test_user, sid="old")
+    _queue(tid, bc_client, test_admin_user, sid="new")
+    _set_status(tid, "old", "delivered", created_offset_s=60)
+
+    rows = database.oauth2.list_client_deliveries(tid, str(bc_client["id"]), limit=10)
+
+    assert [r["sub"] for r in rows] == [str(test_admin_user["id"]), str(test_user["id"])]
+    assert rows[0]["user_email"] == test_admin_user["email"]
+    assert rows[0]["user_first_name"] == test_admin_user["first_name"]
+    assert rows[1]["status"] == "delivered"
+
+
+def test_list_client_deliveries_filters_and_pages(
+    test_tenant, bc_client, test_user, test_admin_user
+):
+    tid = test_tenant["id"]
+    cid = str(bc_client["id"])
+    for i in range(3):
+        _queue(tid, bc_client, test_user, sid=f"s-{i}")
+        _set_status(tid, f"s-{i}", "failed" if i == 0 else "pending", created_offset_s=i)
+
+    failed = database.oauth2.list_client_deliveries(tid, cid, status="failed", limit=10)
+    assert [r["status"] for r in failed] == ["failed"]
+    first = database.oauth2.list_client_deliveries(tid, cid, limit=2)
+    second = database.oauth2.list_client_deliveries(tid, cid, limit=2, offset=2)
+    assert len(first) == 2 and len(second) == 1
+    assert {r["id"] for r in first}.isdisjoint({r["id"] for r in second})
+    assert database.oauth2.count_client_deliveries_by_status(tid, cid) == {
+        "pending": 2,
+        "delivered": 0,
+        "failed": 1,
+    }
+
+
+def test_list_client_deliveries_deleted_user_has_no_name(test_tenant, bc_client, test_user):
+    tid = test_tenant["id"]
+    _queue(tid, bc_client, test_user)
+    database.execute(tid, "delete from users where id = :id", {"id": test_user["id"]})
+    (row,) = database.oauth2.list_client_deliveries(tid, str(bc_client["id"]), limit=10)
+    assert row["sub"] == str(test_user["id"])
+    assert row["user_first_name"] is None and row["user_email"] is None
+
+
+def test_list_client_deliveries_only_that_client(
+    test_tenant, test_admin_user, bc_client, test_user
+):
+    tid = test_tenant["id"]
+    other = database.oauth2.create_normal_client(
+        tenant_id=tid,
+        tenant_id_value=tid,
+        name="Other",
+        redirect_uris=["https://rp2.example/cb"],
+        created_by=test_admin_user["id"],
+        backchannel_logout_uri=BC_URI,
+    )
+    database.oauth2.update_client_oidc_settings(tid, other["client_id"], oidc_enabled=True)
+    _queue(tid, other, test_user)
+    assert database.oauth2.list_client_deliveries(tid, str(bc_client["id"]), limit=10) == []
+    assert database.oauth2.count_client_deliveries_by_status(tid, str(bc_client["id"])) == {
+        "pending": 0,
+        "delivered": 0,
+        "failed": 0,
+    }
+
+
+def test_list_client_deliveries_is_tenant_scoped(test_tenant, bc_client, test_user):
+    import uuid
+
+    _queue(test_tenant["id"], bc_client, test_user)
+    assert (
+        database.oauth2.list_client_deliveries(str(uuid.uuid4()), str(bc_client["id"]), limit=10)
+        == []
+    )

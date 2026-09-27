@@ -21,6 +21,7 @@ from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError
+from services.oidc.logout import end_user_oidc_sessions
 from services.types import RequestingUser
 
 logger = logging.getLogger(__name__)
@@ -134,6 +135,7 @@ def unlink_user_from_connection(
     database.users.unverify_user_emails(tenant_id, user_id)
     database.users.inactivate_user(tenant_id, user_id)
     database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+    end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
 
     log_event(
         tenant_id=tenant_id,

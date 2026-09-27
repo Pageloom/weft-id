@@ -17,6 +17,16 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def mock_end_oidc():
+    """The OIDC session fan-out reads the real database; the job tests mock it."""
+    with patch("jobs.inactivate_idle_users.end_user_oidc_sessions") as mock:
+        yield mock
+
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -200,8 +210,8 @@ def test_user_inactivation_calls(mock_database, mock_session, mock_log_event):
 @patch("jobs.inactivate_idle_users.log_event")
 @patch("jobs.inactivate_idle_users.session")
 @patch("jobs.inactivate_idle_users.database")
-def test_oauth_token_revocation(mock_database, mock_session, mock_log_event):
-    """Test verifies OAuth tokens are revoked for inactivated users."""
+def test_oauth_token_revocation(mock_database, mock_session, mock_log_event, mock_end_oidc):
+    """Test verifies OAuth tokens are revoked and OIDC sessions ended."""
     from jobs.inactivate_idle_users import inactivate_idle_users
 
     tenant = _make_tenant()
@@ -218,6 +228,7 @@ def test_oauth_token_revocation(mock_database, mock_session, mock_log_event):
     mock_database.oauth2.revoke_all_user_tokens.assert_called_once_with(
         tenant["tenant_id"], user["user_id"]
     )
+    mock_end_oidc.assert_called_once_with(tenant_id=tenant["tenant_id"], user_id=user["user_id"])
 
 
 @patch("jobs.inactivate_idle_users.log_event")

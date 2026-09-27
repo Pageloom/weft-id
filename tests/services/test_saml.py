@@ -4165,13 +4165,18 @@ def test_remove_user_from_idp_inactivates_and_preserves_password(
     assert user_with_idp["has_password"] is True
 
     # Remove user from IdP (set to None)
-    saml_service.assign_user_idp(requesting_user, user_id, None)
+    from unittest.mock import patch
+
+    with patch("services.saml.domains.end_user_oidc_sessions") as end_oidc:
+        saml_service.assign_user_idp(requesting_user, user_id, None)
 
     # Verify user is inactivated but password is preserved
     user_after = database.users.get_user_with_saml_info(tenant_id, user_id)
     assert user_after["saml_idp_id"] is None
     assert user_after["is_inactivated"] is True
     assert user_after["has_password"] is True  # Password should be preserved!
+    # The user's OIDC sessions end (back-channel logout).
+    end_oidc.assert_called_once_with(tenant_id=tenant_id, user_id=user_id)
 
 
 def test_moving_user_between_idps_does_not_inactivate(

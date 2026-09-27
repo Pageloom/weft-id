@@ -76,8 +76,15 @@ Front-channel logout depends on the user's browser. Back-channel logout does not
 * The app should end the matching session and answer `200`. Any other `2xx` also counts as delivered. A `4xx` (other than `408` and `429`) tells WeftID the app rejected the token, and it does not try again.
 * Delivery happens in the background, usually within ten seconds. If the app cannot be reached or answers with a `5xx`, WeftID retries after 30 seconds, 2 minutes, 10 minutes, 1 hour and 6 hours. A delivery that is given up is recorded in the audit log as `oidc_backchannel_logout_failed`.
 * As with front-channel logout, the app that asked WeftID to sign the user in again is not sent a logout token.
+* Deactivating, anonymizing or deleting a user also sends a logout token for each session the user holds with the app, whoever or whatever deactivated them (an admin, SCIM, the inactivity policy, or removal from an identity provider). No browser is involved, so front-channel logout does not apply here.
 
-Through the API, set `backchannel_logout_uri` and `backchannel_logout_session_required` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`.
+The app's detail page lists the most recent deliveries under **Back-channel Logout Deliveries**: who they were for, whether they were delivered, how many attempts were made, and the last error. "Address not allowed or not found" means the URI's host did not resolve, or resolved to an address WeftID refuses to call. Deliveries are kept for 30 days after they finish.
+
+Through the API, set `backchannel_logout_uri` and `backchannel_logout_session_required` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`, and list deliveries with `GET /api/v1/oauth2/clients/{client_id}/backchannel-logout-deliveries` (`status`, `page` and `limit` query parameters).
+
+### Refresh tokens end with the session
+
+A refresh token issued together with an ID token belongs to the WeftID session the user signed in with. When that session ends (any of the three ways above), WeftID revokes it, along with the access tokens minted from it. The app must send the user through sign-in again to get new tokens. Refresh tokens issued without the `openid` scope are not tied to a session and are unaffected. Deactivating a user revokes all of their tokens, as before.
 
 ## Scopes and claims
 
@@ -117,6 +124,7 @@ Everything above is available through the REST API under `/api/v1/oauth2/clients
 * `POST /{client_id}/groups` -- assign a group (`{"group_id": "..."}`).
 * `POST /{client_id}/groups/bulk` -- assign several groups (`{"group_ids": [...]}`).
 * `DELETE /{client_id}/groups/{group_id}` -- remove a group assignment.
+* `GET /{client_id}/backchannel-logout-deliveries` -- list back-channel logout deliveries, newest first.
 
 Redirect URIs, post-logout redirect URIs, and front- and back-channel logout are managed through the existing `PATCH /{client_id}` endpoint (`redirect_uris`, `post_logout_redirect_uris`, `frontchannel_logout_uri`, `frontchannel_logout_session_required`, `backchannel_logout_uri`, `backchannel_logout_session_required`).
 

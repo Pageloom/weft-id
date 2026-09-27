@@ -16,6 +16,8 @@ from database.oauth2.authorization import (
 )
 from database.oauth2.backchannel import (
     claim_due_deliveries,
+    count_client_deliveries_by_status,
+    list_client_deliveries,
     list_tenants_with_due_deliveries,
     mark_delivered,
     mark_failed,
@@ -50,6 +52,7 @@ from database.oauth2.consent import (
 )
 from database.oauth2.sessions import (
     consume_session_clients,
+    consume_user_session_clients,
     upsert_session_client,
 )
 from database.oauth2.tokens import (
@@ -59,6 +62,7 @@ from database.oauth2.tokens import (
     revoke_all_client_tokens,
     revoke_all_user_tokens,
     revoke_grant_tokens,
+    revoke_session_refresh_tokens,
     revoke_token,
     rotate_refresh_token,
     validate_refresh_token,
@@ -94,6 +98,7 @@ __all__ = [
     "cleanup_expired_tokens",
     "revoke_all_user_tokens",
     "revoke_grant_tokens",
+    "revoke_session_refresh_tokens",
     "rotate_refresh_token",
     # consent
     "get_consent_grant",
@@ -107,9 +112,12 @@ __all__ = [
     # sessions
     "upsert_session_client",
     "consume_session_clients",
+    "consume_user_session_clients",
     # back-channel logout deliveries
     "list_tenants_with_due_deliveries",
     "claim_due_deliveries",
+    "count_client_deliveries_by_status",
+    "list_client_deliveries",
     "mark_delivered",
     "mark_retry",
     "mark_failed",

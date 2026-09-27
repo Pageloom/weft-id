@@ -5,7 +5,7 @@ from typing import Annotated
 import services.oauth2 as oauth2_service
 from api_dependencies import require_admin_api, require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from schemas.oauth2 import (
     B2BClientCreate,
     ClientResponse,
@@ -15,6 +15,7 @@ from schemas.oauth2 import (
     NormalClientCreate,
 )
 from schemas.oidc import (
+    BackchannelLogoutDeliveryList,
     ClientConsentGrantResponse,
     OIDCClientDiscoveryInfo,
     OIDCClientGroupAssignAdd,
@@ -23,6 +24,7 @@ from schemas.oidc import (
     OIDCClientSettingsUpdate,
 )
 from services.exceptions import ServiceError
+from services.oidc import backchannel as backchannel_service
 from services.oidc import clients as oidc_client_service
 from services.oidc import consent as consent_service
 from utils.service_errors import translate_to_http_exception
@@ -683,3 +685,59 @@ def revoke_client_consent(
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
     return None
+
+
+# =============================================================================
+# Back-channel logout deliveries (per client)
+# =============================================================================
+
+
+@router.get(
+    "/{client_id}/backchannel-logout-deliveries",
+    response_model=BackchannelLogoutDeliveryList,
+)
+def list_backchannel_logout_deliveries(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    delivery_status: Annotated[
+        str | None,
+        Query(
+            alias="status",
+            max_length=50,
+            description="Only deliveries in this status (pending, delivered, failed)",
+        ),
+    ] = None,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    limit: int = Query(25, ge=1, le=250, description="Number of results per page"),
+):
+    """List the back-channel logout tokens sent to this App, newest first.
+
+    One delivery is recorded per ended session (sign-out, session end, user
+    deactivation or deletion) the App received an ID token in. Deliveries are
+    kept for 30 days after they finish. Requires admin role. Only Apps
+    (authorization-code clients) take part in back-channel logout.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+
+    Query Parameters:
+        status: Only deliveries in this status: pending, delivered or failed
+        page: Page number (default: 1)
+        limit: Results per page (default: 25, max: 250)
+
+    Response:
+    - items: deliveries (id, user_id, user_name, user_email, status, attempts,
+      last_http_status, last_error, created_at, last_attempt_at,
+      next_attempt_at, completed_at)
+    - total: deliveries matching the status filter
+    - page, limit: the page returned
+    - counts: pending, delivered and failed totals (all statuses)
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        return backchannel_service.list_backchannel_logout_deliveries(
+            requesting_user, client_id, status=delivery_status, page=page, limit=limit
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)

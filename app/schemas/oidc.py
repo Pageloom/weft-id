@@ -231,6 +231,47 @@ class ClientConsentGrantResponse(BaseModel):
     updated_at: datetime
 
 
+class BackchannelLogoutDelivery(BaseModel):
+    """One back-channel logout token sent (or being sent) to an App."""
+
+    id: str
+    user_id: str = Field(..., description="The user the logout was for (the token's sub)")
+    user_name: str | None = Field(None, description="None when the user has been deleted")
+    user_email: str | None = None
+    status: str = Field(..., description="pending, delivered or failed")
+    attempts: int
+    last_http_status: int | None = None
+    last_error: str | None = Field(
+        None,
+        description=(
+            "http_<status>, network_error: <detail>, blocked_destination (the address is "
+            "not allowed or does not resolve) or client_no_longer_eligible"
+        ),
+    )
+    created_at: datetime = Field(..., description="When the session ended")
+    last_attempt_at: datetime | None = None
+    next_attempt_at: datetime | None = Field(None, description="Set while pending")
+    completed_at: datetime | None = None
+
+
+class BackchannelLogoutDeliveryCounts(BaseModel):
+    """Deliveries per status over the retention window."""
+
+    pending: int
+    delivered: int
+    failed: int
+
+
+class BackchannelLogoutDeliveryList(BaseModel):
+    """A page of an App's back-channel logout deliveries, newest first."""
+
+    items: list[BackchannelLogoutDelivery]
+    total: int = Field(..., description="Deliveries matching the status filter")
+    page: int
+    limit: int
+    counts: BackchannelLogoutDeliveryCounts
+
+
 class OIDCClientGroupAssignAdd(BaseModel):
     """Request to assign a group to an OIDC client."""
 

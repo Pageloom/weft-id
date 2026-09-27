@@ -121,10 +121,17 @@ class TestUnlinkUser:
         _link(test_tenant, conn, test_user)
 
         requesting = _make_requesting_user(test_super_admin_user, test_tenant["id"])
-        svc.unlink_user_from_connection(requesting, str(test_user["id"]), str(conn["id"]))
+        from unittest.mock import patch
+
+        with patch("services.oidc_upstream.links.end_user_oidc_sessions") as end_oidc:
+            svc.unlink_user_from_connection(requesting, str(test_user["id"]), str(conn["id"]))
 
         user = database.users.get_user_by_id(test_tenant["id"], str(test_user["id"]))
         assert user["is_inactivated"] is True
+        end_oidc.assert_called_once()
+        kwargs = end_oidc.call_args.kwargs
+        assert str(kwargs["tenant_id"]) == str(test_tenant["id"])
+        assert kwargs["user_id"] == str(test_user["id"])
 
         emails = database.user_emails.list_user_emails(test_tenant["id"], str(test_user["id"]))
         assert all(e["verified_at"] is None for e in emails)

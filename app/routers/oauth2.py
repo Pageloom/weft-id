@@ -711,6 +711,7 @@ def _reauthenticate(
             "client_id": client["client_id"],
             "frontchannel_logout_count": len(frontchannel_logout_urls),
             "backchannel_logout_count": oidc_end.backchannel_logout_count,
+            "refresh_tokens_revoked": oidc_end.refresh_tokens_revoked,
         },
         request_metadata=extract_request_metadata(request),
     )
@@ -1082,14 +1083,22 @@ def token_endpoint(
         granted_scope = code_data.get("scope")
         grant_id = code_data["id"]
 
+        # Issue an OIDC ID token only when the client has opted into OIDC AND the
+        # request carried the `openid` scope. Plain OAuth2 clients are unaffected.
+        scopes = parse_scope(granted_scope)
+        issue_id_token = bool(client.get("oidc_enabled")) and SCOPE_OPENID in scopes
+
         # Create refresh token (carrying the granted scope so the refresh_token
-        # grant can mint access tokens with the same scope)
+        # grant can mint access tokens with the same scope). With an ID token it
+        # is also tied to the ID token's session, so ending that session revokes
+        # it; plain OAuth2 refresh tokens outlive the browser session.
         refresh_token_str, refresh_token_id = oauth2_service.create_refresh_token(
             tenant_id=tenant_id,
             client_id=client["id"],
             user_id=code_data["user_id"],
             scope=granted_scope,
             grant_id=grant_id,
+            sid=code_data.get("sid") if issue_id_token else None,
         )
 
         # Create access token (carrying the granted scope for downstream userinfo)
@@ -1102,11 +1111,8 @@ def token_endpoint(
             grant_id=grant_id,
         )
 
-        # Issue an OIDC ID token only when the client has opted into OIDC AND the
-        # request carried the `openid` scope. Plain OAuth2 clients are unaffected.
         id_token_str: str | None = None
-        scopes = parse_scope(granted_scope)
-        if client.get("oidc_enabled") and SCOPE_OPENID in scopes:
+        if issue_id_token:
             id_token_str = oidc_service.issue_id_token(
                 tenant_id=tenant_id,
                 issuer=tenant_base_url(request),

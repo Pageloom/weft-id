@@ -3,6 +3,15 @@
 from unittest.mock import patch
 from uuid import uuid4
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def mock_end_oidc():
+    """The OIDC session fan-out reads the real database; the job tests mock it."""
+    with patch("jobs.bulk_inactivate_users.end_user_oidc_sessions") as mock:
+        yield mock
+
 
 def test_handler_registered():
     """Handler is registered with the correct job type."""
@@ -295,7 +304,7 @@ def test_continues_on_unexpected_error():
     assert result["details"][1]["status"] == "inactivated"
 
 
-def test_revokes_tokens():
+def test_revokes_tokens(mock_end_oidc):
     """Handler revokes OAuth tokens for each inactivated user."""
     from jobs.bulk_inactivate_users import handle_bulk_inactivate_users
 
@@ -340,6 +349,11 @@ def test_revokes_tokens():
     calls = mock_db.oauth2.revoke_all_user_tokens.call_args_list
     assert calls[0].args == (tenant_id, user1_id)
     assert calls[1].args == (tenant_id, user2_id)
+    # Each user's OIDC sessions end too (back-channel logout).
+    assert [c.kwargs for c in mock_end_oidc.call_args_list] == [
+        {"tenant_id": tenant_id, "user_id": user1_id},
+        {"tenant_id": tenant_id, "user_id": user2_id},
+    ]
 
 
 def test_logs_audit_events():

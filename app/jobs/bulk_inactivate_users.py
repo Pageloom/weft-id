@@ -12,6 +12,7 @@ from typing import Any
 import database
 from jobs.registry import register_handler
 from services.event_log import log_event
+from services.oidc.logout import end_user_oidc_sessions
 from utils.request_context import system_context
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ def handle_bulk_inactivate_users(task: dict) -> dict[str, Any]:
                 database.users.inactivate_user(tenant_id, user_id)
                 database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
                 database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
+                end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
 
                 log_event(
                     tenant_id=tenant_id,

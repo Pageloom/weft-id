@@ -88,16 +88,21 @@ def test_notify_swallows_admin_lookup_error(mock_db, mock_send):
     mock_send.assert_not_called()
 
 
+@patch("jobs.inactivate_idle_users.end_user_oidc_sessions")
 @patch("jobs.inactivate_idle_users._notify_admins_of_inactivation")
 @patch("jobs.inactivate_idle_users.log_event")
 @patch("jobs.inactivate_idle_users.database")
-def test_process_tenant_notifies_with_inactivated_user_dicts(mock_db, mock_log, mock_notify):
+def test_process_tenant_notifies_with_inactivated_user_dicts(
+    mock_db, mock_log, mock_notify, mock_end_oidc
+):
     users = _users(2)
     mock_db.users.get_idle_users_for_tenant.return_value = users
 
     result = job._process_tenant("tenant-1", 90)
 
     assert result["count"] == 2
+    # Each deactivated user's OIDC sessions end (back-channel logout).
+    assert mock_end_oidc.call_count == 2
     mock_notify.assert_called_once()
     args = mock_notify.call_args.args
     assert args[0] == "tenant-1"

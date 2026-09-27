@@ -627,3 +627,76 @@ class TestRefreshTokenRechecksAccess:
 
         ok = self._refresh(client, test_tenant_host, oidc_client, refresh_token)
         assert ok.status_code == 200
+
+
+class TestRefreshTokenSession:
+    """Refresh tokens issued with an ID token are tied to its session (BCL 2.7)."""
+
+    @staticmethod
+    def _code(test_tenant, client, test_user, *, scope, sid="sess-1"):
+        return database.oauth2.create_authorization_code(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            client_id=client["id"],
+            user_id=test_user["id"],
+            redirect_uri="http://localhost:3000/callback",
+            scope=scope,
+            sid=sid,
+        )
+
+    @staticmethod
+    def _refresh_sids(test_tenant, client) -> list:
+        rows = database.fetchall(
+            test_tenant["id"],
+            "select sid from oauth2_tokens where token_type = 'refresh' and client_id = :c",
+            {"c": client["id"]},
+        )
+        return [row["sid"] for row in rows]
+
+    def test_id_token_grant_records_sid_and_issuer(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        code = self._code(test_tenant, oidc_client, test_user, scope="openid")
+        resp = _exchange(client, test_tenant_host, oidc_client, code)
+        assert resp.status_code == 200
+        assert self._refresh_sids(test_tenant, oidc_client) == ["sess-1"]
+        row = database.fetchone(
+            test_tenant["id"],
+            "select issuer from oidc_session_clients where sid = 'sess-1'",
+        )
+        assert row["issuer"] == f"https://{test_tenant_host}"
+
+    def test_rotation_keeps_sid(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        code = self._code(test_tenant, oidc_client, test_user, scope="openid")
+        first = _exchange(client, test_tenant_host, oidc_client, code).json()
+        refreshed = client.post(
+            "/oauth2/token",
+            headers={"Host": test_tenant_host},
+            data={
+                "grant_type": "refresh_token",
+                "client_id": oidc_client["client_id"],
+                "client_secret": oidc_client["client_secret"],
+                "refresh_token": first["refresh_token"],
+            },
+        )
+        assert refreshed.status_code == 200
+        assert self._refresh_sids(test_tenant, oidc_client) == ["sess-1"]
+
+    def test_no_openid_scope_no_sid(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        code = self._code(test_tenant, oidc_client, test_user, scope="profile")
+        resp = _exchange(client, test_tenant_host, oidc_client, code)
+        assert resp.status_code == 200
+        assert "id_token" not in resp.json() or resp.json()["id_token"] is None
+        assert self._refresh_sids(test_tenant, oidc_client) == [None]
+
+    def test_plain_oauth2_client_no_sid(
+        self, client, test_tenant, test_tenant_host, normal_oauth2_client, test_user
+    ):
+        code = self._code(test_tenant, normal_oauth2_client, test_user, scope="openid")
+        resp = _exchange(client, test_tenant_host, normal_oauth2_client, code)
+        assert resp.status_code == 200
+        assert self._refresh_sids(test_tenant, normal_oauth2_client) == [None]

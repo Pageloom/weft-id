@@ -47,6 +47,7 @@ import psycopg.errors
 from constants.user_attributes import is_standard_attribute
 from schemas.scim import ENTERPRISE_USER_SCHEMA
 from services.event_log import SYSTEM_ACTOR_ID, log_event
+from services.oidc.logout import end_user_oidc_sessions
 from services.scim import inbound_read
 from services.users.attributes import apply_idp_attributes
 from utils.validate import is_email_like
@@ -490,6 +491,7 @@ def _handle_active_transition(
         database.users.inactivate_user(tenant_id, user_id)
         database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
         database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
+        end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
         log_event(
             tenant_id=tenant_id,
             actor_user_id=SYSTEM_ACTOR_ID,
@@ -1128,6 +1130,7 @@ def soft_delete_user(
     database.users.inactivate_user(tenant_id, user_id)
     database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
     database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
+    end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
     _bump_updated_at(tenant_id, user_id)
 
     log_event(

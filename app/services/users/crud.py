@@ -33,6 +33,7 @@ from services.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from services.oidc.logout import end_user_oidc_sessions
 from services.types import RequestingUser
 from services.users._converters import (
     _fetch_user_detail,
@@ -510,6 +511,10 @@ def delete_user(
         pre_resolved_sps = [str(sp["id"]) for sp in scim_sps]
     except Exception:  # noqa: BLE001 -- never block delete on SCIM scope lookup
         pre_resolved_sps = []
+
+    # Tell the OIDC apps the user signed in to (back-channel logout). Before
+    # the delete: the session records cascade with the user row.
+    end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
 
     # Delete user
     database.users.delete_user(tenant_id, user_id)

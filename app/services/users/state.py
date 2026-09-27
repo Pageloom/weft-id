@@ -18,6 +18,7 @@ from services.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from services.oidc.logout import end_user_oidc_sessions
 from services.types import RequestingUser
 from services.users.crud import get_user
 
@@ -97,6 +98,9 @@ def inactivate_user(
     # user's remembered consents so a reactivated account re-consents.
     database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
     database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
+
+    # Tell the OIDC apps the user signed in to (back-channel logout).
+    end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
 
     # Log the event
     log_event(
@@ -257,8 +261,14 @@ def anonymize_user(
     # 2. Delete MFA data
     database.mfa.delete_all_user_mfa_data(tenant_id, user_id)
 
-    # 3. Anonymize user record
+    # 3. Anonymize user record (this also deactivates the user)
     database.users.anonymize_user(tenant_id, user_id)
+
+    # 4. Cut API access and forget consents, as deactivation does, and tell
+    # the OIDC apps the user signed in to (back-channel logout).
+    database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+    database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
+    end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
 
     # Log the event (with pre-anonymization info for audit trail)
     log_event(

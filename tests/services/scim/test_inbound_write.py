@@ -500,6 +500,33 @@ def test_patch_no_path_replace_with_value_object():
 
 
 # ---------------------------------------------------------------------------
+# _handle_active_transition
+# ---------------------------------------------------------------------------
+
+
+def test_active_false_deactivates_and_ends_oidc_sessions():
+    from services.scim.inbound_write import _handle_active_transition
+
+    uid = str(uuid4())
+    with (
+        patch(
+            "services.scim.inbound_write.database.users.get_user_by_id",
+            return_value={"id": uid, "is_inactivated": False},
+        ),
+        patch("services.scim.inbound_write.database.users.inactivate_user") as inactivate,
+        patch("services.scim.inbound_write.database.oauth2.revoke_all_user_tokens") as revoke,
+        patch("services.scim.inbound_write.database.oauth2.delete_consent_grants_for_user"),
+        patch("services.scim.inbound_write.end_user_oidc_sessions") as end_oidc,
+        patch("services.scim.inbound_write.log_event") as log,
+    ):
+        _handle_active_transition("t", "i", uid, False)
+    inactivate.assert_called_once_with("t", uid)
+    revoke.assert_called_once_with("t", uid)
+    end_oidc.assert_called_once_with(tenant_id="t", user_id=uid)
+    assert log.call_args.kwargs["event_type"] == "scim_user_deactivated"
+
+
+# ---------------------------------------------------------------------------
 # soft_delete_user
 # ---------------------------------------------------------------------------
 
@@ -519,12 +546,14 @@ def test_soft_delete_inactivates_and_logs_event():
             "services.scim.inbound_write.database.oauth2.delete_consent_grants_for_user"
         ) as forget,
         patch("services.scim.inbound_write._bump_updated_at"),
+        patch("services.scim.inbound_write.end_user_oidc_sessions") as end_oidc,
         patch("services.scim.inbound_write.log_event") as log,
     ):
         soft_delete_user("t", "i", uid)
     inactivate.assert_called_once()
     revoke.assert_called_once()
     forget.assert_called_once()
+    end_oidc.assert_called_once_with(tenant_id="t", user_id=uid)
     assert log.call_args.kwargs["event_type"] == "scim_user_deactivated"
     assert log.call_args.kwargs["actor_user_id"] == SYSTEM_ACTOR_ID
 

@@ -88,6 +88,10 @@ Request → Router → Service → Database → PostgreSQL
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
 | `dev/scim-testbed.sh` | Bootstraps a local Authentik SCIM receiver outside the repo for outbound-SCIM testing |
 | `dev/scim-testbed.md` | SCIM testbed walkthrough (wire-up, lifecycle, what it exercises) |
+| `dev/oidc-conformance.md` | OpenID Foundation conformance suite walkthrough (`make oidc-conformance`) |
+| `dev/oidc_conformance_report.py` | Turns a conformance export into the results table (`make oidc-conformance-report`) |
+| `.github/workflows/oidc-conformance.yml` | Conformance CI (E2E triggers), uploads results, writes the run summary |
+| `docs/conformance/oidc.md` | Public OIDC conformance results, deviations, how to rerun |
 | `mkdocs.yml` | Zensical documentation site configuration |
 | `docs/` | Documentation site source (Markdown) |
 | `site/` | Built documentation site (gitignored, built at Docker image time, served at `/docs`) |
@@ -338,6 +342,8 @@ The super admin receives an invitation email and goes through the standard onboa
 
 **Release flow:** bump version in `pyproject.toml`, tag `v1.2.3` on main, push the tag. The GHCR
 workflow validates the tag matches `pyproject.toml`, then builds and pushes to `ghcr.io/pageloom/weft-id`.
+The full checklist is in `docs/VERSIONING.md`; it includes refreshing the OIDC conformance results page
+(`docs/conformance/oidc.md`) with `make oidc-conformance-report ARGS="--write-docs"`.
 
 ## Background Jobs
 

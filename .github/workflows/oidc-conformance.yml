@@ -1,4 +1,11 @@
-name: E2E Tests
+name: OIDC Conformance
+
+# Runs the OpenID Foundation conformance suite against WeftID's OpenID
+# Provider (Basic, Config, and Form Post OP plans). Same triggers as the E2E
+# workflow; a separate workflow so a conformance failure is never mistaken
+# for an E2E failure. The job drives the same scripts as a local run
+# (dev/oidc-conformance.sh, dev/oidc_conformance.py); see
+# dev/oidc-conformance.md and docs/conformance/oidc.md.
 
 on:
   schedule:
@@ -6,14 +13,14 @@ on:
   pull_request:
     types: [labeled]
   workflow_dispatch:
-    inputs:
-      test_filter:
-        description: "pytest -k filter (leave blank for all)"
-        required: false
-        default: ""
 
 permissions:
   contents: read
+
+env:
+  # Suite runtime (compose file, Mongo data, downloaded runner scripts,
+  # rendered config with client secrets) stays outside the checkout.
+  OIDC_CONFORMANCE_DIR: ${{ github.workspace }}/../oidc-conformance-runtime
 
 jobs:
   check-activity:
@@ -30,29 +37,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  remove-label:
-    if: github.event_name == 'pull_request' && github.event.label.name == 'run-e2e'
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    steps:
-      - name: Remove run-e2e label
-        run: gh api repos/${{ github.repository }}/issues/${{ github.event.number }}/labels/run-e2e -X DELETE
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  e2e:
-    needs: [check-activity, remove-label]
+  # No remove-label job: the E2E workflow removes the shared `run-e2e` label.
+  # A second remover would race it and fail on the 404.
+  conformance:
+    needs: [check-activity]
     if: |
       always()
-      && (needs.remove-label.result == 'skipped' || needs.remove-label.result == 'success')
       && (
         (github.event_name == 'pull_request' && github.event.label.name == 'run-e2e')
         || (github.event_name == 'schedule' && needs.check-activity.outputs.should_run == 'true')
         || github.event_name == 'workflow_dispatch'
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v7
@@ -78,9 +75,11 @@ jobs:
             -subj '/CN=weftid.localhost' \
             -addext 'subjectAltName=DNS:weftid.localhost,DNS:*.weftid.localhost'
 
+      # localhost.emobix.co.uk resolves to 127.0.0.1 in public DNS; pinning it
+      # here keeps the run independent of that record.
       - name: Add /etc/hosts entries
         run: |
-          echo "127.0.0.1 weftid.localhost dev.weftid.localhost e2e-idp.weftid.localhost e2e-sp.weftid.localhost" \
+          echo "127.0.0.1 weftid.localhost dev.weftid.localhost localhost.emobix.co.uk" \
             | sudo tee -a /etc/hosts
 
       - name: Start Docker Compose services
@@ -100,47 +99,46 @@ jobs:
           docker compose --project-directory . -f dev/docker-compose.yml logs --tail=50
           exit 1
 
+      - name: Start the conformance suite
+        run: ./dev/oidc-conformance.sh up
+
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
 
-      - name: Install system dependencies
+      # The runner is stdlib-only; the suite's run-test-plan.py needs these
+      # two. Versions match poetry.lock, so no Poetry install is needed.
+      - name: Install runner dependencies
+        run: pip install httpx==0.28.1 pyparsing==3.3.1
+
+      - name: Run conformance plans
+        run: python dev/oidc_conformance.py run --verbose
+
+      - name: Results report
+        if: always()
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libxmlsec1-dev libxmlsec1-openssl pkg-config
-
-      - name: Install Poetry
-        run: pipx install poetry==2.2.1
-
-      - name: Cache virtualenv
-        uses: actions/cache@v6
-        with:
-          path: .venv
-          key: e2e-venv-${{ runner.os }}-3.14-${{ hashFiles('poetry.lock') }}
-
-      - name: Install Python dependencies
-        run: |
-          poetry config virtualenvs.in-project true
-          poetry install --no-interaction
-
-      - name: Install Playwright browsers
-        run: poetry run playwright install --with-deps chromium
-
-      - name: Run E2E tests
-        env:
-          FILTER: ${{ github.event.inputs.test_filter }}
-        run: |
-          if [ -n "$FILTER" ]; then
-            poetry run python -m pytest tests/e2e/ -n 0 -v --tb=short -k "$FILTER"
+          if python dev/oidc_conformance_report.py > dev/oidc-conformance/export/report.md; then
+            cat dev/oidc-conformance/export/report.md >> "$GITHUB_STEP_SUMMARY"
           else
-            poetry run python -m pytest tests/e2e/ -n 0 -v --tb=short
+            echo "No conformance results were exported." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Docker Compose logs
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: oidc-conformance-results
+          path: dev/oidc-conformance/export/
+          if-no-files-found: warn
+
+      - name: Service logs
         if: failure()
-        run: docker compose --project-directory . -f dev/docker-compose.yml logs --tail=200
+        run: |
+          docker compose --project-directory . -f dev/docker-compose.yml logs --tail=200
+          docker logs --tail=200 weft_oidc_conformance_server || true
 
       - name: Stop services
         if: always()
-        run: docker compose --project-directory . -f dev/docker-compose.yml down
+        run: |
+          ./dev/oidc-conformance.sh down || true
+          docker compose --project-directory . -f dev/docker-compose.yml down

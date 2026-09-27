@@ -11,6 +11,7 @@ time.tzset()
 import settings  # noqa: E402
 from dependencies import RedirectError  # noqa: E402
 from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.openapi.utils import get_openapi  # noqa: E402
 from fastapi.responses import RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
@@ -141,6 +142,11 @@ app.add_middleware(
 async def redirect_error_handler(request: Request, exc: RedirectError):
     """Handle RedirectError by returning a RedirectResponse."""
     return RedirectResponse(url=exc.url, status_code=exc.status_code)
+
+
+# The OAuth2 token endpoint reports malformed requests as RFC 6749
+# ``invalid_request`` JSON; every other path keeps FastAPI's default 422.
+app.add_exception_handler(RequestValidationError, oauth2.token_request_validation_handler)  # type: ignore[arg-type]
 
 
 # Mount static files (if directory exists)

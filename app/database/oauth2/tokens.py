@@ -1,7 +1,9 @@
 """OAuth2 token database operations."""
 
+from datetime import datetime
+
 import oauth2
-from database._core import TenantArg, execute, fetchone
+from database._core import TenantArg, execute, fetchone, session
 
 
 def create_access_token(
@@ -12,6 +14,7 @@ def create_access_token(
     parent_token_id: str | None = None,
     is_client_credentials: bool = False,
     scope: str | None = None,
+    grant_id: str | None = None,
 ) -> str:
     """
     Create an OAuth2 access token.
@@ -25,6 +28,8 @@ def create_access_token(
         is_client_credentials: Whether this is a client credentials token (24h expiry)
         scope: Granted space-delimited scope string (optional; persisted so
             downstream userinfo can gate released claims by the token's scopes)
+        grant_id: The authorization code that started this grant (optional;
+            lets a reused code revoke every token issued from it)
 
     Returns:
         Plain text access token (shown once)
@@ -46,11 +51,11 @@ def create_access_token(
         """
         insert into oauth2_tokens (
             tenant_id, token_hash, token_lookup, token_type, client_id, user_id,
-            expires_at, parent_token_id, scope
+            expires_at, parent_token_id, scope, grant_id
         )
         values (
             :tenant_id, :token_hash, :token_lookup, 'access', :client_id, :user_id,
-            :expires_at, :parent_token_id, :scope
+            :expires_at, :parent_token_id, :scope, :grant_id
         )
         returning id
         """,
@@ -63,6 +68,7 @@ def create_access_token(
             "expires_at": expires_at,
             "parent_token_id": parent_token_id,
             "scope": scope,
+            "grant_id": grant_id,
         },
     )
 
@@ -75,6 +81,7 @@ def create_refresh_token(
     client_id: str,
     user_id: str,
     scope: str | None = None,
+    grant_id: str | None = None,
 ) -> tuple[str, str]:
     """
     Create an OAuth2 refresh token.
@@ -87,6 +94,8 @@ def create_refresh_token(
         scope: Granted space-delimited scope string (optional; persisted so
             the scope can be carried forward onto access tokens minted by the
             refresh_token grant, keeping userinfo claims consistent)
+        grant_id: The authorization code that started this grant (optional;
+            carried onto rotated refresh tokens and their access tokens)
 
     Returns:
         Tuple of (plain text refresh token, refresh token ID)
@@ -105,11 +114,11 @@ def create_refresh_token(
         """
         insert into oauth2_tokens (
             tenant_id, token_hash, token_lookup, token_type,
-            client_id, user_id, expires_at, scope
+            client_id, user_id, expires_at, scope, grant_id
         )
         values (
             :tenant_id, :token_hash, :token_lookup, 'refresh',
-            :client_id, :user_id, :expires_at, :scope
+            :client_id, :user_id, :expires_at, :scope, :grant_id
         )
         returning id
         """,
@@ -121,6 +130,7 @@ def create_refresh_token(
             "user_id": user_id,
             "expires_at": expires_at,
             "scope": scope,
+            "grant_id": grant_id,
         },
     )
 
@@ -185,7 +195,8 @@ def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> 
         client_id: OAuth2 client UUID (must match token's client_id)
 
     Returns:
-        Dict with id, user_id, tenant_id, scope if valid, None otherwise.
+        Dict with id, user_id, tenant_id, scope, grant_id, expires_at if
+        valid, None otherwise.
         `scope` is the space-delimited granted-scope string persisted at
         issuance (may be None for pre-OIDC / non-scoped tokens); the
         refresh_token grant carries it onto the refreshed access token.
@@ -196,7 +207,7 @@ def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> 
     token_record = fetchone(
         tenant_id,
         """
-        select id, token_hash, user_id, tenant_id, scope
+        select id, token_hash, user_id, tenant_id, scope, grant_id, expires_at
         from oauth2_tokens
         where token_type = 'refresh'
           and client_id = :client_id
@@ -212,9 +223,115 @@ def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> 
             "user_id": token_record["user_id"],
             "tenant_id": token_record["tenant_id"],
             "scope": token_record["scope"],
+            "grant_id": token_record["grant_id"],
+            "expires_at": token_record["expires_at"],
         }
 
     return None
+
+
+def rotate_refresh_token(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    old_token_id: str,
+    client_id: str,
+    user_id: str,
+    scope: str | None,
+    grant_id: str | None,
+    expires_at: datetime,
+) -> tuple[str, str] | None:
+    """
+    Replace a refresh token with a new one (refresh token rotation).
+
+    In one transaction: the old token's row is locked (a concurrent rotation
+    of the same token waits, then finds it gone, so exactly one succeeds), a
+    new refresh token is inserted with the same client, user, scope, grant and
+    absolute expiry, the old token's access tokens are re-parented onto the new
+    one so they are not cascade-deleted mid-use, and the old token is deleted.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        tenant_id_value: The actual tenant ID value to store
+        old_token_id: The refresh token being redeemed
+        client_id: OAuth2 client UUID
+        user_id: User ID the token acts as
+        scope: Granted scope, carried forward
+        grant_id: Grant the token belongs to, carried forward
+        expires_at: The old token's expiry, carried forward (rotation never
+            extends the grant's lifetime)
+
+    Returns:
+        Tuple of (plain text refresh token, refresh token ID), or None when the
+        old token no longer exists (already redeemed or revoked).
+    """
+    token = oauth2.generate_opaque_token("refresh")
+    with session(tenant_id=tenant_id) as cur:
+        cur.execute(
+            """
+            select id from oauth2_tokens
+            where id = %(old_id)s and token_type = 'refresh'
+            for update
+            """,
+            {"old_id": old_token_id},
+        )
+        if cur.fetchone() is None:
+            return None
+
+        cur.execute(
+            """
+            insert into oauth2_tokens (
+                tenant_id, token_hash, token_lookup, token_type,
+                client_id, user_id, expires_at, scope, grant_id
+            )
+            values (
+                %(tenant_id)s, %(token_hash)s, %(token_lookup)s, 'refresh',
+                %(client_id)s, %(user_id)s, %(expires_at)s, %(scope)s, %(grant_id)s
+            )
+            returning id
+            """,
+            {
+                "tenant_id": tenant_id_value,
+                "token_hash": oauth2.hash_token(token),
+                "token_lookup": oauth2.token_lookup(token),
+                "client_id": client_id,
+                "user_id": user_id,
+                "expires_at": expires_at,
+                "scope": scope,
+                "grant_id": grant_id,
+            },
+        )
+        new_row = cur.fetchone()
+        if new_row is None:
+            raise ValueError("Failed to create refresh token")
+
+        cur.execute(
+            "update oauth2_tokens set parent_token_id = %(new_id)s "
+            "where parent_token_id = %(old_id)s",
+            {"new_id": new_row["id"], "old_id": old_token_id},
+        )
+        cur.execute("delete from oauth2_tokens where id = %(old_id)s", {"old_id": old_token_id})
+
+    return token, str(new_row["id"])
+
+
+def revoke_grant_tokens(tenant_id: TenantArg, grant_id: str) -> int:
+    """
+    Revoke every token issued under one grant (one authorization code).
+
+    Used when an authorization code is redeemed a second time.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        grant_id: The authorization code's id
+
+    Returns:
+        Number of tokens deleted
+    """
+    return execute(
+        tenant_id,
+        "delete from oauth2_tokens where grant_id = :grant_id",
+        {"grant_id": grant_id},
+    )
 
 
 def revoke_token(tenant_id: TenantArg, token_hash: str) -> int:

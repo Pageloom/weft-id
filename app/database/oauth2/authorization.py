@@ -90,6 +90,12 @@ def validate_and_consume_code(
     """
     Validate and consume an authorization code (one-time use).
 
+    A redeemed code is marked ``consumed_at`` rather than deleted, so a second
+    redemption can be told apart from an unknown code: the caller must then
+    revoke every token issued from it (RFC 6749 section 4.1.2). The consume
+    is a conditional update, so of two concurrent redemptions exactly one
+    wins and the other is reported as a reuse.
+
     Args:
         tenant_id: Tenant ID for scoping
         code: Plain text authorization code
@@ -98,10 +104,11 @@ def validate_and_consume_code(
         code_verifier: PKCE code verifier (if PKCE was used)
 
     Returns:
-        Dict with user_id and tenant_id if valid, None otherwise
-
-    Note:
-        Authorization codes are deleted after use (one-time use).
+        None when the code is unknown, expired, bound to another client or
+        redirect_uri, or fails PKCE. Otherwise a dict with ``id`` (the code's
+        id, which becomes the ``grant_id`` of the tokens issued from it),
+        ``user_id``, ``tenant_id``, ``scope``, ``nonce``, ``auth_time`` and
+        ``reused`` (True when the code had already been redeemed).
     """
     # Resolve exactly one candidate row by the indexed lookup digest, then run
     # Argon2 once on it (see oauth2.token_lookup). The client_id and redirect_uri
@@ -110,7 +117,7 @@ def validate_and_consume_code(
         tenant_id,
         """
         select id, code_hash, user_id, tenant_id, code_challenge, code_challenge_method,
-               expires_at, scope, nonce, auth_time
+               expires_at, scope, nonce, auth_time, consumed_at
         from oauth2_authorization_codes
         where client_id = :client_id
           and redirect_uri = :redirect_uri
@@ -138,19 +145,26 @@ def validate_and_consume_code(
         ):
             return None  # PKCE verification failed
 
-    # Delete the authorization code (one-time use)
-    execute(
+    # Mark the code consumed (one-time use). Zero rows means another request
+    # redeemed it first, or it was redeemed earlier: either way, a reuse.
+    reused = matching_code["consumed_at"] is not None or not execute(
         tenant_id,
-        "delete from oauth2_authorization_codes where id = :id",
+        """
+        update oauth2_authorization_codes
+        set consumed_at = now()
+        where id = :id and consumed_at is null
+        """,
         {"id": matching_code["id"]},
     )
 
     return {
+        "id": str(matching_code["id"]),
         "user_id": matching_code["user_id"],
         "tenant_id": matching_code["tenant_id"],
         "scope": matching_code["scope"],
         "nonce": matching_code["nonce"],
         "auth_time": matching_code["auth_time"],
+        "reused": reused,
     }
 
 

@@ -68,6 +68,12 @@ def _exchange(client_http, host, oauth_client, code):
     )
 
 
+def _userinfo(client_http, host, access_token):
+    return client_http.get(
+        "/userinfo", headers={"Host": host, "Authorization": f"Bearer {access_token}"}
+    ).json()
+
+
 def _verify_via_jwks(client_http, host, id_token, *, audience, issuer):
     """True RP path: fetch the published JWKS and verify the token signature."""
     jwks = client_http.get("/.well-known/jwks.json", headers={"Host": host}).json()
@@ -100,9 +106,13 @@ class TestIdTokenIssuance:
         assert decoded["aud"] == oidc_client["client_id"]
         assert decoded["iss"] == f"https://{test_tenant_host}"
         assert decoded["nonce"] == "xyz789"
-        # scope-gated claims present
-        assert decoded["email"] == test_user["email"]
-        assert decoded["name"] == "Test User"
+        # Scope-gated claims are released by userinfo, not the ID token
+        # (OpenID Connect Core 1.0, section 5.4, code flow).
+        for claim in ("email", "email_verified", "name", "given_name", "family_name"):
+            assert claim not in decoded
+        claims = _userinfo(client, test_tenant_host, body["access_token"])
+        assert claims["email"] == test_user["email"]
+        assert claims["name"] == "Test User"
 
     def test_sub_is_user_id_not_email(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user
@@ -113,11 +123,12 @@ class TestIdTokenIssuance:
         assert decoded["sub"] == str(test_user["id"])
         assert decoded["sub"] != test_user["email"]
 
-    def test_groups_claim_gated_on_groups_scope_in_id_token(
+    def test_groups_claim_gated_on_groups_scope(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user
     ):
-        """The `groups` claim rides the ID token only when the `groups` scope is
-        granted, and carries effective (DAG-aware) membership."""
+        """The `groups` claim is released by userinfo only when the `groups`
+        scope is granted, carries effective (DAG-aware) membership, and never
+        rides the ID token."""
         parent = database.groups.create_group(
             tenant_id=test_tenant["id"], tenant_id_value=test_tenant["id"], name="Division"
         )
@@ -135,13 +146,15 @@ class TestIdTokenIssuance:
         code = _make_code(test_tenant, oidc_client, test_user, scope="openid groups")
         resp = _exchange(client, test_tenant_host, oidc_client, code)
         decoded = jwt.decode(resp.json()["id_token"], options={"verify_signature": False})
-        assert set(decoded["groups"]) == {"Division", "Squad"}
+        assert "groups" not in decoded
+        claims = _userinfo(client, test_tenant_host, resp.json()["access_token"])
+        assert set(claims["groups"]) == {"Division", "Squad"}
 
         # Without the groups scope: claim absent.
         code2 = _make_code(test_tenant, oidc_client, test_user, scope="openid profile")
         resp2 = _exchange(client, test_tenant_host, oidc_client, code2)
-        decoded2 = jwt.decode(resp2.json()["id_token"], options={"verify_signature": False})
-        assert "groups" not in decoded2
+        claims2 = _userinfo(client, test_tenant_host, resp2.json()["access_token"])
+        assert "groups" not in claims2
 
     def test_no_id_token_for_non_oidc_client(
         self, client, test_tenant, test_tenant_host, normal_oauth2_client, test_user
@@ -150,7 +163,7 @@ class TestIdTokenIssuance:
         code = _make_code(test_tenant, normal_oauth2_client, test_user, scope="openid profile")
         resp = _exchange(client, test_tenant_host, normal_oauth2_client, code)
         assert resp.status_code == 200
-        assert resp.json()["id_token"] is None
+        assert "id_token" not in resp.json()
         # existing opaque tokens unaffected
         assert resp.json()["access_token"]
         assert resp.json()["refresh_token"]
@@ -162,7 +175,7 @@ class TestIdTokenIssuance:
         code = _make_code(test_tenant, oidc_client, test_user, scope="profile email")
         resp = _exchange(client, test_tenant_host, oidc_client, code)
         assert resp.status_code == 200
-        assert resp.json()["id_token"] is None
+        assert "id_token" not in resp.json()
 
     def test_no_id_token_when_scope_null(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user
@@ -171,7 +184,7 @@ class TestIdTokenIssuance:
         code = _make_code(test_tenant, oidc_client, test_user, scope=None)
         resp = _exchange(client, test_tenant_host, oidc_client, code)
         assert resp.status_code == 200
-        assert resp.json()["id_token"] is None
+        assert "id_token" not in resp.json()
 
     def test_nonce_echoed_only_when_supplied(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user
@@ -202,7 +215,7 @@ class TestIdTokenIssuance:
 
         replay = _exchange(client, test_tenant_host, oidc_client, code)
         assert replay.status_code == 400
-        assert replay.json()["detail"]["error"] == "invalid_grant"
+        assert replay.json()["error"] == "invalid_grant"
 
     def test_granted_scope_persisted_on_access_token(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user
@@ -230,7 +243,7 @@ class TestIdTokenIssuance:
         assert row is not None
         assert row["scope"] == "openid profile email"
 
-    def test_email_verified_false_surfaced_in_id_token(
+    def test_email_verified_false_surfaced_in_userinfo(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user
     ):
         """email_verified must reflect an unverified primary email end-to-end.
@@ -247,9 +260,9 @@ class TestIdTokenIssuance:
         code = _make_code(test_tenant, oidc_client, test_user, scope="openid email")
         resp = _exchange(client, test_tenant_host, oidc_client, code)
         assert resp.status_code == 200
-        decoded = jwt.decode(resp.json()["id_token"], options={"verify_signature": False})
-        assert decoded["email"] == test_user["email"]
-        assert decoded["email_verified"] is False
+        claims = _userinfo(client, test_tenant_host, resp.json()["access_token"])
+        assert claims["email"] == test_user["email"]
+        assert claims["email_verified"] is False
 
 
 class TestRefreshTokenCarriesScope:
@@ -283,8 +296,8 @@ class TestRefreshTokenCarriesScope:
         )
         assert refresh_resp.status_code == 200
         refreshed_access = refresh_resp.json()["access_token"]
-        # This grant does not rotate the refresh token.
-        assert refresh_resp.json().get("refresh_token") is None
+        # The grant rotates the refresh token.
+        assert refresh_resp.json()["refresh_token"] != refresh_token
 
         # 3. userinfo with the REFRESHED access token returns the full claim set.
         userinfo = client.get(
@@ -490,7 +503,9 @@ class TestAuthorizeStoresScopeAndNonce:
         assert resp.status_code == 200
         decoded = jwt.decode(resp.json()["id_token"], options={"verify_signature": False})
         assert decoded["nonce"] == "capture-me"
-        assert decoded["name"] == "Test User"  # profile scope was captured
+        # profile scope was captured onto the access token
+        claims = _userinfo(client, test_tenant_host, resp.json()["access_token"])
+        assert claims["name"] == "Test User"
 
     def test_authorize_rejects_oversized_scope_and_nonce(
         self, client, test_tenant_host, test_user, oidc_client, override_auth
@@ -588,17 +603,18 @@ class TestRefreshTokenRechecksAccess:
         assert first.status_code == 200
         refresh_token = first.json()["refresh_token"]
 
-        # While still granted, refresh succeeds.
+        # While still granted, refresh succeeds (and rotates the token).
         ok = self._refresh(client, test_tenant_host, oauth_client, refresh_token)
         assert ok.status_code == 200
+        refresh_token = ok.json()["refresh_token"]
 
         # Revoke access: remove the user from the assigned group.
         database.groups.remove_group_member(test_tenant["id"], group["id"], test_user["id"])
 
         revoked = self._refresh(client, test_tenant_host, oauth_client, refresh_token)
         assert revoked.status_code == 400
-        assert revoked.json()["detail"]["error"] == "invalid_grant"
-        assert revoked.json()["detail"]["error_description"] == "Access has been revoked"
+        assert revoked.json()["error"] == "invalid_grant"
+        assert revoked.json()["error_description"] == "Access has been revoked"
 
     def test_refresh_unaffected_for_available_to_all(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user

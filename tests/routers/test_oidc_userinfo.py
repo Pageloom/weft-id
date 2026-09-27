@@ -138,11 +138,11 @@ class TestUserInfoClaims:
         body = _userinfo(client, test_tenant_host, token).json()
         assert "groups" not in body
 
-    def test_userinfo_matches_id_token_for_same_scopes(
+    def test_userinfo_carries_identity_claims_id_token_does_not(
         self, client, test_tenant, test_tenant_host, oidc_client, test_user
     ):
-        """Proves the shared assembler is reused: the identity claims in userinfo
-        equal those the ID token carries for the same granted scopes."""
+        """The code flow's ID token carries only envelope claims; the identity
+        claims for the granted scopes come from userinfo, with the same `sub`."""
         scope = "openid profile email"
         code = database.oauth2.create_authorization_code(
             tenant_id=test_tenant["id"],
@@ -172,9 +172,11 @@ class TestUserInfoClaims:
         # sub is consistent across both surfaces.
         assert userinfo["sub"] == id_claims["sub"]
 
-        # Identity claims (everything except the ID-token envelope) match exactly.
-        id_identity = {k: v for k, v in id_claims.items() if k not in _ENVELOPE_CLAIMS}
-        assert userinfo == id_identity
+        # The ID token has nothing beyond the envelope ...
+        assert {k for k in id_claims if k not in _ENVELOPE_CLAIMS} <= {"sub"}
+        # ... and userinfo has the profile and email claims.
+        assert userinfo["email"] == test_user["email"]
+        assert userinfo["name"] == "Test User"
 
 
 class TestUserInfoAuth:

@@ -92,6 +92,11 @@ class TestDiscoveryDocument:
         assert body["request_parameter_supported"] is False
         assert body["request_uri_parameter_supported"] is False
 
+    def test_response_modes_and_claims_parameter(self, client, test_tenant_host):
+        body = _discovery(client, test_tenant_host).json()
+        assert body["response_modes_supported"] == ["query", "form_post"]
+        assert body["claims_parameter_supported"] is False
+
     def test_does_not_advertise_unimplemented_capabilities(self, client, test_tenant_host):
         """Logout, introspection, revocation, device grant, DCR are out of scope."""
         body = _discovery(client, test_tenant_host).json()

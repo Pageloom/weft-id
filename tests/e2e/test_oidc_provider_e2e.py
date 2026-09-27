@@ -94,9 +94,10 @@ class TestOidcProviderHappyPath:
                 issuer=base_url,
             )
             assert claims["nonce"] == NONCE
-            assert claims["email"] == cfg["user_email"]
             assert claims["sub"]  # stable user id, never the email
             assert claims["sub"] != cfg["user_email"]
+            # Identity claims come from userinfo, not the ID token (code flow).
+            assert "email" not in claims
 
             # --- 4. Bearer boundary: userinfo returns the same subject.
             userinfo_resp = client.get(

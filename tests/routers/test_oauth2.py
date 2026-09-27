@@ -804,7 +804,7 @@ class TestTokenEndpoint:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "invalid_grant"
+        assert data["error"] == "invalid_grant"
 
     def test_token_authorization_code_wrong_redirect_uri(
         self, client, test_tenant, test_tenant_host, normal_oauth2_client, test_user
@@ -834,7 +834,7 @@ class TestTokenEndpoint:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "invalid_grant"
+        assert data["error"] == "invalid_grant"
 
     def test_token_authorization_code_missing_params(
         self, client, test_tenant_host, normal_oauth2_client
@@ -853,7 +853,7 @@ class TestTokenEndpoint:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "invalid_request"
+        assert data["error"] == "invalid_request"
 
     def test_token_authorization_code_b2b_client_rejected(
         self, client, test_tenant, test_tenant_host, b2b_oauth2_client, test_user
@@ -875,7 +875,7 @@ class TestTokenEndpoint:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "unauthorized_client"
+        assert data["error"] == "unauthorized_client"
 
     # -------------------------------------------------------------------------
     # Refresh Token Grant
@@ -910,8 +910,24 @@ class TestTokenEndpoint:
         data = response.json()
         assert "access_token" in data
         assert data["token_type"] == "Bearer"
-        # Refresh token is not returned on refresh (only on initial auth)
-        assert data.get("refresh_token") is None
+        assert "id_token" not in data
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["pragma"] == "no-cache"
+        # The refresh token is rotated: a new one is returned and the
+        # presented one stops working.
+        assert data["refresh_token"] and data["refresh_token"] != refresh_token
+        replay = client.post(
+            "/oauth2/token",
+            headers={"Host": test_tenant_host},
+            data={
+                "grant_type": "refresh_token",
+                "client_id": normal_oauth2_client["client_id"],
+                "client_secret": normal_oauth2_client["client_secret"],
+                "refresh_token": refresh_token,
+            },
+        )
+        assert replay.status_code == 400
+        assert replay.json()["error"] == "invalid_grant"
 
     def test_token_refresh_token_invalid(self, client, test_tenant_host, normal_oauth2_client):
         """Test refresh with invalid token."""
@@ -928,7 +944,7 @@ class TestTokenEndpoint:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "invalid_grant"
+        assert data["error"] == "invalid_grant"
 
     def test_token_refresh_token_missing(self, client, test_tenant_host, normal_oauth2_client):
         """Test refresh without providing token."""
@@ -945,7 +961,7 @@ class TestTokenEndpoint:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "invalid_request"
+        assert data["error"] == "invalid_request"
 
     def test_token_refresh_token_wrong_client(
         self,
@@ -990,7 +1006,7 @@ class TestTokenEndpoint:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "invalid_grant"
+        assert data["error"] == "invalid_grant"
 
     # -------------------------------------------------------------------------
     # Client Credentials Grant
@@ -1031,7 +1047,7 @@ class TestTokenEndpoint:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "unauthorized_client"
+        assert data["error"] == "unauthorized_client"
 
     # -------------------------------------------------------------------------
     # Client Authentication Errors
@@ -1049,9 +1065,9 @@ class TestTokenEndpoint:
             },
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "invalid_client"
+        assert data["error"] == "invalid_client"
 
     def test_token_invalid_client_secret(self, client, test_tenant_host, b2b_oauth2_client):
         """Test token request with wrong client_secret."""
@@ -1065,9 +1081,9 @@ class TestTokenEndpoint:
             },
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "invalid_client"
+        assert data["error"] == "invalid_client"
 
     def test_token_unsupported_grant_type(self, client, test_tenant_host, b2b_oauth2_client):
         """Test token request with unsupported grant type."""
@@ -1083,7 +1099,7 @@ class TestTokenEndpoint:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "unsupported_grant_type"
+        assert data["error"] == "unsupported_grant_type"
 
 
 # ============================================================================
@@ -1135,7 +1151,7 @@ class TestAuthorizationCodeReplay:
             },
         )
         assert response2.status_code == 400
-        assert response2.json()["detail"]["error"] == "invalid_grant"
+        assert response2.json()["error"] == "invalid_grant"
 
 
 # ============================================================================
@@ -1200,8 +1216,8 @@ class TestCrossTenantIsolation:
             )
 
             # Should fail - client belongs to different tenant
-            assert response.status_code == 400
-            assert response.json()["detail"]["error"] == "invalid_client"
+            assert response.status_code == 401
+            assert response.json()["error"] == "invalid_client"
 
         finally:
             # Cleanup

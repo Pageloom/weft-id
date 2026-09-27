@@ -17,9 +17,13 @@ Envelope claims added here (OpenID Connect Core 1.0, section 2):
   * ``auth_time`` - the user's authentication time
   * ``nonce``     - echoed only when the request supplied one
 
-Profile/email claims are layered on by the shared scope-gated assembler
-(:mod:`services.oidc.claims`), which Iterations 3 (userinfo) and 4 (groups)
-reuse so a claim is gated in exactly one place.
+Scope-gated identity claims (profile, email, groups) are NOT put in the ID
+token. WeftID issues ID tokens only from the authorization code flow, where
+an access token is always issued alongside, and OpenID Connect Core 1.0
+section 5.4 defines those scopes as requests for the claims at the userinfo
+endpoint. The ID token asserts the authentication event; the identity data
+comes from userinfo (:mod:`services.oidc.userinfo`), so it is never exposed
+to parties the RP later shows the ID token to.
 """
 
 from __future__ import annotations
@@ -28,7 +32,6 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 from services.event_log import log_event
-from services.oidc import claims as claims_service
 from services.oidc.keys import get_active_signing_key, get_verification_public_keys
 
 # ID tokens are short-lived: they assert authentication at a point in time and
@@ -62,7 +65,7 @@ def issue_id_token(
         client_uuid: The client's internal UUID, used as the audit artifact id.
         client_id: The public client_id string, used as the `aud`.
         user_id: The subject; becomes `sub` (stable WeftID id, never email).
-        scopes: Granted scope names; gate the profile/email claims.
+        scopes: Granted scope names (recorded in the audit event only).
         nonce: Request nonce; echoed into the token only when supplied.
         auth_time: The user's authentication time. Falls back to issuance time
             (`iat`) when not recorded on the code.
@@ -90,9 +93,6 @@ def issue_id_token(
     # Echo the nonce only when the RP supplied one (OIDC Core 3.1.2.1).
     if nonce:
         payload["nonce"] = nonce
-
-    # Layer on the scope-gated identity claims (shared with userinfo).
-    payload.update(claims_service.build_claims(tenant_id, str(user_id), scopes))
 
     signing_key = get_active_signing_key(tenant_id)
     id_token = jwt.encode(

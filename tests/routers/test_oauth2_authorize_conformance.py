@@ -831,6 +831,242 @@ class TestAcceptedAndIgnored:
         assert query["response_mode"] == ["query"]
 
 
+# ============================================================================
+# response_mode=form_post (OAuth 2.0 Form Post Response Mode)
+# ============================================================================
+
+
+def _form_post_fields(response) -> dict[str, str]:
+    """Parse the auto-submitting form: assert it targets the registered
+    redirect_uri with POST and return its hidden fields."""
+    import html
+    import re
+
+    assert response.status_code == 200
+    form = re.search(r'<form id="oauth2-form-post" method="post" action="([^"]+)">', response.text)
+    assert form, response.text
+    assert html.unescape(form.group(1)) == REDIRECT_URI
+    return {
+        html.unescape(name): html.unescape(value)
+        for name, value in re.findall(
+            r'<input type="hidden" name="([^"]*)" value="([^"]*)">', response.text
+        )
+    }
+
+
+class TestFormPostResponseMode:
+    def test_code_delivered_by_form_post(self, authed, normal_oauth2_client, grant):
+        grant(normal_oauth2_client, ["openid"])
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, scope="openid", response_mode="form_post"),
+        )
+        fields = _form_post_fields(response)
+        assert fields["state"] == "st-1"
+        assert fields["code"]
+        assert "location" not in response.headers
+        # The page carries a live code: never cached, and the CSP lets the
+        # form reach the RP's origin.
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["pragma"] == "no-cache"
+        assert (
+            "form-action 'self' http://localhost:3000"
+            in response.headers["Content-Security-Policy"]
+        )
+        # Usable without JavaScript: a Continue button inside <noscript>.
+        assert '<input type="submit" value="Continue">' in response.text
+
+    def test_form_post_code_is_redeemable(
+        self, authed, client, test_tenant_host, normal_oauth2_client, grant
+    ):
+        grant(normal_oauth2_client, [])
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, response_mode="form_post"),
+        )
+        code = _form_post_fields(response)["code"]
+        token = client.post(
+            "/oauth2/token",
+            headers={"Host": test_tenant_host},
+            data={
+                "grant_type": "authorization_code",
+                "client_id": normal_oauth2_client["client_id"],
+                "client_secret": normal_oauth2_client["client_secret"],
+                "code": code,
+                "redirect_uri": REDIRECT_URI,
+            },
+        )
+        assert token.status_code == 200
+        assert token.json()["access_token"]
+
+    def test_error_delivered_by_form_post(self, anon, normal_oauth2_client):
+        response = anon.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, prompt="none", response_mode="form_post"),
+        )
+        fields = _form_post_fields(response)
+        assert fields["error"] == "login_required"
+        assert fields["state"] == "st-1"
+        assert "error_description" in fields
+
+    def test_parameter_error_delivered_by_form_post(self, authed, normal_oauth2_client):
+        params = _base_params(normal_oauth2_client, response_mode="form_post")
+        del params["response_type"]
+        fields = _form_post_fields(authed.get("/oauth2/authorize", params=params))
+        assert fields["error"] == "invalid_request"
+
+    def test_form_post_without_state_omits_it(self, anon, normal_oauth2_client):
+        params = _base_params(normal_oauth2_client, prompt="none", response_mode="form_post")
+        del params["state"]
+        fields = _form_post_fields(anon.get("/oauth2/authorize", params=params))
+        assert "state" not in fields
+
+    def test_form_post_values_are_html_escaped(self, anon, normal_oauth2_client):
+        state = '"><script>alert(1)</script>'
+        response = anon.get(
+            "/oauth2/authorize",
+            params=_base_params(
+                normal_oauth2_client, prompt="none", response_mode="form_post", state=state
+            ),
+        )
+        assert "<script>alert(1)</script>" not in response.text
+        assert _form_post_fields(response)["state"] == state
+
+    def test_unsupported_response_mode_is_invalid_request_by_query(
+        self, authed, normal_oauth2_client
+    ):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, response_mode="fragment"),
+        )
+        assert response.status_code == 303
+        query = _location_query(response)
+        assert query["error"] == ["invalid_request"]
+        assert query["state"] == ["st-1"]
+
+    def test_explicit_query_mode_redirects(self, authed, normal_oauth2_client, grant):
+        grant(normal_oauth2_client, [])
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, response_mode="query"),
+        )
+        assert response.status_code == 303
+        assert "code" in _location_query(response)
+
+    def test_consent_decision_honours_form_post(self, authed, normal_oauth2_client, session_data):
+        page = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, response_mode="form_post"),
+        )
+        assert page.status_code == 200
+        auth_request_id = next(iter(session_data["oauth2_auth_requests"]))
+        csrf = session_data["_csrf_token"]
+
+        allowed = authed.post(
+            "/oauth2/authorize/decision",
+            data={"auth_request_id": auth_request_id, "action": "allow", "csrf_token": csrf},
+        )
+        fields = _form_post_fields(allowed)
+        assert fields["code"]
+        assert fields["state"] == "st-1"
+
+    def test_consent_denial_honours_form_post(self, authed, normal_oauth2_client, session_data):
+        authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, response_mode="form_post"),
+        )
+        auth_request_id = next(iter(session_data["oauth2_auth_requests"]))
+        csrf = session_data["_csrf_token"]
+        denied = authed.post(
+            "/oauth2/authorize/decision",
+            data={"auth_request_id": auth_request_id, "action": "deny", "csrf_token": csrf},
+        )
+        assert _form_post_fields(denied)["error"] == "access_denied"
+
+    def test_post_binding_with_form_post(self, authed, normal_oauth2_client, grant):
+        grant(normal_oauth2_client, [])
+        response = authed.post(
+            "/oauth2/authorize",
+            data=_base_params(normal_oauth2_client, response_mode="form_post"),
+        )
+        assert _form_post_fields(response)["code"]
+
+    def test_stash_keeps_form_post_across_login(self, anon, normal_oauth2_client, session_data):
+        anon.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, response_mode="form_post"),
+        )
+        query = parse_qs(urlsplit(session_data[PENDING_OAUTH2_AUTHORIZE_KEY]).query)
+        assert query["response_mode"] == ["form_post"]
+
+
+def _unsigned_request_object(claims: dict) -> str:
+    import base64
+    import json
+
+    def b64(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+    return f"{b64(b'{"alg":"none"}')}.{b64(json.dumps(claims).encode())}."
+
+
+class TestRequestObjectRejectionHints:
+    """The rejection of an unsupported request object is delivered in the
+    response_mode (and with the state) the RP put inside the object."""
+
+    def test_form_post_and_state_only_inside_object(self, authed, normal_oauth2_client):
+        params = _base_params(
+            normal_oauth2_client,
+            request=_unsigned_request_object({"response_mode": "form_post", "state": "in-obj"}),
+        )
+        del params["state"]
+        fields = _form_post_fields(authed.get("/oauth2/authorize", params=params))
+        assert fields["error"] == "request_not_supported"
+        assert fields["state"] == "in-obj"
+
+    def test_query_parameters_take_precedence(self, authed, normal_oauth2_client):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(
+                normal_oauth2_client,
+                response_mode="query",
+                request=_unsigned_request_object({"response_mode": "form_post", "state": "x"}),
+            ),
+        )
+        query = _location_query(response)
+        assert query["error"] == ["request_not_supported"]
+        assert query["state"] == ["st-1"]
+
+    @pytest.mark.parametrize(
+        "claims",
+        [
+            {"response_mode": "fragment"},
+            {"response_mode": 7},
+            {"state": ""},
+            {"state": "s" * 3000},
+            ["not", "an", "object"],
+        ],
+    )
+    def test_unusable_hints_are_ignored(self, authed, normal_oauth2_client, claims):
+        params = _base_params(normal_oauth2_client, request=_unsigned_request_object(claims))
+        del params["state"]
+        response = authed.get("/oauth2/authorize", params=params)
+        query = _location_query(response)
+        assert query["error"] == ["request_not_supported"]
+        assert "state" not in query
+
+    @pytest.mark.parametrize(
+        "request_object",
+        ["a.b.c.d.e", "eyJ.!!!.sig", "eyJ.bm90LWpzb24.sig", "no-dots"],
+    )
+    def test_unreadable_objects_yield_no_hints(self, authed, normal_oauth2_client, request_object):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, request=request_object),
+        )
+        assert _location_query(response)["error"] == ["request_not_supported"]
+
+
 class TestAuthorizeParamsAsQuery:
     def test_request_alias_and_ordering(self):
         pairs = AuthorizeParams(

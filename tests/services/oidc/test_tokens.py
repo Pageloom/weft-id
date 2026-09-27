@@ -65,19 +65,20 @@ class TestIssueIdToken:
         assert decoded["sub"] == str(test_user["id"])
         assert decoded["sub"] != test_user["email"]
 
-    def test_scope_gates_claims(self, test_tenant, test_user):
+    def test_carries_only_envelope_claims(self, test_tenant, test_user):
+        """Identity claims come from userinfo, never the ID token, whatever
+        scopes were granted (OpenID Connect Core 1.0, section 5.4)."""
         token = tokens_service.issue_id_token(
             tenant_id=str(test_tenant["id"]),
             issuer="https://t.example.com",
             client_uuid=str(test_user["id"]),
             client_id="cid",
             user_id=str(test_user["id"]),
-            scopes={"openid"},
+            scopes={"openid", "profile", "email", "groups"},
+            nonce="n-1",
         )
         decoded = jwt.decode(token, options={"verify_signature": False})
-        # openid alone releases no profile/email claims.
-        for claim in ("email", "name", "given_name", "family_name"):
-            assert claim not in decoded
+        assert set(decoded) == {"iss", "sub", "aud", "iat", "exp", "auth_time", "nonce"}
 
     def test_nonce_echoed_only_when_supplied(self, test_tenant, test_user):
         with_nonce = tokens_service.issue_id_token(

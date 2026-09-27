@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
+| Low | 2 | Upload-auth temp-file leak (warning-ignored, tracked); expired OAuth2 tokens never swept |
 
 Note: the HIGH CSRF-never-enforced finding (middleware ordering, discovered 2026-09-14 on
 the oidc-conformance branch) was resolved on 2026-09-14; see ISSUES_ARCHIVE.md.
@@ -99,3 +99,25 @@ this needs a coordinated change. When fixed, remove the `filterwarnings` ignore.
 routes share the latent pattern), `app/middleware/csrf.py`, `pyproject.toml`
 
 ---
+
+---
+
+## [BUG] Expired OAuth2 access and refresh tokens are never deleted
+
+**Discovered:** 2026-09-26 (oidc-conformance Iteration 4)
+**Severity:** Low (storage growth only; expired rows are never accepted)
+**Found in:** `app/database/oauth2/tokens.py` (`cleanup_expired_tokens`)
+
+`cleanup_expired_tokens` exists but nothing calls it, so every access token
+(1 h) and refresh token (30 d) row stays in `oauth2_tokens` forever. Validation
+filters on `expires_at > now()`, so nothing expired is ever honoured; the cost is
+unbounded table and index growth. Authorization codes had the same gap; since
+Iteration 4 keeps redeemed codes (marked `consumed_at`) for reuse detection,
+`create_authorization_code` now sweeps the tenant's expired codes inline.
+
+**Suggested fix:** A periodic worker sweep. `oauth2_tokens` has the strict
+(non-NULLIF) RLS policy, so a cross-tenant sweep needs a SECURITY DEFINER
+function (see THOUGHT_ERRORS "Cross-Tenant Queries"), or an inline per-tenant
+sweep on the token-issuance path like the one codes use.
+**Files Affected:** `app/database/oauth2/tokens.py`, a new job in `app/jobs/`
+

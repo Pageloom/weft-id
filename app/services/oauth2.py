@@ -69,6 +69,10 @@ def create_authorization_code(
     Returns:
         Authorization code string
     """
+    # Redeemed codes are kept (marked consumed) until they expire so a reuse
+    # can be detected. Sweep the tenant's expired codes here, on the path that
+    # adds rows, so the table stays bounded to codes from the last few minutes.
+    database.oauth2.cleanup_expired_codes(tenant_id)
     return database.oauth2.create_authorization_code(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
@@ -93,7 +97,11 @@ def validate_and_consume_code(
     """
     Validate and consume an authorization code.
 
-    The code is consumed (deleted) upon successful validation.
+    The code is marked consumed upon successful validation. A code redeemed a
+    second time is rejected like an invalid one, and every token already
+    issued from it is revoked (RFC 6749 section 4.1.2: the code has leaked).
+
+    Logs: ``oauth2_authorization_code_reused`` when a reuse is detected.
 
     Args:
         tenant_id: Tenant ID
@@ -103,15 +111,32 @@ def validate_and_consume_code(
         code_verifier: Optional PKCE code verifier
 
     Returns:
-        Code data dict with user_id, or None if invalid
+        Code data dict (``id`` is the grant id for the tokens issued from it,
+        plus user_id, scope, nonce, auth_time), or None if invalid or reused
     """
-    return database.oauth2.validate_and_consume_code(
+    code_data = database.oauth2.validate_and_consume_code(
         tenant_id=tenant_id,
         code=code,
         client_id=client_id,
         redirect_uri=redirect_uri,
         code_verifier=code_verifier,
     )
+    if code_data is None:
+        return None
+
+    if code_data.pop("reused"):
+        revoked = database.oauth2.revoke_grant_tokens(tenant_id, code_data["id"])
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=str(code_data["user_id"]),
+            artifact_type="oauth2_client",
+            artifact_id=str(client_id),
+            event_type="oauth2_authorization_code_reused",
+            metadata={"grant_id": code_data["id"], "tokens_revoked": revoked},
+        )
+        return None
+
+    return code_data
 
 
 # =============================================================================
@@ -124,6 +149,7 @@ def create_refresh_token(
     client_id: str,
     user_id: str,
     scope: str | None = None,
+    grant_id: str | None = None,
 ) -> tuple[str, str]:
     """
     Create a refresh token.
@@ -134,6 +160,7 @@ def create_refresh_token(
         user_id: User UUID
         scope: Optional granted space-delimited scope string (persisted so the
             refresh_token grant can carry it onto refreshed access tokens)
+        grant_id: Optional id of the authorization code that started the grant
 
     Returns:
         Tuple of (refresh_token_string, refresh_token_id)
@@ -144,6 +171,7 @@ def create_refresh_token(
         client_id=client_id,
         user_id=user_id,
         scope=scope,
+        grant_id=grant_id,
     )
 
 
@@ -154,6 +182,7 @@ def create_access_token(
     parent_token_id: str | None = None,
     is_client_credentials: bool = False,
     scope: str | None = None,
+    grant_id: str | None = None,
 ) -> str:
     """
     Create an access token.
@@ -166,6 +195,7 @@ def create_access_token(
         is_client_credentials: True if this is a client_credentials grant
         scope: Optional granted space-delimited scope string (persisted so
             downstream userinfo can gate released claims)
+        grant_id: Optional id of the authorization code that started the grant
 
     Returns:
         Access token string
@@ -178,6 +208,7 @@ def create_access_token(
         parent_token_id=parent_token_id,
         is_client_credentials=is_client_credentials,
         scope=scope,
+        grant_id=grant_id,
     )
 
 
@@ -195,13 +226,47 @@ def validate_refresh_token(
         client_id: Internal client UUID
 
     Returns:
-        Token data dict with id, user_id, tenant_id and the persisted granted
-        scope, or None if invalid
+        Token data dict with id, user_id, tenant_id, the persisted granted
+        scope, grant_id and expires_at, or None if invalid
     """
     return database.oauth2.validate_refresh_token(
         tenant_id=tenant_id,
         token=token,
         client_id=client_id,
+    )
+
+
+def rotate_refresh_token(
+    tenant_id: str,
+    client_id: str,
+    token_data: dict,
+) -> tuple[str, str] | None:
+    """
+    Replace a validated refresh token with a new one (refresh token rotation).
+
+    The new token keeps the old one's user, scope, grant, and absolute expiry,
+    so rotation never extends how long a grant lives; the old token stops
+    working immediately. Access tokens issued under the old token stay valid
+    until they expire.
+
+    Args:
+        tenant_id: Tenant ID
+        client_id: Internal client UUID
+        token_data: The dict returned by ``validate_refresh_token``
+
+    Returns:
+        Tuple of (refresh_token_string, refresh_token_id), or None when a
+        concurrent request already redeemed the old token
+    """
+    return database.oauth2.rotate_refresh_token(
+        tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
+        old_token_id=str(token_data["id"]),
+        client_id=client_id,
+        user_id=str(token_data["user_id"]),
+        scope=token_data.get("scope"),
+        grant_id=str(token_data["grant_id"]) if token_data.get("grant_id") else None,
+        expires_at=token_data["expires_at"],
     )
 
 

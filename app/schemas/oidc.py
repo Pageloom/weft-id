@@ -51,6 +51,13 @@ class OIDCProviderMetadata(BaseModel):
     response_types_supported: list[str] = Field(
         ..., description="OAuth2 response types supported at the authorization endpoint."
     )
+    response_modes_supported: list[str] = Field(
+        ...,
+        description=(
+            "How the authorization response is delivered: query (redirect) or "
+            "form_post (auto-submitting HTML form)."
+        ),
+    )
     grant_types_supported: list[str] = Field(
         ..., description="OAuth2 grant types supported at the token endpoint."
     )
@@ -85,6 +92,13 @@ class OIDCProviderMetadata(BaseModel):
             "(the `request_uri` parameter). Always false: such requests are rejected "
             "with request_uri_not_supported. The OIDC Discovery default for this field "
             "is true, so it is stated explicitly."
+        ),
+    )
+    claims_parameter_supported: bool = Field(
+        False,
+        description=(
+            "Whether the `claims` request parameter is honoured. Always false: "
+            "claims are released by scope only."
         ),
     )
 

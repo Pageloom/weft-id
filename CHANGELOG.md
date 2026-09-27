@@ -32,6 +32,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Every OIDC connection now has a base group named after it, created with the
   connection, renamed with it, and deleted with it. Every user who signs in
   through the connection is added to it, mirroring SAML identity providers.
+- **`response_mode=form_post`.** The authorization endpoint can deliver the
+  code (and any error) to the redirect URI as an auto-submitting form POST
+  instead of a query string. Discovery advertises
+  `response_modes_supported: ["query", "form_post"]`.
+- **UserInfo over POST.** `/userinfo` accepts `POST` as well as `GET`, with
+  the access token in the `Authorization: Bearer` header or, for `POST`, the
+  `access_token` form field.
+- The `profile` scope now releases `zoneinfo` (the user's time zone).
+- **Authorization code reuse revokes the grant.** Redeeming a code a second
+  time is rejected and revokes every token already issued from it. Audit
+  event `oauth2_authorization_code_reused`. Migration 0062.
 
 ### Fixed
 
@@ -48,6 +59,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **OAuth2 / OIDC provider behaviour changes that relying parties may notice.**
+  These make the provider pass the OpenID Foundation conformance suite's
+  Basic, Config, and Form Post OP plans.
+  - Token endpoint errors are RFC 6749 JSON objects with top-level `error`
+    and `error_description`, no longer wrapped in `{"detail": {...}}`.
+    `invalid_client` is now HTTP 401 with `WWW-Authenticate: Basic`, and a
+    malformed token request is `invalid_request` instead of a 422.
+  - Token responses omit absent fields (`refresh_token`, `id_token`) instead
+    of sending `null`, and carry `Cache-Control: no-store` and
+    `Pragma: no-cache`.
+  - **Refresh tokens rotate.** The refresh grant returns a new refresh token
+    and the presented one stops working. The grant's original 30-day expiry
+    is kept. Apps must store the new refresh token after every refresh.
+  - **The ID token carries only envelope claims** (`sub`, `iss`, `aud`,
+    `exp`, `iat`, `auth_time`, `nonce`). The `profile`, `email`, and
+    `groups` claims come from the UserInfo endpoint, as OpenID Connect Core
+    section 5.4 defines for the code flow. Apps that read `email` or
+    `groups` from the ID token must call UserInfo (most OIDC libraries do).
+  - The authorization endpoint validates `client_id` and `redirect_uri`
+    before anything else, accepts `POST`, requires `response_type`, and
+    honours `prompt` (`none`, `login`, `consent`, `select_account`),
+    `max_age`, `login_hint`, and `id_token_hint`. `prompt=login` and an
+    expired `max_age` require a full local sign-in. Request objects are
+    rejected with `request_not_supported`, and discovery says
+    `claims_parameter_supported: false`.
 - IdP groups can be sourced from an OIDC connection as well as a SAML
   identity provider (new `groups.oidc_connection_id` column, migration 0060).
   Group views show the connection name as the group's source, and IdP group

@@ -70,6 +70,17 @@ class TestIsExempt:
         assert _is_exempt("/saml/acs") is True
         assert _is_exempt("/saml/acs/") is True
 
+    def test_upstream_backchannel_logout_is_exempt(self):
+        """The upstream IdP POSTs logout tokens server to server."""
+        assert _is_exempt("/auth/oidc/0b1c/backchannel-logout") is True
+
+    def test_upstream_backchannel_logout_pattern_is_exact(self):
+        """Only that one path shape; its siblings and extensions stay protected."""
+        assert _is_exempt("/auth/oidc/0b1c/callback") is False
+        assert _is_exempt("/auth/oidc/0b1c/backchannel-logout/extra") is False
+        assert _is_exempt("/auth/oidc/a/b/backchannel-logout") is False
+        assert _is_exempt("/x/auth/oidc/0b1c/backchannel-logout") is False
+
     def test_oauth2_token_is_exempt(self):
         """OAuth2 token endpoint should be exempt."""
         assert _is_exempt("/oauth2/token") is True

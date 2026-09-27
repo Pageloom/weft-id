@@ -139,6 +139,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oidc_login_started": "OIDC upstream login initiated",
     "oidc_login_completed": "User signed in via OIDC upstream",
     "oidc_login_failed": "OIDC upstream login attempt failed",
+    "oidc_idp_logout_rejected": (
+        "Back-channel logout token from an OIDC upstream identity provider rejected"
+    ),
     "oidc_group_claim_overage": "OIDC group claim omitted by provider (group overage)",
     "oidc_user_jit_provisioned": "User created via OIDC just-in-time provisioning",
     "user_oidc_idp_linked": "User linked to OIDC upstream identity provider",
@@ -320,6 +323,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oidc_login_started": "security",
     "oidc_login_completed": "security",
     "oidc_login_failed": "security",
+    "oidc_idp_logout_rejected": "security",
     "oidc_group_claim_overage": "operational",
     "oidc_user_jit_provisioned": "security",
     "user_oidc_idp_linked": "security",

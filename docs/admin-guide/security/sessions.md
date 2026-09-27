@@ -13,6 +13,10 @@ How long a user can remain signed in before they must re-authenticate.
 * One week
 * Two weeks (default)
 
+Signing out ends a session on the server as well as in the browser, so a copy of the session cookie stops working
+too. Sessions also end when a connected OIDC identity provider reports that the user signed out there (see
+[OIDC Setup](../identity-providers/oidc-setup.md#sign-out-from-the-provider)).
+
 ## Persistent sessions
 
 When enabled, sessions survive browser (and computer) restarts. When disabled, users must sign in again each time they

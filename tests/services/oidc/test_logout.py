@@ -376,6 +376,17 @@ class TestEndOidcSession:
     def test_unknown_session(self, test_tenant):
         assert _end(test_tenant, "never-issued") == []
 
+    def test_session_is_revoked_server_side(self, test_tenant):
+        _end(test_tenant, "s-revoke")
+        assert database.revoked_sessions.is_session_revoked(str(test_tenant["id"]), "s-revoke")
+        assert not database.revoked_sessions.is_session_revoked(str(test_tenant["id"]), "s-other")
+
+    @pytest.mark.parametrize("sid", [None, ""])
+    def test_no_session_identifier_revokes_nothing(self, test_tenant, sid, mocker):
+        revoke = mocker.patch.object(logout_service, "revoke_session")
+        _end(test_tenant, sid)
+        revoke.assert_not_called()
+
     def test_other_tenant_cannot_consume_the_session(self, test_tenant, test_user, test_admin_user):
         import uuid
 

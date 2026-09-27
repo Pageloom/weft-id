@@ -46,6 +46,7 @@ import database
 import jwt
 import settings
 from services.oidc.tokens import verify_id_token_hint
+from services.sessions import revoke_session
 
 # Why an end_session request cannot be honoured as sent. The router shows the
 # confirmation page (never an RP redirect) whenever one of these is set.
@@ -224,7 +225,9 @@ def end_oidc_session(
     sends the logout tokens (``services.oidc.backchannel``). The refresh
     tokens issued in the session are revoked, for every client including an
     excluded one (a re-authenticating client receives new tokens for the new
-    session), and so are the access tokens minted from them.
+    session), and so are the access tokens minted from them. The session
+    itself is revoked server-side first (``services.sessions``), so a copy of
+    its cookie is refused from now on.
 
     Args:
         tenant_id: Tenant ID for RLS scoping.
@@ -244,6 +247,7 @@ def end_oidc_session(
     """
     if not sid:
         return OidcSessionEnd()
+    revoke_session(tenant_id=tenant_id, sid=sid)
     urls: list[str] = []
     rows = database.oauth2.consume_session_clients(
         tenant_id,

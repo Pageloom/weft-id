@@ -6,6 +6,9 @@ iterations) can reuse the same session regeneration, activity bookkeeping,
 and post-auth redirect logic.
 """
 
+import time
+
+import services.oidc_upstream as oidc_upstream_service
 import services.settings as settings_service
 import services.users as users_service
 from fastapi import Request
@@ -17,7 +20,49 @@ from routers.saml_idp._helpers import (
 )
 from services.event_log import log_event
 from utils.redirects import safe_redirect
-from utils.session import regenerate_session
+from utils.session import SESSION_ID_KEY, regenerate_session
+
+# An upstream OIDC sign-in waiting for login completion (possibly after the
+# platform MFA step), so the new WeftID session can be linked to the upstream
+# session. Bound to the user and short-lived: a stash left behind by an
+# abandoned MFA step must not link a later, unrelated login.
+PENDING_UPSTREAM_OIDC_SESSION_KEY = "pending_upstream_oidc_session"
+PENDING_UPSTREAM_OIDC_SESSION_MAX_AGE = 15 * 60
+
+
+def stash_upstream_oidc_session(
+    session: dict,
+    *,
+    connection_id: str,
+    user_id: str,
+    upstream_sub: str,
+    upstream_sid: str | None,
+) -> None:
+    """Remember the upstream OIDC sign-in until login completes."""
+    session[PENDING_UPSTREAM_OIDC_SESSION_KEY] = {
+        "connection_id": connection_id,
+        "user_id": user_id,
+        "sub": upstream_sub,
+        "sid": upstream_sid,
+        "at": int(time.time()),
+    }
+
+
+def _pending_upstream_oidc_session(session: dict, user_id: str) -> dict | None:
+    """Pop the stashed upstream sign-in; None unless it is this user's and fresh."""
+    pending = session.pop(PENDING_UPSTREAM_OIDC_SESSION_KEY, None)
+    if not isinstance(pending, dict):
+        return None
+    at = pending.get("at")
+    if (
+        pending.get("user_id") != user_id
+        or not isinstance(pending.get("connection_id"), str)
+        or not isinstance(pending.get("sub"), str)
+        or not isinstance(at, int)
+        or time.time() - at > PENDING_UPSTREAM_OIDC_SESSION_MAX_AGE
+    ):
+        return None
+    return pending
 
 
 def complete_authenticated_login(
@@ -35,6 +80,7 @@ def complete_authenticated_login(
     2. Log `user_signed_in`
     3. Compute session max_age from tenant session settings
     4. Regenerate the session (prevents session fixation)
+    4a. Link the new session to the upstream OIDC sign-in, if any
     5. Bind SSO context to the authenticated user (if any)
     6. Update the user's tz/locale/last_login as appropriate
     7. Redirect to the post-auth target (dashboard or SSO consent)
@@ -61,6 +107,10 @@ def complete_authenticated_login(
     # that sent the user to log in). Regeneration clears the session, so these
     # must ride along as additional data to be honoured by the redirect below.
     pending_returns = extract_pending_returns(request.session)
+
+    # The upstream OIDC sign-in (if that is how the user got here), linked to
+    # the new session below.
+    pending_upstream = _pending_upstream_oidc_session(request.session, user_id)
 
     # Log successful sign-in event (also updates last_activity_at via log_event)
     log_event(
@@ -94,6 +144,18 @@ def complete_authenticated_login(
     regenerate_session(
         request, user_id, max_age, additional_data={**pending_returns, **(pending_sso or {})}
     )
+
+    if pending_upstream:
+        oidc_upstream_service.record_upstream_session(
+            tenant_id=tenant_id,
+            sid=request.session[SESSION_ID_KEY],
+            connection_id=pending_upstream["connection_id"],
+            user_id=user_id,
+            upstream_sub=pending_upstream["sub"],
+            upstream_sid=pending_upstream.get("sid")
+            if isinstance(pending_upstream.get("sid"), str)
+            else None,
+        )
 
     # Bind pending SSO context to the authenticated user (defense-in-depth)
     if pending_sso:

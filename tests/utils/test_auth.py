@@ -317,3 +317,71 @@ def test_get_current_user_inactivated_clears_session(test_tenant, test_user):
     assert result is None
     # Verify session was cleared
     assert len(session_dict) == 0
+
+
+def test_get_current_user_revoked_session_clears_session(test_tenant, test_user):
+    """A session whose sid was revoked server-side is signed out."""
+    import time
+
+    from utils.auth import get_current_user
+    from utils.session import SESSION_ID_KEY
+
+    tid = str(test_tenant["id"])
+    database.revoked_sessions.revoke_session(tid, tid, "revoked-sid")
+    request = Mock()
+    session_dict = {
+        "user_id": str(test_user["id"]),
+        "session_start": int(time.time()),
+        SESSION_ID_KEY: "revoked-sid",
+    }
+    request.session = session_dict
+
+    assert get_current_user(request, tid) is None
+    assert session_dict == {}
+
+
+def test_get_current_user_other_sid_revoked_keeps_session(test_tenant, test_user):
+    """Only the revoked sid is refused; a session without a sid is never matched."""
+    import time
+
+    from utils.auth import get_current_user
+    from utils.session import SESSION_ID_KEY
+
+    tid = str(test_tenant["id"])
+    database.revoked_sessions.revoke_session(tid, tid, "revoked-sid")
+    for extra in ({SESSION_ID_KEY: "live-sid"}, {}):
+        request = Mock()
+        request.session = {
+            "user_id": str(test_user["id"]),
+            "session_start": int(time.time()),
+            **extra,
+        }
+        assert get_current_user(request, tid) is not None
+
+
+def test_get_current_user_revocation_is_per_tenant(test_tenant, test_user):
+    """A sid revoked in another tenant does not sign this session out."""
+    import time
+    from uuid import uuid4
+
+    from utils.auth import get_current_user
+    from utils.session import SESSION_ID_KEY
+
+    other = database.fetchone(
+        database.UNSCOPED,
+        "insert into tenants (subdomain, name) values (:s, 'Other') returning id",
+        {"s": f"other-{uuid4().hex[:8]}"},
+    )
+    try:
+        database.revoked_sessions.revoke_session(str(other["id"]), str(other["id"]), "shared-sid")
+        request = Mock()
+        request.session = {
+            "user_id": str(test_user["id"]),
+            "session_start": int(time.time()),
+            SESSION_ID_KEY: "shared-sid",
+        }
+        assert get_current_user(request, str(test_tenant["id"])) is not None
+    finally:
+        database.execute(
+            database.UNSCOPED, "delete from tenants where id = :id", {"id": other["id"]}
+        )

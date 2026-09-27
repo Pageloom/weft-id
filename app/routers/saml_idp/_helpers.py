@@ -25,6 +25,18 @@ PENDING_RETURN_PREFIXES = {
 }
 
 
+def session_user_id(request: Request, tenant_id: str) -> str | None:
+    """The signed-in user's ID, after the checks every authenticated page runs.
+
+    The SAML IdP endpoints read the session directly rather than through the
+    ``require_current_user`` dependency. This applies the same checks
+    (session timeout, deactivation, forced password reset, server-side
+    revocation) and clears the session when one fails.
+    """
+    user = auth_utils.get_current_user(request, tenant_id)
+    return str(user["id"]) if user else None
+
+
 def get_base_url(request: Request) -> str:
     """Get base URL from request for building SAML URLs (always HTTPS)."""
     host = request.headers.get("x-forwarded-host", request.url.netloc)

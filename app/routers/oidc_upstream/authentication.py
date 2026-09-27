@@ -29,6 +29,10 @@ import services.oidc_upstream as oidc_service
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
+from routers.auth._login_completion import (
+    complete_authenticated_login,
+    stash_upstream_oidc_session,
+)
 from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import NotFoundError, RateLimitError
 from utils.email import send_mfa_code_email
@@ -232,6 +236,13 @@ def oidc_callback(
         _log_failure(tenant_id, connection_id, connection, "id_token", str(exc))
         return _error_response("auth_failed")
 
+    # The upstream session this sign-in belongs to, read from the verified ID
+    # token itself (userinfo cannot speak for the session). Linked to the new
+    # WeftID session at login completion, so the IdP's back-channel logout can
+    # end it.
+    upstream_sub = claims.get("sub")
+    upstream_sid = claims.get("sid") if isinstance(claims.get("sid"), str) else None
+
     # Optionally merge userinfo claims (email may live there for some IdPs).
     userinfo_endpoint = connection.get("userinfo_endpoint")
     access_token = token_response.get("access_token")
@@ -267,6 +278,15 @@ def oidc_callback(
 
     user_id = str(user["id"])
 
+    if isinstance(upstream_sub, str) and upstream_sub:
+        stash_upstream_oidc_session(
+            request.session,
+            connection_id=connection_id,
+            user_id=user_id,
+            upstream_sub=upstream_sub,
+            upstream_sid=upstream_sid,
+        )
+
     # Platform MFA gate (mirrors the SAML ACS).
     if oidc_service.oidc_connection_requires_platform_mfa(tenant_id, connection_id):
         mfa_method = user.get("mfa_method") or "email"
@@ -280,8 +300,6 @@ def oidc_callback(
                 send_mfa_code_email(primary_email, code, tenant_id=tenant_id)
 
         return RedirectResponse(url="/mfa/verify", status_code=303)
-
-    from routers.auth._login_completion import complete_authenticated_login
 
     return complete_authenticated_login(
         request,

@@ -296,3 +296,40 @@ class TestRefreshTokenRevocation:
         event = _last_signed_out(test_tenant)
         assert event["metadata"]["reason"] == "reauthentication"
         assert event["metadata"]["refresh_tokens_revoked"] == 1
+
+
+class TestServerSideRevocation:
+    """Every path that ends a session revokes its sid (a copied cookie dies too)."""
+
+    @staticmethod
+    def _revoked(test_tenant) -> bool:
+        return database.revoked_sessions.is_session_revoked(str(test_tenant["id"]), SID)
+
+    def test_logout_button(self, signed_in, test_tenant):
+        signed_in.post("/logout")
+        assert self._revoked(test_tenant)
+
+    def test_end_session_with_verified_hint(
+        self, signed_in, make_client, issue, test_user, test_tenant
+    ):
+        rp = make_client("RP", bc_uri=None)
+        signed_in.get("/oauth2/logout", params={"id_token_hint": issue(rp, test_user)})
+        assert self._revoked(test_tenant)
+
+    def test_confirm(self, signed_in, test_tenant):
+        signed_in.post("/oauth2/logout/confirm")
+        assert self._revoked(test_tenant)
+
+    def test_reauthentication(self, signed_in, make_client, test_tenant):
+        asking = make_client("Asking")
+        signed_in.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": asking["client_id"],
+                "redirect_uri": REDIRECT_URI,
+                "response_type": "code",
+                "scope": "openid",
+                "prompt": "login",
+            },
+        )
+        assert self._revoked(test_tenant)

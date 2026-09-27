@@ -93,7 +93,14 @@ def _handle_slo_request(
         logger.warning("Failed to process SLO request: %s", e)
         return RedirectResponse(url="/login", status_code=303)
 
-    # 3. Clear session only after validating the request came from a registered SP
+    # 3. End the session only after validating the request came from a
+    # registered SP: revoke it server-side and notify downstream OIDC clients
+    # (back-channel; there is no page for front-channel iframes here), then
+    # clear the cookie. The service logged slo_sp_initiated.
+    from routers.auth.logout import end_oidc_session_quietly
+
+    if request.session.get("user_id"):
+        end_oidc_session_quietly(request, tenant_id)
     request.session.clear()
 
     # 4. Render auto-submit form to POST LogoutResponse back to SP

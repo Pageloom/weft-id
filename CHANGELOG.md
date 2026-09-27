@@ -57,6 +57,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   app's detail page lists recent deliveries (status, attempts, last error),
   and `GET /api/v1/oauth2/clients/{client_id}/backchannel-logout-deliveries`
   pages through them. Migrations 0065 and 0066.
+- **Sign-out from upstream OIDC providers.** Each OIDC identity provider
+  connection has a **Back-Channel Logout URL** (Details tab, and
+  `backchannel_logout_url` on `/api/v1/oidc-upstream`). Registered at the
+  provider, it lets the provider sign users out of WeftID: a signed logout
+  token ends every WeftID session that began with the named provider session
+  (or, when the token names only the user, every session the user started
+  through that connection), notifies downstream apps by back-channel logout,
+  and revokes their refresh tokens. Audited as `user_signed_out` with reason
+  `upstream_backchannel_logout`; a rejected or replayed token is audited as
+  `oidc_idp_logout_rejected`. Migration 0067.
 - **`sid` claim.** ID tokens now carry `sid`, an opaque identifier of the
   WeftID session the user signed in with, renewed at every sign-in.
 - **Remembered consent.** WeftID now remembers a user's **Allow** on the
@@ -96,6 +106,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **SAML IdP single sign-on ignored stale sessions.** The SAML IdP endpoints
+  (SSO request, consent, and app launch) read the signed-in user from the
+  session without the checks every other page runs, so a session past the
+  tenant's maximum session length, of a deactivated user, or of a user who
+  must reset their password could still complete a SAML sign-in to a service
+  provider. They now apply the same checks, including server-side
+  revocation.
 - **CSRF protection was never enforced.** The CSRF middleware was registered
   on the wrong side of the session middleware, so it ran before the session
   was decoded and, finding none, allowed every request. Every session-cookie
@@ -109,6 +126,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Signing out ends the session on the server.** Sessions are signed
+  cookies; until now, signing out only cleared the cookie in the browser, so
+  a copy of it kept working until it expired. Every sign-out (the sign-out
+  button, the OIDC end session endpoint, a forced re-authentication, the
+  SAML consent page's switch account, and SP-initiated SAML logout) now
+  revokes the session server-side, and a revoked session is refused on its
+  next request. The switch-account and SP-initiated logout paths also notify
+  downstream OIDC apps (back-channel) and revoke their session refresh
+  tokens, like the sign-out button.
 - **OAuth2 / OIDC provider behaviour changes that relying parties may notice.**
   These make the provider pass the OpenID Foundation conformance suite's
   Basic, Config, and Form Post OP plans.

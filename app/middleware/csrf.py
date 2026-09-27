@@ -10,6 +10,7 @@ SAML ACS is exempt (receives POST from external IdPs).
 """
 
 import logging
+import re
 import secrets
 from collections.abc import Awaitable, Callable
 
@@ -48,6 +49,11 @@ CSRF_EXEMPT_PATHS = [
 # renders the confirmation page, whose form posts to the CSRF-protected
 # ``/oauth2/logout/confirm``.
 CSRF_EXEMPT_EXACT_PATHS = frozenset({"/oauth2/authorize", "/userinfo", "/oauth2/logout"})
+
+# Full-match patterns for exempt paths with a variable segment. The upstream
+# OIDC back-channel logout receiver takes a server-to-server POST from the IdP
+# (no session, no browser); the logout token's signature is the authority.
+CSRF_EXEMPT_PATTERNS = (re.compile(r"/auth/oidc/[^/]+/backchannel-logout"),)
 
 # HTTP methods that require CSRF validation
 CSRF_PROTECTED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -99,6 +105,8 @@ def make_csrf_token_func(request: Request) -> Callable[[], str]:
 def _is_exempt(path: str) -> bool:
     """Check if a path is exempt from CSRF protection."""
     if path in CSRF_EXEMPT_EXACT_PATHS:
+        return True
+    if any(pattern.fullmatch(path) for pattern in CSRF_EXEMPT_PATTERNS):
         return True
     for exempt_path in CSRF_EXEMPT_PATHS:
         if path.startswith(exempt_path):

@@ -1522,3 +1522,144 @@ def test_update_client_backchannel_logout_as_member_forbidden(
         json={"backchannel_logout_uri": "https://rp.example/bc"},
     )
     assert response.status_code == 403
+
+
+# =============================================================================
+# Back-channel logout deliveries
+# =============================================================================
+
+
+def _bc_delivery(test_tenant, oauth_client, user, sid, status="pending"):
+    import database
+
+    tid = str(test_tenant["id"])
+    database.oauth2.update_client(
+        tid, oauth_client["client_id"], backchannel_logout_uri="https://rp.example/bc"
+    )
+    database.oauth2.update_client_oidc_settings(tid, oauth_client["client_id"], oidc_enabled=True)
+    database.oauth2.upsert_session_client(
+        tid, tid, sid=sid, client_id=str(oauth_client["id"]), user_id=str(user["id"])
+    )
+    database.oauth2.consume_session_clients(tid, tid, sid, issuer="https://tenant.example")
+    database.execute(
+        tid,
+        "update oidc_backchannel_logout_deliveries set status = :s where sid = :sid",
+        {"s": status, "sid": sid},
+    )
+
+
+def _deliveries_url(oauth_client) -> str:
+    return f"/api/v1/oauth2/clients/{oauth_client['client_id']}/backchannel-logout-deliveries"
+
+
+def test_list_backchannel_deliveries_as_admin(
+    client,
+    test_tenant_host,
+    test_tenant,
+    test_user,
+    oauth2_admin_authorization_header,
+    normal_oauth2_client,
+):
+    _bc_delivery(test_tenant, normal_oauth2_client, test_user, "s-1", status="failed")
+    _bc_delivery(test_tenant, normal_oauth2_client, test_user, "s-2")
+
+    response = client.get(
+        _deliveries_url(normal_oauth2_client),
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 2
+    assert body["page"] == 1 and body["limit"] == 25
+    assert body["counts"] == {"pending": 1, "delivered": 0, "failed": 1}
+    item = body["items"][0]
+    assert item["user_id"] == str(test_user["id"])
+    assert item["user_email"] == test_user["email"]
+    assert set(item) >= {
+        "id",
+        "status",
+        "attempts",
+        "last_http_status",
+        "last_error",
+        "created_at",
+        "last_attempt_at",
+        "next_attempt_at",
+        "completed_at",
+    }
+    assert "sid" not in item
+
+
+def test_list_backchannel_deliveries_status_and_paging(
+    client,
+    test_tenant_host,
+    test_tenant,
+    test_user,
+    oauth2_admin_authorization_header,
+    normal_oauth2_client,
+):
+    for i in range(3):
+        _bc_delivery(test_tenant, normal_oauth2_client, test_user, f"s-{i}")
+    headers = {"Host": test_tenant_host, **oauth2_admin_authorization_header}
+
+    page = client.get(
+        _deliveries_url(normal_oauth2_client), params={"page": 2, "limit": 2}, headers=headers
+    ).json()
+    assert len(page["items"]) == 1 and page["total"] == 3
+
+    failed = client.get(
+        _deliveries_url(normal_oauth2_client), params={"status": "failed"}, headers=headers
+    ).json()
+    assert failed["items"] == [] and failed["total"] == 0
+
+
+def test_list_backchannel_deliveries_invalid_status(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    response = client.get(
+        _deliveries_url(normal_oauth2_client),
+        params={"status": "bogus"},
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 400
+
+
+def test_list_backchannel_deliveries_limit_bounds(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    response = client.get(
+        _deliveries_url(normal_oauth2_client),
+        params={"limit": 251},
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 422
+
+
+def test_list_backchannel_deliveries_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    response = client.get(
+        _deliveries_url(normal_oauth2_client),
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+    assert response.status_code == 403
+
+
+def test_list_backchannel_deliveries_unknown_client(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.get(
+        "/api/v1/oauth2/clients/weft-id_client_missing/backchannel-logout-deliveries",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 404
+
+
+def test_list_backchannel_deliveries_b2b_rejected(
+    client, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+):
+    response = client.get(
+        _deliveries_url(b2b_oauth2_client),
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 400

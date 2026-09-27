@@ -51,7 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   delivery that is given up is audited as `oidc_backchannel_logout_failed`.
   Discovery advertises `backchannel_logout_supported` and
   `backchannel_logout_session_supported`. The `user_signed_out` audit event
-  records `backchannel_logout_count`. Migration 0065.
+  records `backchannel_logout_count`. Deactivating, anonymizing or deleting a
+  user (by an admin, SCIM, the inactivity job, or removal from an identity
+  provider) also sends a logout token for each of the user's sessions. The
+  app's detail page lists recent deliveries (status, attempts, last error),
+  and `GET /api/v1/oauth2/clients/{client_id}/backchannel-logout-deliveries`
+  pages through them. Migrations 0065 and 0066.
 - **`sid` claim.** ID tokens now carry `sid`, an opaque identifier of the
   WeftID session the user signed in with, renewed at every sign-in.
 - **Remembered consent.** WeftID now remembers a user's **Allow** on the
@@ -117,6 +122,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - **Refresh tokens rotate.** The refresh grant returns a new refresh token
     and the presented one stops working. The grant's original 30-day expiry
     is kept. Apps must store the new refresh token after every refresh.
+  - **Signing out revokes OIDC refresh tokens.** A refresh token issued
+    together with an ID token is tied to the user's WeftID session, and it
+    stops working when that session ends (sign-out, the end session
+    endpoint, or a forced re-authentication), along with the access tokens
+    minted from it. Plain OAuth2 refresh tokens (no `openid` scope) are
+    unaffected. The `user_signed_out` audit event records
+    `refresh_tokens_revoked`.
   - **The ID token carries only envelope claims** (`sub`, `iss`, `aud`,
     `exp`, `iat`, `auth_time`, `nonce`). The `profile`, `email`, and
     `groups` claims come from the UserInfo endpoint, as OpenID Connect Core
@@ -129,6 +141,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     expired `max_age` require a full local sign-in. Request objects are
     rejected with `request_not_supported`, and discovery says
     `claims_parameter_supported: false`.
+- **Anonymizing a user revokes their OAuth2 tokens and remembered consents**,
+  as deactivation already did. Anonymization deactivates the user, but their
+  tokens used to stay valid until they expired.
 - IdP groups can be sourced from an OIDC connection as well as a SAML
   identity provider (new `groups.oidc_connection_id` column, migration 0060).
   Group views show the connection name as the group's source, and IdP group

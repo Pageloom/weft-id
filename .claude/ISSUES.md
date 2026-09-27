@@ -148,10 +148,5 @@ CGNAT `100.64.0.0/10` and the metadata range; unwrap `ipv4_mapped`, `sixtofour`,
 and NAT64 (`64:ff9b::/96`, last 32 bits) before checking the inner IPv4. Tests for `::`,
 `64:ff9b::a00:1`, `2002:7f00:1::`, and a Teredo address wrapping 127.0.0.1.
 
-Related (fold into oidc-conformance Iteration 7b, not this fix): the back-channel delivery
-log stores the guard's "resolves to a private or reserved address" message; collapse it to
-a generic `blocked_destination` before 7b shows delivery errors to admins, so the log is not
-an internal-DNS oracle.
-
 **Files Affected:** `app/utils/url_safety.py`, `tests/utils/test_url_safety.py`
 

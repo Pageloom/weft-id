@@ -685,6 +685,7 @@ def test_app_detail_renders(test_admin_user, override_auth, mocker):
     mock_oidc.list_client_group_assignments.return_value = MagicMock(items=[])
     mock_oidc.list_available_groups_for_client.return_value = []
     mocker.patch(f"{ROUTERS_INTEGRATIONS}.consent_service.list_client_grants", return_value=[])
+    mocker.patch(f"{ROUTERS_INTEGRATIONS}.backchannel_service.list_backchannel_logout_deliveries")
 
     mock_get.return_value = mock_client
     mock_ctx.return_value = {"request": MagicMock()}
@@ -1694,6 +1695,7 @@ def test_app_detail_passes_consent_grants(test_admin_user, override_auth, mocker
     mock_list = mocker.patch(
         f"{ROUTERS_INTEGRATIONS}.consent_service.list_client_grants", return_value=grants
     )
+    mocker.patch(f"{ROUTERS_INTEGRATIONS}.backchannel_service.list_backchannel_logout_deliveries")
     mock_ctx.return_value = {"request": MagicMock()}
     mock_tmpl.return_value = HTMLResponse(content="<html>detail</html>")
 
@@ -2012,3 +2014,97 @@ def test_app_detail_error_banner_for_backchannel_uri(
         "?error=invalid_backchannel_logout_uri"
     )
     assert "The back-channel logout URI must be an absolute http or https URI" in response.text
+
+
+# =============================================================================
+# Back-channel logout deliveries on the App detail page (real database)
+# =============================================================================
+
+
+def _bc_app_with_deliveries(test_tenant, oauth_client, user, errors):
+    """Back-channel on, one failed delivery per entry of ``errors``."""
+    import database
+
+    tid = str(test_tenant["id"])
+    database.oauth2.update_client(
+        tid, oauth_client["client_id"], backchannel_logout_uri="https://rp.example/bc"
+    )
+    database.oauth2.update_client_oidc_settings(tid, oauth_client["client_id"], oidc_enabled=True)
+    for i, (error, http_status) in enumerate(errors):
+        sid = f"s-{i}"
+        database.oauth2.upsert_session_client(
+            tid, tid, sid=sid, client_id=str(oauth_client["id"]), user_id=str(user["id"])
+        )
+        database.oauth2.consume_session_clients(tid, tid, sid, issuer="https://t.example")
+        database.execute(
+            tid,
+            """
+            update oidc_backchannel_logout_deliveries
+            set status = 'failed', attempts = 1, last_error = :e, last_http_status = :h
+            where sid = :sid
+            """,
+            {"e": error, "h": http_status, "sid": sid},
+        )
+
+
+def test_app_detail_shows_backchannel_deliveries(
+    test_tenant, test_admin_user, test_user, override_auth, normal_oauth2_client
+):
+    _bc_app_with_deliveries(
+        test_tenant,
+        normal_oauth2_client,
+        test_user,
+        [
+            ("blocked_destination", None),
+            ("http_400", 400),
+            ("network_error: ConnectTimeout: timed out", None),
+            ("client_no_longer_eligible", None),
+        ],
+    )
+    override_auth(test_admin_user, level="admin")
+
+    response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
+
+    assert response.status_code == 200
+    text = response.text
+    assert "Back-channel Logout Deliveries" in text
+    assert "0 delivered, 0 pending, 4 failed." in text
+    assert "Address not allowed or not found" in text
+    assert "The app responded with HTTP 400" in text
+    assert "Could not connect" in text
+    assert "App no longer uses back-channel logout" in text
+    assert f'href="/users/{test_user["id"]}"' in text
+
+
+def test_app_detail_hides_backchannel_section_when_unused(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
+    assert response.status_code == 200
+    assert "Back-channel Logout Deliveries" not in response.text
+
+
+def test_app_detail_backchannel_section_empty_state(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        backchannel_logout_uri="https://rp.example/bc",
+    )
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
+    assert "No logout tokens have been sent to this app yet." in response.text
+
+
+def test_app_detail_backchannel_shows_most_recent_only(
+    test_tenant, test_admin_user, test_user, override_auth, normal_oauth2_client, mocker
+):
+    mocker.patch(f"{ROUTERS_INTEGRATIONS}.BACKCHANNEL_DELIVERIES_SHOWN", 2)
+    _bc_app_with_deliveries(test_tenant, normal_oauth2_client, test_user, [("http_500", 500)] * 3)
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
+    assert "Showing the 2 most recent of 3." in response.text

@@ -9,7 +9,7 @@ Cross-tenant reads and sweeps go through SECURITY DEFINER functions
 (migration 0065); the table itself has strict tenant RLS.
 """
 
-from database._core import UNSCOPED, TenantArg, execute, fetchall
+from database._core import UNSCOPED, TenantArg, execute, fetchall, fetchone
 
 
 def list_tenants_with_due_deliveries() -> list[str]:
@@ -56,6 +56,58 @@ def claim_due_deliveries(tenant_id: TenantArg, *, limit: int, lease_seconds: int
         """,
         {"limit": limit, "lease_seconds": lease_seconds},
     )
+
+
+def list_client_deliveries(
+    tenant_id: TenantArg,
+    client_uuid: str,
+    *,
+    status: str | None = None,
+    limit: int,
+    offset: int = 0,
+) -> list[dict]:
+    """A client's deliveries, newest first, with the user's name and email.
+
+    ``status`` filters to one status. The user columns are NULL when the user
+    has since been deleted (``sub`` still holds their id). Each dict has
+    ``id``, ``sub``, ``status``, ``attempts``, ``last_http_status``,
+    ``last_error``, ``created_at``, ``last_attempt_at``, ``next_attempt_at``,
+    ``completed_at``, ``user_first_name``, ``user_last_name``, ``user_email``.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select d.id, d.sub, d.status, d.attempts, d.last_http_status, d.last_error,
+               d.created_at, d.last_attempt_at, d.next_attempt_at, d.completed_at,
+               u.first_name as user_first_name, u.last_name as user_last_name,
+               ue.email as user_email
+        from oidc_backchannel_logout_deliveries d
+        left join users u on u.id = cast(d.sub as uuid)
+        left join user_emails ue on ue.user_id = u.id and ue.is_primary
+        where d.client_id = :client_id
+          and (cast(:status as text) is null or d.status = :status)
+        order by d.created_at desc, d.id
+        limit :limit offset :offset
+        """,
+        {"client_id": client_uuid, "status": status, "limit": limit, "offset": offset},
+    )
+
+
+def count_client_deliveries_by_status(tenant_id: TenantArg, client_uuid: str) -> dict[str, int]:
+    """Count a client's deliveries per status (every status key present)."""
+    row = fetchone(
+        tenant_id,
+        """
+        select count(*) filter (where status = 'pending') as pending,
+               count(*) filter (where status = 'delivered') as delivered,
+               count(*) filter (where status = 'failed') as failed
+        from oidc_backchannel_logout_deliveries
+        where client_id = :client_id
+        """,
+        {"client_id": client_uuid},
+    )
+    row = row or {}
+    return {key: int(row.get(key) or 0) for key in ("pending", "delivered", "failed")}
 
 
 def mark_delivered(tenant_id: TenantArg, delivery_id: str, *, http_status: int) -> int:

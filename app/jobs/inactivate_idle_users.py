@@ -10,6 +10,7 @@ from typing import Any
 import database
 from database._core import session
 from services.event_log import SYSTEM_ACTOR_ID, log_event
+from services.oidc.logout import end_user_oidc_sessions
 from utils.email import send_idle_users_inactivation_admin_notification
 from utils.request_context import system_context
 
@@ -166,6 +167,7 @@ def _process_tenant(tenant_id: str, threshold_days: int) -> dict[str, Any]:
                 # Revoke OAuth tokens and remembered consents
                 database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
                 database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
+                end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
 
                 # Log the event (with system as actor since this is automated)
                 log_event(

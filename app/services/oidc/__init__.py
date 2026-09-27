@@ -13,6 +13,7 @@ from services.oidc.backchannel import (
     build_logout_token,
     cleanup_backchannel_logout_state,
     deliver_due_backchannel_logouts,
+    list_backchannel_logout_deliveries,
     list_tenants_with_due_backchannel_logouts,
 )
 from services.oidc.claims import (
@@ -45,6 +46,7 @@ from services.oidc.logout import (
     EndSessionRequest,
     OidcSessionEnd,
     end_oidc_session,
+    end_user_oidc_sessions,
     resolve_end_session_request,
 )
 from services.oidc.tokens import ID_TOKEN_EXPIRY, issue_id_token, verify_id_token_hint
@@ -69,9 +71,11 @@ __all__ = [
     "EndSessionRequest",
     "resolve_end_session_request",
     "end_oidc_session",
+    "end_user_oidc_sessions",
     "OidcSessionEnd",
     "build_logout_token",
     "deliver_due_backchannel_logouts",
+    "list_backchannel_logout_deliveries",
     "list_tenants_with_due_backchannel_logouts",
     "cleanup_backchannel_logout_state",
     "ID_TOKEN_EXPIRY",

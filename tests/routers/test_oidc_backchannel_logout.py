@@ -229,3 +229,70 @@ class TestReauthentication:
         event = _last_signed_out(test_tenant)
         assert event["metadata"]["reason"] == "reauthentication"
         assert event["metadata"]["backchannel_logout_count"] == 1
+
+
+class TestRefreshTokenRevocation:
+    """Ending a session revokes the refresh tokens issued in it (BCL 2.7)."""
+
+    @staticmethod
+    def _refresh(test_tenant, client, user, sid=SID) -> str:
+        tid = str(test_tenant["id"])
+        token, _ = database.oauth2.create_refresh_token(
+            tid, tid, str(client["id"]), str(user["id"]), scope="openid", sid=sid
+        )
+        return token
+
+    @staticmethod
+    def _valid(test_tenant, client, token) -> bool:
+        return (
+            database.oauth2.validate_refresh_token(str(test_tenant["id"]), token, str(client["id"]))
+            is not None
+        )
+
+    def test_logout_button_revokes_session_tokens(
+        self, signed_in, make_client, issue, test_user, test_tenant
+    ):
+        rp = make_client("RP")
+        issue(rp, test_user)
+        mine = self._refresh(test_tenant, rp, test_user)
+        elsewhere = self._refresh(test_tenant, rp, test_user, sid="another-session")
+
+        signed_in.post("/logout")
+
+        assert not self._valid(test_tenant, rp, mine)
+        assert self._valid(test_tenant, rp, elsewhere)
+        assert _last_signed_out(test_tenant)["metadata"]["refresh_tokens_revoked"] == 1
+
+    def test_end_session_revokes_session_tokens(
+        self, signed_in, make_client, issue, test_user, test_tenant
+    ):
+        rp = make_client("RP", bc_uri=None)
+        hint = issue(rp, test_user)
+        token = self._refresh(test_tenant, rp, test_user)
+
+        signed_in.get("/oauth2/logout", params={"id_token_hint": hint})
+
+        assert not self._valid(test_tenant, rp, token)
+
+    def test_reauthentication_revokes_and_audits(
+        self, signed_in, make_client, issue, test_user, test_tenant
+    ):
+        asking = make_client("Asking")
+        issue(asking, test_user)
+        token = self._refresh(test_tenant, asking, test_user)
+
+        signed_in.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": asking["client_id"],
+                "redirect_uri": REDIRECT_URI,
+                "response_type": "code",
+                "scope": "openid",
+                "prompt": "login",
+            },
+        )
+
+        assert not self._valid(test_tenant, asking, token)
+        event = _last_signed_out(test_tenant)
+        assert event["metadata"]["reason"] == "reauthentication"
+        assert event["metadata"]["refresh_tokens_revoked"] == 1

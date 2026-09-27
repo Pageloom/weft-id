@@ -115,7 +115,12 @@ def issue_id_token(
 
     if sid:
         database.oauth2.upsert_session_client(
-            tenant_id, tenant_id, sid=sid, client_id=str(client_uuid), user_id=str(user_id)
+            tenant_id,
+            tenant_id,
+            sid=sid,
+            client_id=str(client_uuid),
+            user_id=str(user_id),
+            issuer=issuer,
         )
 
     log_event(

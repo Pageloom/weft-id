@@ -20,7 +20,8 @@ delivery fails. A failed delivery logs ``oidc_backchannel_logout_failed``.
 
 Finished rows stay as the delivery log for ``DELIVERY_RETENTION_DAYS``;
 ``cleanup_backchannel_logout_state`` purges them and sweeps session records
-of sessions that ended without a logout.
+of sessions that ended without a logout. Admins read the log per App with
+``list_backchannel_logout_deliveries``.
 """
 
 from __future__ import annotations
@@ -33,9 +34,18 @@ from typing import Any
 import database
 import httpx
 import jwt
+from schemas.oidc import (
+    BackchannelLogoutDelivery,
+    BackchannelLogoutDeliveryCounts,
+    BackchannelLogoutDeliveryList,
+)
+from services.activity import track_activity
+from services.auth import require_admin
 from services.event_log import SYSTEM_ACTOR_ID, log_event
+from services.exceptions import NotFoundError, ValidationError
 from services.oidc.keys import get_active_signing_key
-from utils.safe_http import build_safe_client
+from services.types import RequestingUser
+from utils.safe_http import SsrfBlockedError, build_safe_client
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +78,11 @@ STALE_SESSION_RECORD_DAYS = 90
 _DEV_HOSTNAME_ALLOWLIST = frozenset({"localhost.emobix.co.uk"})
 
 _RETRYABLE_4XX = frozenset({408, 429})
+
+# Recorded when the SSRF guard refuses the destination.
+BLOCKED_DESTINATION_ERROR = "blocked_destination"
+
+DELIVERY_STATUSES = ("pending", "delivered", "failed")
 
 
 def build_logout_token(
@@ -138,6 +153,11 @@ def _send(client: httpx.Client, delivery: dict, tenant_id: str) -> tuple[int | N
             data={"logout_token": token},
             headers={"Cache-Control": "no-store"},
         )
+    except SsrfBlockedError:
+        # One generic code for every guard refusal (unresolvable, private or
+        # reserved address): admins read this log, and telling those cases
+        # apart would make it an oracle for the internal network.
+        return None, BLOCKED_DESTINATION_ERROR
     except httpx.HTTPError as exc:
         return None, f"network_error: {type(exc).__name__}: {str(exc)[:200]}"
     if 200 <= response.status_code < 300:
@@ -260,3 +280,78 @@ def cleanup_backchannel_logout_state() -> dict[str, int]:
             older_than_days=STALE_SESSION_RECORD_DAYS
         ),
     }
+
+
+def _to_delivery_view(row: dict) -> BackchannelLogoutDelivery:
+    name = " ".join(
+        part for part in (row.get("user_first_name"), row.get("user_last_name")) if part
+    )
+    return BackchannelLogoutDelivery(
+        id=str(row["id"]),
+        user_id=str(row["sub"]),
+        user_name=name or None,
+        user_email=row.get("user_email"),
+        status=row["status"],
+        attempts=row["attempts"],
+        last_http_status=row.get("last_http_status"),
+        last_error=row.get("last_error"),
+        created_at=row["created_at"],
+        last_attempt_at=row.get("last_attempt_at"),
+        next_attempt_at=row["next_attempt_at"] if row["status"] == "pending" else None,
+        completed_at=row.get("completed_at"),
+    )
+
+
+def list_backchannel_logout_deliveries(
+    requesting_user: RequestingUser,
+    client_id: str,
+    *,
+    status: str | None = None,
+    page: int = 1,
+    limit: int = 20,
+) -> BackchannelLogoutDeliveryList:
+    """An App's back-channel logout deliveries, newest first, with counts.
+
+    Authorization: Requires admin role. Only Apps (authorization-code
+    clients) take part in back-channel logout.
+
+    Args:
+        requesting_user: The admin asking.
+        client_id: The public client_id.
+        status: Only deliveries in this status (pending, delivered, failed).
+        page: 1-indexed page.
+        limit: Page size.
+
+    Returns:
+        The page, the number matching ``status``, and per-status counts over
+        the retention window.
+    """
+    require_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+    track_activity(tenant_id, requesting_user["id"])
+    if status is not None and status not in DELIVERY_STATUSES:
+        raise ValidationError(
+            message=f"status must be one of: {', '.join(DELIVERY_STATUSES)}",
+            code="invalid_delivery_status",
+        )
+    client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    if client is None:
+        raise NotFoundError(message="Application not found", code="oauth2_client_not_found")
+    if client["client_type"] != "normal":
+        raise ValidationError(
+            message="Back-channel logout applies only to Apps (authorization-code clients)",
+            code="backchannel_logout_not_supported_for_client_type",
+        )
+    client_uuid = str(client["id"])
+    counts = database.oauth2.count_client_deliveries_by_status(tenant_id, client_uuid)
+    rows = database.oauth2.list_client_deliveries(
+        tenant_id, client_uuid, status=status, limit=limit, offset=(page - 1) * limit
+    )
+    total = counts[status] if status else sum(counts.values())
+    return BackchannelLogoutDeliveryList(
+        items=[_to_delivery_view(row) for row in rows],
+        total=total,
+        page=page,
+        limit=limit,
+        counts=BackchannelLogoutDeliveryCounts(**counts),
+    )

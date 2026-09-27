@@ -64,6 +64,17 @@ def queue(test_tenant, test_user):
             sid=sid,
         )
         oidc_service.end_oidc_session(tenant_id=str(test_tenant["id"]), issuer=ISSUER, sid=sid)
+        # Hide the fresh delivery from the dev worker, which shares this
+        # database and would otherwise race the test to claim it; ``_deliver``
+        # makes it due again just before its own claim.
+        database.execute(
+            str(test_tenant["id"]),
+            """
+            update oidc_backchannel_logout_deliveries
+            set next_attempt_at = now() + interval '1 hour'
+            where status = 'pending' and attempts = 0
+            """,
+        )
 
     return _queue
 
@@ -91,7 +102,22 @@ class _RP:
         return token
 
 
+def _release(test_tenant) -> None:
+    """Make the deliveries ``queue`` hid from the dev worker due now.
+
+    Retried deliveries (attempts > 0) keep their schedule.
+    """
+    database.execute(
+        str(test_tenant["id"]),
+        """
+        update oidc_backchannel_logout_deliveries set next_attempt_at = now()
+        where status = 'pending' and attempts = 0
+        """,
+    )
+
+
 def _deliver(test_tenant, rp: _RP) -> dict:
+    _release(test_tenant)
     with system_context(), rp.client() as client:
         return backchannel_service.deliver_due_backchannel_logouts(
             str(test_tenant["id"]), http_client=client
@@ -352,6 +378,7 @@ class TestDelivery:
         build.assert_not_called()
 
         queue(make_client())
+        _release(test_tenant)
         with system_context():
             counts = backchannel_service.deliver_due_backchannel_logouts(str(test_tenant["id"]))
         build.assert_called_once()
@@ -382,6 +409,168 @@ class TestCleanup:
 
     def test_due_tenants_are_listed(self, test_tenant, make_client, queue):
         queue(make_client())
+        _release(test_tenant)
         assert str(test_tenant["id"]) in (
             backchannel_service.list_tenants_with_due_backchannel_logouts()
         )
+
+
+# ---------------------------------------------------------------------------
+# Guard refusals are recorded generically (no internal-network oracle)
+# ---------------------------------------------------------------------------
+
+
+class TestBlockedDestination:
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "target resolves to a private or reserved address",
+            "target hostname could not be resolved: intranet.corp",
+        ],
+    )
+    def test_guard_refusal_is_blocked_destination(self, test_tenant, make_client, queue, message):
+        from utils.safe_http import SsrfBlockedError
+
+        queue(make_client())
+
+        counts = _deliver(test_tenant, _RP(exc=SsrfBlockedError(message)))
+
+        assert counts["retried"] == 1
+        row = _row(test_tenant)
+        assert row["last_error"] == "blocked_destination"
+        assert "intranet" not in row["last_error"]
+
+
+# ---------------------------------------------------------------------------
+# Admin read: list_backchannel_logout_deliveries
+# ---------------------------------------------------------------------------
+
+
+def _admin(test_tenant, user, role="admin"):
+    from services.types import RequestingUser
+
+    return RequestingUser(id=str(user["id"]), tenant_id=str(test_tenant["id"]), role=role)
+
+
+class TestListDeliveries:
+    def test_lists_newest_first_with_counts_and_tracks_activity(
+        self, test_tenant, test_admin_user, test_user, make_client, queue
+    ):
+        from unittest.mock import patch
+
+        client = make_client()
+        queue(client, sid="s-1")
+        _deliver(test_tenant, _RP(200))
+        queue(client, sid="s-2")
+
+        with patch("services.oidc.backchannel.track_activity") as track:
+            result = backchannel_service.list_backchannel_logout_deliveries(
+                _admin(test_tenant, test_admin_user), client["client_id"]
+            )
+
+        track.assert_called_once_with(str(test_tenant["id"]), str(test_admin_user["id"]))
+        assert result.total == 2
+        assert result.page == 1 and result.limit == 20
+        assert result.counts.model_dump() == {"pending": 1, "delivered": 1, "failed": 0}
+        pending, delivered = result.items
+        assert pending.status == "pending"
+        assert pending.next_attempt_at is not None
+        assert delivered.status == "delivered"
+        assert delivered.next_attempt_at is None  # only meaningful while pending
+        assert delivered.attempts == 1
+        assert delivered.last_http_status == 200
+        assert delivered.user_id == str(test_user["id"])
+        assert delivered.user_email == test_user["email"]
+        assert delivered.user_name == f"{test_user['first_name']} {test_user['last_name']}"
+
+    def test_status_filter_and_paging(self, test_tenant, test_admin_user, make_client, queue):
+        client = make_client()
+        for i in range(3):
+            queue(client, sid=f"s-{i}")
+        admin = _admin(test_tenant, test_admin_user)
+
+        page2 = backchannel_service.list_backchannel_logout_deliveries(
+            admin, client["client_id"], page=2, limit=2
+        )
+        assert len(page2.items) == 1 and page2.total == 3
+
+        delivered = backchannel_service.list_backchannel_logout_deliveries(
+            admin, client["client_id"], status="delivered"
+        )
+        assert delivered.items == [] and delivered.total == 0
+        assert delivered.counts.pending == 3
+
+    def test_deleted_user_has_no_name(
+        self, test_tenant, test_admin_user, test_user, make_client, queue
+    ):
+        client = make_client()
+        queue(client)
+        database.execute(
+            str(test_tenant["id"]), "delete from users where id = :id", {"id": test_user["id"]}
+        )
+        (item,) = backchannel_service.list_backchannel_logout_deliveries(
+            _admin(test_tenant, test_admin_user), client["client_id"]
+        ).items
+        assert item.user_id == str(test_user["id"])
+        assert item.user_name is None and item.user_email is None
+
+    def test_member_is_forbidden(self, test_tenant, test_user, make_client):
+        from services.exceptions import ForbiddenError
+
+        client = make_client()
+        with pytest.raises(ForbiddenError):
+            backchannel_service.list_backchannel_logout_deliveries(
+                _admin(test_tenant, test_user, role="member"), client["client_id"]
+            )
+
+    def test_unknown_client(self, test_tenant, test_admin_user):
+        from services.exceptions import NotFoundError
+
+        with pytest.raises(NotFoundError):
+            backchannel_service.list_backchannel_logout_deliveries(
+                _admin(test_tenant, test_admin_user), "weft-id_client_nope"
+            )
+
+    def test_b2b_client_rejected(self, test_tenant, test_admin_user, b2b_oauth2_client):
+        from services.exceptions import ValidationError
+
+        with pytest.raises(ValidationError) as exc:
+            backchannel_service.list_backchannel_logout_deliveries(
+                _admin(test_tenant, test_admin_user), b2b_oauth2_client["client_id"]
+            )
+        assert exc.value.code == "backchannel_logout_not_supported_for_client_type"
+
+    def test_invalid_status_rejected(self, test_tenant, test_admin_user, make_client):
+        from services.exceptions import ValidationError
+
+        client = make_client()
+        with pytest.raises(ValidationError) as exc:
+            backchannel_service.list_backchannel_logout_deliveries(
+                _admin(test_tenant, test_admin_user), client["client_id"], status="bogus"
+            )
+        assert exc.value.code == "invalid_delivery_status"
+
+    def test_other_tenant_client_not_found(self, test_tenant, test_admin_user, make_client):
+        import uuid
+
+        from services.exceptions import NotFoundError
+        from services.types import RequestingUser
+
+        client = make_client()
+        other = database.fetchone(
+            database.UNSCOPED,
+            "insert into tenants (subdomain, name) values (:s, 'Other') returning id",
+            {"s": f"other-{uuid.uuid4().hex[:8]}"},
+        )
+        try:
+            with pytest.raises(NotFoundError):
+                backchannel_service.list_backchannel_logout_deliveries(
+                    RequestingUser(
+                        id=str(test_admin_user["id"]), tenant_id=str(other["id"]), role="admin"
+                    ),
+                    client["client_id"],
+                )
+        finally:
+            database.execute(
+                database.UNSCOPED, "delete from tenants where id = :id", {"id": other["id"]}
+            )

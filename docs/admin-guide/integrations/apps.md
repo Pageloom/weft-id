@@ -105,7 +105,9 @@ refresh token**, and the refresh token you sent stops working immediately.
 Store the new one each time. Rotation does not extend the 30 days: the new
 refresh token expires when the original one would have. Access tokens issued
 earlier stay valid until they expire. A refresh token only works for the app
-it was issued to.
+it was issued to. A refresh token issued with an OIDC ID token (the `openid`
+scope) also ends when the user signs out of WeftID; see
+[Refresh tokens end with the session](oidc-provider-setup.md#refresh-tokens-end-with-the-session).
 
 ## Sign in with WeftID (OIDC)
 

@@ -28,6 +28,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child, has_page_access
 from services import oauth2 as oauth2_service
 from services.exceptions import ServiceError
+from services.oidc import backchannel as backchannel_service
 from services.oidc import clients as oidc_client_service
 from services.oidc import consent as consent_service
 from utils.redirects import safe_redirect
@@ -36,6 +37,10 @@ from utils.templates import templates
 from utils.urls import tenant_base_url
 
 logger = logging.getLogger(__name__)
+
+# Most recent back-channel logout deliveries listed on the App detail page
+# (the API pages through the rest).
+BACKCHANNEL_DELIVERIES_SHOWN = 20
 
 top_router = APIRouter(
     prefix="/applications",
@@ -265,6 +270,9 @@ def app_detail(
         requesting_user, client_id
     )
     consent_grants = consent_service.list_client_grants(requesting_user, client_id)
+    backchannel_deliveries = backchannel_service.list_backchannel_logout_deliveries(
+        requesting_user, client_id, limit=BACKCHANNEL_DELIVERIES_SHOWN
+    )
 
     context = get_template_context(
         request,
@@ -274,6 +282,7 @@ def app_detail(
         assigned_groups=assigned_groups,
         available_groups=available_groups,
         consent_grants=consent_grants,
+        backchannel_deliveries=backchannel_deliveries,
         pending_credentials=pending_credentials,
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),

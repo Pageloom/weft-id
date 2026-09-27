@@ -127,7 +127,7 @@ def terminate_session(
     the OIDC clients to notify (front-channel URLs; back-channel deliveries
     are queued), logs ``user_signed_out``
     (with ``downstream_sp_count``, ``frontchannel_logout_count``,
-    ``backchannel_logout_count`` and the
+    ``backchannel_logout_count``, ``refresh_tokens_revoked`` and the
     caller's ``metadata``), clears the session before anything else can fail,
     then propagates the logout to downstream SAML SPs (best-effort, never
     blocks).
@@ -161,6 +161,7 @@ def terminate_session(
                 "downstream_sp_count": len(active_sps),
                 "frontchannel_logout_count": len(oidc_end.frontchannel_logout_urls),
                 "backchannel_logout_count": oidc_end.backchannel_logout_count,
+                "refresh_tokens_revoked": oidc_end.refresh_tokens_revoked,
                 **(metadata or {}),
             },
             request_metadata=extract_request_metadata(request),

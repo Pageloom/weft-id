@@ -28,8 +28,13 @@ Front-channel fan-out: every ID token issued in a session is recorded
 against the session's ``sid`` (``issue_id_token``). When the session ends,
 ``end_oidc_session`` deletes those records and returns the front-channel
 logout URLs of the clients that registered one, for the logout page to load
-in iframes, and queues a back-channel delivery for each client that
-registered a back-channel logout URI.
+in iframes, queues a back-channel delivery for each client that registered a
+back-channel logout URI, and revokes the refresh tokens issued in the session
+(Back-Channel Logout 1.0, section 2.7).
+
+A user's deactivation or deletion ends every session they hold:
+``end_user_oidc_sessions`` queues the back-channel deliveries for all of them.
+There is no browser, so front-channel logout does not apply.
 """
 
 from __future__ import annotations
@@ -39,6 +44,7 @@ from urllib.parse import urlencode
 
 import database
 import jwt
+import settings
 from services.oidc.tokens import verify_id_token_hint
 
 # Why an end_session request cannot be honoured as sent. The router shows the
@@ -186,10 +192,13 @@ class OidcSessionEnd:
             page to load in iframes, in first-issued order, deduplicated.
         backchannel_logout_count: Back-channel logout deliveries queued for
             the worker.
+        refresh_tokens_revoked: Refresh tokens issued in the session that
+            were revoked with it.
     """
 
     frontchannel_logout_urls: list[str] = field(default_factory=list)
     backchannel_logout_count: int = 0
+    refresh_tokens_revoked: int = 0
 
 
 def end_oidc_session(
@@ -206,12 +215,16 @@ def end_oidc_session(
     re-authentication), for that session's own ``sid``.
 
     No audit of its own: the caller's ``user_signed_out`` event records the
-    logout, including the front-channel URL and back-channel delivery counts.
+    logout, including the front-channel URL, back-channel delivery and
+    revoked refresh-token counts.
 
     The session's records are consumed, and a back-channel logout delivery is
     queued for every active OIDC client that registered a
     ``backchannel_logout_uri``, in the same database statement; the worker
-    sends the logout tokens (``services.oidc.backchannel``).
+    sends the logout tokens (``services.oidc.backchannel``). The refresh
+    tokens issued in the session are revoked, for every client including an
+    excluded one (a re-authenticating client receives new tokens for the new
+    session), and so are the access tokens minted from them.
 
     Args:
         tenant_id: Tenant ID for RLS scoping.
@@ -226,8 +239,8 @@ def end_oidc_session(
 
     Returns:
         The front-channel logout URLs to load (one per active OIDC client that
-        registered a ``frontchannel_logout_uri``) and how many back-channel
-        deliveries were queued.
+        registered a ``frontchannel_logout_uri``), how many back-channel
+        deliveries were queued, and how many refresh tokens were revoked.
     """
     if not sid:
         return OidcSessionEnd()
@@ -251,7 +264,48 @@ def end_oidc_session(
         url = _frontchannel_logout_url(client, issuer=issuer, sid=sid)
         if url not in urls:
             urls.append(url)
+    revoked = database.oauth2.revoke_session_refresh_tokens(tenant_id, sid)
     return OidcSessionEnd(
         frontchannel_logout_urls=urls,
         backchannel_logout_count=sum(1 for row in rows if row.get("backchannel_queued")),
+        refresh_tokens_revoked=revoked,
     )
+
+
+def _canonical_issuer(tenant_id: str) -> str:
+    """The tenant's canonical ``https://<subdomain>.<BASE_DOMAIN>`` issuer.
+
+    Only a fallback: session records carry the issuer of the ID token that
+    created them, except records written before the issuer was recorded.
+    """
+    tenant = database.tenants.get_tenant_by_id(tenant_id)
+    if not tenant or not tenant.get("subdomain") or not settings.BASE_DOMAIN:
+        return ""
+    return f"https://{tenant['subdomain']}.{settings.BASE_DOMAIN}"
+
+
+def end_user_oidc_sessions(*, tenant_id: str, user_id: str) -> int:
+    """Queue back-channel logouts for every session a user holds.
+
+    Authorization: none -- called by the user lifecycle paths (deactivation,
+    anonymization, deletion) after their own authorization, and by worker
+    jobs that deactivate users.
+
+    No audit of its own: the caller's lifecycle event records the action; the
+    queued deliveries are their own log. Every session record of the user is
+    consumed and one delivery is queued per (session, back-channel client),
+    in one database statement. Refresh tokens are not touched here: the
+    lifecycle paths revoke all of the user's tokens themselves, and deletion
+    cascades.
+
+    Must run **before** a user row is deleted: session records cascade with
+    the user, deliveries do not (they carry the user id as ``sub``).
+
+    Returns:
+        The number of back-channel deliveries queued.
+    """
+    tenant_id = str(tenant_id)
+    rows = database.oauth2.consume_user_session_clients(
+        tenant_id, tenant_id, str(user_id), issuer=_canonical_issuer(tenant_id)
+    )
+    return sum(1 for row in rows if row.get("backchannel_queued"))

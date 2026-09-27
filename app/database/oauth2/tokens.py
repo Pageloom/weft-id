@@ -82,6 +82,7 @@ def create_refresh_token(
     user_id: str,
     scope: str | None = None,
     grant_id: str | None = None,
+    sid: str | None = None,
 ) -> tuple[str, str]:
     """
     Create an OAuth2 refresh token.
@@ -96,6 +97,8 @@ def create_refresh_token(
             refresh_token grant, keeping userinfo claims consistent)
         grant_id: The authorization code that started this grant (optional;
             carried onto rotated refresh tokens and their access tokens)
+        sid: The WeftID session the token was issued in (optional; set when
+            an ID token was issued with it, so ending that session revokes it)
 
     Returns:
         Tuple of (plain text refresh token, refresh token ID)
@@ -114,11 +117,11 @@ def create_refresh_token(
         """
         insert into oauth2_tokens (
             tenant_id, token_hash, token_lookup, token_type,
-            client_id, user_id, expires_at, scope, grant_id
+            client_id, user_id, expires_at, scope, grant_id, sid
         )
         values (
             :tenant_id, :token_hash, :token_lookup, 'refresh',
-            :client_id, :user_id, :expires_at, :scope, :grant_id
+            :client_id, :user_id, :expires_at, :scope, :grant_id, :sid
         )
         returning id
         """,
@@ -131,6 +134,7 @@ def create_refresh_token(
             "expires_at": expires_at,
             "scope": scope,
             "grant_id": grant_id,
+            "sid": sid,
         },
     )
 
@@ -195,7 +199,7 @@ def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> 
         client_id: OAuth2 client UUID (must match token's client_id)
 
     Returns:
-        Dict with id, user_id, tenant_id, scope, grant_id, expires_at if
+        Dict with id, user_id, tenant_id, scope, grant_id, sid, expires_at if
         valid, None otherwise.
         `scope` is the space-delimited granted-scope string persisted at
         issuance (may be None for pre-OIDC / non-scoped tokens); the
@@ -207,7 +211,7 @@ def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> 
     token_record = fetchone(
         tenant_id,
         """
-        select id, token_hash, user_id, tenant_id, scope, grant_id, expires_at
+        select id, token_hash, user_id, tenant_id, scope, grant_id, sid, expires_at
         from oauth2_tokens
         where token_type = 'refresh'
           and client_id = :client_id
@@ -224,6 +228,7 @@ def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> 
             "tenant_id": token_record["tenant_id"],
             "scope": token_record["scope"],
             "grant_id": token_record["grant_id"],
+            "sid": token_record["sid"],
             "expires_at": token_record["expires_at"],
         }
 
@@ -239,14 +244,15 @@ def rotate_refresh_token(
     scope: str | None,
     grant_id: str | None,
     expires_at: datetime,
+    sid: str | None = None,
 ) -> tuple[str, str] | None:
     """
     Replace a refresh token with a new one (refresh token rotation).
 
     In one transaction: the old token's row is locked (a concurrent rotation
     of the same token waits, then finds it gone, so exactly one succeeds), a
-    new refresh token is inserted with the same client, user, scope, grant and
-    absolute expiry, the old token's access tokens are re-parented onto the new
+    new refresh token is inserted with the same client, user, scope, grant,
+    session and absolute expiry, the old token's access tokens are re-parented onto the new
     one so they are not cascade-deleted mid-use, and the old token is deleted.
 
     Args:
@@ -259,6 +265,7 @@ def rotate_refresh_token(
         grant_id: Grant the token belongs to, carried forward
         expires_at: The old token's expiry, carried forward (rotation never
             extends the grant's lifetime)
+        sid: The WeftID session the old token was issued in, carried forward
 
     Returns:
         Tuple of (plain text refresh token, refresh token ID), or None when the
@@ -281,11 +288,12 @@ def rotate_refresh_token(
             """
             insert into oauth2_tokens (
                 tenant_id, token_hash, token_lookup, token_type,
-                client_id, user_id, expires_at, scope, grant_id
+                client_id, user_id, expires_at, scope, grant_id, sid
             )
             values (
                 %(tenant_id)s, %(token_hash)s, %(token_lookup)s, 'refresh',
-                %(client_id)s, %(user_id)s, %(expires_at)s, %(scope)s, %(grant_id)s
+                %(client_id)s, %(user_id)s, %(expires_at)s, %(scope)s, %(grant_id)s,
+                %(sid)s
             )
             returning id
             """,
@@ -298,6 +306,7 @@ def rotate_refresh_token(
                 "expires_at": expires_at,
                 "scope": scope,
                 "grant_id": grant_id,
+                "sid": sid,
             },
         )
         new_row = cur.fetchone()
@@ -331,6 +340,28 @@ def revoke_grant_tokens(tenant_id: TenantArg, grant_id: str) -> int:
         tenant_id,
         "delete from oauth2_tokens where grant_id = :grant_id",
         {"grant_id": grant_id},
+    )
+
+
+def revoke_session_refresh_tokens(tenant_id: TenantArg, sid: str) -> int:
+    """
+    Revoke the refresh tokens issued in one WeftID session.
+
+    Used when the session ends (Back-Channel Logout 1.0, section 2.7). The
+    access tokens minted from those refresh tokens go with them (the
+    ``parent_token_id`` foreign key cascades).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        sid: The session identifier recorded on the tokens
+
+    Returns:
+        Number of refresh tokens deleted
+    """
+    return execute(
+        tenant_id,
+        "delete from oauth2_tokens where token_type = 'refresh' and sid = :sid",
+        {"sid": sid},
     )
 
 

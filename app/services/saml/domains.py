@@ -15,6 +15,7 @@ from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
+from services.oidc.logout import end_user_oidc_sessions
 from services.types import RequestingUser
 from services.users.attributes import scrub_canonical_matches_mirror
 
@@ -510,6 +511,7 @@ def assign_user_idp(
         database.users.unverify_user_emails(tenant_id, user_id)
         database.users.inactivate_user(tenant_id, user_id)
         database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+        end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
         user_inactivated = True
         logger.info(f"User {user_id} inactivated after being removed from IdP")
 

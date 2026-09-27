@@ -72,6 +72,8 @@
                 Name is required.
                 {% elif error == 'redirect_uris_required' %}
                 At least one redirect URI is required.
+                {% elif error == 'invalid_post_logout_redirect_uri' %}
+                Each post-logout redirect URI must be an absolute http or https URI without a fragment.
                 {% elif error == 'update_failed' %}
                 Failed to update the app. Try again.
                 {% elif error == 'oidc_update_failed' %}
@@ -112,6 +114,13 @@
                 <textarea id="redirect_uris" name="redirect_uris" rows="4" required
                           class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{% if client.redirect_uris %}{{ client.redirect_uris | join('\n') }}{% endif %}</textarea>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">One URI per line. No wildcards allowed.</p>
+            </div>
+
+            <div>
+                <label for="post_logout_redirect_uris" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Post-logout redirect URIs</label>
+                <textarea id="post_logout_redirect_uris" name="post_logout_redirect_uris" rows="2"
+                          class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ (client.post_logout_redirect_uris or []) | join('\n') }}</textarea>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. Where the app may send users after they sign out through the end session endpoint (OpenID Connect only). One absolute http(s) URI per line, exact match.</p>
             </div>
 
             <div class="flex justify-end">
@@ -167,6 +176,7 @@
                         ('Authorization endpoint', 'oidc-authz', oidc_urls.authorization_endpoint),
                         ('Token endpoint', 'oidc-token', oidc_urls.token_endpoint),
                         ('UserInfo endpoint', 'oidc-userinfo', oidc_urls.userinfo_endpoint),
+                        ('End session endpoint', 'oidc-end-session', oidc_urls.end_session_endpoint),
                     ] %}
                     <div>
                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{{ label }}</label>

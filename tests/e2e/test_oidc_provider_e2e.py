@@ -9,6 +9,9 @@ cannot exercise together:
   3. ID-token verification        -- against the published JWKS, kid-selected
   4. /userinfo                    -- bearer access token boundary
 
+Also covers RP-initiated logout at /oauth2/logout in Chromium (the verified
+redirect back to the RP, and the confirmation form).
+
 Uses the oidc_testbed fixture (tenant + member user + OIDC-enabled client).
 """
 
@@ -166,3 +169,76 @@ class TestOidcProviderLoginResume:
         params = parse_qs(urlparse(page.url).query)
         assert params["state"] == [STATE]
         assert params["code"][0]
+
+
+def _code_and_id_token(page, cfg: dict) -> str:
+    """Run the authorize + token flow for a signed-in browser; return the ID token.
+
+    ``oidc_config`` is session-scoped, so an earlier test may already have
+    left a remembered consent: then the authorize request redirects straight
+    to the callback and there is no consent page to click.
+    """
+    page.goto(_authorize_url(cfg))
+    if not page.url.startswith(cfg["redirect_uri"]):
+        page.locator("button[name='action'][value='allow']").click()
+        page.wait_for_url(f"{cfg['redirect_uri']}?*", timeout=10000)
+    code = parse_qs(urlparse(page.url).query)["code"][0]
+    with httpx.Client(verify=_VERIFY, timeout=15.0) as client:
+        resp = client.post(
+            f"{cfg['base_url']}/oauth2/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": cfg["client_id"],
+                "client_secret": cfg["client_secret"],
+                "code": code,
+                "redirect_uri": cfg["redirect_uri"],
+            },
+        )
+    assert resp.status_code == 200, resp.text
+    return resp.json()["id_token"]
+
+
+class TestOidcProviderRpInitiatedLogout:
+    def test_verified_hint_signs_out_and_returns_to_the_rp(self, page, login, oidc_config):
+        """A valid id_token_hint ends the session with no page in between and
+        lands on the registered post_logout_redirect_uri with state; the ID
+        token carries the session's sid."""
+        cfg = oidc_config
+        base_url = cfg["base_url"]
+        login(base_url, cfg["user_email"])
+
+        id_token = _code_and_id_token(page, cfg)
+        assert jwt.decode(id_token, options={"verify_signature": False})["sid"]
+
+        query = urlencode(
+            {
+                "id_token_hint": id_token,
+                "post_logout_redirect_uri": cfg["post_logout_redirect_uri"],
+                "state": "bye-42",
+            }
+        )
+        page.goto(f"{base_url}/oauth2/logout?{query}")
+        page.wait_for_url(f"{cfg['post_logout_redirect_uri']}?*", timeout=10000)
+        assert parse_qs(urlparse(page.url).query) == {"state": ["bye-42"]}
+
+        # The WeftID session is gone.
+        page.goto(f"{base_url}/dashboard")
+        page.wait_for_url(f"{base_url}/login**", timeout=10000)
+
+    def test_unverified_request_asks_first_and_never_redirects(self, page, login, oidc_config):
+        """No hint: the confirmation form (no JS needed) signs the user out and
+        shows the signed-out page instead of going to the RP."""
+        cfg = oidc_config
+        base_url = cfg["base_url"]
+        login(base_url, cfg["user_email"])
+
+        query = urlencode({"post_logout_redirect_uri": cfg["post_logout_redirect_uri"]})
+        page.goto(f"{base_url}/oauth2/logout?{query}")
+        page.wait_for_selector("#logout-confirm", timeout=10000)
+        page.locator("#logout-confirm button[name='confirm']").click()
+
+        page.wait_for_url(f"{base_url}/oauth2/logout/done", timeout=10000)
+        assert "You have signed out" in page.content()
+
+        page.goto(f"{base_url}/dashboard")
+        page.wait_for_url(f"{base_url}/login**", timeout=10000)

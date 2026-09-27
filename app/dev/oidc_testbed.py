@@ -42,6 +42,8 @@ CLIENT_NAME = "OIDC E2E Relying Party"
 # A nonexistent path on the tenant host: the browser lands on a 404 page but
 # the URL (carrying ?code=&state=) is still readable by the test.
 CALLBACK_PATH = "/dev/oidc-rp-callback"
+# Same idea for the RP's post-logout landing page (RP-initiated logout).
+POST_LOGOUT_PATH = "/dev/oidc-rp-logged-out"
 
 
 def _tenant_id(subdomain: str) -> str:
@@ -77,6 +79,7 @@ def setup() -> dict:
 
     base_url = f"https://{SUBDOMAIN}.{BASE_DOMAIN}"
     redirect_uri = f"{base_url}{CALLBACK_PATH}"
+    post_logout_redirect_uri = f"{base_url}{POST_LOGOUT_PATH}"
 
     # Recreate the client on every run: the plaintext secret is only returned
     # at creation, and the test needs it for the token exchange.
@@ -91,6 +94,7 @@ def setup() -> dict:
         name=CLIENT_NAME,
         redirect_uris=[redirect_uri],
         created_by=str(uid),
+        post_logout_redirect_uris=[post_logout_redirect_uri],
     )
     assert client is not None, "client not created"
 
@@ -112,6 +116,7 @@ def setup() -> dict:
         "client_id": client["client_id"],
         "client_secret": client["client_secret"],
         "redirect_uri": redirect_uri,
+        "post_logout_redirect_uri": post_logout_redirect_uri,
     }
 
 

@@ -290,6 +290,7 @@ def app_edit(
     name: str = Form("", max_length=255),
     redirect_uris: str = Form("", max_length=20000),
     description: str = Form("", max_length=2000),
+    post_logout_redirect_uris: str = Form("", max_length=20000),
 ):
     """Update a normal OAuth2 client (App)."""
     if not has_page_access("/applications/oauth", user.get("role")):
@@ -318,6 +319,7 @@ def app_edit(
             name=name.strip(),
             description=description.strip() or None,
             redirect_uris=uri_list,
+            post_logout_redirect_uris=post_logout_redirect_uris.splitlines(),
         )
 
         if not client:
@@ -325,6 +327,8 @@ def app_edit(
 
         return safe_redirect(f"{redirect_url}?success=updated")
     except ServiceError as exc:
+        if exc.code == "invalid_post_logout_redirect_uri":
+            return safe_redirect(f"{redirect_url}?error=invalid_post_logout_redirect_uri")
         logger.warning("Failed to update OAuth2 app: %s", exc)
         return safe_redirect(f"{redirect_url}?error=update_failed")
 

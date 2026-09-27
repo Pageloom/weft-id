@@ -1702,3 +1702,106 @@ def test_app_detail_passes_consent_grants(test_admin_user, override_auth, mocker
     assert response.status_code == 200
     assert mock_ctx.call_args[1]["consent_grants"] == grants
     assert mock_list.call_args[0][1] == "weft-id_client_consents"
+
+
+# =============================================================================
+# Post-logout redirect URIs (RP-initiated logout), real database
+# =============================================================================
+
+
+def _edit_form(client_row: dict, **extra: str) -> dict:
+    data = {
+        "name": client_row["name"],
+        "description": "",
+        "redirect_uris": "\n".join(client_row["redirect_uris"]),
+        "csrf_token": "test-token",
+    }
+    data.update(extra)
+    return data
+
+
+def test_app_edit_saves_post_logout_redirect_uris(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(
+            normal_oauth2_client,
+            post_logout_redirect_uris="https://rp.example/bye\n\n  https://rp.example/bye2  \n",
+        ),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=updated" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["post_logout_redirect_uris"] == [
+        "https://rp.example/bye",
+        "https://rp.example/bye2",
+    ]
+
+
+def test_app_edit_blank_post_logout_field_clears_them(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        post_logout_redirect_uris=["https://rp.example/bye"],
+    )
+    override_auth(test_admin_user, level="admin")
+    TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(normal_oauth2_client, post_logout_redirect_uris=""),
+        follow_redirects=False,
+    )
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["post_logout_redirect_uris"] == []
+
+
+def test_app_edit_invalid_post_logout_uri_shows_error(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(normal_oauth2_client, post_logout_redirect_uris="not-a-uri"),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=invalid_post_logout_redirect_uri" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["post_logout_redirect_uris"] == []
+
+
+def test_app_detail_renders_post_logout_uris_and_end_session_url(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        post_logout_redirect_uris=["https://rp.example/bye"],
+    )
+    database.oauth2.update_client_oidc_settings(
+        test_tenant["id"], normal_oauth2_client["client_id"], oidc_enabled=True
+    )
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
+    assert response.status_code == 200
+    assert 'name="post_logout_redirect_uris"' in response.text
+    assert "https://rp.example/bye</textarea>" in response.text
+    assert "/oauth2/logout</code>" in response.text

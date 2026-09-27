@@ -2,14 +2,14 @@
 
 WeftID's OpenID Provider is tested with the [OpenID Foundation conformance suite](https://gitlab.com/openid/conformance-suite), the open-source test suite the OpenID Foundation uses for its own certification program. WeftID runs the suite itself, in CI, and publishes the results on this page.
 
-WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Config OP, and Form Post OP profiles. It is **not** "OpenID Certified": that is the OpenID Foundation's certification mark, which requires a formal submission WeftID has chosen not to make. The evidence here is the suite's own output, and anyone can rerun it (see [Rerunning the suite](#rerunning-the-suite)).
+WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Config OP, Form Post OP, and RP-Initiated OP profiles. It is **not** "OpenID Certified": that is the OpenID Foundation's certification mark, which requires a formal submission WeftID has chosen not to make. The evidence here is the suite's own output, and anyone can rerun it (see [Rerunning the suite](#rerunning-the-suite)).
 
 ## Results
 
 <!-- conformance-results:start -->
 
 * **Suite version:** 5.2.4
-* **WeftID version:** 1.12.0 (`ec2a8006`)
+* **WeftID version:** 1.12.0 (`2462e169`)
 * **Run date:** 2026-09-27
 
 | Profile | Test plan | Outcome | Passed | Warning | Review | Skipped | Failed |
@@ -17,6 +17,7 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 | Basic OP | `oidcc-basic-certification-test-plan` | Green | 24 | 3 | 4 | 4 | 0 |
 | Config OP | `oidcc-config-certification-test-plan` | Green | 1 | 0 | 0 | 0 | 0 |
 | Form Post OP | `oidcc-formpost-basic-certification-test-plan` | Green | 24 | 3 | 4 | 4 | 0 |
+| RP-Initiated OP | `oidcc-rp-initiated-logout-certification-test-plan` | Green | 3 | 0 | 8 | 0 | 0 |
 
 **Accepted warnings** (each is a deviation listed below):
 
@@ -37,6 +38,14 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 * `oidcc-max-age-1` (Basic OP, Form Post OP)
 * `oidcc-ensure-registered-redirect-uri` (Basic OP, Form Post OP)
 * `oidcc-ensure-request-object-with-redirect-uri` (Basic OP, Form Post OP)
+* `oidcc-rp-initiated-logout-bad-post-logout-redirect-uri` (RP-Initiated OP)
+* `oidcc-rp-initiated-logout-modified-id-token-hint` (RP-Initiated OP)
+* `oidcc-rp-initiated-logout-no-id-token-hint` (RP-Initiated OP)
+* `oidcc-rp-initiated-logout-no-params` (RP-Initiated OP)
+* `oidcc-rp-initiated-logout-no-post-logout-redirect-uri` (RP-Initiated OP)
+* `oidcc-rp-initiated-logout-only-state` (RP-Initiated OP)
+* `oidcc-rp-initiated-logout-query-added-to-post-logout-redirect-uri` (RP-Initiated OP)
+* `oidcc-rp-initiated-logout-bad-id-token-hint` (RP-Initiated OP)
 
 <!-- conformance-results:end -->
 
@@ -46,7 +55,7 @@ Each profile is one test plan made of test modules. A profile is **green** when 
 
 * **Passed**: every check succeeded.
 * **Warning**: the provider did something the specification allows but recommends against (a SHOULD). Every warning WeftID accepts is listed by name under the table and explained in [Deviations](#deviations).
-* **Review**: the module passed its automated checks and captured a screenshot for a person to judge, because the suite cannot judge page content. These are the error page for an unregistered redirect URI and the second login page for `prompt=login` and `max_age`.
+* **Review**: the module passed its automated checks and captured a screenshot for a person to judge, because the suite cannot judge page content. These are the error page for an unregistered redirect URI, the second login page for `prompt=login` and `max_age`, and the sign-out confirmation and signed-out pages for RP-initiated logout.
 * **Skipped**: the module tests a feature WeftID does not offer and says so in its discovery document (for example the `address` and `phone` scopes, or request objects).
 
 A single **Failed** or unfinished module makes the profile red.
@@ -58,7 +67,7 @@ The runner compares every run against two files checked into the repository: [`e
 * **Implicit OP** and **Hybrid OP**: WeftID issues authorization codes only (`response_type=code`). The implicit and hybrid flows return tokens through the browser, and current OAuth security guidance advises against them.
 * **Session OP** (OpenID Connect Session Management): the `check_session_iframe` mechanism relies on third-party cookies, which browsers now block.
 
-RP-Initiated, Front-Channel, and Back-Channel Logout, Dynamic Registration, and Third-Party-Initiated Login are planned. They will be added to the table as they are implemented and pass.
+Front-Channel and Back-Channel Logout, Dynamic Registration, and Third-Party-Initiated Login are planned. They will be added to the table as they are implemented and pass.
 
 ## Deviations
 
@@ -70,6 +79,7 @@ These are the places where WeftID knowingly differs from what the suite checks f
 * **No request objects.** The `request` and `request_uri` parameters are rejected with `request_not_supported`, and discovery says so. The suite accepts this and skips the rest of the module.
 * **No `address` or `phone` scopes.** WeftID has no attributes to fill them, so they are not advertised and the suite skips their modules.
 * **Re-authentication is local.** `prompt=login` and an expired `max_age` make the user sign in to WeftID again (password, then two-step verification per policy). The re-authentication is not passed on to an upstream SAML or OIDC identity provider.
+* **RP-initiated logout stays inside WeftID.** Signing out through the end session endpoint ends the WeftID session and notifies downstream SAML applications, but does not start a logout at the upstream identity provider the user signed in with. The sign-out button in WeftID itself still does.
 
 One known limitation is not a conformance deviation, but is listed so this page does not overstate things: expired OAuth2 access and refresh tokens stop working at expiry but are not yet deleted from the database.
 

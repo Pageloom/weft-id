@@ -46,6 +46,7 @@ class TestDiscoveryDocument:
         assert body["token_endpoint"] == f"{base}/oauth2/token"
         assert body["userinfo_endpoint"] == f"{base}/userinfo"
         assert body["jwks_uri"] == f"{base}/.well-known/jwks.json"
+        assert body["end_session_endpoint"] == f"{base}/oauth2/logout"
 
     def test_static_capability_values(self, client, test_tenant_host):
         body = _discovery(client, test_tenant_host).json()
@@ -73,7 +74,7 @@ class TestDiscoveryDocument:
         body = _discovery(client, test_tenant_host).json()
         claims = set(body["claims_supported"])
         # Envelope claims from the ID-token minter / userinfo.
-        assert {"sub", "iss", "aud", "exp", "iat", "auth_time", "nonce"} <= claims
+        assert {"sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "sid"} <= claims
         # profile + email scope claims from the shared assembler.
         assert {
             "name",
@@ -98,10 +99,11 @@ class TestDiscoveryDocument:
         assert body["claims_parameter_supported"] is False
 
     def test_does_not_advertise_unimplemented_capabilities(self, client, test_tenant_host):
-        """Logout, introspection, revocation, device grant, DCR are out of scope."""
+        """Channel logout, introspection, revocation, device grant, DCR do not exist yet."""
         body = _discovery(client, test_tenant_host).json()
         for absent in (
-            "end_session_endpoint",
+            "frontchannel_logout_supported",
+            "backchannel_logout_supported",
             "introspection_endpoint",
             "revocation_endpoint",
             "registration_endpoint",

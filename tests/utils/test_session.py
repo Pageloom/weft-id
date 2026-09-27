@@ -3,7 +3,7 @@
 import time
 from unittest.mock import MagicMock
 
-from utils.session import regenerate_session
+from utils.session import SESSION_ID_KEY, ensure_session_id, regenerate_session
 
 
 class TestRegenerateSession:
@@ -133,7 +133,7 @@ class TestRegenerateSession:
         regenerate_session(mock_request, "user-123", 3600, additional_data={})
 
         # Should only have core keys
-        assert set(mock_session.keys()) == {"user_id", "session_start", "_max_age"}
+        assert set(mock_session.keys()) == {"user_id", "session_start", "_max_age", "sid"}
 
     def test_none_additional_data(self):
         """Test with None additional_data (default)."""
@@ -144,7 +144,7 @@ class TestRegenerateSession:
         regenerate_session(mock_request, "user-123", 3600, additional_data=None)
 
         # Should only have core keys
-        assert set(mock_session.keys()) == {"user_id", "session_start", "_max_age"}
+        assert set(mock_session.keys()) == {"user_id", "session_start", "_max_age", "sid"}
 
 
 class TestSessionFixationPrevention:
@@ -197,3 +197,45 @@ class TestSessionFixationPrevention:
         clear_index = call_order.index("clear")
         for item in call_order[clear_index + 1 :]:
             assert item.startswith("set:"), f"Unexpected call after clear: {item}"
+
+
+class TestSessionId:
+    """The opaque session identifier behind the OIDC ``sid`` claim."""
+
+    def _regenerate(self, session: dict, additional_data: dict | None = None) -> dict:
+        request = MagicMock()
+        request.session = session
+        regenerate_session(request, "user-1", 3600, additional_data=additional_data)
+        return session
+
+    def test_regeneration_mints_a_random_identifier(self):
+        session = self._regenerate({})
+        sid = session[SESSION_ID_KEY]
+        assert isinstance(sid, str) and len(sid) >= 32
+
+    def test_every_login_gets_a_new_identifier(self):
+        """A sid known before login (fixation) never names the new session."""
+        session = self._regenerate({SESSION_ID_KEY: "attacker-known"})
+        first = session[SESSION_ID_KEY]
+        assert first != "attacker-known"
+        assert self._regenerate(session)[SESSION_ID_KEY] != first
+
+    def test_additional_data_cannot_set_the_identifier(self):
+        session = self._regenerate({}, additional_data={SESSION_ID_KEY: "carried-over"})
+        assert session[SESSION_ID_KEY] != "carried-over"
+
+    def test_ensure_mints_for_a_session_without_one(self):
+        session: dict = {"user_id": "user-1"}
+        sid = ensure_session_id(session)
+        assert sid and session[SESSION_ID_KEY] == sid
+
+    def test_ensure_keeps_an_existing_identifier(self):
+        session = {SESSION_ID_KEY: "existing-sid"}
+        assert ensure_session_id(session) == "existing-sid"
+        assert session[SESSION_ID_KEY] == "existing-sid"
+
+    def test_ensure_replaces_a_malformed_identifier(self):
+        for bad in ("", None, 123):
+            session = {SESSION_ID_KEY: bad}
+            sid = ensure_session_id(session)
+            assert isinstance(sid, str) and sid and session[SESSION_ID_KEY] == sid

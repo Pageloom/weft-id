@@ -8,7 +8,9 @@ Most functions are thin wrappers over database operations, so tests focus on:
 """
 
 import database
+import pytest
 from services import oauth2 as oauth2_service
+from services.exceptions import ValidationError
 
 # =============================================================================
 # Client Operations Tests
@@ -682,3 +684,130 @@ def test_create_authorization_code_sweeps_expired_codes(
     assert [str(r["id"]) for r in rows] != [consumed["id"]]
     assert consumed["id"] not in {str(r["id"]) for r in rows}
     assert len(rows) == 1
+
+
+# =============================================================================
+# Post-logout redirect URIs (RP-initiated logout)
+# =============================================================================
+
+
+class TestValidatePostLogoutRedirectUris:
+    def test_accepts_absolute_http_and_https(self):
+        uris = ["https://rp.example/bye", "http://localhost:3000/logged-out?x=1"]
+        assert oauth2_service.validate_post_logout_redirect_uris(uris) == uris
+
+    def test_drops_blanks_and_duplicates_keeping_order(self):
+        result = oauth2_service.validate_post_logout_redirect_uris(
+            ["  https://b.example/ ", "", "https://a.example/", "https://b.example/", "   "]
+        )
+        assert result == ["https://b.example/", "https://a.example/"]
+
+    def test_empty_list_is_fine(self):
+        assert oauth2_service.validate_post_logout_redirect_uris([]) == []
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "/relative/path",
+            "rp.example/bye",
+            "javascript:alert(1)",
+            "ftp://rp.example/bye",
+            "https:///no-host",
+            "https://rp.example/bye#frag",
+            "https://rp.example/bye#",
+            "http://[::1",
+        ],
+    )
+    def test_rejects_malformed(self, bad):
+        with pytest.raises(ValidationError) as exc:
+            oauth2_service.validate_post_logout_redirect_uris([bad])
+        assert exc.value.code == "invalid_post_logout_redirect_uri"
+
+    def test_rejects_too_many(self):
+        with pytest.raises(ValidationError) as exc:
+            oauth2_service.validate_post_logout_redirect_uris(
+                [f"https://rp.example/{i}" for i in range(51)]
+            )
+        assert exc.value.code == "invalid_post_logout_redirect_uri"
+
+
+def test_create_normal_client_with_post_logout_redirect_uris(test_tenant, test_admin_user):
+    client = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="Logout Client",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+        post_logout_redirect_uris=[" https://rp.example/bye ", ""],
+    )
+    assert client["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+
+
+def test_create_normal_client_rejects_bad_post_logout_uri_before_writing(
+    test_tenant, test_admin_user
+):
+    with pytest.raises(ValidationError):
+        oauth2_service.create_normal_client(
+            tenant_id=test_tenant["id"],
+            name="Never Created",
+            redirect_uris=["https://rp.example/cb"],
+            created_by=test_admin_user["id"],
+            post_logout_redirect_uris=["not a uri"],
+        )
+    names = [c["name"] for c in oauth2_service.get_all_clients(test_tenant["id"])]
+    assert "Never Created" not in names
+
+
+def test_update_client_sets_post_logout_uris_and_logs(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    result = oauth2_service.update_client(
+        tenant_id=test_tenant["id"],
+        client_id=normal_oauth2_client["client_id"],
+        actor_user_id=str(test_admin_user["id"]),
+        post_logout_redirect_uris=["https://rp.example/bye"],
+    )
+    assert result["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "oauth2_client_updated"
+    assert events[0]["metadata"]["changed_fields"] == ["post_logout_redirect_uris"]
+
+
+def test_update_client_unchanged_post_logout_uris_log_nothing(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    before = database.event_log.list_events(test_tenant["id"], limit=1)
+    oauth2_service.update_client(
+        tenant_id=test_tenant["id"],
+        client_id=normal_oauth2_client["client_id"],
+        actor_user_id=str(test_admin_user["id"]),
+        post_logout_redirect_uris=[],
+    )
+    after = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert [e["id"] for e in after] == [e["id"] for e in before]
+
+
+def test_update_client_rejects_bad_post_logout_uri(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    with pytest.raises(ValidationError) as exc:
+        oauth2_service.update_client(
+            tenant_id=test_tenant["id"],
+            client_id=normal_oauth2_client["client_id"],
+            actor_user_id=str(test_admin_user["id"]),
+            post_logout_redirect_uris=["https://rp.example/bye#x"],
+        )
+    assert exc.value.code == "invalid_post_logout_redirect_uri"
+
+
+def test_update_b2b_client_rejects_post_logout_uris(
+    test_tenant, b2b_oauth2_client, test_admin_user
+):
+    with pytest.raises(ValidationError) as exc:
+        oauth2_service.update_client(
+            tenant_id=test_tenant["id"],
+            client_id=b2b_oauth2_client["client_id"],
+            actor_user_id=str(test_admin_user["id"]),
+            post_logout_redirect_uris=["https://rp.example/bye"],
+        )
+    assert exc.value.code == "redirect_uris_not_allowed"

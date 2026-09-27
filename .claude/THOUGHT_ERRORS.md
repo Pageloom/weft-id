@@ -680,3 +680,15 @@ empty body (every `Form()` parameter missing, so a 422). `form()` reads from the
 body once it exists, so parsing still happens once. Found 2026-09-14 when CSRF enforcement
 went live and every browser form POST in the E2E suite returned 422. Test the handler side
 too: a middleware test whose handler ignores the body proves nothing about replay.
+
+## `make check` Formats Only `app/` and `tests/`
+
+**Wrong:** Running `poetry run ruff format app tests dev` to fix a line-length error.
+**Right:** `make fix` (or `ruff format app/ tests/`) and, for a `dev/` script you edited,
+`ruff check`/`ruff format --check` on that one file only.
+
+The gate lints and formats `app/` and `tests/`. Several `dev/` scripts carry formatting the
+repo's ruff version would rewrite (for example `except (A, B):` becomes the Python 3.14
+`except A, B:` form), so formatting the whole `dev/` tree silently rewrites files nobody
+meant to touch. Found 2026-09-27: three unrelated `dev/` files were reformatted and had to
+be reverted with `git checkout`.

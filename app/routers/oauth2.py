@@ -33,6 +33,7 @@ from services.oidc.claims import SCOPE_OPENID, parse_scope
 from utils.csp_nonce import get_csp_nonce
 from utils.redirects import safe_redirect
 from utils.request_metadata import extract_request_metadata
+from utils.session import ensure_session_id
 from utils.templates import templates
 from utils.urls import tenant_base_url
 
@@ -729,6 +730,7 @@ def _issue_code(
         scope=scope,
         nonce=nonce,
         auth_time=auth_time,
+        sid=ensure_session_id(rp.request.session),
     )
     return rp.deliver([("code", code)])
 
@@ -1091,6 +1093,7 @@ def token_endpoint(
                 scopes=scopes,
                 nonce=code_data.get("nonce"),
                 auth_time=code_data.get("auth_time"),
+                sid=code_data.get("sid"),
             )
 
         return _token_success(

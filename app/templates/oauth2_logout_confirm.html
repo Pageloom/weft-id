@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Out - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="flex justify-center">
+    <div class="w-full max-w-md">
+        <div id="logout-confirm" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+            <h1 class="text-2xl font-semibold text-center mb-6 text-gray-900 dark:text-gray-100">Sign out?</h1>
+
+            {% if problem %}
+            <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-gray-700 text-yellow-800 dark:text-yellow-300 px-4 py-3 rounded mb-6" role="alert">
+                <p class="text-sm">
+                    {% if problem == 'invalid_id_token_hint' %}
+                    An application asked to sign you out, but its request could not be verified.
+                    {% elif problem == 'unregistered_post_logout_redirect_uri' %}
+                    An application asked to sign you out and return to an address it has not registered (post_logout_redirect_uri not registered).
+                    {% elif problem == 'id_token_hint_required' %}
+                    An application asked to sign you out and return to it, but did not identify the session it signed in with.
+                    {% elif problem == 'unknown_client' %}
+                    An application that is not registered asked to sign you out.
+                    {% elif problem == 'other_user' %}
+                    An application asked to sign out a different account than the one you are signed in with.
+                    {% endif %}
+                    You will not be sent back to the application.
+                </p>
+            </div>
+            {% endif %}
+
+            <div class="mb-6">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Signed in as:</p>
+                <p class="font-semibold text-gray-900 dark:text-gray-100">{{ user.first_name }} {{ user.last_name }}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400">{{ user.email }}</p>
+            </div>
+
+            <form method="post" action="/oauth2/logout/confirm" class="flex gap-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <a href="/dashboard"
+                   class="flex-1 text-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Stay signed in
+                </a>
+                <button type="submit" name="confirm" value="yes"
+                        class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Sign out
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

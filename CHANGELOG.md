@@ -11,13 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **OpenID Foundation conformance.** WeftID's OpenID Provider passes the
   OpenID Foundation conformance suite (release 5.2.4) for the Basic OP,
-  Config OP, and Form Post OP profiles, with no failures. The accepted
+  Config OP, Form Post OP, and RP-Initiated OP profiles, with no failures. The accepted
   warnings (no `acr` claim, no `claims` request parameter, a partial
   `profile` claim set) and expected skips are listed with their reasons on
   the new [OpenID Connect Conformance](docs/conformance/oidc.md) docs page,
   along with how to rerun the suite. A CI workflow runs it on the E2E
   schedule and publishes the results with each run. This is conformance
   evidence, not the OpenID Certified mark.
+- **RP-initiated logout (OIDC).** Apps can sign users out of WeftID through
+  the new end session endpoint, `/oauth2/logout` (advertised in discovery as
+  `end_session_endpoint`, `GET` and `POST`). With a valid `id_token_hint` the
+  user is signed out at once and sent to the app's registered post-logout
+  redirect URI with `state`; otherwise WeftID asks the user to confirm and
+  never redirects to an unverified address. Downstream SAML sessions are
+  ended as with the sign-out button. Apps register **Post-logout redirect
+  URIs** on their edit form or as `post_logout_redirect_uris` on
+  `/api/v1/oauth2/clients`. Audited as `user_signed_out` with reason
+  `rp_initiated_logout`. Migration 0063.
+- **`sid` claim.** ID tokens now carry `sid`, an opaque identifier of the
+  WeftID session the user signed in with, renewed at every sign-in.
 - **Remembered consent.** WeftID now remembers a user's **Allow** on the
   OAuth2 / OIDC consent screen per application and scope set. Later
   authorization requests covered by the grant skip the screen, `prompt=none`

@@ -7,7 +7,8 @@ WeftID as an OpenID Provider with static client registration:
   * a WeftID tenant (``oidc-conformance.weftid.localhost``),
   * a member user the suite's scripted browser logs in as,
   * three OIDC-enabled OAuth2 clients, all registered with the suite's
-    callback URL. The certification profiles exercise two clients with
+    callback URL and its ``post_logout_redirect`` URL (RP-initiated logout
+    plan). The certification profiles exercise two clients with
     ``client_secret_basic`` and one with ``client_secret_post``; WeftID
     clients accept either method, so the three are identical apart from name.
 
@@ -69,7 +70,9 @@ def _tenant_id(subdomain: str) -> str:
     return str(row["id"])
 
 
-def _recreate_client(tid: str, name: str, redirect_uri: str, created_by: str) -> dict:
+def _recreate_client(
+    tid: str, name: str, redirect_uri: str, post_logout_redirect_uri: str, created_by: str
+) -> dict:
     """Delete any client with this name and create a fresh OIDC-enabled one."""
     for existing in database.oauth2.get_all_clients(tid, client_type="normal"):
         if existing["name"] == name:
@@ -82,6 +85,7 @@ def _recreate_client(tid: str, name: str, redirect_uri: str, created_by: str) ->
         name=name,
         redirect_uris=[redirect_uri],
         created_by=created_by,
+        post_logout_redirect_uris=[post_logout_redirect_uri],
     )
     assert client is not None, f"client '{name}' not created"
 
@@ -117,10 +121,17 @@ def setup(suite_base_url: str, alias: str) -> dict:
     assert uid is not None, "user not created"
 
     issuer = f"https://{SUBDOMAIN}.{BASE_DOMAIN}"
-    redirect_uri = f"{suite_base_url.rstrip('/')}/test/a/{alias}/callback"
+    test_base = f"{suite_base_url.rstrip('/')}/test/a/{alias}"
+    redirect_uri = f"{test_base}/callback"
+    # The RP-initiated logout plan's static-client convention: the callback URL
+    # with the part after the alias replaced by /post_logout_redirect.
+    post_logout_redirect_uri = f"{test_base}/post_logout_redirect"
 
     clients = {
-        key: _recreate_client(tid, name, redirect_uri, created_by=str(uid)) for key, name in CLIENTS
+        key: _recreate_client(
+            tid, name, redirect_uri, post_logout_redirect_uri, created_by=str(uid)
+        )
+        for key, name in CLIENTS
     }
 
     return {
@@ -130,6 +141,7 @@ def setup(suite_base_url: str, alias: str) -> dict:
         "user_email": USER_EMAIL,
         "password": DEV_PASSWORD,
         "redirect_uri": redirect_uri,
+        "post_logout_redirect_uri": post_logout_redirect_uri,
         "alias": alias,
         **clients,
     }

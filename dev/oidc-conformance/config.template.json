@@ -69,6 +69,33 @@
                     ]
                 }
             ]
+        },
+        {
+            "comment": "End-session path (RP-Initiated OP plan). A verified id_token_hint signs the user out at once and returns to the suite's post_logout_redirect. The modules without one see the confirmation page, click Sign out, and the signed-out page fulfils their screenshot placeholder. The first task also matches the signed-out page, where its optional click finds nothing and is skipped.",
+            "match": "{WEFTID_ISSUER}/oauth2/logout*",
+            "tasks": [
+                {
+                    "task": "Confirm sign-out",
+                    "optional": true,
+                    "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                    "commands": [
+                        ["click", "css", "#logout-confirm button[name='confirm']", "optional"]
+                    ]
+                },
+                {
+                    "task": "Signed-out page",
+                    "optional": true,
+                    "match": "{WEFTID_ISSUER}/oauth2/logout/done*",
+                    "commands": [
+                        ["wait", "id", "logout-done", 10, "signed out", "update-image-placeholder-optional"]
+                    ]
+                },
+                {
+                    "task": "Post-logout redirect back to the suite",
+                    "optional": true,
+                    "match": "*/test/*/post_logout_redirect*"
+                }
+            ]
         }
     ],
     "override": {
@@ -261,6 +288,96 @@
                             "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                             "commands": [
                                 ["wait", "xpath", "//*", 10, "redirect_uri", "update-image-placeholder"]
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "oidcc-rp-initiated-logout-bad-id-token-hint": {
+            "browser": [
+                "$browser[0]",
+                {
+                    "comment": "The id_token_hint is signed by the suite, not WeftID. WeftID must not redirect back; it shows the sign-out confirmation page, whose snapshot fulfils the placeholder.",
+                    "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                    "tasks": [
+                        {
+                            "task": "Expect sign-out confirmation page",
+                            "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                            "commands": [
+                                ["wait", "id", "logout-confirm", 10, "Sign out", "update-image-placeholder"]
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "oidcc-rp-initiated-logout-modified-id-token-hint": {
+            "browser": [
+                "$browser[0]",
+                {
+                    "comment": "The id_token_hint has been changed to alg:none. WeftID must not redirect back; it shows the sign-out confirmation page, whose snapshot fulfils the placeholder.",
+                    "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                    "tasks": [
+                        {
+                            "task": "Expect sign-out confirmation page",
+                            "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                            "commands": [
+                                ["wait", "id", "logout-confirm", 10, "Sign out", "update-image-placeholder"]
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "oidcc-rp-initiated-logout-no-id-token-hint": {
+            "browser": [
+                "$browser[0]",
+                {
+                    "comment": "A post_logout_redirect_uri without an id_token_hint. WeftID must not redirect back; it shows the sign-out confirmation page, whose snapshot fulfils the placeholder.",
+                    "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                    "tasks": [
+                        {
+                            "task": "Expect sign-out confirmation page",
+                            "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                            "commands": [
+                                ["wait", "id", "logout-confirm", 10, "Sign out", "update-image-placeholder"]
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "oidcc-rp-initiated-logout-bad-post-logout-redirect-uri": {
+            "browser": [
+                "$browser[0]",
+                {
+                    "comment": "The post_logout_redirect_uri is not registered. WeftID must not redirect back; it shows the sign-out confirmation page, whose snapshot fulfils the placeholder.",
+                    "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                    "tasks": [
+                        {
+                            "task": "Expect sign-out confirmation page",
+                            "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                            "commands": [
+                                ["wait", "id", "logout-confirm", 10, "Sign out", "update-image-placeholder"]
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "oidcc-rp-initiated-logout-query-added-to-post-logout-redirect-uri": {
+            "browser": [
+                "$browser[0]",
+                {
+                    "comment": "The registered post_logout_redirect_uri with '?foo=bar' added does not match. WeftID must not redirect back; it shows the sign-out confirmation page, whose snapshot fulfils the placeholder.",
+                    "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                    "tasks": [
+                        {
+                            "task": "Expect sign-out confirmation page",
+                            "match": "{WEFTID_ISSUER}/oauth2/logout*",
+                            "commands": [
+                                ["wait", "id", "logout-confirm", 10, "Sign out", "update-image-placeholder"]
                             ]
                         }
                     ]

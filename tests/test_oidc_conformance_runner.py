@@ -91,6 +91,48 @@ class TestRenderConfig:
         assert json.loads(rendered) == {"a": "{BASEURL}test/a/weftid/callback"}
 
 
+class TestBrowserRefs:
+    def _config(self, *override_entries) -> dict:
+        return {
+            "browser": [{"match": "a*"}, {"match": "b*"}],
+            "override": {"mod": {"browser": list(override_entries)}},
+        }
+
+    def test_references_become_copies_of_top_level_entries(self, runner):
+        cfg = self._config("$browser[1]", {"match": "c*"}, "$browser[0]")
+        expanded = runner.expand_browser_refs(cfg)
+        assert expanded["override"]["mod"]["browser"] == [
+            {"match": "b*"},
+            {"match": "c*"},
+            {"match": "a*"},
+        ]
+        # A copy, not an alias, and the input is left alone.
+        assert expanded["override"]["mod"]["browser"][0] is not expanded["browser"][1]
+        assert cfg["override"]["mod"]["browser"][0] == "$browser[1]"
+
+    @pytest.mark.parametrize("bad", ["$browser[2]", "$browser[x]", "browser[0]", "$browser"])
+    def test_bad_reference_is_an_error(self, runner, bad):
+        with pytest.raises(runner.ConformanceError, match="mod"):
+            runner.expand_browser_refs(self._config(bad))
+
+    def test_overrides_without_browser_are_untouched(self, runner):
+        cfg = {"browser": [], "override": {"mod": {"skip": True}, "other": "x"}}
+        assert runner.expand_browser_refs(cfg) == cfg
+
+    def test_template_without_references_renders_byte_for_byte(self, runner, testbed):
+        template = '{"alias": "{ALIAS}", "override": {"m": {"browser": [{"match": "x"}]}}}'
+        rendered = runner.render_config(template, testbed)
+        assert rendered == template.replace("{ALIAS}", "weftid")
+
+    def test_render_expands_references(self, runner, testbed):
+        template = (
+            '{"browser": [{"match": "{WEFTID_ISSUER}/x"}],'
+            ' "override": {"m": {"browser": ["$browser[0]"]}}}'
+        )
+        cfg = json.loads(runner.render_config(template, testbed))
+        assert cfg["override"]["m"]["browser"] == [{"match": f"{testbed['issuer']}/x"}]
+
+
 class TestCheckedInFiles:
     def test_browser_automation_covers_every_login_step(self, runner, testbed):
         """Every optional interactive step is scripted so no test needs a human."""
@@ -104,6 +146,33 @@ class TestCheckedInFiles:
         # The final task is mandatory and waits on the suite's own callback.
         final = cfg["browser"][0]["tasks"][-1]
         assert final["match"] == "*/test/*/callback*" and "optional" not in final
+
+    def test_logout_automation(self, runner, testbed):
+        """The end-session entry confirms, snapshots the signed-out page, and
+        accepts the redirect back; the confirmation-page modules snapshot
+        that page instead and keep the full login script."""
+        cfg = json.loads(runner.render_config(runner.TEMPLATE_PATH.read_text(), testbed))
+        issuer = testbed["issuer"]
+        logout = next(e for e in cfg["browser"] if e["match"] == f"{issuer}/oauth2/logout*")
+        tasks = {t["task"]: t for t in logout["tasks"]}
+        assert all(t.get("optional") for t in logout["tasks"])
+        assert tasks["Confirm sign-out"]["commands"][0][-1] == "optional"
+        assert tasks["Signed-out page"]["match"] == f"{issuer}/oauth2/logout/done*"
+
+        confirm_modules = [
+            "oidcc-rp-initiated-logout-bad-id-token-hint",
+            "oidcc-rp-initiated-logout-modified-id-token-hint",
+            "oidcc-rp-initiated-logout-no-id-token-hint",
+            "oidcc-rp-initiated-logout-bad-post-logout-redirect-uri",
+            "oidcc-rp-initiated-logout-query-added-to-post-logout-redirect-uri",
+        ]
+        for name in confirm_modules:
+            browser = cfg["override"][name]["browser"]
+            assert browser[0] == cfg["browser"][0], f"{name}: login script not expanded"
+            (task,) = browser[1]["tasks"]
+            assert task["commands"] == [
+                ["wait", "id", "logout-confirm", 10, "Sign out", "update-image-placeholder"]
+            ]
 
     @pytest.mark.parametrize("name", ["expected-failures.json", "expected-skips.json"])
     def test_expected_files_are_lists_of_complete_entries(self, name):
@@ -124,11 +193,15 @@ class TestPlanArguments:
         args = runner.plan_arguments(("plan-a[x=y]", "plan-b"), Path("/tmp/c.json"))
         assert args == ["plan-a[x=y]", "/tmp/c.json", "plan-b", "/tmp/c.json"]
 
-    def test_default_plans_cover_the_three_in_scope_profiles(self, runner):
+    def test_default_plans_cover_the_in_scope_profiles(self, runner):
         joined = " ".join(runner.PLANS)
         assert "oidcc-basic-certification-test-plan[" in joined
         assert "oidcc-config-certification-test-plan" in joined
         assert "oidcc-formpost-basic-certification-test-plan[" in joined
+        assert (
+            "oidcc-rp-initiated-logout-certification-test-plan"
+            "[response_type=code][client_registration=static_client]"
+        ) in runner.PLANS
         # Static clients are what the testbed provisions.
         assert "[client_registration=static_client]" in joined
         assert "dynamic_client" not in joined

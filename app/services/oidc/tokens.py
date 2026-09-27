@@ -16,6 +16,8 @@ Envelope claims added here (OpenID Connect Core 1.0, section 2):
   * ``exp`` / ``iat`` - token lifetime
   * ``auth_time`` - the user's authentication time
   * ``nonce``     - echoed only when the request supplied one
+  * ``sid``       - the WeftID session the user authenticated in (OpenID
+    Connect Front-Channel / Back-Channel Logout 1.0), when known
 
 Scope-gated identity claims (profile, email, groups) are NOT put in the ID
 token. WeftID issues ID tokens only from the authorization code flow, where
@@ -50,6 +52,7 @@ def issue_id_token(
     scopes: set[str],
     nonce: str | None = None,
     auth_time: datetime | None = None,
+    sid: str | None = None,
 ) -> str:
     """Mint and return a signed RS256 ID token for a user.
 
@@ -69,6 +72,8 @@ def issue_id_token(
         nonce: Request nonce; echoed into the token only when supplied.
         auth_time: The user's authentication time. Falls back to issuance time
             (`iat`) when not recorded on the code.
+        sid: The session identifier recorded on the code. Omitted when absent
+            (codes issued before the identifier existed).
 
     Returns:
         The compact-serialized signed JWT string.
@@ -93,6 +98,8 @@ def issue_id_token(
     # Echo the nonce only when the RP supplied one (OIDC Core 3.1.2.1).
     if nonce:
         payload["nonce"] = nonce
+    if sid:
+        payload["sid"] = sid
 
     signing_key = get_active_signing_key(tenant_id)
     id_token = jwt.encode(

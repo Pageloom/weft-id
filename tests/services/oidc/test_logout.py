@@ -271,10 +271,15 @@ def _fc_client(test_tenant, test_admin_user, name, *, uri=FC_URI, session_requir
     return client
 
 
-def _end(test_tenant, sid, **kw):
+def _end_session(test_tenant, sid, **kw):
     return logout_service.end_oidc_session(
         tenant_id=str(test_tenant["id"]), issuer=ISSUER, sid=sid, **kw
     )
+
+
+def _end(test_tenant, sid, **kw):
+    """The front-channel URLs of ending the session."""
+    return _end_session(test_tenant, sid, **kw).frontchannel_logout_urls
 
 
 class TestEndOidcSession:
@@ -382,12 +387,119 @@ class TestEndOidcSession:
             {"s": f"other-{uuid.uuid4().hex[:8]}"},
         )
         try:
-            urls = logout_service.end_oidc_session(
+            ended = logout_service.end_oidc_session(
                 tenant_id=str(other["id"]), issuer=ISSUER, sid="s-1"
             )
-            assert urls == []
+            assert ended.frontchannel_logout_urls == []
+            assert ended.backchannel_logout_count == 0
         finally:
             database.execute(
                 database.UNSCOPED, "delete from tenants where id = :id", {"id": other["id"]}
             )
         assert len(_end(test_tenant, "s-1")) == 1
+
+
+# ---------------------------------------------------------------------------
+# end_oidc_session: back-channel deliveries queued (Back-Channel Logout 1.0)
+# ---------------------------------------------------------------------------
+
+BC_URI = "https://rp.example/bc-logout"
+
+
+def _bc_client(test_tenant, test_admin_user, name, *, uri=BC_URI, fc_uri=None):
+    client = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        name=name,
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+        frontchannel_logout_uri=fc_uri,
+        backchannel_logout_uri=uri,
+    )
+    database.oauth2.update_client_oidc_settings(
+        test_tenant["id"], client["client_id"], oidc_enabled=True
+    )
+    return client
+
+
+def _deliveries(test_tenant):
+    return database.fetchall(
+        str(test_tenant["id"]),
+        "select * from oidc_backchannel_logout_deliveries order by created_at",
+    )
+
+
+class TestEndOidcSessionBackchannel:
+    def test_delivery_queued_for_back_channel_client(self, test_tenant, test_user, test_admin_user):
+        client = _bc_client(test_tenant, test_admin_user, "BC")
+        _hint(test_tenant, test_user, client, sid="s-1")
+
+        ended = _end_session(test_tenant, "s-1")
+
+        assert ended.backchannel_logout_count == 1
+        assert ended.frontchannel_logout_urls == []
+        (row,) = _deliveries(test_tenant)
+        assert str(row["client_id"]) == str(client["id"])
+        assert row["sub"] == str(test_user["id"])
+        assert row["sid"] == "s-1"
+        assert row["issuer"] == ISSUER
+        assert row["status"] == "pending"
+        assert row["attempts"] == 0
+
+    def test_client_with_both_channels_gets_both(self, test_tenant, test_user, test_admin_user):
+        client = _bc_client(test_tenant, test_admin_user, "Both", fc_uri=FC_URI)
+        _hint(test_tenant, test_user, client, sid="s-1")
+
+        ended = _end_session(test_tenant, "s-1")
+
+        assert len(ended.frontchannel_logout_urls) == 1
+        assert ended.backchannel_logout_count == 1
+
+    def test_one_delivery_per_client(self, test_tenant, test_user, test_admin_user):
+        first = _bc_client(test_tenant, test_admin_user, "First")
+        second = _bc_client(test_tenant, test_admin_user, "Second")
+        for client in (first, second, first):
+            _hint(test_tenant, test_user, client, sid="s-1")
+
+        assert _end_session(test_tenant, "s-1").backchannel_logout_count == 2
+        assert {str(r["client_id"]) for r in _deliveries(test_tenant)} == {
+            str(first["id"]),
+            str(second["id"]),
+        }
+
+    def test_clients_that_are_not_queued(self, test_tenant, test_user, test_admin_user):
+        """No URI, deactivated, or OIDC switched off: record removed, nothing queued."""
+        no_uri = _bc_client(test_tenant, test_admin_user, "No URI", uri=None)
+        inactive = _bc_client(test_tenant, test_admin_user, "Inactive")
+        database.oauth2.deactivate_client(test_tenant["id"], inactive["client_id"])
+        not_oidc = _bc_client(test_tenant, test_admin_user, "Not OIDC")
+        database.oauth2.update_client_oidc_settings(
+            test_tenant["id"], not_oidc["client_id"], oidc_enabled=False
+        )
+        for client in (no_uri, inactive, not_oidc):
+            _hint(test_tenant, test_user, client, sid="s-1")
+
+        assert _end_session(test_tenant, "s-1").backchannel_logout_count == 0
+        assert _deliveries(test_tenant) == []
+        rows = database.fetchall(str(test_tenant["id"]), "select 1 from oidc_session_clients")
+        assert rows == []
+
+    def test_excluded_client_is_not_queued(self, test_tenant, test_user, test_admin_user):
+        asking = _bc_client(test_tenant, test_admin_user, "Asking")
+        other = _bc_client(test_tenant, test_admin_user, "Other")
+        _hint(test_tenant, test_user, asking, sid="s-1")
+        _hint(test_tenant, test_user, other, sid="s-1")
+
+        ended = _end_session(test_tenant, "s-1", exclude_client_uuid=str(asking["id"]))
+
+        assert ended.backchannel_logout_count == 1
+        (row,) = _deliveries(test_tenant)
+        assert str(row["client_id"]) == str(other["id"])
+
+    def test_session_ends_once(self, test_tenant, test_user, test_admin_user):
+        client = _bc_client(test_tenant, test_admin_user, "BC")
+        _hint(test_tenant, test_user, client, sid="s-1")
+
+        assert _end_session(test_tenant, "s-1").backchannel_logout_count == 1
+        assert _end_session(test_tenant, "s-1").backchannel_logout_count == 0
+        assert len(_deliveries(test_tenant)) == 1

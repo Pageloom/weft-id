@@ -9,6 +9,12 @@ emit event logs, and private key material never leaves this layer.
 """
 
 from services.oidc.access import user_can_access_client
+from services.oidc.backchannel import (
+    build_logout_token,
+    cleanup_backchannel_logout_state,
+    deliver_due_backchannel_logouts,
+    list_tenants_with_due_backchannel_logouts,
+)
 from services.oidc.claims import (
     SCOPE_DESCRIPTIONS,
     build_claims,
@@ -37,6 +43,7 @@ from services.oidc.keys import (
 )
 from services.oidc.logout import (
     EndSessionRequest,
+    OidcSessionEnd,
     end_oidc_session,
     resolve_end_session_request,
 )
@@ -62,6 +69,11 @@ __all__ = [
     "EndSessionRequest",
     "resolve_end_session_request",
     "end_oidc_session",
+    "OidcSessionEnd",
+    "build_logout_token",
+    "deliver_due_backchannel_logouts",
+    "list_tenants_with_due_backchannel_logouts",
+    "cleanup_backchannel_logout_state",
     "ID_TOKEN_EXPIRY",
     "build_discovery_metadata",
     "get_userinfo",

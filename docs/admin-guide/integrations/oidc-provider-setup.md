@@ -67,6 +67,18 @@ An app can also ask to be told when the user's WeftID session ends, however it e
 
 Through the API, set `frontchannel_logout_uri` and `frontchannel_logout_session_required` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`.
 
+### Back-channel logout
+
+Front-channel logout depends on the user's browser. Back-channel logout does not: when the session ends (the same three ways), WeftID sends a signed logout token straight to the app's server. This is OpenID Connect Back-Channel Logout. Set the app's **Back-channel logout URI** on its edit form.
+
+* The URI must be an absolute `http` or `https` URL without a fragment. Unlike the front-channel URI it may be on any host, for example an internal API. WeftID refuses to call private or reserved network addresses.
+* WeftID `POST`s a form with one field, `logout_token`: a JWT signed with the same key as the ID tokens (check it against the JWKS). It carries `iss`, `aud` (the app's client ID), `iat`, `exp`, `jti`, `events`, `sub`, and `sid` unless you untick **Include the session ID** (on for new apps). It never carries a `nonce`.
+* The app should end the matching session and answer `200`. Any other `2xx` also counts as delivered. A `4xx` (other than `408` and `429`) tells WeftID the app rejected the token, and it does not try again.
+* Delivery happens in the background, usually within ten seconds. If the app cannot be reached or answers with a `5xx`, WeftID retries after 30 seconds, 2 minutes, 10 minutes, 1 hour and 6 hours. A delivery that is given up is recorded in the audit log as `oidc_backchannel_logout_failed`.
+* As with front-channel logout, the app that asked WeftID to sign the user in again is not sent a logout token.
+
+Through the API, set `backchannel_logout_uri` and `backchannel_logout_session_required` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`.
+
 ## Scopes and claims
 
 WeftID gates released claims by the scopes a relying party **requests** at authorize time. There is no per-app scope allowlist to configure: request the scopes your app needs, and WeftID releases only the matching claims.
@@ -106,7 +118,7 @@ Everything above is available through the REST API under `/api/v1/oauth2/clients
 * `POST /{client_id}/groups/bulk` -- assign several groups (`{"group_ids": [...]}`).
 * `DELETE /{client_id}/groups/{group_id}` -- remove a group assignment.
 
-Redirect URIs, post-logout redirect URIs, and front-channel logout are managed through the existing `PATCH /{client_id}` endpoint (`redirect_uris`, `post_logout_redirect_uris`, `frontchannel_logout_uri`, `frontchannel_logout_session_required`).
+Redirect URIs, post-logout redirect URIs, and front- and back-channel logout are managed through the existing `PATCH /{client_id}` endpoint (`redirect_uris`, `post_logout_redirect_uris`, `frontchannel_logout_uri`, `frontchannel_logout_session_required`, `backchannel_logout_uri`, `backchannel_logout_session_required`).
 
 ## Signing key rotation
 
@@ -124,7 +136,7 @@ Admin or super admin role required to manage OIDC settings and group assignments
 
 ## What is not supported
 
-WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated and front-channel logout, and group-based access control. The following are not available yet: back-channel logout, token introspection and revocation endpoints, the device grant, dynamic client registration, and pairwise subject identifiers.
+WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, and group-based access control. The following are not available yet: token introspection and revocation endpoints, the device grant, dynamic client registration, and pairwise subject identifiers.
 
 These parts of the specification are not supported, and discovery says so:
 

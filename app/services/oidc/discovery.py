@@ -7,10 +7,10 @@ document is assembled from the request's tenant base URL so the advertised
 arrives on tenant A's host can never surface tenant B's issuer.
 
 Advertisement policy: this document reflects ONLY what is actually implemented.
-RP-initiated logout (``end_session_endpoint``) and front-channel logout
-(with ``iss``/``sid``) are advertised; back-channel logout, introspection,
-revocation, device grant, PAR, and dynamic client registration are absent
-until they exist. `scopes_supported` is sourced from the shared claim
+RP-initiated logout (``end_session_endpoint``), front-channel logout (with
+``iss``/``sid``) and back-channel logout (with ``sid``) are advertised;
+introspection, revocation, device grant, PAR, and dynamic client registration
+are absent until they exist. `scopes_supported` is sourced from the shared claim
 assembler's ``SUPPORTED_SCOPES`` so the advertised scopes and the scopes
 actually gated by claim release can never drift; the `groups` scope is
 therefore advertised only once Iteration 4 adds it to that tuple.
@@ -119,4 +119,6 @@ def build_discovery_metadata(issuer: str) -> OIDCProviderMetadata:
         claims_parameter_supported=CLAIMS_PARAMETER_SUPPORTED,
         frontchannel_logout_supported=True,
         frontchannel_logout_session_supported=True,
+        backchannel_logout_supported=True,
+        backchannel_logout_session_supported=True,
     )

@@ -16,7 +16,7 @@ The [API Reference](api/index.md) covers authentication, conventions, and how to
 
 ## Standards conformance
 
-WeftID's OpenID Provider passes the OpenID Foundation conformance suite for the Basic, Config, Form Post, RP-Initiated, and Front-Channel OP profiles. See [OpenID Connect Conformance](conformance/oidc.md) for the results, the accepted deviations, and how to rerun the suite.
+WeftID's OpenID Provider passes the OpenID Foundation conformance suite for the Basic, Config, Form Post, RP-Initiated, Front-Channel, and Back-Channel OP profiles. See [OpenID Connect Conformance](conformance/oidc.md) for the results, the accepted deviations, and how to rerun the suite.
 
 ## Getting started
 

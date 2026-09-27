@@ -193,3 +193,28 @@ def test_build_safe_client_dev_base_domain_rewrite_disables_tls_verify():
             assert transport._dev_base_domain_rewrite is True
         finally:
             client.close()
+
+
+@pytest.mark.parametrize(
+    ("is_dev", "expected_verify"),
+    [(True, False), (False, True)],
+)
+def test_build_safe_client_dev_skip_tls_verify_only_in_dev(is_dev, expected_verify):
+    # Self-signed dev services (the OIDC conformance suite) need verification
+    # off; in production the flag is inert and verification stays on.
+    with (
+        patch.object(safe_http.settings, "IS_DEV", is_dev),
+        patch.object(safe_http, "PinnedResolveTransport", wraps=PinnedResolveTransport) as spy,
+    ):
+        client = build_safe_client(dev_skip_tls_verify=True)
+        client.close()
+    assert spy.call_args.kwargs["verify"] is expected_verify
+
+
+def test_build_safe_client_verifies_tls_by_default():
+    with (
+        patch.object(safe_http.settings, "IS_DEV", True),
+        patch.object(safe_http, "PinnedResolveTransport", wraps=PinnedResolveTransport) as spy,
+    ):
+        build_safe_client().close()
+    assert spy.call_args.kwargs["verify"] is True

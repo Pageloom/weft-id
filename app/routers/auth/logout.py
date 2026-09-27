@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse, Response
 from services import oidc as oidc_service
 from services.event_log import log_event
+from services.oidc import OidcSessionEnd
 from utils.csp_nonce import get_csp_nonce
 from utils.request_metadata import extract_request_metadata
 from utils.session import SESSION_ID_KEY
@@ -45,10 +46,13 @@ class TerminatedSession:
         frontchannel_logout_urls: OIDC front-channel logout URLs of the
             relying parties that received ID tokens in the session. The
             caller renders them with ``frontchannel_logout_response``.
+        backchannel_logout_count: OIDC back-channel logout deliveries queued
+            for the worker.
     """
 
     upstream: dict = field(default_factory=dict)
     frontchannel_logout_urls: list[str] = field(default_factory=list)
+    backchannel_logout_count: int = 0
 
 
 def end_oidc_session_quietly(
@@ -56,15 +60,16 @@ def end_oidc_session_quietly(
     tenant_id: str,
     *,
     exclude_client_uuid: str | None = None,
-) -> list[str]:
-    """Front-channel logout URLs for the current session; never raises.
+) -> OidcSessionEnd:
+    """Notify the current session's OIDC relying parties; never raises.
 
-    A failure is logged and yields no URLs: logout must not fail because
-    relying-party bookkeeping could not be read.
+    Returns the front-channel logout URLs to load and the number of
+    back-channel deliveries queued. A failure is logged and notifies nobody:
+    logout must not fail because relying-party bookkeeping could not be read.
     """
     sid = request.session.get(SESSION_ID_KEY)
     if not isinstance(sid, str) or not sid:
-        return []
+        return OidcSessionEnd()
     try:
         return oidc_service.end_oidc_session(
             tenant_id=tenant_id,
@@ -73,8 +78,8 @@ def end_oidc_session_quietly(
             exclude_client_uuid=exclude_client_uuid,
         )
     except Exception:
-        logger.warning("Front-channel logout lookup failed", exc_info=True)
-        return []
+        logger.warning("OIDC logout fan-out failed", exc_info=True)
+        return OidcSessionEnd()
 
 
 def frontchannel_logout_response(
@@ -119,8 +124,10 @@ def terminate_session(
 
     Shared by the local logout button and the OIDC end_session endpoint so
     both terminate a session the same way. When a user was signed in, reads
-    the OIDC clients to notify by front channel, logs ``user_signed_out``
-    (with ``downstream_sp_count``, ``frontchannel_logout_count`` and the
+    the OIDC clients to notify (front-channel URLs; back-channel deliveries
+    are queued), logs ``user_signed_out``
+    (with ``downstream_sp_count``, ``frontchannel_logout_count``,
+    ``backchannel_logout_count`` and the
     caller's ``metadata``), clears the session before anything else can fail,
     then propagates the logout to downstream SAML SPs (best-effort, never
     blocks).
@@ -140,7 +147,7 @@ def terminate_session(
     # Get active downstream SP sessions before clearing
     active_sps = request.session.get("sso_active_sps", [])
 
-    frontchannel_logout_urls = end_oidc_session_quietly(request, tenant_id) if user_id else []
+    oidc_end = end_oidc_session_quietly(request, tenant_id) if user_id else OidcSessionEnd()
 
     # Log the logout event before clearing session
     if user_id:
@@ -152,7 +159,8 @@ def terminate_session(
             event_type="user_signed_out",
             metadata={
                 "downstream_sp_count": len(active_sps),
-                "frontchannel_logout_count": len(frontchannel_logout_urls),
+                "frontchannel_logout_count": len(oidc_end.frontchannel_logout_urls),
+                "backchannel_logout_count": oidc_end.backchannel_logout_count,
                 **(metadata or {}),
             },
             request_metadata=extract_request_metadata(request),
@@ -175,7 +183,11 @@ def terminate_session(
         except Exception:
             logger.warning("IdP SLO propagation failed for user %s", user_id, exc_info=True)
 
-    return TerminatedSession(upstream=upstream, frontchannel_logout_urls=frontchannel_logout_urls)
+    return TerminatedSession(
+        upstream=upstream,
+        frontchannel_logout_urls=oidc_end.frontchannel_logout_urls,
+        backchannel_logout_count=oidc_end.backchannel_logout_count,
+    )
 
 
 @router.post("/logout")

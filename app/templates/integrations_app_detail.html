@@ -76,6 +76,8 @@
                 Each post-logout redirect URI must be an absolute http or https URI without a fragment.
                 {% elif error == 'invalid_frontchannel_logout_uri' %}
                 The front-channel logout URI must be an absolute http or https URI without a fragment, on the same scheme, host and port as one of the redirect URIs.
+                {% elif error == 'invalid_backchannel_logout_uri' %}
+                The back-channel logout URI must be an absolute http or https URI without a fragment.
                 {% elif error == 'update_failed' %}
                 Failed to update the app. Try again.
                 {% elif error == 'oidc_update_failed' %}
@@ -135,6 +137,19 @@
                            {% if client.frontchannel_logout_session_required %}checked{% endif %}
                            class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
                     Send the issuer and session ID (<code>iss</code> and <code>sid</code>) with the request
+                </label>
+            </div>
+
+            <div>
+                <label for="backchannel_logout_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Back-channel logout URI</label>
+                <input type="url" id="backchannel_logout_uri" name="backchannel_logout_uri" maxlength="2048" value="{{ client.backchannel_logout_uri or '' }}"
+                       class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. When a user's session ends, WeftID sends a signed logout token to this URL, server to server, so the app can sign the user out even when no browser is involved (OpenID Connect only). Failed deliveries are retried for several hours.</p>
+                <label class="mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" id="backchannel_logout_session_required" name="backchannel_logout_session_required" value="true"
+                           {% if client.backchannel_logout_session_required %}checked{% endif %}
+                           class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                    Include the session ID (<code>sid</code>) in the logout token
                 </label>
             </div>
 

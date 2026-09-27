@@ -120,6 +120,21 @@ class OIDCProviderMetadata(BaseModel):
             "(for clients that require them), and ID tokens carry the `sid` claim."
         ),
     )
+    backchannel_logout_supported: bool = Field(
+        True,
+        description=(
+            "OpenID Connect Back-Channel Logout 1.0: ending a WeftID session sends a "
+            "signed logout token to each relying party's registered "
+            "backchannel_logout_uri."
+        ),
+    )
+    backchannel_logout_session_supported: bool = Field(
+        True,
+        description=(
+            "Whether the logout token can carry the `sid` claim (for clients that "
+            "require it), and ID tokens carry the `sid` claim."
+        ),
+    )
 
 
 # ============================================================================

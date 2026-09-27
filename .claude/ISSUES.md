@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 1 | File Structure (pre-existing) |
+| Medium | 2 | File Structure (pre-existing); SSRF blocklist gaps (IPv6 unspecified, NAT64/6to4) |
 | Low | 2 | Upload-auth temp-file leak (warning-ignored, tracked); expired OAuth2 tokens never swept |
 
 Note: the HIGH CSRF-never-enforced finding (middleware ordering, discovered 2026-09-14 on
@@ -120,4 +120,38 @@ Iteration 4 keeps redeemed codes (marked `consumed_at`) for reuse detection,
 function (see THOUGHT_ERRORS "Cross-Tenant Queries"), or an inline per-tenant
 sweep on the token-issuance path like the one codes use.
 **Files Affected:** `app/database/oauth2/tokens.py`, a new job in `app/jobs/`
+
+---
+
+## [SECURITY] SSRF blocklist misses `::`, NAT64 and 6to4 embedded addresses
+
+**Discovered:** 2026-09-27 (oidc-conformance Iteration 7a review of the back-channel logout URI)
+**Severity:** Medium (pre-existing; affects every outbound call behind the shared guard)
+**Found in:** `app/utils/url_safety.py` (`_BLOCKED_NETWORKS`, `_is_ip_blocked`), used by
+`app/utils/safe_http.py` (`PinnedResolveTransport`) and the SAML metadata fetchers
+
+The blocklist is a hand-written network list. It misses:
+
+- `::` (IPv6 unspecified): on Linux a connect to `::` reaches the local host, so a public
+  hostname with an AAAA record of `::` passes validation and hits localhost.
+- `64:ff9b::/96` (NAT64) and `2002::/16` (6to4): IPv4 addresses embedded in IPv6. Only
+  IPv4-mapped (`::ffff:`) is unwrapped, so e.g. `64:ff9b::a00:1` (10.0.0.1) passes on a
+  NAT64 network. Teredo (`2001::/32`) likewise.
+- Lower risk: `198.18.0.0/15`, documentation ranges, `::/128`, `100::/64`.
+
+Callers exposed: outbound SCIM pushes, SAML metadata fetches, SAML SLO back-channel, and
+OIDC back-channel logout delivery (tenant admins choose all these targets).
+
+**Suggested fix:** Replace the list with `ipaddress` predicates (`is_private`, `is_loopback`,
+`is_unspecified`, `is_link_local`, `is_multicast`, `is_reserved`, `is_site_local`) plus explicit
+CGNAT `100.64.0.0/10` and the metadata range; unwrap `ipv4_mapped`, `sixtofour`, `teredo`
+and NAT64 (`64:ff9b::/96`, last 32 bits) before checking the inner IPv4. Tests for `::`,
+`64:ff9b::a00:1`, `2002:7f00:1::`, and a Teredo address wrapping 127.0.0.1.
+
+Related (fold into oidc-conformance Iteration 7b, not this fix): the back-channel delivery
+log stores the guard's "resolves to a private or reserved address" message; collapse it to
+a generic `blocked_destination` before 7b shows delivery errors to admins, so the log is not
+an internal-DNS oracle.
+
+**Files Affected:** `app/utils/url_safety.py`, `tests/utils/test_url_safety.py`
 

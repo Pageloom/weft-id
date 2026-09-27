@@ -44,6 +44,19 @@ class NormalClientCreate(BaseModel):
             "(default true)."
         ),
     )
+    backchannel_logout_uri: str | None = Field(
+        None,
+        max_length=2048,
+        description=(
+            "OpenID Connect Back-Channel Logout: URL WeftID POSTs a signed logout "
+            "token to when the user's session ends (absolute http/https, no "
+            "fragment). Optional."
+        ),
+    )
+    backchannel_logout_session_required: bool = Field(
+        True,
+        description="Whether the logout token carries the sid claim (default true).",
+    )
 
 
 class B2BClientCreate(BaseModel):
@@ -91,6 +104,18 @@ class ClientUpdate(BaseModel):
         None,
         description="Whether the front-channel logout URL receives iss and sid (normal clients).",
     )
+    backchannel_logout_uri: str | None = Field(
+        None,
+        max_length=2048,
+        description=(
+            "Back-channel logout URL (normal clients only; absolute http/https, no "
+            "fragment). An empty string clears it."
+        ),
+    )
+    backchannel_logout_session_required: bool | None = Field(
+        None,
+        description="Whether the logout token carries the sid claim (normal clients).",
+    )
 
 
 class ClientRoleUpdate(BaseModel):
@@ -118,6 +143,8 @@ class ClientResponse(BaseModel):
     post_logout_redirect_uris: list[str] = Field(default_factory=list)
     frontchannel_logout_uri: str | None = None
     frontchannel_logout_session_required: bool = True
+    backchannel_logout_uri: str | None = None
+    backchannel_logout_session_required: bool = True
     service_user_id: str | None
     is_active: bool = True
     oidc_enabled: bool = False

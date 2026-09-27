@@ -106,15 +106,41 @@ def _load_forward_auth_nonce_cleanup() -> Any:
     return cleanup_forward_auth_nonces()
 
 
+def _load_oidc_backchannel_delivery() -> Any:
+    """Import and run one pass of the OIDC back-channel logout delivery."""
+    from jobs.deliver_oidc_backchannel_logouts import deliver_oidc_backchannel_logouts
+
+    return deliver_oidc_backchannel_logouts()
+
+
+def _load_oidc_backchannel_cleanup() -> Any:
+    """Import and run the OIDC back-channel logout retention sweep."""
+    from jobs.cleanup_oidc_backchannel_logouts import cleanup_oidc_backchannel_logouts
+
+    return cleanup_oidc_backchannel_logouts()
+
+
 class PeriodicJob:
-    """A periodic background job with interval-based scheduling."""
+    """A periodic background job with interval-based scheduling.
 
-    __slots__ = ("name", "func", "interval", "last_run")
+    A ``quiet`` job logs its start and result at DEBUG instead of INFO, for
+    jobs that run every few seconds and log their own work when there is any.
+    """
 
-    def __init__(self, name: str, func: Callable[[], Any], interval: timedelta) -> None:
+    __slots__ = ("name", "func", "interval", "last_run", "quiet")
+
+    def __init__(
+        self,
+        name: str,
+        func: Callable[[], Any],
+        interval: timedelta,
+        *,
+        quiet: bool = False,
+    ) -> None:
         self.name = name
         self.func = func
         self.interval = interval
+        self.quiet = quiet
         self.last_run: datetime | None = None
 
 
@@ -133,6 +159,8 @@ class Worker:
         scim_sync_log_cleanup_interval_hours: int = 24,
         oidc_key_cleanup_interval_hours: int = 1,
         forward_auth_nonce_cleanup_interval_hours: int = 1,
+        oidc_backchannel_interval_seconds: int = 10,
+        oidc_backchannel_cleanup_interval_hours: int = 24,
     ) -> None:
         """Initialize the worker.
 
@@ -147,6 +175,10 @@ class Worker:
             scim_sync_log_cleanup_interval_hours: Hours between SCIM sync-log retention sweeps
             oidc_key_cleanup_interval_hours: Hours between retired OIDC signing-key sweeps
             forward_auth_nonce_cleanup_interval_hours: Hours between forward-auth nonce sweeps
+            oidc_backchannel_interval_seconds: Seconds between OIDC back-channel
+                logout delivery passes
+            oidc_backchannel_cleanup_interval_hours: Hours between OIDC
+                back-channel logout retention sweeps
         """
         self.poll_interval = poll_interval
         self.running = True
@@ -206,6 +238,17 @@ class Worker:
                 _load_forward_auth_nonce_cleanup,
                 timedelta(hours=forward_auth_nonce_cleanup_interval_hours),
             ),
+            PeriodicJob(
+                "OIDC back-channel logout delivery",
+                _load_oidc_backchannel_delivery,
+                timedelta(seconds=oidc_backchannel_interval_seconds),
+                quiet=True,
+            ),
+            PeriodicJob(
+                "OIDC back-channel logout cleanup",
+                _load_oidc_backchannel_cleanup,
+                timedelta(hours=oidc_backchannel_cleanup_interval_hours),
+            ),
         ]
 
     def stop(self, signum: int | None = None, frame: Any = None) -> None:
@@ -246,10 +289,11 @@ class Worker:
 
     def _run_job(self, job: PeriodicJob) -> None:
         """Execute a periodic job with logging and error handling."""
-        logger.info("Running %s...", job.name)
+        log = logger.debug if job.quiet else logger.info
+        log("Running %s...", job.name)
         try:
             result = job.func()
-            logger.info("%s completed: %s", job.name, result)
+            log("%s completed: %s", job.name, result)
         except Exception as e:
             logger.exception("%s failed: %s", job.name, e)
 

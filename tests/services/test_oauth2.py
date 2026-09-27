@@ -1044,3 +1044,190 @@ def test_update_b2b_client_rejects_frontchannel_settings(
     with pytest.raises(ValidationError) as exc:
         _update(test_tenant, b2b_oauth2_client, test_admin_user, **kw)
     assert exc.value.code == "redirect_uris_not_allowed"
+
+
+# =============================================================================
+# Back-channel logout URI (OpenID Connect Back-Channel Logout 1.0)
+# =============================================================================
+
+
+class TestValidateBackchannelLogoutUri:
+    @pytest.mark.parametrize(
+        "uri",
+        [
+            "https://rp.example/bc",
+            "http://localhost:3000/bc",
+            "https://other.example:8443/bc?tenant=1",
+            "HTTPS://RP.EXAMPLE/bc",
+        ],
+    )
+    def test_valid(self, uri):
+        assert oauth2_service.validate_backchannel_logout_uri(uri) == uri
+
+    def test_any_origin_is_allowed(self):
+        """Unlike front-channel, no redirect-URI origin rule (BCL 2.2)."""
+        uri = "https://api.elsewhere.example/logout"
+        assert oauth2_service.validate_backchannel_logout_uri(uri) == uri
+
+    def test_trimmed(self):
+        assert (
+            oauth2_service.validate_backchannel_logout_uri(" https://rp.example/bc ")
+            == "https://rp.example/bc"
+        )
+
+    @pytest.mark.parametrize("blank", [None, "", "   "])
+    def test_blank_is_none(self, blank):
+        assert oauth2_service.validate_backchannel_logout_uri(blank) is None
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "rp.example/bc",
+            "/bc",
+            "ftp://rp.example/bc",
+            "javascript:alert(1)",
+            "https://",
+            "https://rp.example/bc#frag",
+            "https://rp.example/bc#",
+            "https://rp.example:99999/bc",
+            "https://rp.example:abc/bc",
+            "https://[::1/bc",
+        ],
+    )
+    def test_rejected(self, bad):
+        with pytest.raises(ValidationError) as exc:
+            oauth2_service.validate_backchannel_logout_uri(bad)
+        assert exc.value.code == "invalid_backchannel_logout_uri"
+
+
+def test_create_normal_client_with_backchannel_logout(test_tenant, test_admin_user):
+    client = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="BC",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+        backchannel_logout_uri="https://api.rp.example/bc",
+        backchannel_logout_session_required=False,
+    )
+    assert client["backchannel_logout_uri"] == "https://api.rp.example/bc"
+    assert client["backchannel_logout_session_required"] is False
+
+
+def test_create_normal_client_backchannel_logout_defaults(test_tenant, test_admin_user):
+    client = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="BC defaults",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+    )
+    assert client["backchannel_logout_uri"] is None
+    assert client["backchannel_logout_session_required"] is True
+
+
+def test_create_normal_client_rejects_bad_backchannel_uri_before_writing(
+    test_tenant, test_admin_user
+):
+    with pytest.raises(ValidationError) as exc:
+        oauth2_service.create_normal_client(
+            tenant_id=test_tenant["id"],
+            name="Never Created BC",
+            redirect_uris=["https://rp.example/cb"],
+            created_by=test_admin_user["id"],
+            backchannel_logout_uri="https://rp.example/bc#frag",
+        )
+    assert exc.value.code == "invalid_backchannel_logout_uri"
+    names = [c["name"] for c in oauth2_service.get_all_clients(test_tenant["id"])]
+    assert "Never Created BC" not in names
+
+
+def test_update_client_sets_backchannel_logout_and_logs(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    result = _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        backchannel_logout_uri="https://api.rp.example/bc",
+        backchannel_logout_session_required=False,
+    )
+    assert result["backchannel_logout_uri"] == "https://api.rp.example/bc"
+    assert result["backchannel_logout_session_required"] is False
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "oauth2_client_updated"
+    assert events[0]["metadata"]["changed_fields"] == [
+        "backchannel_logout_uri",
+        "backchannel_logout_session_required",
+    ]
+
+
+def test_update_client_empty_string_clears_backchannel_uri(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        backchannel_logout_uri="https://rp.example/bc",
+    )
+    result = _update(test_tenant, normal_oauth2_client, test_admin_user, backchannel_logout_uri="")
+    assert result["backchannel_logout_uri"] is None
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["metadata"]["changed_fields"] == ["backchannel_logout_uri"]
+
+
+def test_update_client_unchanged_backchannel_settings_log_nothing(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    before = database.event_log.list_events(test_tenant["id"], limit=1)
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        backchannel_logout_uri="",
+        backchannel_logout_session_required=True,
+    )
+    after = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert [e["id"] for e in after] == [e["id"] for e in before]
+
+
+def test_update_client_omitted_backchannel_settings_are_kept(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        backchannel_logout_uri="https://rp.example/bc",
+        backchannel_logout_session_required=False,
+    )
+    result = _update(test_tenant, normal_oauth2_client, test_admin_user, name="Renamed")
+    assert result["backchannel_logout_uri"] == "https://rp.example/bc"
+    assert result["backchannel_logout_session_required"] is False
+
+
+def test_update_client_rejects_bad_backchannel_uri(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    with pytest.raises(ValidationError) as exc:
+        _update(
+            test_tenant,
+            normal_oauth2_client,
+            test_admin_user,
+            backchannel_logout_uri="ftp://rp.example/bc",
+        )
+    assert exc.value.code == "invalid_backchannel_logout_uri"
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"backchannel_logout_uri": "https://rp.example/bc"},
+        {"backchannel_logout_session_required": True},
+    ],
+)
+def test_update_b2b_client_rejects_backchannel_settings(
+    test_tenant, b2b_oauth2_client, test_admin_user, kw
+):
+    with pytest.raises(ValidationError) as exc:
+        _update(test_tenant, b2b_oauth2_client, test_admin_user, **kw)
+    assert exc.value.code == "redirect_uris_not_allowed"

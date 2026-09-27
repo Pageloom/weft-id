@@ -47,6 +47,10 @@ def _client_to_response(
         "frontchannel_logout_session_required": bool(
             client.get("frontchannel_logout_session_required")
         ),
+        "backchannel_logout_uri": client.get("backchannel_logout_uri"),
+        "backchannel_logout_session_required": bool(
+            client.get("backchannel_logout_session_required")
+        ),
         "service_user_id": (
             str(client["service_user_id"]) if client.get("service_user_id") else None
         ),
@@ -112,6 +116,11 @@ def create_normal_client(
             scheme, host and port as a redirect URI)
         frontchannel_logout_session_required: Whether that URL receives the
             iss and sid query parameters (default true)
+        backchannel_logout_uri: Optional URL WeftID POSTs a signed logout token
+            to when the user's WeftID session ends (absolute http/https, no
+            fragment)
+        backchannel_logout_session_required: Whether the logout token carries
+            the sid claim (default true)
 
     Returns:
         Client details including client_secret (shown only once!)
@@ -129,6 +138,8 @@ def create_normal_client(
             post_logout_redirect_uris=client_data.post_logout_redirect_uris,
             frontchannel_logout_uri=client_data.frontchannel_logout_uri,
             frontchannel_logout_session_required=client_data.frontchannel_logout_session_required,
+            backchannel_logout_uri=client_data.backchannel_logout_uri,
+            backchannel_logout_session_required=client_data.backchannel_logout_session_required,
         )
 
         return _client_to_response(client, include_secret=True)
@@ -294,6 +305,10 @@ def update_client(
             "" clears it)
         frontchannel_logout_session_required: Whether the front-channel
             logout URL receives iss and sid (optional, normal clients)
+        backchannel_logout_uri: New back-channel logout URL for normal
+            clients (optional; absolute http/https, no fragment; "" clears it)
+        backchannel_logout_session_required: Whether the logout token carries
+            the sid claim (optional, normal clients)
 
     Returns:
         Updated client details
@@ -315,6 +330,8 @@ def update_client(
             post_logout_redirect_uris=client_data.post_logout_redirect_uris,
             frontchannel_logout_uri=client_data.frontchannel_logout_uri,
             frontchannel_logout_session_required=client_data.frontchannel_logout_session_required,
+            backchannel_logout_uri=client_data.backchannel_logout_uri,
+            backchannel_logout_session_required=client_data.backchannel_logout_session_required,
         )
 
         if not client:

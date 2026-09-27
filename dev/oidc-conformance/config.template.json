@@ -105,6 +105,12 @@
                 "client_secret": "{CLIENT4_SECRET}"
             }
         },
+        "oidcc-backchannel-rp-initiated-logout": {
+            "client": {
+                "client_id": "{CLIENT5_ID}",
+                "client_secret": "{CLIENT5_SECRET}"
+            }
+        },
         "oidcc-prompt-login": {
             "browser": [
                 {

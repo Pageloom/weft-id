@@ -33,6 +33,11 @@ class TestBuildDiscoveryMetadata:
         assert meta.frontchannel_logout_session_supported is True
         assert "sid" in meta.claims_supported
 
+    def test_backchannel_logout_with_session_advertised(self):
+        meta = discovery_service.build_discovery_metadata("https://t.example.com")
+        assert meta.backchannel_logout_supported is True
+        assert meta.backchannel_logout_session_supported is True
+
     def test_claims_parameter_explicitly_unsupported(self):
         meta = discovery_service.build_discovery_metadata("https://t.example.com")
         assert meta.claims_parameter_supported is False

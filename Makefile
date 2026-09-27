@@ -9,7 +9,7 @@ endif
 TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TAILWIND_VERSION)/$(TAILWIND_BIN)
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev scim-testbed-up scim-testbed-down scim-testbed-destroy scim-testbed-info scim-testbed-status scim-testbed-logs oidc-conformance-up oidc-conformance-down oidc-conformance-destroy oidc-conformance-info oidc-conformance-status oidc-conformance-logs oidc-conformance test e2e check fix quality-all coverage docs
+.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev scim-testbed-up scim-testbed-down scim-testbed-destroy scim-testbed-info scim-testbed-status scim-testbed-logs oidc-conformance-up oidc-conformance-down oidc-conformance-destroy oidc-conformance-info oidc-conformance-status oidc-conformance-logs oidc-conformance oidc-conformance-report test e2e check fix quality-all coverage docs
 
 help:
 	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -117,6 +117,9 @@ oidc-conformance-logs: ## Follow combined conformance suite logs
 
 oidc-conformance: ## Run the OIDC conformance plans (pass args: ARGS="--verbose")
 	poetry run python dev/oidc_conformance.py run $(ARGS)
+
+oidc-conformance-report: ## Results table from the latest run (ARGS="--write-docs" updates the docs page)
+	poetry run python dev/oidc_conformance_report.py $(ARGS)
 
 ## Docs
 docs: ## Build documentation site (output in site/)

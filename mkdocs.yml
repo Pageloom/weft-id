@@ -112,4 +112,6 @@ nav:
   - Self-Hosting:
     - self-hosting/index.md
     - Versioning Policy: VERSIONING.md
+  - Standards Conformance:
+    - OpenID Connect: conformance/oidc.md
   - Glossary: glossary.md

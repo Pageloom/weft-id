@@ -14,6 +14,10 @@ The [User Guide](user-guide/index.md) covers your dashboard, profile settings, a
 
 The [API Reference](api/index.md) covers authentication, conventions, and how to access the interactive API documentation.
 
+## Standards conformance
+
+WeftID's OpenID Provider passes the OpenID Foundation conformance suite for the Basic, Config, and Form Post OP profiles. See [OpenID Connect Conformance](conformance/oidc.md) for the results, the accepted deviations, and how to rerun the suite.
+
 ## Getting started
 
 New to WeftID? Start with the [Getting Started](getting-started/index.md) guide.

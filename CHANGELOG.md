@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **OpenID Foundation conformance.** WeftID's OpenID Provider passes the
+  OpenID Foundation conformance suite (release 5.2.4) for the Basic OP,
+  Config OP, and Form Post OP profiles, with no failures. The accepted
+  warnings (no `acr` claim, no `claims` request parameter, a partial
+  `profile` claim set) and expected skips are listed with their reasons on
+  the new [OpenID Connect Conformance](docs/conformance/oidc.md) docs page,
+  along with how to rerun the suite. A CI workflow runs it on the E2E
+  schedule and publishes the results with each run. This is conformance
+  evidence, not the OpenID Certified mark.
 - **Remembered consent.** WeftID now remembers a user's **Allow** on the
   OAuth2 / OIDC consent screen per application and scope set. Later
   authorization requests covered by the grant skip the screen, `prompt=none`

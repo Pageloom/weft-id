@@ -5,7 +5,7 @@
             "response_mode": "default"
         },
         "configuration-filename": "*config.json",
-        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
     },
     {
         "test-name": "oidcc-scope-phone",
@@ -13,7 +13,7 @@
             "response_mode": "default"
         },
         "configuration-filename": "*config.json",
-        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
     },
     {
         "test-name": "oidcc-scope-all",
@@ -21,7 +21,7 @@
             "response_mode": "default"
         },
         "configuration-filename": "*config.json",
-        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
     },
     {
         "test-name": "oidcc-scope-address",
@@ -29,7 +29,7 @@
             "response_mode": "form_post"
         },
         "configuration-filename": "*config.json",
-        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
     },
     {
         "test-name": "oidcc-scope-phone",
@@ -37,7 +37,7 @@
             "response_mode": "form_post"
         },
         "configuration-filename": "*config.json",
-        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
     },
     {
         "test-name": "oidcc-scope-all",
@@ -45,7 +45,7 @@
             "response_mode": "form_post"
         },
         "configuration-filename": "*config.json",
-        "comment": "address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
     },
     {
         "test-name": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
@@ -53,7 +53,7 @@
             "response_mode": "default"
         },
         "configuration-filename": "*config.json",
-        "comment": "Request objects are rejected with request_not_supported and discovery says request_parameter_supported=false; the suite skips the remainder of the module (the 'rejected as unsupported' outcome). Revisit in Iteration 12."
+        "comment": "Request objects are rejected with request_not_supported and discovery says request_parameter_supported=false; the suite skips the remainder of the module (the 'rejected as unsupported' outcome)."
     },
     {
         "test-name": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
@@ -61,6 +61,6 @@
             "response_mode": "form_post"
         },
         "configuration-filename": "*config.json",
-        "comment": "Request objects are rejected with request_not_supported and discovery says request_parameter_supported=false; the suite skips the remainder of the module (the 'rejected as unsupported' outcome). Revisit in Iteration 12."
+        "comment": "Request objects are rejected with request_not_supported and discovery says request_parameter_supported=false; the suite skips the remainder of the module (the 'rejected as unsupported' outcome)."
     }
 ]

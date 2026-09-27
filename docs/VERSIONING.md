@@ -45,3 +45,14 @@ workflow (triggered by version tags) produces multi-tag images:
 * `latest` (newest stable release)
 
 Self-hosters can pin to their preferred level of update granularity.
+
+## Release Checklist
+
+1. On `main`, move the `Unreleased` entries in `CHANGELOG.md` under the new version and bump
+   the version in `pyproject.toml`. Commit.
+2. Refresh the [OpenID Connect conformance results](conformance/oidc.md) from that commit:
+   `make oidc-conformance`, then `make oidc-conformance-report ARGS="--write-docs"`. Commit
+   the updated page. A red profile blocks the release.
+3. Push `main`. Wait for the `sync-prod-requirements` workflow, then pull any commit it made.
+4. Tag `v1.2.3` on the resulting `HEAD` and push the tag. The publish workflow checks that
+   the tag matches `pyproject.toml`.

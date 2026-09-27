@@ -72,8 +72,14 @@ make oidc-conformance-destroy   # stop + wipe Mongo data + remove the dir
 * **Suite UI.** Each plan line carries a `plan-detail.html?plan=...` link.
   Open it to browse every module's log, including the scripted browser's
   page snapshots.
-* **Export.** `dev/oidc-conformance/export/` holds one zip per plan with the
-  full logs. CI uploads this directory as the run artifact.
+* **Export.** `dev/oidc-conformance/export/` holds one zip per plan per run
+  with the full signed logs. CI uploads this directory as the run artifact.
+* **Report.** `make oidc-conformance-report` prints the results table (suite
+  and WeftID versions, run date, per-profile counts, and the accepted
+  warnings, expected skips, and review modules by name) from the newest run
+  of each plan in the export directory. `ARGS="--write-docs"` writes it into
+  the marked section of `docs/conformance/oidc.md`; the release checklist in
+  `docs/VERSIONING.md` does this for every release.
 
 A profile is green when every module is PASSED, WARNING, REVIEW, or
 SKIPPED and none is FAILED or INTERRUPTED.
@@ -84,7 +90,10 @@ SKIPPED and none is FAILED or INTERRUPTED.
 known to fail, one entry per failing condition with a one-line `comment`.
 The runner fails on an unexpected failure **and** on an expected failure
 that did not happen, so the file cannot go stale: fixing a gap means
-removing its entry. The goal state is an empty list.
+removing its entry. The file holds no failures, only the warnings WeftID
+accepts as deviations; each is explained on the public results page
+(`docs/conformance/oidc.md`). Comments in both expected files are published
+there verbatim, so write them for relying-party developers.
 
 Entries have the suite's shape; `--verbose` prints them ready to paste:
 
@@ -132,6 +141,21 @@ the OTP passes via `BYPASS_OTP`, sessions are cookies, and codes and tokens
 live in Postgres. Do not run `make e2e` at the same time; its rate-limit
 tests would see the resets.
 
+## CI
+
+`.github/workflows/oidc-conformance.yml` runs the same three plans on the
+E2E workflow's triggers: nightly when there were commits, the `run-e2e` pull
+request label, and manual dispatch. It brings up the dev stack exactly as the
+E2E job does, then calls `dev/oidc-conformance.sh up` and
+`dev/oidc_conformance.py run`, the same scripts as a local run, with the suite
+runtime directory next to the checkout. The runner needs only `httpx` and
+`pyparsing` (pinned to the `poetry.lock` versions), so the job skips the
+Poetry install. The job fails on any mismatch with the expected files; the
+report goes to the run summary and the export directory (plus `report.md`) is
+uploaded as the `oidc-conformance-results` artifact either way.
+
+The E2E workflow removes the `run-e2e` label; this workflow only reads it.
+
 ## Running a subset
 
 The runner passes unknown arguments through to `run-test-plan.py`:
@@ -155,6 +179,7 @@ poetry run python dev/oidc_conformance.py run --runtime-dir /tmp/suite --verbose
 |------------------------------------|-----------------------------------------------|
 | `make oidc-conformance-up`         | Create dir + compose if missing, start        |
 | `make oidc-conformance`            | Provision testbed, run the plans              |
+| `make oidc-conformance-report`     | Results table from the newest run             |
 | `make oidc-conformance-down`       | Stop containers, keep Mongo data              |
 | `make oidc-conformance-destroy`    | Stop, wipe data, remove the runtime dir       |
 | `make oidc-conformance-status`     | `docker compose ps` for the suite             |

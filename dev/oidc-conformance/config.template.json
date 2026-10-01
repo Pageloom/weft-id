@@ -272,23 +272,6 @@
                 }
             ]
         },
-        "oidcc-ensure-request-object-with-redirect-uri": {
-            "browser": [
-                {
-                    "comment": "Request objects are rejected (request_not_supported); the plain query carries an unregistered redirect_uri (the registered one is inside the request object), so WeftID renders the error page and never redirects.",
-                    "match": "{WEFTID_ISSUER}/oauth2/authorize*",
-                    "tasks": [
-                        {
-                            "task": "Expect redirect_uri error page",
-                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
-                            "commands": [
-                                ["wait", "xpath", "//*", 10, "redirect_uri", "update-image-placeholder"]
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
         "oidcc-redirect-uri-query-mismatch": {
             "browser": [
                 {

@@ -50,7 +50,11 @@ from services.oidc.logout import (
     resolve_end_session_request,
 )
 from services.oidc.tokens import ID_TOKEN_EXPIRY, issue_id_token, verify_id_token_hint
-from services.oidc.userinfo import get_userinfo
+from services.oidc.userinfo import (
+    USERINFO_SIGNING_ALG_VALUES_SUPPORTED,
+    get_userinfo,
+    sign_userinfo,
+)
 
 __all__ = [
     "ActiveSigningKey",
@@ -81,6 +85,8 @@ __all__ = [
     "ID_TOKEN_EXPIRY",
     "build_discovery_metadata",
     "get_userinfo",
+    "sign_userinfo",
+    "USERINFO_SIGNING_ALG_VALUES_SUPPORTED",
     "consent_covers",
     "get_granted_scopes",
     "record_consent",

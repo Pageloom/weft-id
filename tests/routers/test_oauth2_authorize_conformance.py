@@ -213,30 +213,21 @@ class TestParameterErrorRedirects:
         assert _location_query(response)["error"] == ["unsupported_response_type"]
         assert PENDING_OAUTH2_AUTHORIZE_KEY not in session_data
 
-    def test_request_parameter_rejected(self, authed, normal_oauth2_client):
+    def test_request_object_from_client_without_keys(self, authed, normal_oauth2_client):
         response = authed.get(
             "/oauth2/authorize", params=_base_params(normal_oauth2_client, request="eyJ.abc.def")
         )
         query = _location_query(response)
-        assert query["error"] == ["request_not_supported"]
+        assert query["error"] == ["invalid_request_object"]
         assert query["state"] == ["st-1"]
 
-    def test_request_uri_parameter_rejected(self, authed, normal_oauth2_client):
+    def test_unregistered_request_uri(self, authed, normal_oauth2_client):
         response = authed.get(
             "/oauth2/authorize",
             params=_base_params(normal_oauth2_client, request_uri="https://rp.example/req"),
         )
         query = _location_query(response)
-        assert query["error"] == ["request_uri_not_supported"]
-
-    def test_request_object_rejected_before_response_type_check(self, authed, normal_oauth2_client):
-        """The suite sends the real parameters inside the request object; the
-        rejection must be request_not_supported, not a complaint about the
-        bare query."""
-        params = _base_params(normal_oauth2_client, request="eyJ.abc.def")
-        del params["response_type"]
-        response = authed.get("/oauth2/authorize", params=params)
-        assert _location_query(response)["error"] == ["request_not_supported"]
+        assert query["error"] == ["invalid_request_uri"]
 
     def test_invalid_max_age_is_invalid_request(self, authed, normal_oauth2_client):
         for bad in ("abc", "-1", "1.5", ""):
@@ -1011,8 +1002,9 @@ def _unsigned_request_object(claims: dict) -> str:
 
 
 class TestRequestObjectRejectionHints:
-    """The rejection of an unsupported request object is delivered in the
-    response_mode (and with the state) the RP put inside the object."""
+    """The refusal of an unusable request object (here: unsigned, and the
+    client has no keys) is delivered in the response_mode (and with the
+    state) the RP put inside the object."""
 
     def test_form_post_and_state_only_inside_object(self, authed, normal_oauth2_client):
         params = _base_params(
@@ -1021,7 +1013,7 @@ class TestRequestObjectRejectionHints:
         )
         del params["state"]
         fields = _form_post_fields(authed.get("/oauth2/authorize", params=params))
-        assert fields["error"] == "request_not_supported"
+        assert fields["error"] == "invalid_request_object"
         assert fields["state"] == "in-obj"
 
     def test_query_parameters_take_precedence(self, authed, normal_oauth2_client):
@@ -1034,7 +1026,7 @@ class TestRequestObjectRejectionHints:
             ),
         )
         query = _location_query(response)
-        assert query["error"] == ["request_not_supported"]
+        assert query["error"] == ["invalid_request_object"]
         assert query["state"] == ["st-1"]
 
     @pytest.mark.parametrize(
@@ -1052,7 +1044,7 @@ class TestRequestObjectRejectionHints:
         del params["state"]
         response = authed.get("/oauth2/authorize", params=params)
         query = _location_query(response)
-        assert query["error"] == ["request_not_supported"]
+        assert query["error"] == ["invalid_request_object"]
         assert "state" not in query
 
     @pytest.mark.parametrize(
@@ -1064,7 +1056,7 @@ class TestRequestObjectRejectionHints:
             "/oauth2/authorize",
             params=_base_params(normal_oauth2_client, request=request_object),
         )
-        assert _location_query(response)["error"] == ["request_not_supported"]
+        assert _location_query(response)["error"] == ["invalid_request_object"]
 
 
 class TestAuthorizeParamsAsQuery:
@@ -1087,3 +1079,221 @@ class TestAuthorizeParamsAsQuery:
 
     def test_strip_reauth_drops_empty_prompt(self):
         assert AuthorizeParams(prompt="select_account").as_query(strip_reauth=True) == []
+
+
+# ============================================================================
+# Request objects (OpenID Connect Core 1.0, section 6)
+# ============================================================================
+
+REQUEST_URI = "https://rp.example.com/requests/one.jwt"
+
+
+@pytest.fixture
+def signed_client(test_tenant, normal_oauth2_client):
+    """A confidential client with registered keys and one request_uri."""
+    import json
+
+    from tests.helpers.client_keys import JWKS
+
+    database.oauth2.set_client_authentication(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        client_auth_method="client_secret",
+        jwks=JWKS,
+        jwks_uri=None,
+        token_endpoint_auth_signing_alg=None,
+        rotate_secret=False,
+    )
+    database.execute(
+        test_tenant["id"],
+        "update oauth2_clients set registration_metadata = cast(:meta as jsonb) "
+        "where client_id = :client_id",
+        {
+            "meta": json.dumps({"request_uris": [REQUEST_URI + "#v1"]}),
+            "client_id": normal_oauth2_client["client_id"],
+        },
+    )
+    return normal_oauth2_client
+
+
+def _signed_object(client_row: dict, issuer: str, **claims) -> str:
+    from tests.helpers.client_keys import make_request_object
+
+    body = {
+        "iss": client_row["client_id"],
+        "aud": issuer,
+        "client_id": client_row["client_id"],
+        "response_type": "code",
+        "redirect_uri": REDIRECT_URI,
+        "scope": "openid",
+        "state": "st-obj",
+        "nonce": "n-obj",
+    }
+    body.update(claims)
+    return make_request_object(body)
+
+
+@pytest.fixture
+def issuer(test_tenant_host):
+    return f"https://{test_tenant_host}"
+
+
+class TestRequestObjects:
+    def _minimal_query(self, client_row: dict, **extra: str) -> dict[str, str]:
+        return {"client_id": client_row["client_id"], "response_type": "code", **extra}
+
+    def test_by_value_renders_consent_with_object_parameters(
+        self, authed, signed_client, issuer, session_data
+    ):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=self._minimal_query(
+                signed_client, request=_signed_object(signed_client, issuer)
+            ),
+        )
+        assert response.status_code == 200
+        assert 'name="auth_request_id"' in response.text
+        stored = next(iter(session_data["oauth2_auth_requests"].values()))
+        assert stored["redirect_uri"] == REDIRECT_URI
+        assert stored["state"] == "st-obj"
+        assert stored["nonce"] == "n-obj"
+
+    def test_post_binding(self, authed, signed_client, issuer):
+        response = authed.post(
+            "/oauth2/authorize",
+            data=self._minimal_query(signed_client, request=_signed_object(signed_client, issuer)),
+        )
+        assert response.status_code == 200
+        assert 'name="auth_request_id"' in response.text
+
+    def test_object_redirect_uri_wins_over_query(self, authed, signed_client, issuer):
+        """Core 6.1 (the suite's ensure-request-object-with-redirect-uri):
+        the query's unregistered redirect_uri is replaced by the object's."""
+        response = authed.get(
+            "/oauth2/authorize",
+            params=self._minimal_query(
+                signed_client,
+                redirect_uri="https://evil.example/cb",
+                state="query-state",
+                request=_signed_object(signed_client, issuer, prompt="none"),
+            ),
+        )
+        query = _location_query(response)
+        assert query["error"] == ["consent_required"]
+        assert query["state"] == ["st-obj"]
+
+    def test_object_response_mode(self, authed, signed_client, issuer):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=self._minimal_query(
+                signed_client,
+                request=_signed_object(
+                    signed_client, issuer, prompt="none", response_mode="form_post"
+                ),
+            ),
+        )
+        fields = _form_post_fields(response)
+        assert fields["error"] == "consent_required"
+        assert fields["state"] == "st-obj"
+
+    def test_unauthenticated_stash_holds_merged_parameters(
+        self, anon, signed_client, issuer, session_data
+    ):
+        response = anon.get(
+            "/oauth2/authorize",
+            params=self._minimal_query(
+                signed_client, request=_signed_object(signed_client, issuer)
+            ),
+        )
+        assert response.status_code == 303
+        stashed = session_data[PENDING_OAUTH2_AUTHORIZE_KEY]
+        assert "request=" not in stashed
+        stashed_query = parse_qs(urlsplit(stashed).query)
+        assert stashed_query["redirect_uri"] == [REDIRECT_URI]
+        assert stashed_query["state"] == ["st-obj"]
+
+    def test_by_reference(self, authed, signed_client, issuer, session_data, mocker):
+        obj = _signed_object(signed_client, issuer)
+        fetch = mocker.patch("services.oauth2_request_objects._fetch", return_value=obj)
+        response = authed.get(
+            "/oauth2/authorize",
+            params=self._minimal_query(signed_client, request_uri=REQUEST_URI + "#v2"),
+        )
+        assert response.status_code == 200
+        assert 'name="auth_request_id"' in response.text
+        fetch.assert_called_once_with(REQUEST_URI + "#v2")
+
+    def test_bad_signature_goes_to_registered_query_redirect(self, authed, signed_client, issuer):
+        from tests.helpers.client_keys import OTHER_RSA_KEY, make_request_object
+
+        obj = make_request_object({"state": "in-obj"}, key=OTHER_RSA_KEY, kid=None)
+        response = authed.get(
+            "/oauth2/authorize",
+            params=self._minimal_query(signed_client, redirect_uri=REDIRECT_URI, request=obj),
+        )
+        query = _location_query(response)
+        assert query["error"] == ["invalid_request_object"]
+        assert query["state"] == ["in-obj"]
+
+    def test_bad_object_without_registered_redirect_renders_error_page(
+        self, authed, signed_client, issuer
+    ):
+        obj = _signed_object(signed_client, "https://other-op.example")
+        response = authed.get(
+            "/oauth2/authorize", params=self._minimal_query(signed_client, request=obj)
+        )
+        assert response.status_code == 200
+        assert "Invalid request object" in response.text
+        assert "location" not in response.headers
+
+    def test_unsigned_object_refused(self, authed, signed_client):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(
+                signed_client, request=_unsigned_request_object({"scope": "openid"})
+            ),
+        )
+        assert _location_query(response)["error"] == ["invalid_request_object"]
+
+    def test_both_parameters_are_invalid_request(self, authed, signed_client, issuer):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(
+                signed_client,
+                request=_signed_object(signed_client, issuer),
+                request_uri=REQUEST_URI,
+            ),
+        )
+        assert _location_query(response)["error"] == ["invalid_request"]
+
+    def test_unregistered_request_uri_with_form_post_query_mode(self, authed, signed_client):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(
+                signed_client,
+                response_mode="form_post",
+                request_uri="https://rp.example.com/other.jwt",
+            ),
+        )
+        assert _form_post_fields(response)["error"] == "invalid_request_uri"
+
+    def test_unsupported_query_response_mode_falls_back_to_query(self, authed, signed_client):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=_base_params(
+                signed_client,
+                response_mode="fragment",
+                request_uri="https://rp.example.com/other.jwt",
+            ),
+        )
+        assert _location_query(response)["error"] == ["invalid_request_uri"]
+
+    def test_object_values_are_validated_like_query_values(self, authed, signed_client, issuer):
+        response = authed.get(
+            "/oauth2/authorize",
+            params=self._minimal_query(
+                signed_client,
+                request=_signed_object(signed_client, issuer, max_age=-5),
+            ),
+        )
+        assert _location_query(response)["error"] == ["invalid_request"]

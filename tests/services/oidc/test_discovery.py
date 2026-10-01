@@ -57,15 +57,15 @@ class TestBuildDiscoveryMetadata:
         assert {"name", "email", "email_verified", "zoneinfo"} <= claims
         assert "groups" in claims
 
-    def test_request_objects_are_explicitly_unsupported(self):
-        """The Discovery default for request_uri_parameter_supported is true,
-        so both flags must be stated explicitly (the suite warns otherwise)."""
+    def test_request_objects_are_signed_only(self):
+        """Signed request objects by value and by reference; "none" is never
+        advertised, and a request_uri must be registered."""
         meta = discovery_service.build_discovery_metadata("https://t.example.com")
-        assert meta.request_parameter_supported is False
-        assert meta.request_uri_parameter_supported is False
-        dumped = meta.model_dump()
-        assert dumped["request_parameter_supported"] is False
-        assert dumped["request_uri_parameter_supported"] is False
+        assert meta.request_parameter_supported is True
+        assert meta.request_uri_parameter_supported is True
+        assert meta.require_request_uri_registration is True
+        assert "none" not in meta.request_object_signing_alg_values_supported
+        assert meta.userinfo_signing_alg_values_supported == ["RS256"]
 
     def test_registration_endpoint_only_when_enabled(self):
         assert (

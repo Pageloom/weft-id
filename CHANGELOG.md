@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Request objects and signed UserInfo.** Apps can send their authorization
+  request inside a signed JWT (OpenID Connect Core section 6), by value
+  (`request`) or by reference (`request_uri`, an `https` URL the app
+  registered in `request_uris`, fetched through the SSRF guard). Request
+  objects must be signed with RS256, PS256, or ES256 by one of the app's keys;
+  unsigned objects are refused. Apps registered with
+  `userinfo_signed_response_alg` get UserInfo as a signed JWT. Dynamic client
+  registration accepts `request_uris`, `request_object_signing_alg`, and
+  `userinfo_signed_response_alg`, and discovery advertises request object
+  and UserInfo signing algorithms. See
+  [Request objects and signed UserInfo](docs/admin-guide/integrations/oidc-provider-setup.md#request-objects-and-signed-userinfo).
 - **Private key JWT client authentication.** An app or service account can
   prove who it is with a short-lived JWT signed by its own private key
   (`private_key_jwt`, RFC 7523) instead of a client secret, at the token,
@@ -270,9 +281,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     before anything else, accepts `POST`, requires `response_type`, and
     honours `prompt` (`none`, `login`, `consent`, `select_account`),
     `max_age`, `login_hint`, and `id_token_hint`. `prompt=login` and an
-    expired `max_age` require a full local sign-in. Request objects are
-    rejected with `request_not_supported`, and discovery says
-    `claims_parameter_supported: false`.
+    expired `max_age` require a full local sign-in. The `claims` parameter
+    is not supported, and discovery says `claims_parameter_supported: false`.
 - **Anonymizing a user revokes their OAuth2 tokens and remembered consents**,
   as deactivation already did. Anonymization deactivates the user, but their
   tokens used to stay valid until they expired.

@@ -109,10 +109,13 @@ class TestDiscoveryDocument:
         # groups claim (WeftID extension) is advertised in Iteration 4.
         assert "groups" in claims
 
-    def test_request_object_flags_are_explicit_false(self, client, test_tenant_host):
+    def test_request_objects_and_signed_userinfo(self, client, test_tenant_host):
         body = _discovery(client, test_tenant_host).json()
-        assert body["request_parameter_supported"] is False
-        assert body["request_uri_parameter_supported"] is False
+        assert body["request_parameter_supported"] is True
+        assert body["request_uri_parameter_supported"] is True
+        assert body["require_request_uri_registration"] is True
+        assert body["request_object_signing_alg_values_supported"] == ["RS256", "PS256", "ES256"]
+        assert body["userinfo_signing_alg_values_supported"] == ["RS256"]
 
     def test_response_modes_and_claims_parameter(self, client, test_tenant_host):
         body = _discovery(client, test_tenant_host).json()

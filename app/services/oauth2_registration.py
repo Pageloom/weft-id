@@ -26,7 +26,10 @@ Metadata policy: values WeftID cannot honour are rejected
 (``invalid_client_metadata``) rather than silently changed, so a client never
 believes it got something it did not. Metadata WeftID does not understand is
 ignored and not echoed (RFC 7591 section 2). Accepted metadata WeftID does not
-act on (``contacts``) is stored and echoed.
+act on (``contacts``) is stored and echoed. ``request_uris``,
+``request_object_signing_alg`` and ``userinfo_signed_response_alg`` are kept in
+the same registration metadata, where the authorization endpoint
+(:mod:`services.oauth2_request_objects`) and userinfo read them.
 """
 
 import hashlib
@@ -47,7 +50,7 @@ from schemas.oauth2 import (
     RegistrationSettingsUpdate,
 )
 from services import oauth2 as oauth2_service
-from services import oauth2_client_auth
+from services import oauth2_client_auth, oauth2_request_objects
 from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import SYSTEM_ACTOR_ID, log_event
@@ -72,6 +75,7 @@ SUPPORTED_AUTH_METHODS = ("client_secret_basic", "client_secret_post", "private_
 _SECRET_AUTH_METHODS = ("client_secret_basic", "client_secret_post")
 SUPPORTED_APPLICATION_TYPES = ("web", "native")
 SUPPORTED_ID_TOKEN_ALG = "RS256"
+SUPPORTED_USERINFO_ALGS = ("RS256",)
 
 # Signing and encryption metadata WeftID cannot honour. A request naming any of
 # these is refused instead of getting an unsigned or unencrypted response it
@@ -79,10 +83,8 @@ SUPPORTED_ID_TOKEN_ALG = "RS256"
 _UNSUPPORTED_ALG_FIELDS = (
     "id_token_encrypted_response_alg",
     "id_token_encrypted_response_enc",
-    "userinfo_signed_response_alg",
     "userinfo_encrypted_response_alg",
     "userinfo_encrypted_response_enc",
-    "request_object_signing_alg",
     "request_object_encryption_alg",
     "request_object_encryption_enc",
 )
@@ -93,6 +95,7 @@ MAX_URI_LENGTH = 2048
 MAX_NAME_LENGTH = 255
 MAX_CONTACTS = 10
 MAX_CONTACT_LENGTH = 320
+MAX_REQUEST_URIS = 20
 
 _LOOPBACK_HOSTS = ("localhost",)
 
@@ -426,6 +429,26 @@ def _https_uri(metadata: dict, name: str) -> str | None:
     return value
 
 
+def _validate_request_uris(metadata: dict) -> list[str] | None:
+    """``request_uris`` (OpenID Connect Registration 1.0 section 2): https
+    URIs where the client publishes request objects. A fragment is allowed
+    (Core 6.2 uses it to version the object) and ignored when matching."""
+    values = _str_list(
+        metadata, "request_uris", max_items=MAX_REQUEST_URIS, max_length=MAX_URI_LENGTH
+    )
+    if not values:
+        return None
+    for value in values:
+        try:
+            parts = urlsplit(value)
+            host = parts.hostname
+        except ValueError:
+            parts, host = None, None
+        if parts is None or parts.scheme != "https" or not host:
+            raise _metadata_error("request_uris must be absolute https URIs")
+    return values
+
+
 def _choice_list(
     metadata: dict, name: str, supported: tuple[str, ...], default: list[str]
 ) -> list[str]:
@@ -570,6 +593,26 @@ def validate_client_metadata(metadata: dict) -> dict:
             "authorization_code grant"
         )
 
+    request_uris = _validate_request_uris(metadata)
+    request_object_alg = metadata.get("request_object_signing_alg")
+    if request_object_alg is not None and (
+        request_object_alg not in oauth2_request_objects.SIGNING_ALG_VALUES_SUPPORTED
+    ):
+        raise _metadata_error(
+            "Unsupported request_object_signing_alg. Supported: "
+            + ", ".join(oauth2_request_objects.SIGNING_ALG_VALUES_SUPPORTED)
+        )
+    if (request_uris or request_object_alg is not None) and not uses_code:
+        raise _metadata_error(
+            "request_uris and request_object_signing_alg are only used with the "
+            "authorization_code grant"
+        )
+    if request_object_alg is not None and jwks is None and jwks_uri is None:
+        raise _metadata_error("request_object_signing_alg requires jwks or jwks_uri")
+    userinfo_alg = metadata.get("userinfo_signed_response_alg")
+    if userinfo_alg is not None and userinfo_alg not in SUPPORTED_USERINFO_ALGS:
+        raise _metadata_error("Unsupported userinfo_signed_response_alg. Supported: RS256")
+
     return {
         "client_name": client_name or _fallback_name(redirect_uris),
         "redirect_uris": redirect_uris,
@@ -595,7 +638,7 @@ def validate_client_metadata(metadata: dict) -> dict:
         "jwks": jwks,
         "jwks_uri": jwks_uri,
         "token_endpoint_auth_signing_alg": signing_alg,
-        # Stored as JSON and echoed; nothing outside this module reads them.
+        # Stored as JSON and echoed.
         "extra": {
             key: value
             for key, value in {
@@ -604,6 +647,10 @@ def validate_client_metadata(metadata: dict) -> dict:
                 "grant_types": grant_types,
                 "token_endpoint_auth_method": auth_method,
                 "contacts": contacts,
+                # Read by the authorization and userinfo endpoints too.
+                "request_uris": request_uris,
+                "request_object_signing_alg": request_object_alg,
+                "userinfo_signed_response_alg": userinfo_alg,
             }.items()
             if value is not None
         },
@@ -643,8 +690,14 @@ def client_configuration(client: dict, base_url: str) -> dict:
     for name in ("logo_uri", "client_uri", "policy_uri", "tos_uri", "initiate_login_uri"):
         if client.get(name):
             body[name] = client[name]
-    if extra.get("contacts") is not None:
-        body["contacts"] = extra["contacts"]
+    for name in (
+        "contacts",
+        "request_uris",
+        "request_object_signing_alg",
+        "userinfo_signed_response_alg",
+    ):
+        if extra.get(name) is not None:
+            body[name] = extra[name]
     for name in ("jwks", "jwks_uri", "token_endpoint_auth_signing_alg"):
         if client.get(name) is not None:
             body[name] = client[name]

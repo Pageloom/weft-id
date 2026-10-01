@@ -12,7 +12,7 @@ import binascii
 import json
 import secrets
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from typing import Annotated
 from urllib.parse import unquote, urlencode, urlparse
@@ -21,6 +21,7 @@ import oauth2
 import services.oauth2 as oauth2_service
 import services.oauth2_client_auth as oauth2_client_auth_service
 import services.oauth2_device as oauth2_device_service
+import services.oauth2_request_objects as oauth2_request_objects_service
 import services.oauth2_tokens as oauth2_tokens_service
 import services.oidc as oidc_service
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
@@ -33,7 +34,7 @@ from routers.auth.logout import end_oidc_session_quietly, frontchannel_logout_re
 from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
 from schemas.oauth2 import DeviceAuthorizationResponse, TokenErrorResponse, TokenResponse
 from services.event_log import log_event
-from services.exceptions import ForbiddenError, UnauthorizedError
+from services.exceptions import ForbiddenError, UnauthorizedError, ValidationError
 from services.oidc.claims import SCOPE_OPENID, parse_scope
 from utils.csp_nonce import get_csp_nonce
 from utils.redirects import safe_redirect
@@ -173,8 +174,12 @@ def authorize_page(
         max_age: Maximum authentication age in seconds
         login_hint: Pre-fills the email step of the login page
         id_token_hint: A WeftID-issued ID token identifying the expected user
-        request, request_uri: Not supported; rejected with
-            request_not_supported / request_uri_not_supported
+        request: A request object (a JWT signed RS256/PS256/ES256 with one of
+            the client's registered keys) carrying any of these parameters;
+            its values replace the query's (OpenID Connect Core 1.0 section 6)
+        request_uri: An https URL the client registered in request_uris,
+            where WeftID fetches the request object. Not with request.
+            Refusals are invalid_request_object / invalid_request_uri.
         response_mode: query (default) or form_post; decides how the code or
             error is delivered to the redirect_uri. Other values are
             invalid_request.
@@ -288,7 +293,10 @@ def _handle_authorize_request(
        renders the error page and never redirects, because there is no
        trustworthy place to redirect to. This happens before any session
        check so an unauthenticated request with a bad client is not bounced
-       through login.
+       through login. A request object (``request`` / ``request_uri``) is
+       verified between the two, because it may carry the ``redirect_uri``;
+       from then on the request is its merged parameters, so the login stash
+       and everything below never see the object itself.
     2. Every other parameter error is reported to the RP at the (now
        verified) ``redirect_uri`` with ``error`` and ``state``, delivered per
        ``response_mode`` (a redirect with a query, or an auto-submitting form
@@ -330,6 +338,21 @@ def _handle_authorize_request(
             request, "Unauthorized client", "This client is not authorized for this flow."
         )
 
+    if params.request_object is not None or params.request_uri is not None:
+        try:
+            carried = oauth2_request_objects_service.resolve_request_object(
+                tenant_id,
+                client,
+                request_object=params.request_object,
+                request_uri=params.request_uri,
+                issuer=tenant_base_url(request),
+                query_client_id=params.client_id,
+                query_response_type=params.response_type,
+            )
+        except ValidationError as exc:
+            return _request_object_refused(request, client, params, exc)
+        params = replace(params, **carried, request_object=None, request_uri=None)
+
     if not params.redirect_uri:
         return _error_page(
             request, "Invalid redirect_uri", "The redirect_uri parameter is required."
@@ -352,21 +375,6 @@ def _handle_authorize_request(
         )
     rp = _RpResponse(request, redirect_uri, state, response_mode)
 
-    if params.request_object is not None:
-        # The rejection is delivered the way the RP asked inside the object
-        # when it put response_mode/state only there (see _request_object_hints).
-        # Query parameters the RP sent explicitly take precedence.
-        hints = _request_object_hints(params.request_object)
-        if not params.response_mode:
-            response_mode = hints.get("response_mode", response_mode)
-        rp = _RpResponse(request, redirect_uri, state or hints.get("state"), response_mode)
-        return rp.error(
-            "request_not_supported", "Request objects passed by value are not supported."
-        )
-    if params.request_uri is not None:
-        return rp.error(
-            "request_uri_not_supported", "Request objects passed by reference are not supported."
-        )
     if not params.response_type:
         return rp.error("invalid_request", "The response_type parameter is required.")
     if params.response_type not in SUPPORTED_RESPONSE_TYPES:
@@ -618,17 +626,36 @@ def _form_post_response(
     return response
 
 
-def _request_object_hints(request_object: str) -> dict[str, str]:
-    """Read ``response_mode`` and ``state`` from an unsupported request object.
+def _request_object_refused(
+    request: Request, client: dict, params: AuthorizeParams, exc: ValidationError
+) -> Response:
+    """Answer a request object that could not be used.
 
-    Request objects are rejected (``request_not_supported``), but an RP that
-    sends one may carry ``response_mode`` and ``state`` only inside it (OpenID
-    Connect Core 1.0, section 6.1), and it then waits for the answer in that
-    mode. The payload is decoded without verification, and only these two
-    values are used, only to shape the rejection sent to the already verified
-    redirect_uri: the mode must be a supported one, and ``state`` is echoed
-    exactly as an RP could have sent it in the query. Anything unreadable
-    (a JWE, bad base64, non-JSON) yields no hints.
+    The error goes to the query ``redirect_uri`` when it is registered (the
+    one in the object cannot be trusted); otherwise the error page renders.
+    """
+    if not params.redirect_uri or params.redirect_uri not in (client["redirect_uris"] or []):
+        return _error_page(request, "Invalid request object", exc.message)
+    hints = _request_object_hints(params.request_object) if params.request_object else {}
+    response_mode = params.response_mode or hints.get("response_mode", DEFAULT_RESPONSE_MODE)
+    if response_mode not in SUPPORTED_RESPONSE_MODES:
+        response_mode = DEFAULT_RESPONSE_MODE
+    return _RpResponse(
+        request, params.redirect_uri, params.state or hints.get("state"), response_mode
+    ).error(exc.code, exc.message)
+
+
+def _request_object_hints(request_object: str) -> dict[str, str]:
+    """Read ``response_mode`` and ``state`` from a refused request object.
+
+    An RP may carry ``response_mode`` and ``state`` only inside its request
+    object (OpenID Connect Core 1.0, section 6.1), and it then waits for the
+    answer in that mode. When the object is refused, the payload is decoded
+    without verification, and only these two values are used, only to shape
+    the refusal sent to the already verified redirect_uri: the mode must be a
+    supported one, and ``state`` is echoed exactly as an RP could have sent it
+    in the query. Anything unreadable (a JWE, bad base64, non-JSON) yields no
+    hints.
     """
     segments = request_object.split(".")
     if len(segments) != 3:

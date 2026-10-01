@@ -12,7 +12,7 @@ All functions:
 """
 
 from datetime import datetime
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import database
 from services.event_log import log_event
@@ -155,6 +155,52 @@ def validate_backchannel_logout_uri(uri: str | None) -> str | None:
             code="invalid_backchannel_logout_uri",
         )
     return cleaned
+
+
+def validate_initiate_login_uri(uri: str | None) -> str | None:
+    """Normalise and validate a client's third-party login initiation URI.
+
+    Blank means "none" and returns None. Otherwise the URI must be absolute
+    ``https`` with a host (and a valid port, if any) and no fragment (OpenID
+    Connect Registration 1.0 section 2, ``initiate_login_uri``). A query is
+    allowed; the login parameters are appended to it.
+
+    Raises:
+        ValidationError: code ``invalid_initiate_login_uri``.
+    """
+    cleaned = (uri or "").strip()
+    if not cleaned:
+        return None
+    try:
+        parts = urlsplit(cleaned)
+    except ValueError:
+        parts = None
+    if (
+        parts is None
+        or _origin(parts) is None
+        or parts.scheme.lower() != "https"
+        or parts.fragment
+        or "#" in cleaned
+    ):
+        raise ValidationError(
+            f"Invalid login initiation URI: {cleaned[:200]}",
+            code="invalid_initiate_login_uri",
+        )
+    return cleaned
+
+
+def initiate_login_url(initiate_login_uri: str, issuer: str) -> str:
+    """The URL that asks a client to start a login at WeftID.
+
+    OpenID Connect Core 1.0 section 4: ``iss`` is the only required parameter.
+    ``target_link_uri`` is left out (the client lands where it normally would)
+    and so is ``login_hint`` (the user already has a WeftID session, and the
+    hint would put their email address in the client's request logs).
+    """
+    parts = urlsplit(initiate_login_uri)
+    kept = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "iss"]
+    query = urlencode([*kept, ("iss", issuer)])
+    return urlunsplit(parts._replace(query=query))
 
 
 # =============================================================================
@@ -449,6 +495,7 @@ def create_normal_client(
     frontchannel_logout_session_required: bool = True,
     backchannel_logout_uri: str | None = None,
     backchannel_logout_session_required: bool = True,
+    initiate_login_uri: str | None = None,
 ) -> dict:
     """
     Create a normal OAuth2 client (authorization code flow).
@@ -469,17 +516,20 @@ def create_normal_client(
             when the user's session ends
         backchannel_logout_session_required: Whether the logout token carries
             ``sid``
+        initiate_login_uri: Optional https URL of the app that starts a login
+            at WeftID (third-party-initiated login, My Apps launch)
 
     Returns:
         Client dict including plaintext client_secret
 
     Raises:
-        ValidationError: a post-logout redirect URI or a front- or
-            back-channel logout URI is malformed
+        ValidationError: a post-logout redirect URI, a front- or back-channel
+            logout URI, or the login initiation URI is malformed
     """
     post_logout_uris = validate_post_logout_redirect_uris(post_logout_redirect_uris or [])
     frontchannel_uri = validate_frontchannel_logout_uri(frontchannel_logout_uri, redirect_uris)
     backchannel_uri = validate_backchannel_logout_uri(backchannel_logout_uri)
+    initiate_uri = validate_initiate_login_uri(initiate_login_uri)
     result = database.oauth2.create_normal_client(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
@@ -492,6 +542,7 @@ def create_normal_client(
         frontchannel_logout_session_required=frontchannel_logout_session_required,
         backchannel_logout_uri=backchannel_uri,
         backchannel_logout_session_required=backchannel_logout_session_required,
+        initiate_login_uri=initiate_uri,
     )
 
     if result is None:
@@ -645,9 +696,11 @@ def update_client(
     frontchannel_logout_session_required: bool | None = None,
     backchannel_logout_uri: str | None = None,
     backchannel_logout_session_required: bool | None = None,
+    initiate_login_uri: str | None = None,
 ) -> dict | None:
     """
-    Update an OAuth2 client's name, description, redirect URIs, and logout settings.
+    Update an OAuth2 client's name, description, redirect URIs, logout settings,
+    and login initiation URI.
 
     Args:
         tenant_id: Tenant ID
@@ -666,6 +719,8 @@ def update_client(
             clients (optional; an empty string clears it)
         backchannel_logout_session_required: Whether the logout token carries
             ``sid`` (optional)
+        initiate_login_uri: New login initiation URI for normal clients
+            (optional; https only; an empty string clears it)
 
     Returns:
         Updated client dict, or None if not found
@@ -675,7 +730,8 @@ def update_client(
             malformed post-logout redirect URI, a front-channel logout URI
             that is malformed or not on a redirect URI's origin (checked
             against the redirect URIs the client will have after the update),
-            or a malformed back-channel logout URI
+            a malformed back-channel logout URI, or a login initiation URI
+            that is malformed or not https
     """
     # Get current client for comparison
     old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
@@ -709,6 +765,13 @@ def update_client(
             )
         if backchannel_logout_uri is not None:
             backchannel_logout_uri = validate_backchannel_logout_uri(backchannel_logout_uri) or ""
+    if initiate_login_uri is not None:
+        if old_client["client_type"] != "normal":
+            raise ValidationError(
+                "A login initiation URI can only be set for normal clients",
+                code="redirect_uris_not_allowed",
+            )
+        initiate_login_uri = validate_initiate_login_uri(initiate_login_uri) or ""
     # Re-check the front-channel URI whenever it or the redirect URIs change:
     # it must stay on the origin of a registered redirect URI.
     if frontchannel_logout_uri is not None or redirect_uris is not None:
@@ -735,6 +798,7 @@ def update_client(
         frontchannel_logout_session_required=frontchannel_logout_session_required,
         backchannel_logout_uri=backchannel_logout_uri,
         backchannel_logout_session_required=backchannel_logout_session_required,
+        initiate_login_uri=initiate_login_uri,
     )
 
     if result:
@@ -768,6 +832,10 @@ def update_client(
             != bool(old_client.get("backchannel_logout_session_required"))
         ):
             changed_fields.append("backchannel_logout_session_required")
+        if initiate_login_uri is not None and (initiate_login_uri or None) != (
+            old_client.get("initiate_login_uri")
+        ):
+            changed_fields.append("initiate_login_uri")
 
         if changed_fields:
             log_event(

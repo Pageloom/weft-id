@@ -519,6 +519,9 @@ def validate_client_metadata(metadata: dict) -> dict:
         backchannel_uri = oauth2_service.validate_backchannel_logout_uri(
             _optional_str(metadata, "backchannel_logout_uri", MAX_URI_LENGTH)
         )
+        initiate_login_uri = oauth2_service.validate_initiate_login_uri(
+            _optional_str(metadata, "initiate_login_uri", MAX_URI_LENGTH)
+        )
     except ValidationError as exc:
         raise _metadata_error(exc.message) from exc
 
@@ -536,6 +539,7 @@ def validate_client_metadata(metadata: dict) -> dict:
         "client_uri": _https_uri(metadata, "client_uri"),
         "policy_uri": _https_uri(metadata, "policy_uri"),
         "tos_uri": _https_uri(metadata, "tos_uri"),
+        "initiate_login_uri": initiate_login_uri,
         # Stored as JSON and echoed; nothing outside this module reads them.
         "extra": {
             key: value
@@ -581,7 +585,7 @@ def client_configuration(client: dict, base_url: str) -> dict:
         "subject_type": "public",
         "registration_client_uri": registration_client_uri(base_url, client["client_id"]),
     }
-    for name in ("logo_uri", "client_uri", "policy_uri", "tos_uri"):
+    for name in ("logo_uri", "client_uri", "policy_uri", "tos_uri", "initiate_login_uri"):
         if client.get(name):
             body[name] = client[name]
     for name in ("contacts", "jwks", "jwks_uri"):
@@ -674,6 +678,7 @@ def register_client(
         client_uri=accepted["client_uri"],
         policy_uri=accepted["policy_uri"],
         tos_uri=accepted["tos_uri"],
+        initiate_login_uri=accepted["initiate_login_uri"],
         registration_metadata=accepted["extra"],
         registration_access_token_hash=oauth2.hash_token(registration_access_token),
         registered_with_token_id=str(token_row["id"]) if token_row else None,
@@ -788,6 +793,7 @@ def update_client_configuration(
         client_uri=accepted["client_uri"],
         policy_uri=accepted["policy_uri"],
         tos_uri=accepted["tos_uri"],
+        initiate_login_uri=accepted["initiate_login_uri"],
         registration_metadata=accepted["extra"],
     )
     if updated is None:

@@ -3,6 +3,8 @@
 This test file covers all OAuth2 client management API operations.
 """
 
+import pytest
+
 # =============================================================================
 # List Clients Tests
 # =============================================================================
@@ -1765,4 +1767,94 @@ def test_member_cannot_set_introspection(
         json={"can_introspect_tenant_tokens": True},
     )
 
+    assert response.status_code == 403
+
+
+# =============================================================================
+# Login initiation URI (third-party-initiated login)
+# =============================================================================
+
+
+def test_create_normal_client_with_initiate_login_uri(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Launchable RP",
+            "redirect_uris": ["https://rp.example/cb"],
+            "initiate_login_uri": "https://rp.example/login",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["initiate_login_uri"] == "https://rp.example/login"
+
+
+@pytest.mark.parametrize(
+    ("uri", "status"),
+    [
+        ("http://rp.example/login", 400),
+        ("https://rp.example/login#frag", 400),
+        ("https://rp.example/" + "a" * 2048, 422),
+    ],
+)
+def test_create_normal_client_rejects_bad_initiate_login_uri(
+    client, test_tenant_host, oauth2_admin_authorization_header, uri, status
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Bad Launchable RP",
+            "redirect_uris": ["https://rp.example/cb"],
+            "initiate_login_uri": uri,
+        },
+    )
+    assert response.status_code == status
+
+
+def test_update_client_initiate_login_uri_set_read_and_clear(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    url = f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}"
+    headers = {"Host": test_tenant_host, **oauth2_admin_authorization_header}
+
+    response = client.patch(
+        url, headers=headers, json={"initiate_login_uri": "https://rp.example/login"}
+    )
+    assert response.status_code == 200
+    assert client.get(url, headers=headers).json()["initiate_login_uri"] == (
+        "https://rp.example/login"
+    )
+
+    # Omitted leaves it; "" clears it.
+    client.patch(url, headers=headers, json={"name": "Renamed"})
+    assert client.get(url, headers=headers).json()["initiate_login_uri"] == (
+        "https://rp.example/login"
+    )
+    response = client.patch(url, headers=headers, json={"initiate_login_uri": ""})
+    assert response.status_code == 200
+    assert response.json()["initiate_login_uri"] is None
+
+
+def test_update_client_rejects_http_initiate_login_uri(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"initiate_login_uri": "http://rp.example/login"},
+    )
+    assert response.status_code == 400
+
+
+def test_update_client_initiate_login_uri_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"initiate_login_uri": "https://rp.example/login"},
+    )
     assert response.status_code == 403

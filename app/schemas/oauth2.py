@@ -57,6 +57,15 @@ class NormalClientCreate(BaseModel):
         True,
         description="Whether the logout token carries the sid claim (default true).",
     )
+    initiate_login_uri: str | None = Field(
+        None,
+        max_length=2048,
+        description=(
+            "OpenID Connect third-party-initiated login: the app's URL that starts a "
+            "sign-in at WeftID (absolute https, no fragment). An OIDC-enabled client "
+            "with one appears in My Apps. Optional."
+        ),
+    )
 
 
 class B2BClientCreate(BaseModel):
@@ -116,6 +125,14 @@ class ClientUpdate(BaseModel):
         None,
         description="Whether the logout token carries the sid claim (normal clients).",
     )
+    initiate_login_uri: str | None = Field(
+        None,
+        max_length=2048,
+        description=(
+            "Login initiation URL (normal clients only; absolute https, no fragment). "
+            "An empty string clears it."
+        ),
+    )
     can_introspect_tenant_tokens: bool | None = Field(
         None,
         description=(
@@ -165,6 +182,10 @@ class ClientResponse(BaseModel):
     client_uri: str | None = Field(None, description="The client's home page.")
     policy_uri: str | None = Field(None, description="The client's privacy policy.")
     tos_uri: str | None = Field(None, description="The client's terms of service.")
+    initiate_login_uri: str | None = Field(
+        None,
+        description="The client's URL that starts a sign-in at WeftID (My Apps launch).",
+    )
     created_at: datetime
 
 

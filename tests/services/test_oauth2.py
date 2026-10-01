@@ -1231,3 +1231,160 @@ def test_update_b2b_client_rejects_backchannel_settings(
     with pytest.raises(ValidationError) as exc:
         _update(test_tenant, b2b_oauth2_client, test_admin_user, **kw)
     assert exc.value.code == "redirect_uris_not_allowed"
+
+
+# =============================================================================
+# Third-party-initiated login (initiate_login_uri)
+# =============================================================================
+
+
+class TestValidateInitiateLoginUri:
+    @pytest.mark.parametrize(
+        "uri",
+        [
+            "https://rp.example/login",
+            "https://rp.example:8443/sso/start?tenant=acme",
+            "https://RP.example/Login",
+        ],
+    )
+    def test_valid(self, uri):
+        assert oauth2_service.validate_initiate_login_uri(uri) == uri
+
+    def test_trimmed(self):
+        assert (
+            oauth2_service.validate_initiate_login_uri(" https://rp.example/login ")
+            == "https://rp.example/login"
+        )
+
+    @pytest.mark.parametrize("blank", [None, "", "   "])
+    def test_blank_is_none(self, blank):
+        assert oauth2_service.validate_initiate_login_uri(blank) is None
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "http://rp.example/login",
+            "rp.example/login",
+            "/login",
+            "javascript:alert(1)",
+            "https://",
+            "https://rp.example/login#frag",
+            "https://rp.example/login#",
+            "https://rp.example:99999/login",
+            "https://[::1/login",
+        ],
+    )
+    def test_rejected(self, bad):
+        with pytest.raises(ValidationError) as exc:
+            oauth2_service.validate_initiate_login_uri(bad)
+        assert exc.value.code == "invalid_initiate_login_uri"
+
+
+class TestInitiateLoginUrl:
+    def test_adds_iss(self):
+        assert oauth2_service.initiate_login_url(
+            "https://rp.example/login", "https://acme.weftid.example"
+        ) == ("https://rp.example/login?iss=https%3A%2F%2Facme.weftid.example")
+
+    def test_keeps_query_and_replaces_any_iss(self):
+        url = oauth2_service.initiate_login_url(
+            "https://rp.example/login?a=1&iss=https://other.example&b=",
+            "https://acme.weftid.example",
+        )
+        assert url == "https://rp.example/login?a=1&b=&iss=https%3A%2F%2Facme.weftid.example"
+
+    def test_sends_no_hint_or_target(self):
+        url = oauth2_service.initiate_login_url("https://rp.example/login", "https://i.example")
+        assert "login_hint" not in url
+        assert "target_link_uri" not in url
+
+
+def test_create_normal_client_with_initiate_login_uri(test_tenant, test_admin_user):
+    client = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="Launchable",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+        initiate_login_uri=" https://rp.example/login ",
+    )
+    assert client["initiate_login_uri"] == "https://rp.example/login"
+
+
+def test_create_normal_client_rejects_http_initiate_login_uri_before_writing(
+    test_tenant, test_admin_user
+):
+    with pytest.raises(ValidationError) as exc:
+        oauth2_service.create_normal_client(
+            tenant_id=test_tenant["id"],
+            name="Never Created Launchable",
+            redirect_uris=["https://rp.example/cb"],
+            created_by=test_admin_user["id"],
+            initiate_login_uri="http://rp.example/login",
+        )
+    assert exc.value.code == "invalid_initiate_login_uri"
+    names = [c["name"] for c in oauth2_service.get_all_clients(test_tenant["id"])]
+    assert "Never Created Launchable" not in names
+
+
+def test_update_client_sets_initiate_login_uri_and_logs(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    result = _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        initiate_login_uri="https://rp.example/login",
+    )
+    assert result["initiate_login_uri"] == "https://rp.example/login"
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "oauth2_client_updated"
+    assert events[0]["metadata"]["changed_fields"] == ["initiate_login_uri"]
+
+
+def test_update_client_clears_and_keeps_initiate_login_uri(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        initiate_login_uri="https://rp.example/login",
+    )
+    kept = _update(test_tenant, normal_oauth2_client, test_admin_user, name="Renamed")
+    assert kept["initiate_login_uri"] == "https://rp.example/login"
+
+    before = database.event_log.list_events(test_tenant["id"], limit=1)
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        initiate_login_uri="https://rp.example/login",
+    )
+    after = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert [e["id"] for e in after] == [e["id"] for e in before]
+
+    cleared = _update(test_tenant, normal_oauth2_client, test_admin_user, initiate_login_uri="")
+    assert cleared["initiate_login_uri"] is None
+
+
+def test_update_client_rejects_http_initiate_login_uri(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    with pytest.raises(ValidationError) as exc:
+        _update(
+            test_tenant,
+            normal_oauth2_client,
+            test_admin_user,
+            initiate_login_uri="http://rp.example/login",
+        )
+    assert exc.value.code == "invalid_initiate_login_uri"
+
+
+def test_update_b2b_client_rejects_initiate_login_uri(
+    test_tenant, b2b_oauth2_client, test_admin_user
+):
+    with pytest.raises(ValidationError) as exc:
+        _update(
+            test_tenant, b2b_oauth2_client, test_admin_user, initiate_login_uri="https://x.example"
+        )
+    assert exc.value.code == "redirect_uris_not_allowed"

@@ -135,6 +135,11 @@ class TestRegister:
                 "invalid_client_metadata",
             ),
             (["not", "an", "object"], "invalid_client_metadata"),
+            # 3rd Party-Init OP, oidcc-3rd_party-init-login-nohttps.
+            (
+                {**METADATA, "initiate_login_uri": "http://rp.example/login"},
+                "invalid_client_metadata",
+            ),
         ],
     )
     def test_invalid_metadata(self, client, test_tenant_host, set_policy, body, error):
@@ -202,6 +207,29 @@ def registered(client, test_tenant_host, set_policy):
 
 
 class TestClientConfigurationEndpoint:
+    def test_initiate_login_uri_registered_and_read_back(
+        self, client, test_tenant_host, set_policy
+    ):
+        """3rd Party-Init OP, oidcc-3rd_party-init-login: the registration
+        response and the client configuration endpoint both return it."""
+        set_policy("open")
+        login_uri = "https://rp.example/initiate_login"
+        response = _register(
+            client, test_tenant_host, body={**METADATA, "initiate_login_uri": login_uri}
+        )
+        assert response.status_code == 201
+        registered = response.json()
+        assert registered["initiate_login_uri"] == login_uri
+
+        read = client.get(
+            f"/oauth2/register/{registered['client_id']}",
+            headers=_bearer(test_tenant_host, registered["registration_access_token"]),
+        )
+
+        assert read.status_code == 200
+        assert read.headers["content-type"].startswith("application/json")
+        assert read.json()["initiate_login_uri"] == login_uri
+
     def test_read(self, client, test_tenant_host, registered):
         response = client.get(
             f"/oauth2/register/{registered['client_id']}",

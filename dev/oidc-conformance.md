@@ -54,11 +54,16 @@ warning).
    a config override: any other module that ends a session would otherwise
    load a logout iframe it does not expect), and a fifth with the suite's
    `backchannel_logout` URL (used only by the back-channel module, for the
-   same reason),
-3. renders `dev/oidc-conformance/config.template.json` with those values,
+   same reason). It also turns on dynamic client registration for the tenant
+   (initial access token required, new clients available to all users),
+   mints a fresh initial access token, and deletes the clients and tokens
+   earlier runs left behind,
+3. renders `dev/oidc-conformance/config.template.json` (static-client plans)
+   and `config-dynamic.template.json` (plans that register their own
+   clients, with the initial access token) into the runtime directory,
 4. runs the Basic OP, Config OP, Form Post OP, RP-Initiated OP,
-   Front-Channel OP, and Back-Channel OP certification plans and exports the
-   results.
+   Front-Channel OP, Back-Channel OP, and 3rd Party-Init OP certification
+   plans and exports the results.
 
 The run exits non-zero unless every module finished and the outcome
 matches `dev/oidc-conformance/expected-failures.json` exactly.

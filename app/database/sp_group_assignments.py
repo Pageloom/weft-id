@@ -510,6 +510,46 @@ def get_accessible_proxy_apps_for_user(tenant_id: TenantArg, user_id: str) -> li
     )
 
 
+def get_launchable_oauth2_clients_for_user(tenant_id: TenantArg, user_id: str) -> list[dict]:
+    """Get the OIDC clients a user can launch from My Apps.
+
+    Mirrors get_accessible_proxy_apps_for_user() for OIDC clients, limited to
+    the ones that can be launched: active, OIDC-enabled normal clients with an
+    ``initiate_login_uri`` (third-party-initiated login). Access is the same
+    resolver the authorize endpoint applies: group grants through the
+    group_lineage closure table, unioned with available_to_all clients.
+
+    Returns:
+        List of client dicts (id, name, description, initiate_login_uri),
+        ordered by name.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select distinct c.id, c.name, c.description, c.initiate_login_uri
+        from oauth2_clients c
+        join sp_group_assignments sga on sga.oauth2_client_id = c.id
+        join group_lineage gl on gl.ancestor_id = sga.group_id
+        join group_memberships gm on gm.group_id = gl.descendant_id
+        where gm.user_id = :user_id
+          and c.client_type = 'normal'
+          and c.oidc_enabled = true
+          and c.is_active = true
+          and c.initiate_login_uri is not null
+        union
+        select c.id, c.name, c.description, c.initiate_login_uri
+        from oauth2_clients c
+        where c.available_to_all = true
+          and c.client_type = 'normal'
+          and c.oidc_enabled = true
+          and c.is_active = true
+          and c.initiate_login_uri is not null
+        order by name
+        """,
+        {"user_id": user_id},
+    )
+
+
 def get_accessible_sps_with_nameid_for_user(tenant_id: TenantArg, user_id: str) -> list[dict]:
     """Get accessible SPs for a user with their NameID format.
 

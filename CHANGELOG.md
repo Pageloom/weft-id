@@ -9,10 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **OIDC apps in My Apps (third-party-initiated login).** An OIDC app can
+  now be launched from the dashboard like a SAML application. Set its
+  **Login initiation URI** (the app's `https` URL that starts a sign-in) on
+  the app's edit form, as `initiate_login_uri` on `/api/v1/oauth2/clients`,
+  or in a dynamic registration (returned by the client configuration
+  endpoint). Users who can access the app see it in My Apps, and opening it
+  sends them to that URI with `iss` (OpenID Connect Core section 4).
+  `GET /api/v1/my-apps` returns these apps with `kind: "oidc"`.
 - **OpenID Foundation conformance.** WeftID's OpenID Provider passes the
   OpenID Foundation conformance suite (release 5.2.4) for the Basic OP,
-  Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP, and
-  Back-Channel OP profiles, with no failures. The accepted
+  Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP,
+  Back-Channel OP, and 3rd Party-Init OP profiles, with no failures. The accepted
   warnings (no `acr` claim, no `claims` request parameter, a partial
   `profile` claim set) and expected skips are listed with their reasons on
   the new [OpenID Connect Conformance](docs/conformance/oidc.md) docs page,

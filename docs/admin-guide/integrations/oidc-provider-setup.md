@@ -36,6 +36,17 @@ The issuer and every endpoint are scoped to your tenant host. A relying party co
 
 OIDC uses the same **Redirect URIs** as the app's OAuth2 configuration. Add each callback URL (one per line, exact match, no wildcards) in the app's edit form. After a successful sign-in, WeftID redirects the browser to one of these URIs with the authorization code.
 
+## Launching from My Apps
+
+An OIDC app can appear in users' **My Apps** list on the dashboard, like a SAML application. Set the app's **Login initiation URI** on its edit form: the address in the app that starts a sign-in with WeftID. This is OpenID Connect third-party-initiated login.
+
+* The URI must be an absolute `https` URL without a fragment. It may have a query.
+* The app appears in My Apps for every user who can access it (see [Controlling who can sign in](#controlling-who-can-sign-in)), as long as OIDC is turned on for the app and the app is active.
+* When a user opens it, their browser goes to the login initiation URI with one added parameter, `iss`: WeftID's issuer for your tenant, as in the discovery document. The app should check that `iss` is the issuer it trusts and then send the user to the authorization endpoint as it normally would. The user is already signed in to WeftID, so the round trip is usually seamless.
+* WeftID sends no `login_hint` and no `target_link_uri`. The app lands the user wherever it normally does after sign-in.
+
+Through the API, set `initiate_login_uri` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}` (an empty string clears it). An app that registers itself can send `initiate_login_uri` in its registration (see [Client Registration](client-registration.md)).
+
 ## Signing out
 
 An app can sign the user out of WeftID by sending the browser to the **end session endpoint** (OpenID Connect RP-Initiated Logout). Most OIDC client libraries do this for you once they know the discovery URL.
@@ -146,7 +157,7 @@ Admin or super admin role required to manage OIDC settings and group assignments
 
 ## What is not supported
 
-WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [client registration](client-registration.md), and group-based access control. The following are not available yet: the device grant and pairwise subject identifiers.
+WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [client registration](client-registration.md), [third-party-initiated login](#launching-from-my-apps), and group-based access control. The following are not available yet: the device grant and pairwise subject identifiers.
 
 These parts of the specification are not supported, and discovery says so:
 

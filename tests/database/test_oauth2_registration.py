@@ -38,6 +38,7 @@ def _registered(test_tenant, **overrides):
         "client_uri": None,
         "policy_uri": "https://rp.example/privacy",
         "tos_uri": None,
+        "initiate_login_uri": "https://rp.example/start",
         "registration_metadata": {"grant_types": ["authorization_code"], "contacts": ["a@b.c"]},
         "registration_access_token_hash": "argon-hash",
         "registered_with_token_id": None,
@@ -216,6 +217,7 @@ class TestRegisteredClients:
         assert client["dynamically_registered"] is True
         assert client["available_to_all"] is False
         assert client["logo_uri"] == "https://rp.example/logo.png"
+        assert client["initiate_login_uri"] == "https://rp.example/start"
         assert client["registration_metadata"]["contacts"] == ["a@b.c"]
         assert "registration_access_token_hash" not in client
 
@@ -258,9 +260,11 @@ class TestRegisteredClients:
             client_uri="https://rp.example",
             policy_uri=None,
             tos_uri=None,
+            initiate_login_uri="https://rp.example/login",
             registration_metadata={},
         )
 
+        assert replaced["initiate_login_uri"] == "https://rp.example/login"
         assert replaced["name"] == "Renamed"
         assert replaced["redirect_uris"] == ["https://rp.example/new"]
         assert replaced["logo_uri"] is None
@@ -284,6 +288,7 @@ class TestRegisteredClients:
             client_uri=None,
             policy_uri=None,
             tos_uri=None,
+            initiate_login_uri=None,
             registration_metadata={},
         )
 

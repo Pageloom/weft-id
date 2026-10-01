@@ -8,8 +8,10 @@ Host-side runner behind ``make oidc-conformance``. It expects the dev stack
    the pinned release into the suite runtime directory (once per release),
 2. provisions the conformance tenant, user and static clients by running
    ``app/dev/oidc_conformance_testbed.py`` inside the app container,
-3. renders ``dev/oidc-conformance/config.template.json`` with the testbed's
-   values into the runtime directory (never into the repo: it holds secrets),
+3. renders ``dev/oidc-conformance/config.template.json`` (static-client
+   plans) and ``config-dynamic.template.json`` (plans that register their
+   own clients) with the testbed's values into the runtime directory (never
+   into the repo: they hold secrets),
 4. runs the certification plans through ``run-test-plan.py`` with the
    checked-in expected-failures and expected-skips files and exports the
    results to ``dev/oidc-conformance/export/``.
@@ -42,6 +44,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = PROJECT_ROOT / "dev" / "oidc-conformance"
 TEMPLATE_PATH = CONFIG_DIR / "config.template.json"
+DYNAMIC_TEMPLATE_PATH = CONFIG_DIR / "config-dynamic.template.json"
 EXPECTED_FAILURES_PATH = CONFIG_DIR / "expected-failures.json"
 EXPECTED_SKIPS_PATH = CONFIG_DIR / "expected-skips.json"
 DEFAULT_EXPORT_DIR = CONFIG_DIR / "export"
@@ -100,6 +103,11 @@ PLANS = (
     "[response_type=code][client_registration=static_client]",
 )
 
+# Plans that register their own clients (dynamic client registration with the
+# testbed's initial access token). They run with the dynamic config. The
+# 3rd Party-Init OP plan fixes every variant except the response type.
+DYNAMIC_PLANS = ("oidcc-3rdparty-init-login-certification-test-plan[response_type=code]",)
+
 # An override's ``browser`` list may name a top-level browser entry as
 # ``"$browser[N]"`` instead of repeating it. The suite replaces the whole list
 # for an overridden module, so every override that still needs the login
@@ -124,6 +132,7 @@ PLACEHOLDERS = {
     "{CLIENT4_SECRET}": ("client4", "client_secret"),
     "{CLIENT5_ID}": ("client5", "client_id"),
     "{CLIENT5_SECRET}": ("client5", "client_secret"),
+    "{INITIAL_ACCESS_TOKEN}": ("initial_access_token",),
 }
 
 
@@ -337,8 +346,10 @@ def provision_testbed(alias: str) -> dict:
         raise ConformanceError(f"testbed output is not JSON: {result.stdout!r}") from exc
 
 
-def write_config(runtime_dir: Path, rendered: str) -> Path:
-    config_path = runtime_dir / "config.json"
+def write_config(runtime_dir: Path, rendered: str, name: str = "config.json") -> Path:
+    # Keep the name ending in config.json: the expected-failures and
+    # expected-skips entries match configurations by "*config.json".
+    config_path = runtime_dir / name
     config_path.write_text(rendered)
     config_path.chmod(0o600)
     return config_path
@@ -347,6 +358,7 @@ def write_config(runtime_dir: Path, rendered: str) -> Path:
 def run_plans(
     scripts_dir: Path,
     config_path: Path,
+    dynamic_config_path: Path,
     export_dir: Path,
     passthrough: list[str],
 ) -> int:
@@ -362,6 +374,7 @@ def run_plans(
         str(EXPECTED_SKIPS_PATH),
         *passthrough,
         *plan_arguments(PLANS, config_path),
+        *plan_arguments(DYNAMIC_PLANS, dynamic_config_path),
     ]
     print("Running:", " ".join(cmd))
     # cwd matters: the runner resolves ./certs-keys relative to itself but
@@ -429,8 +442,15 @@ def main(argv: list[str] | None = None) -> int:
     scripts_dir = ensure_runner_scripts(runtime_dir, tag)
     testbed = provision_testbed(args.alias)
     config_path = write_config(runtime_dir, render_config(TEMPLATE_PATH.read_text(), testbed))
-    print(f"Rendered plan config to {config_path} (issuer {testbed['issuer']})")
-    return run_plans(scripts_dir, config_path, args.export_dir, passthrough)
+    dynamic_config_path = write_config(
+        runtime_dir,
+        render_config(DYNAMIC_TEMPLATE_PATH.read_text(), testbed),
+        name="dynamic-config.json",
+    )
+    print(f"Rendered plan configs to {runtime_dir} (issuer {testbed['issuer']})")
+    return run_plans(
+        scripts_dir, config_path, dynamic_config_path, args.export_dir, passthrough
+    )
 
 
 if __name__ == "__main__":

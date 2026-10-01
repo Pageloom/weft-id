@@ -22,6 +22,7 @@ from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError
+from services.oauth2 import initiate_login_url
 from services.types import RequestingUser
 
 logger = logging.getLogger(__name__)
@@ -392,15 +393,23 @@ def get_user_accessible_apps_admin(
 
 def get_user_accessible_apps(
     requesting_user: RequestingUser,
+    *,
+    issuer: str,
 ) -> UserAppList:
     """Get all apps accessible to the requesting user.
 
-    Merges SAML service providers and forward-auth proxy apps into a single
-    My Apps list. Both kinds resolve access through the shared grant model
-    (group assignments via the DAG closure table, plus available_to_all). Each
-    item carries a ``kind`` discriminator and a server-computed ``launch_url``
-    so the dashboard and API consumers can branch without knowing the per-kind
-    URL convention.
+    Merges SAML service providers, forward-auth proxy apps, and OIDC clients
+    that support third-party-initiated login into a single My Apps list. All
+    kinds resolve access through the shared grant model (group assignments via
+    the DAG closure table, plus available_to_all). Each item carries a
+    ``kind`` discriminator and a server-computed ``launch_url`` so the
+    dashboard and API consumers can branch without knowing the per-kind URL
+    convention.
+
+    Args:
+        requesting_user: The user whose apps to list.
+        issuer: The tenant's OpenID Provider issuer, sent to OIDC apps as
+            ``iss`` when they are launched.
 
     Authorization: Any authenticated user.
     """
@@ -411,6 +420,9 @@ def get_user_accessible_apps(
 
     sp_rows = database.sp_group_assignments.get_accessible_sps_for_user(tenant_id, user_id)
     proxy_rows = database.sp_group_assignments.get_accessible_proxy_apps_for_user(
+        tenant_id, user_id
+    )
+    oidc_rows = database.sp_group_assignments.get_launchable_oauth2_clients_for_user(
         tenant_id, user_id
     )
 
@@ -436,6 +448,16 @@ def get_user_accessible_apps(
             launch_url=row["external_url"],
         )
         for row in proxy_rows
+    )
+    items.extend(
+        UserApp(
+            id=str(row["id"]),
+            name=row["name"],
+            description=row.get("description"),
+            kind="oidc",
+            launch_url=initiate_login_url(row["initiate_login_uri"], issuer),
+        )
+        for row in oidc_rows
     )
 
     items.sort(key=lambda a: a.name.lower())

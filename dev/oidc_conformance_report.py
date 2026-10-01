@@ -49,6 +49,7 @@ PROFILES = (
     ("RP-Initiated OP", "oidcc-rp-initiated-logout-certification-test-plan"),
     ("Front-Channel OP", "oidcc-frontchannel-rp-initiated-logout-certification-test-plan"),
     ("Back-Channel OP", "oidcc-backchannel-rp-initiated-logout-certification-test-plan"),
+    ("3rd Party-Init OP", "oidcc-3rdparty-init-login-certification-test-plan"),
 )
 
 GREEN_RESULTS = {"PASSED", "WARNING", "REVIEW", "SKIPPED"}

@@ -2,15 +2,15 @@
 
 WeftID's OpenID Provider is tested with the [OpenID Foundation conformance suite](https://gitlab.com/openid/conformance-suite), the open-source test suite the OpenID Foundation uses for its own certification program. WeftID runs the suite itself, in CI, and publishes the results on this page.
 
-WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP, and Back-Channel OP profiles. It is **not** "OpenID Certified": that is the OpenID Foundation's certification mark, which requires a formal submission WeftID has chosen not to make. The evidence here is the suite's own output, and anyone can rerun it (see [Rerunning the suite](#rerunning-the-suite)).
+WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP, Back-Channel OP, and 3rd Party-Init OP profiles. It is **not** "OpenID Certified": that is the OpenID Foundation's certification mark, which requires a formal submission WeftID has chosen not to make. The evidence here is the suite's own output, and anyone can rerun it (see [Rerunning the suite](#rerunning-the-suite)).
 
 ## Results
 
 <!-- conformance-results:start -->
 
 * **Suite version:** 5.2.4
-* **WeftID version:** 1.12.0 (`3a149cbc`)
-* **Run date:** 2026-09-27
+* **WeftID version:** 1.12.0 (`9e6fa703`)
+* **Run date:** 2026-10-01
 
 | Profile | Test plan | Outcome | Passed | Warning | Review | Skipped | Failed |
 |---|---|---|---|---|---|---|---|
@@ -20,6 +20,7 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 | RP-Initiated OP | `oidcc-rp-initiated-logout-certification-test-plan` | Green | 3 | 0 | 8 | 0 | 0 |
 | Front-Channel OP | `oidcc-frontchannel-rp-initiated-logout-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
 | Back-Channel OP | `oidcc-backchannel-rp-initiated-logout-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
+| 3rd Party-Init OP | `oidcc-3rdparty-init-login-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
 
 **Accepted warnings** (each is a deviation listed below):
 
@@ -69,7 +70,7 @@ The runner compares every run against two files checked into the repository: [`e
 * **Implicit OP** and **Hybrid OP**: WeftID issues authorization codes only (`response_type=code`). The implicit and hybrid flows return tokens through the browser, and current OAuth security guidance advises against them.
 * **Session OP** (OpenID Connect Session Management): the `check_session_iframe` mechanism relies on third-party cookies, which browsers now block.
 
-Dynamic Registration and Third-Party-Initiated Login are planned. They will be added to the table as they are implemented and pass.
+Dynamic OP is planned. Dynamic client registration itself is implemented (the 3rd Party-Init OP plan registers its clients with it), but the Dynamic OP plan also requires `private_key_jwt` client authentication, request objects, and signed userinfo responses. It will be added to the table once those are implemented and it passes.
 
 ## Deviations
 

@@ -108,6 +108,10 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oauth2_client_role_changed": "OAuth2 B2B client service role changed",
     "oauth2_client_deactivated": "OAuth2 client application deactivated",
     "oauth2_client_reactivated": "OAuth2 client application reactivated",
+    "oauth2_client_introspection_changed": (
+        "OAuth2 client permission to introspect all tenant tokens changed"
+    ),
+    "oauth2_token_revoked": "OAuth2 token revoked by its application",
     "oauth2_consent_granted": "User allowed an application to access their account",
     "oauth2_consent_widened": "User allowed additional scopes for an application",
     "oauth2_consent_revoked": "Application consent revoked",
@@ -421,6 +425,8 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oauth2_consent_granted": "security",
     "oauth2_consent_widened": "security",
     "oauth2_consent_revoked": "security",
+    "oauth2_client_introspection_changed": "security",
+    "oauth2_token_revoked": "security",
     "oauth2_authorization_code_reused": "security",
     "oidc_signing_key_rotated": "admin",
     "oidc_signing_key_cleanup_completed": "admin",

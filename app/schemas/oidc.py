@@ -52,6 +52,20 @@ class OIDCProviderMetadata(BaseModel):
             "Accepts id_token_hint, client_id, post_logout_redirect_uri and state."
         ),
     )
+    introspection_endpoint: str = Field(
+        ...,
+        description="OAuth 2.0 Token Introspection (RFC 7662) endpoint URL.",
+    )
+    introspection_endpoint_auth_methods_supported: list[str] = Field(
+        ..., description="Client authentication methods the introspection endpoint accepts."
+    )
+    revocation_endpoint: str = Field(
+        ...,
+        description="OAuth 2.0 Token Revocation (RFC 7009) endpoint URL.",
+    )
+    revocation_endpoint_auth_methods_supported: list[str] = Field(
+        ..., description="Client authentication methods the revocation endpoint accepts."
+    )
     scopes_supported: list[str] = Field(..., description="Scopes this provider recognises.")
     response_types_supported: list[str] = Field(
         ..., description="OAuth2 response types supported at the authorization endpoint."
@@ -184,6 +198,10 @@ class OIDCClientDiscoveryInfo(BaseModel):
     token_endpoint: str = Field(..., description="OAuth2 token endpoint URL.")
     userinfo_endpoint: str = Field(..., description="OIDC userinfo endpoint URL.")
     end_session_endpoint: str = Field(..., description="RP-initiated logout endpoint URL.")
+    introspection_endpoint: str = Field(
+        ..., description="Token introspection endpoint URL (for resource servers)."
+    )
+    revocation_endpoint: str = Field(..., description="Token revocation endpoint URL.")
 
 
 class OIDCClientGroupAssignment(BaseModel):

@@ -698,6 +698,8 @@ def check_api_first_violations(report: ComplianceReport) -> None:
         "mfa": "users",
         "emails": "users",
         "webauthn": "account_passkeys",
+        # The per-client introspection permission is a field on PATCH /api/v1/oauth2/clients
+        "oauth2_tokens": "oauth2_clients",
     }
 
     # Collect service functions

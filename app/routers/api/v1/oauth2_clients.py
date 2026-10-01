@@ -3,6 +3,7 @@
 from typing import Annotated
 
 import services.oauth2 as oauth2_service
+import services.oauth2_tokens as oauth2_tokens_service
 from api_dependencies import require_admin_api, require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -59,6 +60,7 @@ def _client_to_response(
         "is_active": client.get("is_active", True),
         "oidc_enabled": client.get("oidc_enabled", False),
         "available_to_all": client.get("available_to_all", False),
+        "can_introspect_tenant_tokens": bool(client.get("can_introspect_tenant_tokens")),
         "created_at": client["created_at"],
     }
     if include_secret:
@@ -283,13 +285,15 @@ def get_client(
 
 @router.patch("/{client_id}", response_model=ClientResponse)
 def update_client(
+    request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin_api)],
     client_id: str,
     client_data: ClientUpdate,
 ):
     """
-    Update an OAuth2 client's name, description, redirect URIs, and logout settings.
+    Update an OAuth2 client's name, description, redirect URIs, logout settings,
+    and token introspection permission.
 
     Requires admin role.
 
@@ -311,6 +315,8 @@ def update_client(
             clients (optional; absolute http/https, no fragment; "" clears it)
         backchannel_logout_session_required: Whether the logout token carries
             the sid claim (optional, normal clients)
+        can_introspect_tenant_tokens: Whether the client may introspect every
+            token in the tenant, not just its own (optional, any client type)
 
     Returns:
         Updated client details
@@ -338,6 +344,13 @@ def update_client(
 
         if not client:
             raise HTTPException(status_code=404, detail="Client not found")
+
+        if client_data.can_introspect_tenant_tokens is not None:
+            client = oauth2_tokens_service.set_tenant_introspection(
+                build_requesting_user(user, tenant_id, request),
+                client_id,
+                client_data.can_introspect_tenant_tokens,
+            )
 
         return _client_to_response(client)
     except ServiceError as exc:

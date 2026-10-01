@@ -83,6 +83,7 @@ nav:
       - OAuth2 / OIDC:
         - admin-guide/integrations/apps.md
         - Sign in with WeftID (OIDC): admin-guide/integrations/oidc-provider-setup.md
+        - Token Introspection and Revocation: admin-guide/integrations/token-introspection.md
       - Forward Auth: admin-guide/service-providers/forward-auth.md
       - Service Accounts: admin-guide/integrations/b2b.md
     - Security:

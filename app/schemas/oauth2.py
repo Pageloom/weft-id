@@ -156,6 +156,13 @@ class ClientUpdate(BaseModel):
         None,
         description="Whether the device authorization grant is allowed (normal clients only).",
     )
+    require_pushed_authorization_requests: bool | None = Field(
+        None,
+        description=(
+            "Whether the client may only start an authorization through the PAR "
+            "endpoint (normal confidential clients only)."
+        ),
+    )
     can_introspect_tenant_tokens: bool | None = Field(
         None,
         description=(
@@ -255,6 +262,13 @@ class ClientResponse(BaseModel):
     token_endpoint_auth_signing_alg: str | None = Field(
         None,
         description="The one algorithm the client's assertions must use, when it registered one.",
+    )
+    require_pushed_authorization_requests: bool = Field(
+        False,
+        description=(
+            "Whether the client may only start an authorization through the pushed "
+            "authorization request (PAR) endpoint."
+        ),
     )
     created_at: datetime
 
@@ -378,6 +392,19 @@ class DeviceAuthorizationResponse(BaseModel):
     )
     expires_in: int = Field(..., description="Lifetime of both codes in seconds")
     interval: int = Field(..., description="Minimum seconds between token endpoint polls")
+
+
+class PushedAuthorizationResponse(BaseModel):
+    """Pushed authorization response (RFC 9126 section 2.2)."""
+
+    request_uri: str = Field(
+        ...,
+        description=(
+            "Reference to the pushed request (urn:ietf:params:oauth:request_uri:...), "
+            "sent to the authorization endpoint with the client_id"
+        ),
+    )
+    expires_in: int = Field(..., description="Seconds until the request_uri stops working")
 
 
 class TokenErrorResponse(BaseModel):

@@ -164,6 +164,7 @@ def get_client_discovery_info(
         introspection_endpoint=meta.introspection_endpoint,
         revocation_endpoint=meta.revocation_endpoint,
         device_authorization_endpoint=meta.device_authorization_endpoint,
+        pushed_authorization_request_endpoint=meta.pushed_authorization_request_endpoint,
     )
 
 

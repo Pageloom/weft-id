@@ -751,10 +751,11 @@ def update_client(
     backchannel_logout_session_required: bool | None = None,
     initiate_login_uri: str | None = None,
     device_grant_enabled: bool | None = None,
+    require_pushed_authorization_requests: bool | None = None,
 ) -> dict | None:
     """
     Update an OAuth2 client's name, description, redirect URIs, logout settings,
-    login initiation URI, and device authorization grant switch.
+    login initiation URI, device authorization grant switch, and PAR requirement.
 
     Args:
         tenant_id: Tenant ID
@@ -777,6 +778,9 @@ def update_client(
             (optional; https only; an empty string clears it)
         device_grant_enabled: Whether the device authorization grant is
             allowed (optional; normal clients only)
+        require_pushed_authorization_requests: Whether the client may only
+            start an authorization through the PAR endpoint (optional; normal
+            confidential clients only)
 
     Returns:
         Updated client dict, or None if not found
@@ -788,8 +792,9 @@ def update_client(
             against the redirect URIs the client will have after the update),
             a malformed back-channel logout URI, a login initiation URI
             that is malformed or not https, the device grant switched on
-            for a B2B client, or, for a public client, browser settings or
-            the device grant switched off
+            for a B2B client, PAR required of a B2B or public client, or,
+            for a public client, browser settings or the device grant
+            switched off
     """
     # Get current client for comparison
     old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
@@ -835,6 +840,13 @@ def update_client(
             "The device authorization grant can only be enabled for normal clients",
             code="device_grant_not_allowed",
         )
+    if require_pushed_authorization_requests and (
+        old_client["client_type"] != "normal" or old_client.get("is_public")
+    ):
+        raise ValidationError(
+            "Only a confidential app can be required to use pushed authorization requests",
+            code="par_not_allowed",
+        )
     if old_client.get("is_public"):
         _reject_browser_settings_for_public(
             redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri, initiate_login_uri
@@ -872,6 +884,7 @@ def update_client(
         backchannel_logout_session_required=backchannel_logout_session_required,
         initiate_login_uri=initiate_login_uri,
         device_grant_enabled=device_grant_enabled,
+        require_pushed_authorization_requests=require_pushed_authorization_requests,
     )
 
     if result:
@@ -913,6 +926,11 @@ def update_client(
             old_client.get("device_grant_enabled")
         ):
             changed_fields.append("device_grant_enabled")
+        if require_pushed_authorization_requests is not None and (
+            require_pushed_authorization_requests
+            != bool(old_client.get("require_pushed_authorization_requests"))
+        ):
+            changed_fields.append("require_pushed_authorization_requests")
 
         if changed_fields:
             log_event(

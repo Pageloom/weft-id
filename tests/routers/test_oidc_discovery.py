@@ -148,14 +148,16 @@ class TestDiscoveryDocument:
             f"{body['issuer']}/oauth2/device_authorization"
         )
 
-    def test_does_not_advertise_unimplemented_capabilities(self, client, test_tenant_host):
-        """PAR does not exist yet; DCR only while the tenant turns it on."""
+    def test_advertises_pushed_authorization_requests(self, client, test_tenant_host):
         body = _discovery(client, test_tenant_host).json()
-        for absent in (
-            "registration_endpoint",
-            "pushed_authorization_request_endpoint",
-        ):
-            assert absent not in body
+        assert body["pushed_authorization_request_endpoint"] == f"{body['issuer']}/oauth2/par"
+        # Required per client, never for every client.
+        assert body["require_pushed_authorization_requests"] is False
+
+    def test_registration_endpoint_absent_while_off(self, client, test_tenant_host):
+        """DCR only while the tenant turns it on."""
+        body = _discovery(client, test_tenant_host).json()
+        assert "registration_endpoint" not in body
 
     def test_unknown_host_404s(self, client):
         resp = client.get(

@@ -47,11 +47,20 @@ CSRF_EXEMPT_PATHS = [
 # endpoint accepts POST from the relying party (RP-Initiated Logout 1.0,
 # section 2); without a verified id_token_hint for the signed-in user it only
 # renders the confirmation page, whose form posts to the CSRF-protected
-# ``/oauth2/logout/confirm``. Token introspection (RFC 7662) and revocation
-# (RFC 7009) are server-to-server calls authenticated by client credentials,
-# like the token endpoint.
+# ``/oauth2/logout/confirm``. Token introspection (RFC 7662), revocation
+# (RFC 7009), device authorization (RFC 8628), and pushed authorization
+# requests (RFC 9126) are server-to-server calls authenticated by client
+# credentials, like the token endpoint.
 CSRF_EXEMPT_EXACT_PATHS = frozenset(
-    {"/oauth2/authorize", "/userinfo", "/oauth2/logout", "/oauth2/introspect", "/oauth2/revoke"}
+    {
+        "/oauth2/authorize",
+        "/userinfo",
+        "/oauth2/logout",
+        "/oauth2/introspect",
+        "/oauth2/revoke",
+        "/oauth2/device_authorization",
+        "/oauth2/par",
+    }
 )
 
 # Full-match patterns for exempt paths with a variable segment. The upstream

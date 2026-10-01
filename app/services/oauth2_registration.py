@@ -612,6 +612,14 @@ def validate_client_metadata(metadata: dict) -> dict:
     userinfo_alg = metadata.get("userinfo_signed_response_alg")
     if userinfo_alg is not None and userinfo_alg not in SUPPORTED_USERINFO_ALGS:
         raise _metadata_error("Unsupported userinfo_signed_response_alg. Supported: RS256")
+    require_par = metadata.get("require_pushed_authorization_requests", False)
+    if not isinstance(require_par, bool):
+        raise _metadata_error("require_pushed_authorization_requests must be a boolean")
+    if require_par and (not uses_code or auth_method == "none"):
+        raise _metadata_error(
+            "require_pushed_authorization_requests needs the authorization_code grant "
+            "and a confidential client"
+        )
 
     return {
         "client_name": client_name or _fallback_name(redirect_uris),
@@ -638,6 +646,7 @@ def validate_client_metadata(metadata: dict) -> dict:
         "jwks": jwks,
         "jwks_uri": jwks_uri,
         "token_endpoint_auth_signing_alg": signing_alg,
+        "require_pushed_authorization_requests": require_par,
         # Stored as JSON and echoed.
         "extra": {
             key: value
@@ -701,6 +710,8 @@ def client_configuration(client: dict, base_url: str) -> dict:
     for name in ("jwks", "jwks_uri", "token_endpoint_auth_signing_alg"):
         if client.get(name) is not None:
             body[name] = client[name]
+    if client.get("require_pushed_authorization_requests"):
+        body["require_pushed_authorization_requests"] = True
     if client.get("post_logout_redirect_uris"):
         body["post_logout_redirect_uris"] = list(client["post_logout_redirect_uris"])
     if client.get("frontchannel_logout_uri"):
@@ -802,6 +813,7 @@ def register_client(
         jwks=accepted["jwks"],
         jwks_uri=accepted["jwks_uri"],
         token_endpoint_auth_signing_alg=accepted["token_endpoint_auth_signing_alg"],
+        require_pushed_authorization_requests=accepted["require_pushed_authorization_requests"],
     )
     if token_row is not None:
         database.oauth2.touch_initial_access_token(tenant_id, str(token_row["id"]))
@@ -935,6 +947,7 @@ def update_client_configuration(
         jwks=accepted["jwks"],
         jwks_uri=accepted["jwks_uri"],
         token_endpoint_auth_signing_alg=accepted["token_endpoint_auth_signing_alg"],
+        require_pushed_authorization_requests=accepted["require_pushed_authorization_requests"],
     )
     if updated is None:
         raise UnauthorizedError(message="The registration access token is not valid")

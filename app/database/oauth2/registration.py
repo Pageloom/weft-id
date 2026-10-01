@@ -25,7 +25,8 @@ _CLIENT_COLUMNS = """
     oidc_enabled, available_to_all, can_introspect_tenant_tokens, dynamically_registered,
     logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
     is_public, client_auth_method, jwks, jwks_uri, token_endpoint_auth_signing_alg,
-    registration_metadata, registered_with_token_id, created_at
+    require_pushed_authorization_requests, registration_metadata, registered_with_token_id,
+    created_at
 """
 
 _TOKEN_COLUMNS = """
@@ -226,6 +227,7 @@ def create_registered_client(
     jwks: dict | None = None,
     jwks_uri: str | None = None,
     token_endpoint_auth_signing_alg: str | None = None,
+    require_pushed_authorization_requests: bool = False,
 ) -> dict:
     """Insert a dynamically registered client.
 
@@ -247,6 +249,7 @@ def create_registered_client(
             logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri,
             device_grant_enabled, is_public,
             client_auth_method, jwks, jwks_uri, token_endpoint_auth_signing_alg,
+            require_pushed_authorization_requests,
             registration_metadata, registration_access_token_hash, registered_with_token_id,
             created_by
         ) values (
@@ -258,6 +261,7 @@ def create_registered_client(
             :logo_uri, :client_uri, :policy_uri, :tos_uri, :initiate_login_uri,
             :device_grant_enabled, :is_public,
             :client_auth_method, :jwks, :jwks_uri, :token_endpoint_auth_signing_alg,
+            :require_pushed_authorization_requests,
             :registration_metadata, :registration_access_token_hash, :registered_with_token_id,
             null
         )
@@ -286,6 +290,7 @@ def create_registered_client(
             "jwks": Json(jwks) if jwks is not None else None,
             "jwks_uri": jwks_uri,
             "token_endpoint_auth_signing_alg": token_endpoint_auth_signing_alg,
+            "require_pushed_authorization_requests": require_pushed_authorization_requests,
             "registration_metadata": Json(registration_metadata),
             "registration_access_token_hash": registration_access_token_hash,
             "registered_with_token_id": registered_with_token_id,
@@ -318,6 +323,7 @@ def replace_registered_client(
     jwks: dict | None = None,
     jwks_uri: str | None = None,
     token_endpoint_auth_signing_alg: str | None = None,
+    require_pushed_authorization_requests: bool = False,
 ) -> dict | None:
     """Replace a dynamically registered client's metadata (RFC 7592 section 2.2).
 
@@ -345,6 +351,7 @@ def replace_registered_client(
             jwks = :jwks,
             jwks_uri = :jwks_uri,
             token_endpoint_auth_signing_alg = :token_endpoint_auth_signing_alg,
+            require_pushed_authorization_requests = :require_pushed_authorization_requests,
             registration_metadata = :registration_metadata
         where client_id = :client_id and dynamically_registered
         returning {_CLIENT_COLUMNS}
@@ -367,6 +374,7 @@ def replace_registered_client(
             "jwks": Json(jwks) if jwks is not None else None,
             "jwks_uri": jwks_uri,
             "token_endpoint_auth_signing_alg": token_endpoint_auth_signing_alg,
+            "require_pushed_authorization_requests": require_pushed_authorization_requests,
             "registration_metadata": Json(registration_metadata),
         },
     )

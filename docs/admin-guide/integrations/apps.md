@@ -86,6 +86,10 @@ secret), which uses HTTP 401 with a `WWW-Authenticate: Basic` header.
 
 WeftID supports Proof Key for Code Exchange (PKCE), which binds the authorization code to the client that asked for it. The token exchange still needs the client secret: a public client (no secret) can sign users in only with [device sign-in](device-sign-in.md#public-clients). Include `code_challenge` and `code_challenge_method` in the authorization request, and `code_verifier` in the token exchange. Supported methods: `S256` (recommended) and `plain`.
 
+### Pushed authorization requests
+
+A confidential app can send its authorization request to `POST /oauth2/par` first, server to server, and then send the browser with only the returned `request_uri` (RFC 9126). Turn on **Require pushed authorization requests** on the app's edit form to refuse that app's sign-ins any other way. See [Pushed authorization requests](oidc-provider-setup.md#pushed-authorization-requests).
+
 ### Token lifetimes
 
 | Token | Lifetime |

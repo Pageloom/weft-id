@@ -65,6 +65,7 @@ from database.oauth2.device import (
     record_poll,
     redeem_device_code,
 )
+from database.oauth2.pushed import consume_pushed_request, create_pushed_request
 from database.oauth2.registration import (
     create_initial_access_token,
     create_registered_client,
@@ -117,6 +118,9 @@ __all__ = [
     "reactivate_client",
     # client assertions
     "record_client_assertion_jti",
+    # pushed authorization requests
+    "create_pushed_request",
+    "consume_pushed_request",
     # authorization
     "create_authorization_code",
     "validate_and_consume_code",

@@ -406,8 +406,9 @@ class TestCSRFExemptionsMatchAuthentication:
 
         Every exempt state-changing route must either use non-session auth,
         be a protocol endpoint that authenticates the message itself (SAML
-        ACS/SLO/SSO, OAuth2 token, the upstream OIDC back-channel logout
-        receiver, which verifies the IdP's signed logout token), or be listed
+        ACS/SLO/SSO, the client-authenticated OAuth2 endpoints, the upstream
+        OIDC back-channel logout receiver, which verifies the IdP's signed
+        logout token), or be listed
         as exempt by design.
         """
         from middleware.csrf import _is_exempt
@@ -415,6 +416,9 @@ class TestCSRFExemptionsMatchAuthentication:
         protocol_prefixes = ("/saml/", "/oauth2/token", "/oauth2/introspect", "/oauth2/revoke")
         protocol_paths = {
             "/auth/oidc/{connection_id}/backchannel-logout",
+            # Client-authenticated like the token endpoint (RFC 8628, RFC 9126).
+            "/oauth2/device_authorization",
+            "/oauth2/par",
             "/oauth2/register",
             "/oauth2/register/{client_id}",
         }

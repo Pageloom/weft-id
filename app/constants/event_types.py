@@ -128,6 +128,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
         "Authorization code redeemed twice; tokens issued from it revoked"
     ),
     "oauth2_device_authorization_requested": "Device sign-in started by an application",
+    "oauth2_authorization_request_pushed": (
+        "Application pushed an authorization request (PAR) ahead of a sign-in"
+    ),
     "oauth2_device_authorization_approved": "User approved a device sign-in",
     "oauth2_device_authorization_denied": "User denied a device sign-in",
     "oauth2_device_code_redeemed": "Device sign-in completed; tokens issued to the device",
@@ -439,6 +442,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oauth2_consent_widened": "security",
     "oauth2_consent_revoked": "security",
     "oauth2_device_authorization_requested": "operational",
+    "oauth2_authorization_request_pushed": "operational",
     "oauth2_device_authorization_approved": "security",
     "oauth2_device_authorization_denied": "security",
     "oauth2_device_code_redeemed": "security",

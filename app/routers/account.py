@@ -336,7 +336,7 @@ def email_settings(
     """Display and manage user email addresses."""
     # Fetch all email addresses for this user via service
     requesting_user = build_requesting_user(user, user["tenant_id"], request)
-    emails = emails_service.list_user_emails(requesting_user, user["id"])
+    emails = emails_service.list_user_emails(requesting_user, requesting_user["id"])
 
     return templates.TemplateResponse(
         request, "settings_emails.html", get_template_context(request, tenant_id, emails=emails)

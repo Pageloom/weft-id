@@ -19,6 +19,7 @@ from urllib.parse import unquote, urlencode, urlparse
 
 import oauth2
 import services.oauth2 as oauth2_service
+import services.oauth2_device as oauth2_device_service
 import services.oauth2_tokens as oauth2_tokens_service
 import services.oidc as oidc_service
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
@@ -29,8 +30,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from middleware.csrf import make_csrf_token_func
 from routers.auth.logout import end_oidc_session_quietly, frontchannel_logout_response
 from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
-from schemas.oauth2 import TokenErrorResponse, TokenResponse
+from schemas.oauth2 import DeviceAuthorizationResponse, TokenErrorResponse, TokenResponse
 from services.event_log import log_event
+from services.exceptions import ForbiddenError
 from services.oidc.claims import SCOPE_OPENID, parse_scope
 from utils.csp_nonce import get_csp_nonce
 from utils.redirects import safe_redirect
@@ -48,6 +50,9 @@ REAUTH_PROMPT_VALUES = frozenset({"login", "select_account"})
 
 # The only response type the authorization endpoint issues.
 SUPPORTED_RESPONSE_TYPES = frozenset({"code"})
+
+# RFC 8628 section 3.4: the device authorization grant's grant_type value.
+DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 
 # Upper bound for ``state``, matching the parameter's max_length.
 _MAX_STATE_LENGTH = 2048
@@ -1017,19 +1022,99 @@ def _authenticate_client(
 
 
 # Endpoints whose form validation failures are reported as RFC 6749 errors.
-_CLIENT_AUTHENTICATED_PATHS = frozenset({"/oauth2/token", "/oauth2/introspect", "/oauth2/revoke"})
+_CLIENT_AUTHENTICATED_PATHS = frozenset(
+    {"/oauth2/token", "/oauth2/introspect", "/oauth2/revoke", "/oauth2/device_authorization"}
+)
 
 
 async def token_request_validation_handler(
     request: Request, exc: RequestValidationError
 ) -> Response:
-    """Report form validation failures at the token, introspection, and
-    revocation endpoints as RFC 6749 ``invalid_request`` (a missing required
-    parameter, an over-long one) instead of FastAPI's 422. Every other path
-    keeps the default handler."""
+    """Report form validation failures at the token, introspection,
+    revocation, and device authorization endpoints as RFC 6749
+    ``invalid_request`` (a missing required parameter, an over-long one)
+    instead of FastAPI's 422. Every other path keeps the default handler."""
     if request.url.path in _CLIENT_AUTHENTICATED_PATHS:
         return _token_error("invalid_request", "The request is malformed.")
     return await request_validation_exception_handler(request, exc)
+
+
+# error_description for each device-grant poll outcome that is not a success.
+_DEVICE_POLL_DESCRIPTIONS = {
+    oauth2_device_service.AUTHORIZATION_PENDING: "The user has not yet approved the request",
+    oauth2_device_service.SLOW_DOWN: "Polling too fast; wait longer between requests",
+    oauth2_device_service.EXPIRED_TOKEN: "The device code has expired",
+    oauth2_device_service.ACCESS_DENIED: "The user denied the request",
+    oauth2_device_service.INVALID_GRANT: "Invalid or expired device code",
+}
+
+
+def _issue_user_tokens(
+    request: Request,
+    tenant_id: str,
+    client: dict,
+    *,
+    user_id: str,
+    scope: str | None,
+    grant_id: str,
+    nonce: str | None,
+    auth_time: datetime | None,
+    sid: str | None,
+) -> JSONResponse:
+    """Issue the refresh token, access token, and (for OIDC) ID token of a
+    user grant: an authorization code or an approved device code.
+
+    An ID token is issued only when the client has opted into OIDC AND the
+    granted scope carries ``openid``. Plain OAuth2 clients are unaffected. The
+    refresh token carries the granted scope so the refresh_token grant can mint
+    access tokens with the same scope; with an ID token and a ``sid`` it is
+    also tied to that session, so ending the session revokes it.
+    """
+    scopes = parse_scope(scope)
+    issue_id_token = bool(client.get("oidc_enabled")) and SCOPE_OPENID in scopes
+
+    refresh_token_str, refresh_token_id = oauth2_service.create_refresh_token(
+        tenant_id=tenant_id,
+        client_id=client["id"],
+        user_id=user_id,
+        scope=scope,
+        grant_id=grant_id,
+        sid=sid if issue_id_token else None,
+    )
+
+    # Access token carries the granted scope for downstream userinfo.
+    access_token_str = oauth2_service.create_access_token(
+        tenant_id=tenant_id,
+        client_id=client["id"],
+        user_id=user_id,
+        parent_token_id=refresh_token_id,
+        scope=scope,
+        grant_id=grant_id,
+    )
+
+    id_token_str: str | None = None
+    if issue_id_token:
+        id_token_str = oidc_service.issue_id_token(
+            tenant_id=tenant_id,
+            issuer=tenant_base_url(request),
+            client_uuid=str(client["id"]),
+            client_id=client["client_id"],
+            user_id=user_id,
+            scopes=scopes,
+            nonce=nonce,
+            auth_time=auth_time,
+            sid=sid,
+        )
+
+    return _token_success(
+        TokenResponse(
+            access_token=access_token_str,
+            token_type="Bearer",
+            expires_in=int(oauth2.ACCESS_TOKEN_EXPIRY.total_seconds()),
+            refresh_token=refresh_token_str,
+            id_token=id_token_str,
+        )
+    )
 
 
 @router.post("/token", response_model=TokenResponse, responses={400: {"model": TokenErrorResponse}})
@@ -1043,11 +1128,12 @@ def token_endpoint(
     redirect_uri: Annotated[str | None, Form(max_length=2048)] = None,
     code_verifier: Annotated[str | None, Form(max_length=255)] = None,
     refresh_token: Annotated[str | None, Form(max_length=255)] = None,
+    device_code: Annotated[str | None, Form(max_length=255)] = None,
 ) -> Response:
     """
     OAuth2 token endpoint - exchange authorization code or refresh token for access token.
 
-    Supports three grant types:
+    Supports four grant types:
     1. authorization_code - Exchange auth code for access + refresh tokens
        (+ ID token for OIDC). Redeeming a code twice fails with invalid_grant
        and revokes every token already issued from it.
@@ -1055,6 +1141,12 @@ def token_endpoint(
        new refresh token (rotation: the presented refresh token stops working;
        the grant's original expiry is kept)
     3. client_credentials - Get access token using client credentials (B2B)
+    4. urn:ietf:params:oauth:grant-type:device_code - Poll for the tokens of a
+       device authorization request (RFC 8628). Until the user decides, the
+       answer is ``authorization_pending`` (or ``slow_down`` when polled faster
+       than the interval, which then grows by 5 seconds); afterwards
+       ``access_denied``, ``expired_token``, or the tokens (once). Requires a
+       normal client with the device grant enabled.
 
     Client authentication (RFC 6749 section 2.3.1): either HTTP Basic
     (``client_secret_basic``, the Authorization header) or the ``client_id`` +
@@ -1068,13 +1160,15 @@ def token_endpoint(
     are omitted, never null.
 
     Form Data:
-        grant_type: "authorization_code", "refresh_token", or "client_credentials"
+        grant_type: "authorization_code", "refresh_token", "client_credentials", or
+            "urn:ietf:params:oauth:grant-type:device_code"
         client_id: OAuth2 client ID (client_secret_post; omit when using Basic)
         client_secret: OAuth2 client secret (client_secret_post; omit when using Basic)
         code: Authorization code (for authorization_code grant)
         redirect_uri: Redirect URI (for authorization_code grant, must match)
         code_verifier: PKCE code verifier (if PKCE was used)
         refresh_token: Refresh token (for refresh_token grant)
+        device_code: Device code (for the device_code grant)
     """
     client = _authenticate_client(request, tenant_id, client_id, client_secret)
     if isinstance(client, JSONResponse):
@@ -1106,59 +1200,16 @@ def token_endpoint(
         if not code_data:
             return _token_error("invalid_grant", "Invalid or expired authorization code")
 
-        granted_scope = code_data.get("scope")
-        grant_id = code_data["id"]
-
-        # Issue an OIDC ID token only when the client has opted into OIDC AND the
-        # request carried the `openid` scope. Plain OAuth2 clients are unaffected.
-        scopes = parse_scope(granted_scope)
-        issue_id_token = bool(client.get("oidc_enabled")) and SCOPE_OPENID in scopes
-
-        # Create refresh token (carrying the granted scope so the refresh_token
-        # grant can mint access tokens with the same scope). With an ID token it
-        # is also tied to the ID token's session, so ending that session revokes
-        # it; plain OAuth2 refresh tokens outlive the browser session.
-        refresh_token_str, refresh_token_id = oauth2_service.create_refresh_token(
-            tenant_id=tenant_id,
-            client_id=client["id"],
+        return _issue_user_tokens(
+            request,
+            tenant_id,
+            client,
             user_id=code_data["user_id"],
-            scope=granted_scope,
-            grant_id=grant_id,
-            sid=code_data.get("sid") if issue_id_token else None,
-        )
-
-        # Create access token (carrying the granted scope for downstream userinfo)
-        access_token_str = oauth2_service.create_access_token(
-            tenant_id=tenant_id,
-            client_id=client["id"],
-            user_id=code_data["user_id"],
-            parent_token_id=refresh_token_id,
-            scope=granted_scope,
-            grant_id=grant_id,
-        )
-
-        id_token_str: str | None = None
-        if issue_id_token:
-            id_token_str = oidc_service.issue_id_token(
-                tenant_id=tenant_id,
-                issuer=tenant_base_url(request),
-                client_uuid=str(client["id"]),
-                client_id=client["client_id"],
-                user_id=code_data["user_id"],
-                scopes=scopes,
-                nonce=code_data.get("nonce"),
-                auth_time=code_data.get("auth_time"),
-                sid=code_data.get("sid"),
-            )
-
-        return _token_success(
-            TokenResponse(
-                access_token=access_token_str,
-                token_type="Bearer",
-                expires_in=int(oauth2.ACCESS_TOKEN_EXPIRY.total_seconds()),
-                refresh_token=refresh_token_str,
-                id_token=id_token_str,
-            )
+            scope=code_data.get("scope"),
+            grant_id=code_data["id"],
+            nonce=code_data.get("nonce"),
+            auth_time=code_data.get("auth_time"),
+            sid=code_data.get("sid"),
         )
 
     # ========================================================================
@@ -1256,9 +1307,119 @@ def token_endpoint(
         )
 
     # ========================================================================
+    # Grant Type: device_code (RFC 8628)
+    # ========================================================================
+    elif grant_type == DEVICE_CODE_GRANT_TYPE:
+        if not oauth2_device_service.client_can_use_device_grant(client):
+            return _token_error(
+                "unauthorized_client", "Client is not authorized for this grant type"
+            )
+        if not device_code:
+            return _token_error("invalid_request", "Missing required parameter: device_code")
+
+        result = oauth2_device_service.poll(tenant_id, client, device_code)
+        if result.outcome != oauth2_device_service.APPROVED or result.row is None:
+            return _token_error(result.outcome, _DEVICE_POLL_DESCRIPTIONS[result.outcome])
+        row = result.row
+
+        # Access is re-checked at redemption, as at the refresh grant: group
+        # membership may have changed since the user approved.
+        if client.get("oidc_enabled") and not oidc_service.user_can_access_client(
+            tenant_id=tenant_id,
+            user_id=str(row["user_id"]),
+            client_uuid=str(client["id"]),
+            client_id=client["client_id"],
+            client_name=client.get("name"),
+        ):
+            return _token_error("access_denied", "The user does not have access")
+
+        redeemed = oauth2_device_service.redeem(tenant_id, client, row)
+        if redeemed is None:
+            return _token_error("invalid_grant", "Invalid or expired device code")
+
+        # Not tied to the approving browser session (no sid): the device
+        # signed in, not the browser (see services.oauth2_device).
+        return _issue_user_tokens(
+            request,
+            tenant_id,
+            client,
+            user_id=redeemed["user_id"],
+            scope=redeemed["scope"],
+            grant_id=redeemed["id"],
+            nonce=None,
+            auth_time=redeemed["auth_time"],
+            sid=None,
+        )
+
+    # ========================================================================
     # Unsupported grant type
     # ========================================================================
     return _token_error("unsupported_grant_type", f"Grant type '{grant_type}' is not supported")
+
+
+# ============================================================================
+# Device Authorization (POST /oauth2/device_authorization, RFC 8628)
+# ============================================================================
+
+
+@router.post(
+    "/device_authorization",
+    response_model=DeviceAuthorizationResponse,
+    responses={400: {"model": TokenErrorResponse}},
+)
+def device_authorization_endpoint(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    scope: Annotated[str | None, Form(max_length=500)] = None,
+    client_id: Annotated[str | None, Form(max_length=255)] = None,
+    client_secret: Annotated[str | None, Form(max_length=255)] = None,
+) -> Response:
+    """
+    OAuth 2.0 Device Authorization endpoint (RFC 8628 section 3.1).
+
+    A device without a usable browser starts a sign-in here. It shows the
+    returned ``user_code`` and ``verification_uri`` to the user (or a QR code
+    of ``verification_uri_complete``), then polls the token endpoint with
+    ``grant_type=urn:ietf:params:oauth:grant-type:device_code`` and the
+    ``device_code`` no more often than every ``interval`` seconds. The user
+    signs in at the verification page, enters the code, and approves or denies.
+
+    Requires a normal client with the device grant enabled
+    (``unauthorized_client`` otherwise). Client authentication is the same as
+    at the token endpoint: HTTP Basic (``client_secret_basic``) or the
+    ``client_id`` + ``client_secret`` form fields (``client_secret_post``).
+    Errors are RFC 6749 section 5.2 JSON objects; responses are not cached.
+
+    Form Data:
+        scope: Space-separated scopes (optional; ``openid`` for an ID token)
+        client_id: OAuth2 client ID (client_secret_post; omit when using Basic)
+        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic)
+    """
+    client = _authenticate_client(request, tenant_id, client_id, client_secret)
+    if isinstance(client, JSONResponse):
+        return client
+
+    try:
+        started = oauth2_device_service.start_device_authorization(tenant_id, client, scope)
+    except ForbiddenError:
+        return _token_error(
+            "unauthorized_client", "Client is not authorized for the device authorization grant"
+        )
+
+    verification_uri = f"{tenant_base_url(request)}/device"
+    return JSONResponse(
+        DeviceAuthorizationResponse(
+            device_code=started.device_code,
+            user_code=started.user_code,
+            verification_uri=verification_uri,
+            verification_uri_complete=(
+                f"{verification_uri}?{urlencode({'user_code': started.user_code})}"
+            ),
+            expires_in=started.expires_in,
+            interval=started.interval,
+        ).model_dump(),
+        headers=_TOKEN_RESPONSE_HEADERS,
+    )
 
 
 # ============================================================================

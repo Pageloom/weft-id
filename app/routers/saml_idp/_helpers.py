@@ -19,9 +19,11 @@ PENDING_SSO_KEYS = (
 # carries these keys across session regeneration (``extract_pending_returns``).
 PENDING_FORWARD_AUTH_KEY = "pending_forward_auth_authorize"
 PENDING_OAUTH2_AUTHORIZE_KEY = "pending_oauth2_authorize"
+PENDING_DEVICE_KEY = "pending_device_verification"
 PENDING_RETURN_PREFIXES = {
     PENDING_FORWARD_AUTH_KEY: "/forward-auth/authorize",
     PENDING_OAUTH2_AUTHORIZE_KEY: "/oauth2/authorize",
+    PENDING_DEVICE_KEY: "/device",
 }
 
 
@@ -111,9 +113,11 @@ def get_post_auth_redirect(session: dict, default: str = "/dashboard") -> str:
          consumed here.
       3. A pending OAuth2/OIDC authorize request (``pending_oauth2_authorize``),
          consumed here.
-      4. ``default`` (``/dashboard``).
+      4. A pending device verification page (``pending_device_verification``),
+         consumed here.
+      5. ``default`` (``/dashboard``).
 
-    For 2 and 3 only a safe rooted-relative path under the expected prefix is
+    For 2 to 4 only a safe rooted-relative path under the expected prefix is
     honored; anything else is ignored (open-redirect guard). The keys are
     popped either way so a stale or tampered value is never replayed.
     """

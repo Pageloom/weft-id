@@ -1858,3 +1858,74 @@ def test_update_client_initiate_login_uri_member_forbidden(
         json={"initiate_login_uri": "https://rp.example/login"},
     )
     assert response.status_code == 403
+
+
+# =============================================================================
+# Device authorization grant switch
+# =============================================================================
+
+
+def test_create_normal_client_with_device_grant(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Device CLI",
+            "redirect_uris": ["https://rp.example/cb"],
+            "device_grant_enabled": True,
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["device_grant_enabled"] is True
+
+
+def test_create_normal_client_device_grant_defaults_off(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Web App", "redirect_uris": ["https://rp.example/cb"]},
+    )
+    assert response.json()["device_grant_enabled"] is False
+
+
+def test_update_client_device_grant_set_read_and_keep(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    url = f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}"
+    headers = {"Host": test_tenant_host, **oauth2_admin_authorization_header}
+
+    response = client.patch(url, headers=headers, json={"device_grant_enabled": True})
+    assert response.status_code == 200
+    assert response.json()["device_grant_enabled"] is True
+
+    client.patch(url, headers=headers, json={"name": "Renamed"})
+    assert client.get(url, headers=headers).json()["device_grant_enabled"] is True
+
+    response = client.patch(url, headers=headers, json={"device_grant_enabled": False})
+    assert response.json()["device_grant_enabled"] is False
+
+
+def test_update_client_device_grant_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"device_grant_enabled": True},
+    )
+    assert response.status_code == 403
+
+
+def test_update_b2b_client_device_grant_rejected(
+    client, test_tenant_host, oauth2_super_admin_authorization_header, b2b_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
+        json={"device_grant_enabled": True},
+    )
+    assert response.status_code == 400

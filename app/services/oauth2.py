@@ -496,6 +496,7 @@ def create_normal_client(
     backchannel_logout_uri: str | None = None,
     backchannel_logout_session_required: bool = True,
     initiate_login_uri: str | None = None,
+    device_grant_enabled: bool = False,
 ) -> dict:
     """
     Create a normal OAuth2 client (authorization code flow).
@@ -518,6 +519,8 @@ def create_normal_client(
             ``sid``
         initiate_login_uri: Optional https URL of the app that starts a login
             at WeftID (third-party-initiated login, My Apps launch)
+        device_grant_enabled: Whether the client may use the device
+            authorization grant (RFC 8628)
 
     Returns:
         Client dict including plaintext client_secret
@@ -543,6 +546,7 @@ def create_normal_client(
         backchannel_logout_uri=backchannel_uri,
         backchannel_logout_session_required=backchannel_logout_session_required,
         initiate_login_uri=initiate_uri,
+        device_grant_enabled=device_grant_enabled,
     )
 
     if result is None:
@@ -559,6 +563,7 @@ def create_normal_client(
             "name": name,
             "type": "normal",
             "client_id": result["client_id"],
+            "device_grant_enabled": device_grant_enabled,
         },
     )
 
@@ -697,10 +702,11 @@ def update_client(
     backchannel_logout_uri: str | None = None,
     backchannel_logout_session_required: bool | None = None,
     initiate_login_uri: str | None = None,
+    device_grant_enabled: bool | None = None,
 ) -> dict | None:
     """
     Update an OAuth2 client's name, description, redirect URIs, logout settings,
-    and login initiation URI.
+    login initiation URI, and device authorization grant switch.
 
     Args:
         tenant_id: Tenant ID
@@ -721,6 +727,8 @@ def update_client(
             ``sid`` (optional)
         initiate_login_uri: New login initiation URI for normal clients
             (optional; https only; an empty string clears it)
+        device_grant_enabled: Whether the device authorization grant is
+            allowed (optional; normal clients only)
 
     Returns:
         Updated client dict, or None if not found
@@ -730,8 +738,9 @@ def update_client(
             malformed post-logout redirect URI, a front-channel logout URI
             that is malformed or not on a redirect URI's origin (checked
             against the redirect URIs the client will have after the update),
-            a malformed back-channel logout URI, or a login initiation URI
-            that is malformed or not https
+            a malformed back-channel logout URI, a login initiation URI
+            that is malformed or not https, or the device grant switched on
+            for a B2B client
     """
     # Get current client for comparison
     old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
@@ -772,6 +781,11 @@ def update_client(
                 code="redirect_uris_not_allowed",
             )
         initiate_login_uri = validate_initiate_login_uri(initiate_login_uri) or ""
+    if device_grant_enabled and old_client["client_type"] != "normal":
+        raise ValidationError(
+            "The device authorization grant can only be enabled for normal clients",
+            code="device_grant_not_allowed",
+        )
     # Re-check the front-channel URI whenever it or the redirect URIs change:
     # it must stay on the origin of a registered redirect URI.
     if frontchannel_logout_uri is not None or redirect_uris is not None:
@@ -799,6 +813,7 @@ def update_client(
         backchannel_logout_uri=backchannel_logout_uri,
         backchannel_logout_session_required=backchannel_logout_session_required,
         initiate_login_uri=initiate_login_uri,
+        device_grant_enabled=device_grant_enabled,
     )
 
     if result:
@@ -836,6 +851,10 @@ def update_client(
             old_client.get("initiate_login_uri")
         ):
             changed_fields.append("initiate_login_uri")
+        if device_grant_enabled is not None and device_grant_enabled != bool(
+            old_client.get("device_grant_enabled")
+        ):
+            changed_fields.append("device_grant_enabled")
 
         if changed_fields:
             log_event(

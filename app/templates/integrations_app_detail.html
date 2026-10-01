@@ -189,6 +189,16 @@
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. The app's URL that starts a sign-in with WeftID (OpenID Connect only, https). When set, the app appears in My Apps for users who have access, and opening it sends them here.</p>
             </div>
 
+            <div>
+                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" id="device_grant_enabled" name="device_grant_enabled" value="true"
+                           {% if client.device_grant_enabled %}checked{% endif %}
+                           class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                    Allow device sign-in
+                </label>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">For apps on devices without a convenient browser, such as command-line tools and TVs. The device shows a short code, and the user enters it at <code>/device</code> on their phone or computer to approve the sign-in (OAuth 2.0 device authorization grant).</p>
+            </div>
+
             <div class="flex justify-end">
                 <button type="submit"
                         class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
@@ -245,6 +255,7 @@
                         ('End session endpoint', 'oidc-end-session', oidc_urls.end_session_endpoint),
                         ('Introspection endpoint', 'oidc-introspect', oidc_urls.introspection_endpoint),
                         ('Revocation endpoint', 'oidc-revoke', oidc_urls.revocation_endpoint),
+                        ('Device authorization endpoint', 'oidc-device', oidc_urls.device_authorization_endpoint),
                     ] %}
                     <div>
                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{{ label }}</label>

@@ -124,6 +124,10 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oauth2_authorization_code_reused": (
         "Authorization code redeemed twice; tokens issued from it revoked"
     ),
+    "oauth2_device_authorization_requested": "Device sign-in started by an application",
+    "oauth2_device_authorization_approved": "User approved a device sign-in",
+    "oauth2_device_authorization_denied": "User denied a device sign-in",
+    "oauth2_device_code_redeemed": "Device sign-in completed; tokens issued to the device",
     # OIDC Provider
     "oidc_signing_key_rotated": "OIDC signing key rotated",
     "oidc_signing_key_cleanup_completed": "OIDC retired signing key removed after grace period",
@@ -431,6 +435,10 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oauth2_consent_granted": "security",
     "oauth2_consent_widened": "security",
     "oauth2_consent_revoked": "security",
+    "oauth2_device_authorization_requested": "operational",
+    "oauth2_device_authorization_approved": "security",
+    "oauth2_device_authorization_denied": "security",
+    "oauth2_device_code_redeemed": "security",
     "oauth2_client_introspection_changed": "security",
     "oauth2_token_revoked": "security",
     "oauth2_client_registered": "security",

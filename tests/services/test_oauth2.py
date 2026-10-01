@@ -1388,3 +1388,48 @@ def test_update_b2b_client_rejects_initiate_login_uri(
             test_tenant, b2b_oauth2_client, test_admin_user, initiate_login_uri="https://x.example"
         )
     assert exc.value.code == "redirect_uris_not_allowed"
+
+
+# =============================================================================
+# Device authorization grant switch (device_grant_enabled)
+# =============================================================================
+
+
+def test_create_normal_client_with_device_grant(test_tenant, test_admin_user):
+    client = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="Device CLI",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+        device_grant_enabled=True,
+    )
+    assert client["device_grant_enabled"] is True
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "oauth2_client_created"
+    assert events[0]["metadata"]["device_grant_enabled"] is True
+
+
+def test_update_client_toggles_device_grant_and_logs(
+    test_tenant, normal_oauth2_client, test_admin_user
+):
+    on = _update(test_tenant, normal_oauth2_client, test_admin_user, device_grant_enabled=True)
+    assert on["device_grant_enabled"] is True
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["metadata"]["changed_fields"] == ["device_grant_enabled"]
+
+    # Unchanged value: no event.
+    _update(test_tenant, normal_oauth2_client, test_admin_user, device_grant_enabled=True)
+    assert database.event_log.list_events(test_tenant["id"], limit=1)[0]["id"] == events[0]["id"]
+
+    kept = _update(test_tenant, normal_oauth2_client, test_admin_user, name="Renamed CLI")
+    assert kept["device_grant_enabled"] is True
+    off = _update(test_tenant, normal_oauth2_client, test_admin_user, device_grant_enabled=False)
+    assert off["device_grant_enabled"] is False
+
+
+def test_update_b2b_client_rejects_device_grant(test_tenant, b2b_oauth2_client, test_admin_user):
+    with pytest.raises(ValidationError) as exc:
+        _update(test_tenant, b2b_oauth2_client, test_admin_user, device_grant_enabled=True)
+    assert exc.value.code == "device_grant_not_allowed"
+    # Switching it off on a B2B client is a harmless no-op.
+    assert _update(test_tenant, b2b_oauth2_client, test_admin_user, device_grant_enabled=False)

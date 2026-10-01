@@ -66,6 +66,10 @@ class OIDCProviderMetadata(BaseModel):
     revocation_endpoint_auth_methods_supported: list[str] = Field(
         ..., description="Client authentication methods the revocation endpoint accepts."
     )
+    device_authorization_endpoint: str = Field(
+        ...,
+        description="OAuth 2.0 Device Authorization Grant (RFC 8628) endpoint URL.",
+    )
     registration_endpoint: str | None = Field(
         None,
         description=(
@@ -209,6 +213,9 @@ class OIDCClientDiscoveryInfo(BaseModel):
         ..., description="Token introspection endpoint URL (for resource servers)."
     )
     revocation_endpoint: str = Field(..., description="Token revocation endpoint URL.")
+    device_authorization_endpoint: str = Field(
+        ..., description="Device authorization endpoint URL (device sign-in)."
+    )
 
 
 class OIDCClientGroupAssignment(BaseModel):

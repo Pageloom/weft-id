@@ -29,6 +29,7 @@ Once OIDC is enabled, the app detail page shows the read-only **endpoint URLs** 
 * **End session endpoint** -- `https://<your-tenant-host>/oauth2/logout` (see [Signing out](#signing-out))
 * **Introspection endpoint** -- `https://<your-tenant-host>/oauth2/introspect` (see [Token Introspection and Revocation](token-introspection.md))
 * **Revocation endpoint** -- `https://<your-tenant-host>/oauth2/revoke`
+* **Device authorization endpoint** -- `https://<your-tenant-host>/oauth2/device_authorization` (see [Device Sign-In](device-sign-in.md))
 
 The issuer and every endpoint are scoped to your tenant host. A relying party configured against one tenant's issuer can never receive another tenant's keys or claims.
 
@@ -157,7 +158,7 @@ Admin or super admin role required to manage OIDC settings and group assignments
 
 ## What is not supported
 
-WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [client registration](client-registration.md), [third-party-initiated login](#launching-from-my-apps), and group-based access control. The following are not available yet: the device grant and pairwise subject identifiers.
+WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [client registration](client-registration.md), [third-party-initiated login](#launching-from-my-apps), [device sign-in](device-sign-in.md), and group-based access control. Pairwise subject identifiers are not available yet.
 
 These parts of the specification are not supported, and discovery says so:
 

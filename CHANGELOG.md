@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Device sign-in (OAuth 2.0 device authorization grant).** Apps on
+  devices without a convenient browser, such as command-line tools and TVs,
+  can sign users in with a short code (RFC 8628). Turn on **Allow device
+  sign-in** on an app's edit form, or set `device_grant_enabled` on
+  `/api/v1/oauth2/clients`. The device calls the new
+  `/oauth2/device_authorization` endpoint (advertised in discovery) and polls
+  the token endpoint with the `urn:ietf:params:oauth:grant-type:device_code`
+  grant. The user enters the code at `/device` and approves on a
+  confirmation page. See [Device Sign-In](docs/admin-guide/integrations/device-sign-in.md).
 - **OIDC apps in My Apps (third-party-initiated login).** An OIDC app can
   now be launched from the dashboard like a SAML application. Set its
   **Login initiation URI** (the app's `https` URL that starts a sign-in) on

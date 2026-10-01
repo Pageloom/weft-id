@@ -67,6 +67,7 @@ def _client_to_response(
         "policy_uri": client.get("policy_uri"),
         "tos_uri": client.get("tos_uri"),
         "initiate_login_uri": client.get("initiate_login_uri"),
+        "device_grant_enabled": bool(client.get("device_grant_enabled")),
         "created_at": client["created_at"],
     }
     if include_secret:
@@ -134,6 +135,8 @@ def create_normal_client(
         initiate_login_uri: Optional URL of the app that starts a sign-in at
             WeftID (absolute https, no fragment). An OIDC-enabled client with
             one appears in My Apps and launches there with the iss parameter.
+        device_grant_enabled: Whether the client may use the OAuth 2.0 device
+            authorization grant (RFC 8628) (default false)
 
     Returns:
         Client details including client_secret (shown only once!)
@@ -154,6 +157,7 @@ def create_normal_client(
             backchannel_logout_uri=client_data.backchannel_logout_uri,
             backchannel_logout_session_required=client_data.backchannel_logout_session_required,
             initiate_login_uri=client_data.initiate_login_uri,
+            device_grant_enabled=client_data.device_grant_enabled,
         )
 
         return _client_to_response(client, include_secret=True)
@@ -303,7 +307,7 @@ def update_client(
 ):
     """
     Update an OAuth2 client's name, description, redirect URIs, logout settings,
-    login initiation URL, and token introspection permission.
+    login initiation URL, device grant switch, and token introspection permission.
 
     Requires admin role.
 
@@ -327,6 +331,8 @@ def update_client(
             the sid claim (optional, normal clients)
         initiate_login_uri: New login initiation URL for normal clients
             (optional; absolute https, no fragment; "" clears it)
+        device_grant_enabled: Whether the client may use the OAuth 2.0 device
+            authorization grant (optional, normal clients only)
         can_introspect_tenant_tokens: Whether the client may introspect every
             token in the tenant, not just its own (optional, any client type)
 
@@ -353,6 +359,7 @@ def update_client(
             backchannel_logout_uri=client_data.backchannel_logout_uri,
             backchannel_logout_session_required=client_data.backchannel_logout_session_required,
             initiate_login_uri=client_data.initiate_login_uri,
+            device_grant_enabled=client_data.device_grant_enabled,
         )
 
         if not client:

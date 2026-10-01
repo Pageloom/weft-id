@@ -54,19 +54,28 @@ warning).
    a config override: any other module that ends a session would otherwise
    load a logout iframe it does not expect), and a fifth with the suite's
    `backchannel_logout` URL (used only by the back-channel module, for the
-   same reason). It also turns on dynamic client registration for the tenant
-   (initial access token required, new clients available to all users),
-   mints a fresh initial access token, and deletes the clients and tokens
-   earlier runs left behind,
-3. renders `dev/oidc-conformance/config.template.json` (static-client plans)
-   and `config-dynamic.template.json` (plans that register their own
-   clients, with the initial access token) into the runtime directory,
+   same reason). A sixth and seventh client authenticate with
+   `private_key_jwt`, each registered with the public half of a fresh RSA
+   key; the private JWKS goes into the plan config. It also turns on
+   dynamic client registration for the tenant (open, new clients available
+   to all users: the suite sends the initial access token with a module's
+   first registration only), mints a fresh initial access token, and deletes
+   the clients and tokens earlier runs left behind,
+3. renders `dev/oidc-conformance/config.template.json` (static-client
+   plans), `config-private-key-jwt.template.json` (the `private_key_jwt`
+   clients) and `config-dynamic.template.json` (plans that register their
+   own clients, with the initial access token) into the runtime directory.
+   The last two inherit the static config's browser automation (see below),
 4. runs the Basic OP, Config OP, Form Post OP, RP-Initiated OP,
-   Front-Channel OP, Back-Channel OP, and 3rd Party-Init OP certification
-   plans and exports the results.
+   Front-Channel OP, Back-Channel OP, Dynamic OP, and 3rd Party-Init OP
+   certification plans, plus the general `oidcc-test-plan` with the
+   `private_key_jwt` clients (the certification plans fix client
+   authentication to client secrets), one module at a time, and exports
+   the results.
 
 The run exits non-zero unless every module finished and the outcome
-matches `dev/oidc-conformance/expected-failures.json` exactly.
+matches `dev/oidc-conformance/expected-failures.json` and
+`expected-skips.json` exactly.
 
 When you're done for the day:
 
@@ -94,7 +103,12 @@ make oidc-conformance-destroy   # stop + wipe Mongo data + remove the dir
   `docs/VERSIONING.md` does this for every release.
 
 A profile is green when every module is PASSED, WARNING, REVIEW, or
-SKIPPED and none is FAILED or INTERRUPTED.
+SKIPPED and none is FAILED or INTERRUPTED, apart from accepted failures:
+FAILED modules whose failing conditions all have an expected-failures entry
+with `"expected-result": "failure"`. There is one, the Dynamic OP plan's
+`oidcc-discovery-endpoint-verification` (it requires implicit and hybrid
+response types, which WeftID does not offer). The report lists accepted
+failures by name.
 
 ## The expected-failures file
 
@@ -156,6 +170,37 @@ runner expands such references to a copy of the top-level entry when it
 renders the config; a reference to an entry that does not exist is an
 error.
 
+The `private_key_jwt` and dynamic templates only describe their clients.
+The runner gives them the static config's `options` and `browser` sections
+and every override that only scripts the browser (error pages, forced
+re-login), since those pages do not depend on the client. Overrides that
+swap the client (front- and back-channel logout) stay with the static
+config. A template's own keys and overrides win, and its overrides may use
+`"$browser[N]"` references to the inherited entries.
+
+The Dynamic OP plan's `oidcc-registration-logo-uri`, `-policy-uri` and
+`-tos-uri` modules want a screenshot of a page showing the registered logo
+or link. WeftID's consent page shows them, so their overrides log in,
+snapshot the consent page and stop. The filled placeholder ends the module;
+consenting as well makes the callback race the end of the module, and the
+suite then interrupts it with an internal error.
+
+## Operator steps
+
+`oidcc-server-rotate-keys` (in the Dynamic OP plan and the general test
+plan) pauses until the operator has rotated the OP's signing keys. The suite's
+runner cannot do that, so `make oidc-conformance` runs it through
+`dev/oidc_conformance_hooks.py`, which patches the runner's client in-process:
+before starting that module, it rotates the conformance tenant's key with
+`oidc_conformance_testbed.py --rotate-signing-key-flag` in the app container.
+The testbed ends any running rotation grace period first (real tenants must
+wait it out), so back-to-back runs work.
+
+Rotation is why the run is serial (`--no-parallel`): the runner would
+otherwise run each alias's plans side by side, and a rotation in the Dynamic
+OP plan would swap the key under a Basic OP module that already fetched the
+JWKS.
+
 The browser reaches WeftID through the dev reverse proxy: the suite joins
 WeftID's `devnet` network and the proxy carries a network alias for the
 conformance tenant host. WeftID's containers reach the suite the same way
@@ -197,8 +242,9 @@ The runner passes unknown arguments through to `run-test-plan.py`:
 ```bash
 make oidc-conformance ARGS="--list"          # numbered plan list, no run
 make oidc-conformance ARGS="--rerun 1:5"     # plan 1, module 5 only
-make oidc-conformance ARGS="--no-parallel"   # (already serial: static clients use an alias)
 ```
+
+The runner always passes `--no-parallel` (see [Operator steps](#operator-steps)).
 
 Or call the runner directly, for example with a different runtime dir:
 

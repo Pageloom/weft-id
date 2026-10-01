@@ -64,5 +64,27 @@
         "condition": "VerifyScopesReturnedInUserInfoClaims",
         "expected-result": "warning",
         "comment": "WeftID has no attributes for nickname, picture, website, gender, birthdate, middle_name, preferred_username, or profile; absent claims are omitted, never null (OIDC Core 5.1)"
+    },
+    {
+        "test-name": "oidcc-discovery-endpoint-verification",
+        "variant": {
+            "client_registration": "dynamic_client"
+        },
+        "configuration-filename": "*dynamic-config.json",
+        "current-block": "",
+        "condition": "OIDCCCheckDiscEndpointResponseTypesSupportedDynamic",
+        "expected-result": "failure",
+        "comment": "A Dynamic OP must support the implicit grant and the id_token and id_token token response types (OIDC Core 15.2). WeftID issues code only."
+    },
+    {
+        "test-name": "oidcc-discovery-endpoint-verification",
+        "variant": {
+            "client_registration": "dynamic_client"
+        },
+        "configuration-filename": "*dynamic-config.json",
+        "current-block": "",
+        "condition": "OIDCCCheckDiscEndpointGrantTypesSupportedDynamic",
+        "expected-result": "failure",
+        "comment": "A Dynamic OP must support the implicit grant and the id_token and id_token token response types (OIDC Core 15.2). WeftID issues code only."
     }
 ]

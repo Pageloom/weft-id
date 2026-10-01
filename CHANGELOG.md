@@ -73,7 +73,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **OpenID Foundation conformance.** WeftID's OpenID Provider passes the
   OpenID Foundation conformance suite (release 5.2.4) for the Basic OP,
   Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP,
-  Back-Channel OP, and 3rd Party-Init OP profiles, with no failures. The accepted
+  Back-Channel OP, Dynamic OP, and 3rd Party-Init OP profiles. The one
+  failure is accepted: a Dynamic OP must also offer the implicit and hybrid
+  response types, which WeftID does not. The same tests also pass with apps
+  that authenticate with `private_key_jwt`. The accepted failure and
   warnings (no `acr` claim, no `claims` request parameter, a partial
   `profile` claim set) and expected skips are listed with their reasons on
   the new [OpenID Connect Conformance](docs/conformance/oidc.md) docs page,

@@ -43,6 +43,8 @@ def testbed() -> dict:
         "client3": {"client_id": "id3", "client_secret": "s3"},
         "client4": {"client_id": "id4", "client_secret": "s4"},
         "client5": {"client_id": "id5", "client_secret": "s5"},
+        "client6": {"client_id": "id6", "jwks": {"keys": [{"kty": "RSA", "kid": "k6", "d": "x"}]}},
+        "client7": {"client_id": "id7", "jwks": {"keys": [{"kty": "RSA", "kid": "k7", "d": "y"}]}},
         "initial_access_token": "weft-id_iat_abc",
     }
 
@@ -226,15 +228,113 @@ class TestPlanArguments:
         assert "[client_registration=static_client]" in joined
         assert "dynamic_client" not in joined
 
-    def test_dynamic_plans_cover_third_party_initiated_login(self, runner):
+    def test_dynamic_plans_cover_dynamic_op_and_third_party_initiated_login(self, runner):
         assert runner.DYNAMIC_PLANS == (
+            "oidcc-dynamic-certification-test-plan[response_type=code]",
             "oidcc-3rdparty-init-login-certification-test-plan[response_type=code]",
         )
+
+    def test_private_key_jwt_plan_uses_static_clients(self, runner):
+        (plan,) = runner.PRIVATE_KEY_JWT_PLANS
+        assert plan.startswith("oidcc-test-plan[")
+        assert "[client_auth_type=private_key_jwt]" in plan
+        assert "[client_registration=static_client]" in plan
+        assert "[response_type=code]" in plan
+
+
+def _derived(runner, template_path, testbed) -> dict:
+    static = runner.render_config(runner.TEMPLATE_PATH.read_text(), testbed)
+    return json.loads(runner.render_derived_config(template_path.read_text(), static, testbed))
+
+
+class TestObjectPlaceholders:
+    def test_object_value_replaces_the_quoted_placeholder(self, runner, testbed):
+        cfg = json.loads(
+            runner.render_config('{"jwks": "{CLIENT6_JWKS}", "id": "{CLIENT6_ID}"}', testbed)
+        )
+        assert cfg == {"jwks": testbed["client6"]["jwks"], "id": "id6"}
+
+    def test_empty_object_is_an_error(self, runner, testbed):
+        testbed["client6"]["jwks"] = {}
+        with pytest.raises(runner.ConformanceError, match="client6.jwks"):
+            runner.render_config("{}", testbed)
+
+    def test_other_value_types_are_an_error(self, runner, testbed):
+        testbed["client6"]["jwks"] = ["not", "an", "object"]
+        with pytest.raises(runner.ConformanceError, match="non-empty string or object"):
+            runner.render_config("{}", testbed)
+
+
+class TestInheritStatic:
+    STATIC = {
+        "options": {"browsercontrol_css_enable": False},
+        "browser": [{"match": "login"}],
+        "client": {"client_id": "static"},
+        "override": {
+            "error-page": {"browser": [{"match": "error"}]},
+            "swaps-client": {"client": {"client_id": "other"}},
+            "both": {"client": {"client_id": "other"}, "browser": []},
+            "shared": {"browser": [{"match": "static"}]},
+        },
+    }
+
+    def test_inherits_options_browser_and_browser_only_overrides(self, runner):
+        merged = runner.inherit_static({"client": {"client_id": "mine"}}, self.STATIC)
+        assert merged["options"] == self.STATIC["options"]
+        assert merged["browser"] == self.STATIC["browser"]
+        assert merged["client"] == {"client_id": "mine"}
+        assert set(merged["override"]) == {"error-page", "shared"}
+
+    def test_own_keys_and_overrides_win(self, runner):
+        own = {
+            "browser": [{"match": "own"}],
+            "override": {"shared": {"browser": [{"match": "own"}]}, "mine": {"browser": []}},
+        }
+        merged = runner.inherit_static(own, self.STATIC)
+        assert merged["browser"] == [{"match": "own"}]
+        assert merged["override"]["shared"] == {"browser": [{"match": "own"}]}
+        assert set(merged["override"]) == {"error-page", "shared", "mine"}
+
+    def test_inputs_are_not_mutated(self, runner):
+        static = json.loads(json.dumps(self.STATIC))
+        own: dict = {}
+        merged = runner.inherit_static(own, static)
+        merged["browser"].append("x")
+        assert own == {}
+        assert static == self.STATIC
+
+    def test_no_overrides_key_when_nothing_to_inherit(self, runner):
+        assert "override" not in runner.inherit_static({}, {"browser": []})
+
+    def test_references_expand_against_the_inherited_browser(self, runner, testbed):
+        template = json.dumps({"override": {"m": {"browser": ["$browser[1]"]}}})
+        static = runner.render_config(runner.TEMPLATE_PATH.read_text(), testbed)
+        cfg = json.loads(runner.render_derived_config(template, static, testbed))
+        assert cfg["override"]["m"]["browser"] == [json.loads(static)["browser"][1]]
+
+
+class TestPrivateKeyJwtConfig:
+    def test_clients_carry_their_private_jwks(self, runner, testbed):
+        cfg = _derived(runner, runner.PRIVATE_KEY_JWT_TEMPLATE_PATH, testbed)
+        assert cfg["client"] == {"client_id": "id6", "jwks": testbed["client6"]["jwks"]}
+        assert cfg["client2"] == {"client_id": "id7", "jwks": testbed["client7"]["jwks"]}
+        assert "client_secret_post" not in cfg
+        # Same alias as the static plans: the clients use the same callback URL.
+        assert cfg["alias"] == "weftid"
+
+    def test_inherits_the_login_automation_but_not_the_logout_clients(self, runner, testbed):
+        cfg = _derived(runner, runner.PRIVATE_KEY_JWT_TEMPLATE_PATH, testbed)
+        static = json.loads(runner.render_config(runner.TEMPLATE_PATH.read_text(), testbed))
+        assert cfg["options"] == static["options"]
+        assert cfg["browser"] == static["browser"]
+        assert cfg["override"]["oidcc-prompt-login"] == static["override"]["oidcc-prompt-login"]
+        assert "oidcc-frontchannel-rp-initiated-logout" not in cfg["override"]
+        assert "oidcc-backchannel-rp-initiated-logout" not in cfg["override"]
 
 
 class TestDynamicConfig:
     def test_dynamic_template_carries_the_initial_access_token(self, runner, testbed):
-        cfg = json.loads(runner.render_config(runner.DYNAMIC_TEMPLATE_PATH.read_text(), testbed))
+        cfg = _derived(runner, runner.DYNAMIC_TEMPLATE_PATH, testbed)
         assert cfg["server"]["discoveryUrl"] == (
             "https://oidc-conformance.weftid.localhost/.well-known/openid-configuration"
         )
@@ -244,6 +344,35 @@ class TestDynamicConfig:
         assert cfg["alias"] != "weftid"
         assert "client_id" not in cfg["client"]
 
+    def test_inherits_the_login_automation(self, runner, testbed):
+        cfg = _derived(runner, runner.DYNAMIC_TEMPLATE_PATH, testbed)
+        static = json.loads(runner.render_config(runner.TEMPLATE_PATH.read_text(), testbed))
+        assert cfg["options"] == static["options"]
+        assert cfg["browser"] == static["browser"]
+        assert "oidcc-redirect-uri-query-added" in cfg["override"]
+
+    @pytest.mark.parametrize(
+        ("module", "element"),
+        [
+            ("oidcc-registration-logo-uri", "client-logo"),
+            ("oidcc-registration-policy-uri", "client-policy"),
+            ("oidcc-registration-tos-uri", "client-tos"),
+        ],
+    )
+    def test_review_modules_snapshot_the_consent_page(self, runner, testbed, module, element):
+        cfg = _derived(runner, runner.DYNAMIC_TEMPLATE_PATH, testbed)
+        (entry,) = cfg["override"][module]["browser"]
+        tasks = {task["task"]: task for task in entry["tasks"]}
+        consent = next(t for name, t in tasks.items() if name.startswith("Consent"))
+        # Required, not optional: the module must fail loudly if the page lacks it.
+        assert not consent.get("optional")
+        assert consent["commands"][0] == ["wait", "id", element, 10]
+        assert consent["commands"][1][-1] == "update-image-placeholder"
+        # The filled placeholder ends the module. Consenting would race the
+        # callback against the module's end, so the script stops here.
+        assert len(consent["commands"]) == 2
+        assert entry["tasks"][-1] is consent
+
     def test_missing_initial_access_token_is_an_error(self, runner, testbed):
         del testbed["initial_access_token"]
         with pytest.raises(runner.ConformanceError, match="initial_access_token"):
@@ -252,12 +381,49 @@ class TestDynamicConfig:
     def test_configs_are_written_private_and_match_the_expected_files_glob(self, runner, tmp_path):
         static = runner.write_config(tmp_path, "{}")
         dynamic = runner.write_config(tmp_path, "{}", name="dynamic-config.json")
+        pkjwt = runner.write_config(tmp_path, "{}", name="private-key-jwt-config.json")
         assert static.name == "config.json"
         assert dynamic.name == "dynamic-config.json"
-        for path in (static, dynamic):
+        for path in (static, dynamic, pkjwt):
             # The expected-failures/skips entries match by "*config.json".
             assert path.name.endswith("config.json")
             assert path.stat().st_mode & 0o777 == 0o600
+
+
+class TestRunPlans:
+    def test_runs_every_plan_group_through_the_hooks_wrapper(self, runner, tmp_path, monkeypatch):
+        calls: list[tuple[list[str], dict]] = []
+
+        class _Done:
+            returncode = 3
+
+        def fake_run(cmd, **kwargs):
+            calls.append((cmd, kwargs))
+            return _Done()
+
+        monkeypatch.setattr(runner.subprocess, "run", fake_run)
+        rc = runner.run_plans(
+            tmp_path,
+            [(("a", "b"), Path("/c/config.json")), (("d",), Path("/c/dynamic-config.json"))],
+            tmp_path / "export",
+            ["--verbose"],
+        )
+        assert rc == 3
+        (cmd, kwargs) = next(c for c in calls if str(runner.HOOKS_SCRIPT) in c[0])
+        assert cmd[1] == str(runner.HOOKS_SCRIPT)
+        assert kwargs["cwd"] == tmp_path
+        # Serial: a key rotation must never overlap another plan's module.
+        assert "--no-parallel" in cmd
+        assert cmd[-7:] == [
+            "--verbose",
+            "a",
+            "/c/config.json",
+            "b",
+            "/c/config.json",
+            "d",
+            "/c/dynamic-config.json",
+        ]
+        assert (tmp_path / "export").is_dir()
 
 
 class TestRunnerEnvironment:

@@ -7,5 +7,145 @@
     "client": {
         "client_name": "Conformance dynamic client",
         "initial_access_token": "{INITIAL_ACCESS_TOKEN}"
+    },
+    "override": {
+        "oidcc-registration-logo-uri": {
+            "browser": [
+                {
+                    "comment": "REVIEW module: the consent page must show the registered logo. A freshly registered client always gets the consent page; its snapshot fills the placeholder, which ends the module. Do not consent: the module does not need the callback, and a callback racing the end of the module interrupts it inside the suite.",
+                    "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                    "tasks": [
+                        {
+                            "task": "Login: email step",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/login*",
+                            "commands": [
+                                ["text", "id", "email", "{USER_EMAIL}"],
+                                ["click", "css", "#emailForm button[type='submit']"]
+                            ]
+                        },
+                        {
+                            "task": "Login: password step",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/login?*show_password*",
+                            "commands": [
+                                ["wait", "id", "loginForm", 10],
+                                ["text", "name", "password", "{USER_PASSWORD}"],
+                                ["click", "css", "#loginForm button[type='submit']"]
+                            ]
+                        },
+                        {
+                            "task": "Login: MFA step (BYPASS_OTP accepts any 6 digits)",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/mfa/verify*",
+                            "commands": [
+                                ["text", "id", "code", "123456"],
+                                ["click", "css", "#mfaVerifyForm button[type='submit']"]
+                            ]
+                        },
+                        {
+                            "task": "Consent page shows the logo",
+                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                            "commands": [
+                                ["wait", "id", "client-logo", 10],
+                                ["wait", "xpath", "//*", 10, "requesting access", "update-image-placeholder"]
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "oidcc-registration-policy-uri": {
+            "browser": [
+                {
+                    "comment": "REVIEW module: the consent page must show the registered privacy policy link. A freshly registered client always gets the consent page; its snapshot fills the placeholder, which ends the module. Do not consent: the module does not need the callback, and a callback racing the end of the module interrupts it inside the suite.",
+                    "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                    "tasks": [
+                        {
+                            "task": "Login: email step",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/login*",
+                            "commands": [
+                                ["text", "id", "email", "{USER_EMAIL}"],
+                                ["click", "css", "#emailForm button[type='submit']"]
+                            ]
+                        },
+                        {
+                            "task": "Login: password step",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/login?*show_password*",
+                            "commands": [
+                                ["wait", "id", "loginForm", 10],
+                                ["text", "name", "password", "{USER_PASSWORD}"],
+                                ["click", "css", "#loginForm button[type='submit']"]
+                            ]
+                        },
+                        {
+                            "task": "Login: MFA step (BYPASS_OTP accepts any 6 digits)",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/mfa/verify*",
+                            "commands": [
+                                ["text", "id", "code", "123456"],
+                                ["click", "css", "#mfaVerifyForm button[type='submit']"]
+                            ]
+                        },
+                        {
+                            "task": "Consent page shows the privacy policy link",
+                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                            "commands": [
+                                ["wait", "id", "client-policy", 10],
+                                ["wait", "xpath", "//*", 10, "requesting access", "update-image-placeholder"]
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "oidcc-registration-tos-uri": {
+            "browser": [
+                {
+                    "comment": "REVIEW module: the consent page must show the registered terms of service link. A freshly registered client always gets the consent page; its snapshot fills the placeholder, which ends the module. Do not consent: the module does not need the callback, and a callback racing the end of the module interrupts it inside the suite.",
+                    "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                    "tasks": [
+                        {
+                            "task": "Login: email step",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/login*",
+                            "commands": [
+                                ["text", "id", "email", "{USER_EMAIL}"],
+                                ["click", "css", "#emailForm button[type='submit']"]
+                            ]
+                        },
+                        {
+                            "task": "Login: password step",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/login?*show_password*",
+                            "commands": [
+                                ["wait", "id", "loginForm", 10],
+                                ["text", "name", "password", "{USER_PASSWORD}"],
+                                ["click", "css", "#loginForm button[type='submit']"]
+                            ]
+                        },
+                        {
+                            "task": "Login: MFA step (BYPASS_OTP accepts any 6 digits)",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/mfa/verify*",
+                            "commands": [
+                                ["text", "id", "code", "123456"],
+                                ["click", "css", "#mfaVerifyForm button[type='submit']"]
+                            ]
+                        },
+                        {
+                            "task": "Consent page shows the terms of service link",
+                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                            "commands": [
+                                ["wait", "id", "client-tos", 10],
+                                ["wait", "xpath", "//*", 10, "requesting access", "update-image-placeholder"]
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
     }
 }

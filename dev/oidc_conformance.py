@@ -9,12 +9,16 @@ Host-side runner behind ``make oidc-conformance``. It expects the dev stack
 2. provisions the conformance tenant, user and static clients by running
    ``app/dev/oidc_conformance_testbed.py`` inside the app container,
 3. renders ``dev/oidc-conformance/config.template.json`` (static-client
-   plans) and ``config-dynamic.template.json`` (plans that register their
-   own clients) with the testbed's values into the runtime directory (never
-   into the repo: they hold secrets),
-4. runs the certification plans through ``run-test-plan.py`` with the
-   checked-in expected-failures and expected-skips files and exports the
-   results to ``dev/oidc-conformance/export/``.
+   plans), ``config-private-key-jwt.template.json`` (static clients that
+   authenticate with ``private_key_jwt``) and ``config-dynamic.template.json``
+   (plans that register their own clients) with the testbed's values into the
+   runtime directory (never into the repo: they hold secrets). The last two
+   inherit the static config's browser automation (see ``inherit_static``),
+4. runs the plans through the suite's ``run-test-plan.py``, wrapped by
+   ``dev/oidc_conformance_hooks.py`` for the steps that need an operator
+   (rotating the OP signing key), with the checked-in expected-failures and
+   expected-skips files, and exports the results to
+   ``dev/oidc-conformance/export/``.
 
 The exit code is the runner's: zero only when every module finished and the
 outcome matches the expected files exactly (including no unused entries).
@@ -45,6 +49,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = PROJECT_ROOT / "dev" / "oidc-conformance"
 TEMPLATE_PATH = CONFIG_DIR / "config.template.json"
 DYNAMIC_TEMPLATE_PATH = CONFIG_DIR / "config-dynamic.template.json"
+PRIVATE_KEY_JWT_TEMPLATE_PATH = CONFIG_DIR / "config-private-key-jwt.template.json"
+HOOKS_SCRIPT = PROJECT_ROOT / "dev" / "oidc_conformance_hooks.py"
 EXPECTED_FAILURES_PATH = CONFIG_DIR / "expected-failures.json"
 EXPECTED_SKIPS_PATH = CONFIG_DIR / "expected-skips.json"
 DEFAULT_EXPORT_DIR = CONFIG_DIR / "export"
@@ -103,10 +109,27 @@ PLANS = (
     "[response_type=code][client_registration=static_client]",
 )
 
+# The certification plans fix client authentication to client secrets. The
+# general OIDC test plan is the one that runs the same modules with
+# private_key_jwt static clients; it runs with the private_key_jwt config.
+PRIVATE_KEY_JWT_PLANS = (
+    "oidcc-test-plan[client_auth_type=private_key_jwt][response_type=code]"
+    "[response_mode=default][client_registration=static_client]",
+)
+
 # Plans that register their own clients (dynamic client registration with the
-# testbed's initial access token). They run with the dynamic config. The
-# 3rd Party-Init OP plan fixes every variant except the response type.
-DYNAMIC_PLANS = ("oidcc-3rdparty-init-login-certification-test-plan[response_type=code]",)
+# testbed's initial access token). They run with the dynamic config. Both
+# plans fix every variant except the response type; the Dynamic OP plan
+# registers private_key_jwt clients.
+DYNAMIC_PLANS = (
+    "oidcc-dynamic-certification-test-plan[response_type=code]",
+    "oidcc-3rdparty-init-login-certification-test-plan[response_type=code]",
+)
+
+# Top-level config keys the private_key_jwt and dynamic configs take from the
+# static one when they do not set them: the HtmlUnit options and the browser
+# automation for login, consent and logout.
+INHERITED_KEYS = ("options", "browser")
 
 # An override's ``browser`` list may name a top-level browser entry as
 # ``"$browser[N]"`` instead of repeating it. The suite replaces the whole list
@@ -132,6 +155,10 @@ PLACEHOLDERS = {
     "{CLIENT4_SECRET}": ("client4", "client_secret"),
     "{CLIENT5_ID}": ("client5", "client_id"),
     "{CLIENT5_SECRET}": ("client5", "client_secret"),
+    "{CLIENT6_ID}": ("client6", "client_id"),
+    "{CLIENT6_JWKS}": ("client6", "jwks"),
+    "{CLIENT7_ID}": ("client7", "client_id"),
+    "{CLIENT7_JWKS}": ("client7", "jwks"),
     "{INITIAL_ACCESS_TOKEN}": ("initial_access_token",),
 }
 
@@ -145,29 +172,48 @@ class ConformanceError(Exception):
 # ---------------------------------------------------------------------------
 
 
-def _lookup(testbed: dict, path: tuple[str, ...]) -> str:
+def _lookup(testbed: dict, path: tuple[str, ...]) -> str | dict:
     value: object = testbed
     for key in path:
         if not isinstance(value, dict) or key not in value:
             raise ConformanceError(f"testbed output is missing '{'.'.join(path)}'")
         value = value[key]
-    if not isinstance(value, str) or not value:
-        raise ConformanceError(f"testbed value '{'.'.join(path)}' must be a non-empty string")
+    if not isinstance(value, str | dict) or not value:
+        raise ConformanceError(
+            f"testbed value '{'.'.join(path)}' must be a non-empty string or object"
+        )
     return value
 
 
 def render_config(template_text: str, testbed: dict) -> str:
     """Fill the plan config template with the testbed's values.
 
+    See ``_substitute``. ``"$browser[N]"`` references in overrides are
+    expanded; a template without any renders byte for byte.
+    """
+    rendered, config = _substitute(template_text, testbed)
+    if not _has_browser_refs(config):
+        return rendered
+    return json.dumps(expand_browser_refs(config), indent=4) + "\n"
+
+
+def _substitute(template_text: str, testbed: dict) -> tuple[str, dict]:
+    """Replace the WeftID placeholders; return the text and its parsed JSON.
+
     Every WeftID placeholder must be consumed; a leftover one means the
     template and the testbed drifted apart, which would only surface as a
     baffling suite failure. Placeholders the suite substitutes itself
-    (``{BASEURL}`` etc.) are left untouched. Values are inserted as JSON
-    string fragments so a secret containing a quote cannot break the file.
+    (``{BASEURL}`` etc.) are left untouched. String values are inserted as
+    JSON string fragments so a secret containing a quote cannot break the
+    file. An object value (a private JWKS) replaces the whole quoted
+    placeholder, ``"{NAME}"``, with the JSON object.
     """
     rendered = template_text
     for placeholder, path in PLACEHOLDERS.items():
         value = _lookup(testbed, path)
+        if isinstance(value, dict):
+            rendered = rendered.replace(f'"{placeholder}"', json.dumps(value))
+            continue
         # json.dumps wraps in quotes; strip them since the placeholder sits
         # inside an existing JSON string literal.
         fragment = json.dumps(value)[1:-1]
@@ -178,10 +224,7 @@ def render_config(template_text: str, testbed: dict) -> str:
         raise ConformanceError(f"unrendered placeholders: {', '.join(leftover)}")
 
     # Must still be valid JSON (catches a template typo before the suite does).
-    config = json.loads(rendered)
-    if not _has_browser_refs(config):
-        return rendered
-    return json.dumps(expand_browser_refs(config), indent=4) + "\n"
+    return rendered, json.loads(rendered)
 
 
 def _has_browser_refs(config: dict) -> bool:
@@ -217,6 +260,42 @@ def expand_browser_refs(config: dict) -> dict:
             entries.append(copy.deepcopy(top_level[int(match.group(1))]))
         module["browser"] = entries
     return expanded
+
+
+def inherit_static(config: dict, static: dict) -> dict:
+    """Give a non-static plan config the static config's browser automation.
+
+    The login, consent and logout pages are the same whichever client the
+    plan uses, so the private_key_jwt and dynamic configs take the static
+    config's ``INHERITED_KEYS`` unless they set them. Module overrides that
+    only script the browser (error pages, forced re-login) apply to the same
+    modules in every plan and are inherited too; overrides that swap the
+    client are tied to the static clients and are not. The config's own
+    overrides win.
+    """
+    merged = copy.deepcopy(config)
+    for key in INHERITED_KEYS:
+        if key in static and key not in merged:
+            merged[key] = copy.deepcopy(static[key])
+    browser_overrides = {
+        name: copy.deepcopy(module)
+        for name, module in (static.get("override") or {}).items()
+        if isinstance(module, dict) and set(module) == {"browser"}
+    }
+    if browser_overrides:
+        merged["override"] = {**browser_overrides, **(merged.get("override") or {})}
+    return merged
+
+
+def render_derived_config(template_text: str, static_rendered: str, testbed: dict) -> str:
+    """Render a non-static template and inherit from the rendered static config.
+
+    References are expanded after inheritance, so the template's overrides
+    can name the inherited ``browser`` entries as ``"$browser[N]"``.
+    """
+    _, config = _substitute(template_text, testbed)
+    merged = inherit_static(config, json.loads(static_rendered))
+    return json.dumps(expand_browser_refs(merged), indent=4) + "\n"
 
 
 def plan_arguments(plans: tuple[str, ...], config_path: Path) -> list[str]:
@@ -357,24 +436,28 @@ def write_config(runtime_dir: Path, rendered: str, name: str = "config.json") ->
 
 def run_plans(
     scripts_dir: Path,
-    config_path: Path,
-    dynamic_config_path: Path,
+    plan_configs: list[tuple[tuple[str, ...], Path]],
     export_dir: Path,
     passthrough: list[str],
 ) -> int:
     export_dir.mkdir(parents=True, exist_ok=True)
+    plan_args = [arg for plans, path in plan_configs for arg in plan_arguments(plans, path)]
     cmd = [
         sys.executable,
-        str(scripts_dir / "run-test-plan.py"),
+        str(HOOKS_SCRIPT),
         "--export-dir",
         str(export_dir),
         "--expected-failures-file",
         str(EXPECTED_FAILURES_PATH),
         "--expected-skips-file",
         str(EXPECTED_SKIPS_PATH),
+        # One module at a time across all plans. The runner otherwise runs
+        # each alias's queue in parallel, and the signing-key rotation hook
+        # would then swap WeftID's key under a module of another plan that
+        # has already fetched the JWKS (its ID token check fails).
+        "--no-parallel",
         *passthrough,
-        *plan_arguments(PLANS, config_path),
-        *plan_arguments(DYNAMIC_PLANS, dynamic_config_path),
+        *plan_args,
     ]
     print("Running:", " ".join(cmd))
     # cwd matters: the runner resolves ./certs-keys relative to itself but
@@ -441,15 +524,28 @@ def main(argv: list[str] | None = None) -> int:
 
     scripts_dir = ensure_runner_scripts(runtime_dir, tag)
     testbed = provision_testbed(args.alias)
-    config_path = write_config(runtime_dir, render_config(TEMPLATE_PATH.read_text(), testbed))
+    static_rendered = render_config(TEMPLATE_PATH.read_text(), testbed)
+    config_path = write_config(runtime_dir, static_rendered)
+    private_key_jwt_config_path = write_config(
+        runtime_dir,
+        render_derived_config(PRIVATE_KEY_JWT_TEMPLATE_PATH.read_text(), static_rendered, testbed),
+        name="private-key-jwt-config.json",
+    )
     dynamic_config_path = write_config(
         runtime_dir,
-        render_config(DYNAMIC_TEMPLATE_PATH.read_text(), testbed),
+        render_derived_config(DYNAMIC_TEMPLATE_PATH.read_text(), static_rendered, testbed),
         name="dynamic-config.json",
     )
     print(f"Rendered plan configs to {runtime_dir} (issuer {testbed['issuer']})")
     return run_plans(
-        scripts_dir, config_path, dynamic_config_path, args.export_dir, passthrough
+        scripts_dir,
+        [
+            (PLANS, config_path),
+            (PRIVATE_KEY_JWT_PLANS, private_key_jwt_config_path),
+            (DYNAMIC_PLANS, dynamic_config_path),
+        ],
+        args.export_dir,
+        passthrough,
     )
 
 

@@ -236,6 +236,98 @@ class TestClassify:
         assert result.unexpected == [f"`m` {status} {result_value}"]
 
 
+class TestAcceptedFailures:
+    FAILURE_ENTRY = {
+        "test-name": "oidcc-discovery-endpoint-verification",
+        "variant": {"client_registration": "dynamic_client"},
+        "expected-result": "failure",
+        "comment": "Implicit and hybrid are not supported",
+    }
+
+    def _dynamic(self, report, *logs):
+        return _run(report, list(logs), "Dynamic OP", "oidcc-dynamic-certification-test-plan")
+
+    def test_listed_failure_is_accepted_and_profile_stays_green(self, report):
+        run = self._dynamic(
+            report,
+            _module_log("oidcc-server", "PASSED"),
+            _module_log(
+                "oidcc-discovery-endpoint-verification",
+                "FAILED",
+                client_registration="dynamic_client",
+            ),
+        )
+        result = report.classify(run, [self.FAILURE_ENTRY], [])
+
+        assert result.green
+        assert result.counts["FAILED"] == 1
+        assert result.accepted_failures == [
+            ("oidcc-discovery-endpoint-verification", "Implicit and hybrid are not supported")
+        ]
+        assert result.unexpected == []
+        assert result.outcome == "Green (1 accepted failure)"
+
+    def test_warning_entry_does_not_accept_a_failure(self, report):
+        entry = dict(self.FAILURE_ENTRY, **{"expected-result": "warning"})
+        run = self._dynamic(
+            report,
+            _module_log(
+                "oidcc-discovery-endpoint-verification",
+                "FAILED",
+                client_registration="dynamic_client",
+            ),
+        )
+        result = report.classify(run, [entry], [])
+        assert not result.green
+        assert result.outcome == "**Red**"
+
+    def test_unfinished_module_is_never_accepted(self, report):
+        run = self._dynamic(
+            report,
+            _module_log(
+                "oidcc-discovery-endpoint-verification",
+                "FAILED",
+                status="INTERRUPTED",
+                client_registration="dynamic_client",
+            ),
+        )
+        result = report.classify(run, [self.FAILURE_ENTRY], [])
+        assert not result.green
+        assert result.accepted_failures == []
+
+    def test_unlisted_failure_beside_an_accepted_one_is_red(self, report):
+        run = self._dynamic(
+            report,
+            _module_log(
+                "oidcc-discovery-endpoint-verification",
+                "FAILED",
+                client_registration="dynamic_client",
+            ),
+            _module_log("oidcc-server", "FAILED", client_registration="dynamic_client"),
+        )
+        result = report.classify(run, [self.FAILURE_ENTRY], [])
+        assert not result.green
+        assert result.unexpected == ["`oidcc-server` FINISHED FAILED"]
+
+    def test_plural_outcome_and_rendered_section(self, report):
+        entry = dict(self.FAILURE_ENTRY, **{"test-name": "*"})
+        run = self._dynamic(
+            report,
+            _module_log("a", "FAILED", client_registration="dynamic_client"),
+            _module_log("b", "FAILED", client_registration="dynamic_client"),
+        )
+        result = report.classify(run, [entry], [])
+        assert result.outcome == "Green (2 accepted failures)"
+
+        md = report.render_markdown([result], "1.0.0")
+        assert (
+            "| Dynamic OP | `oidcc-dynamic-certification-test-plan` | "
+            "Green (2 accepted failures) | 0 | 0 | 0 | 0 | 2 |"
+        ) in md
+        assert "**Accepted failures** (each is a deviation listed below):" in md
+        assert "* `a` (Dynamic OP): Implicit and hybrid are not supported" in md
+
+
 class TestRenderMarkdown:
     def _reports(self, report):
         basic = _run(
@@ -403,7 +495,8 @@ class TestCheckedInFiles:
 
     def test_profiles_match_runner_plans(self, report):
         runner = _load("oidc_conformance_for_report_test", "oidc_conformance.py")
-        plan_names = [plan.split("[")[0] for plan in (*runner.PLANS, *runner.DYNAMIC_PLANS)]
+        plans = (*runner.PLANS, *runner.PRIVATE_KEY_JWT_PLANS, *runner.DYNAMIC_PLANS)
+        plan_names = [plan.split("[")[0] for plan in plans]
         assert plan_names == [plan for _, plan in report.PROFILES]
 
     def test_every_expected_entry_has_a_public_comment(self, report):

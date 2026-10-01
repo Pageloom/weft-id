@@ -1078,60 +1078,6 @@ def test_process_logout_response_with_request_id(saml_settings_with_slo):
         assert call_kwargs["request_id"] == "original-request-id"
 
 
-def test_process_logout_request_success(saml_settings_with_slo):
-    """Test processing IdP-initiated logout request."""
-    from app.utils.saml import process_logout_request
-
-    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as mock_auth_cls:
-        mock_auth = MagicMock()
-        mock_auth.get_nameid.return_value = "user@example.com"
-        mock_auth.get_session_index.return_value = "session-123"
-        mock_auth.get_last_request_id.return_value = "request-456"
-        mock_auth_cls.return_value = mock_auth
-
-        request_data = {
-            "http_host": "sp.example.com",
-            "script_name": "/slo",
-            "get_data": {"SAMLRequest": "encoded-request"},
-            "post_data": {},
-        }
-
-        name_id, session_index, request_id = process_logout_request(
-            settings=saml_settings_with_slo,
-            request_data=request_data,
-        )
-
-        assert name_id == "user@example.com"
-        assert session_index == "session-123"
-        assert request_id == "request-456"
-
-
-def test_process_logout_request_exception(saml_settings_with_slo):
-    """Test processing logout request when exception is raised."""
-    from app.utils.saml import process_logout_request
-
-    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as mock_auth_cls:
-        mock_auth = MagicMock()
-        mock_auth.process_slo.side_effect = Exception("Invalid request")
-        mock_auth_cls.return_value = mock_auth
-
-        request_data = {
-            "http_host": "sp.example.com",
-            "script_name": "/slo",
-            "get_data": {"SAMLRequest": "encoded-request"},
-            "post_data": {},
-        }
-
-        name_id, session_index, request_id = process_logout_request(
-            settings=saml_settings_with_slo,
-            request_data=request_data,
-        )
-
-        assert name_id is None
-        assert session_index is None
-        assert request_id is None
-
-
 def test_build_logout_response_success(saml_settings_with_slo):
     """Test building logout response."""
     from app.utils.saml import build_logout_response

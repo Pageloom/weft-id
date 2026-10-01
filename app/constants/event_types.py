@@ -251,6 +251,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # SAML IdP / SLO
     "slo_sp_initiated": "SP-initiated single logout processed",
     "slo_idp_propagated": "Logout propagated to downstream service providers",
+    "saml_idp_logout_rejected": "Logout request from a SAML identity provider rejected",
     # Branding
     "branding_logo_uploaded": "Custom logo uploaded for tenant branding",
     "branding_logo_deleted": "Custom logo removed from tenant branding",
@@ -497,6 +498,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "sso_assertion_issued": "operational",
     "slo_sp_initiated": "operational",
     "slo_idp_propagated": "operational",
+    "saml_idp_logout_rejected": "security",
     "idp_group_created": "operational",
     "idp_group_discovered": "operational",
     "idp_group_invalidated": "operational",

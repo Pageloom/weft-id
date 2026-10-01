@@ -14,7 +14,11 @@
     <div class="w-full max-w-md">
         <div id="logout-frontchannel" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 text-center">
             <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Signing you out</h1>
+            {% if frontchannel_logout_urls %}
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">Signing you out of connected applications. This takes a moment.</p>
+            {% else %}
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">Signing you out of your identity provider. This takes a moment.</p>
+            {% endif %}
             <a id="logout-frontchannel-continue" href="{{ continue_url }}" class="text-blue-600 dark:text-blue-400 hover:underline">Continue</a>
         </div>
     </div>

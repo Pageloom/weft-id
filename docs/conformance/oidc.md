@@ -81,7 +81,6 @@ These are the places where WeftID knowingly differs from what the suite checks f
 * **No request objects.** The `request` and `request_uri` parameters are rejected with `request_not_supported`, and discovery says so. The suite accepts this and skips the rest of the module.
 * **No `address` or `phone` scopes.** WeftID has no attributes to fill them, so they are not advertised and the suite skips their modules.
 * **Re-authentication is local.** `prompt=login` and an expired `max_age` make the user sign in to WeftID again (password, then two-step verification per policy). The re-authentication is not passed on to an upstream SAML or OIDC identity provider.
-* **RP-initiated logout stays inside WeftID.** Signing out through the end session endpoint ends the WeftID session and notifies downstream SAML applications, but does not start a logout at the upstream identity provider the user signed in with. The sign-out button in WeftID itself still does.
 
 One known limitation is not a conformance deviation, but is listed so this page does not overstate things: expired OAuth2 access and refresh tokens stop working at expiry but are not yet deleted from the database.
 

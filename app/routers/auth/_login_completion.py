@@ -29,6 +29,19 @@ from utils.session import SESSION_ID_KEY, regenerate_session
 PENDING_UPSTREAM_OIDC_SESSION_KEY = "pending_upstream_oidc_session"
 PENDING_UPSTREAM_OIDC_SESSION_MAX_AGE = 15 * 60
 
+# An upstream SAML sign-in waiting for login completion after the platform MFA
+# step. The ``saml_*`` keys it carries are what SP-initiated Single Logout and
+# IdP-initiated Single Logout match the session on; regeneration would
+# otherwise drop them. Same binding and lifetime as the OIDC stash.
+PENDING_UPSTREAM_SAML_SESSION_KEY = "pending_upstream_saml_session"
+SAML_SESSION_KEYS = (
+    "saml_idp_id",
+    "saml_name_id",
+    "saml_name_id_format",
+    "saml_session_index",
+    "saml_slo_url",
+)
+
 
 def stash_upstream_oidc_session(
     session: dict,
@@ -37,32 +50,66 @@ def stash_upstream_oidc_session(
     user_id: str,
     upstream_sub: str,
     upstream_sid: str | None,
+    id_token: str | None = None,
 ) -> None:
-    """Remember the upstream OIDC sign-in until login completes."""
+    """Remember the upstream OIDC sign-in until login completes.
+
+    ``id_token`` is kept for the upstream RP-initiated logout. When the stash
+    has to survive a request (the MFA detour) it rides in the session cookie,
+    so the caller passes only a token small enough for that.
+    """
     session[PENDING_UPSTREAM_OIDC_SESSION_KEY] = {
         "connection_id": connection_id,
         "user_id": user_id,
         "sub": upstream_sub,
         "sid": upstream_sid,
+        "id_token": id_token,
         "at": int(time.time()),
     }
 
 
-def _pending_upstream_oidc_session(session: dict, user_id: str) -> dict | None:
-    """Pop the stashed upstream sign-in; None unless it is this user's and fresh."""
-    pending = session.pop(PENDING_UPSTREAM_OIDC_SESSION_KEY, None)
+def _pop_fresh_stash(session: dict, key: str, user_id: str) -> dict | None:
+    """Pop a stashed sign-in; None unless it is this user's and fresh."""
+    pending = session.pop(key, None)
     if not isinstance(pending, dict):
         return None
     at = pending.get("at")
     if (
         pending.get("user_id") != user_id
-        or not isinstance(pending.get("connection_id"), str)
-        or not isinstance(pending.get("sub"), str)
         or not isinstance(at, int)
         or time.time() - at > PENDING_UPSTREAM_OIDC_SESSION_MAX_AGE
     ):
         return None
     return pending
+
+
+def _pending_upstream_oidc_session(session: dict, user_id: str) -> dict | None:
+    """Pop the stashed upstream OIDC sign-in; None unless it is this user's and fresh."""
+    pending = _pop_fresh_stash(session, PENDING_UPSTREAM_OIDC_SESSION_KEY, user_id)
+    if (
+        pending is None
+        or not isinstance(pending.get("connection_id"), str)
+        or not isinstance(pending.get("sub"), str)
+    ):
+        return None
+    return pending
+
+
+def stash_upstream_saml_session(session: dict, *, user_id: str, saml_session_data: dict) -> None:
+    """Remember the upstream SAML session keys across the platform MFA step."""
+    session[PENDING_UPSTREAM_SAML_SESSION_KEY] = {
+        **{key: saml_session_data.get(key) for key in SAML_SESSION_KEYS},
+        "user_id": user_id,
+        "at": int(time.time()),
+    }
+
+
+def _pending_upstream_saml_session(session: dict, user_id: str) -> dict:
+    """Pop the stashed SAML session keys; empty unless this user's and fresh."""
+    pending = _pop_fresh_stash(session, PENDING_UPSTREAM_SAML_SESSION_KEY, user_id)
+    if pending is None or not isinstance(pending.get("saml_idp_id"), str):
+        return {}
+    return {key: pending.get(key) for key in SAML_SESSION_KEYS}
 
 
 def complete_authenticated_login(
@@ -112,6 +159,11 @@ def complete_authenticated_login(
     # the new session below.
     pending_upstream = _pending_upstream_oidc_session(request.session, user_id)
 
+    # The upstream SAML session keys (if the user came from the SAML ACS
+    # through the platform MFA step), carried into the new session so Single
+    # Logout can match it.
+    pending_saml = _pending_upstream_saml_session(request.session, user_id)
+
     # Log successful sign-in event (also updates last_activity_at via log_event)
     log_event(
         tenant_id=tenant_id,
@@ -142,7 +194,10 @@ def complete_authenticated_login(
 
     # CRITICAL: Regenerate session to prevent session fixation attacks
     regenerate_session(
-        request, user_id, max_age, additional_data={**pending_returns, **(pending_sso or {})}
+        request,
+        user_id,
+        max_age,
+        additional_data={**pending_saml, **pending_returns, **(pending_sso or {})},
     )
 
     if pending_upstream:
@@ -154,6 +209,9 @@ def complete_authenticated_login(
             upstream_sub=pending_upstream["sub"],
             upstream_sid=pending_upstream.get("sid")
             if isinstance(pending_upstream.get("sid"), str)
+            else None,
+            id_token=pending_upstream.get("id_token")
+            if isinstance(pending_upstream.get("id_token"), str)
             else None,
         )
 

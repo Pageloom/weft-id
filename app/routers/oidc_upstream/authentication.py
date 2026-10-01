@@ -47,6 +47,12 @@ router = APIRouter()
 _SESSION_PREFIX = "oidc_auth"
 
 
+# The largest upstream ID token carried through the platform MFA step in the
+# session cookie (browsers cap a cookie at about 4 KB, and the session holds
+# more than the stash).
+_MAX_COOKIE_STASHED_ID_TOKEN_LENGTH = 2048
+
+
 def _session_key(connection_id: str, name: str) -> str:
     return f"{_SESSION_PREFIX}:{connection_id}:{name}"
 
@@ -277,18 +283,25 @@ def oidc_callback(
         return _error_response("auth_failed")
 
     user_id = str(user["id"])
+    requires_mfa = oidc_service.oidc_connection_requires_platform_mfa(tenant_id, connection_id)
 
     if isinstance(upstream_sub, str) and upstream_sub:
+        # Across the MFA detour the stash rides in the session cookie, so a
+        # large ID token is left out there (logout then goes without
+        # id_token_hint). Without MFA, login completes in this request.
         stash_upstream_oidc_session(
             request.session,
             connection_id=connection_id,
             user_id=user_id,
             upstream_sub=upstream_sub,
             upstream_sid=upstream_sid,
+            id_token=id_token
+            if not requires_mfa or len(id_token) <= _MAX_COOKIE_STASHED_ID_TOKEN_LENGTH
+            else None,
         )
 
     # Platform MFA gate (mirrors the SAML ACS).
-    if oidc_service.oidc_connection_requires_platform_mfa(tenant_id, connection_id):
+    if requires_mfa:
         mfa_method = user.get("mfa_method") or "email"
         request.session["pending_mfa_user_id"] = user_id
         request.session["pending_mfa_method"] = mfa_method

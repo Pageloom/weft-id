@@ -102,6 +102,63 @@ class TestUpstreamSessions:
         assert row["upstream_sub"] == "up-sub"
         assert row["upstream_sid"] == "up-sid"
 
+    def test_id_token_stored_and_replaced(self, test_tenant, connection, test_user):
+        tid = _tid(test_tenant)
+        database.oidc_upstream.record_idp_session(
+            tid,
+            tid,
+            sid="w-id",
+            idp_id=str(connection["id"]),
+            user_id=str(test_user["id"]),
+            upstream_sub="up-sub",
+            upstream_sid=None,
+            id_token="header.payload.signature",
+        )
+        assert database.oidc_upstream.get_idp_session(tid, "w-id")["id_token"] == (
+            "header.payload.signature"
+        )
+        _link(test_tenant, connection, test_user, sid="w-id")
+        assert database.oidc_upstream.get_idp_session(tid, "w-id")["id_token"] is None
+
+    def test_id_token_length_bound(self, test_tenant, connection, test_user):
+        tid = _tid(test_tenant)
+        with pytest.raises(psycopg.errors.CheckViolation):
+            database.oidc_upstream.record_idp_session(
+                tid,
+                tid,
+                sid="w-big",
+                idp_id=str(connection["id"]),
+                user_id=str(test_user["id"]),
+                upstream_sub="up-sub",
+                upstream_sid=None,
+                id_token="x" * 16385,
+            )
+
+    def test_connection_sign_out_defaults(self, test_tenant, connection):
+        assert connection["sign_out_at_idp"] is False
+        assert connection["end_session_endpoint"] is None
+        row = database.oidc_upstream.update_connection(
+            _tid(test_tenant),
+            str(connection["id"]),
+            sign_out_at_idp=True,
+            end_session_endpoint="https://idp.example.com/logout",
+        )
+        assert row["sign_out_at_idp"] is True
+        assert row["end_session_endpoint"] == "https://idp.example.com/logout"
+        # Discovery clears an endpoint the provider stopped publishing.
+        row = database.oidc_upstream.update_connection(
+            _tid(test_tenant), str(connection["id"]), end_session_endpoint=None
+        )
+        assert row["end_session_endpoint"] is None
+
+    def test_end_session_endpoint_length_bound(self, test_tenant, connection):
+        with pytest.raises(psycopg.errors.CheckViolation):
+            database.oidc_upstream.update_connection(
+                _tid(test_tenant),
+                str(connection["id"]),
+                end_session_endpoint="https://x.example/" + "x" * 2048,
+            )
+
     def test_record_replaces_same_sid(self, test_tenant, connection, test_user):
         _link(test_tenant, connection, test_user, sid="w1", upstream_sid="a")
         _link(test_tenant, connection, test_user, sid="w1", upstream_sid=None)

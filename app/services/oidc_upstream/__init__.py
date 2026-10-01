@@ -23,6 +23,7 @@ from services.oidc_upstream.auth import (
     generate_state,
 )
 from services.oidc_upstream.connections import (
+    POST_LOGOUT_PATH,
     create_connection,
     decrypt_client_secret,
     delete_connection,
@@ -78,6 +79,7 @@ from services.oidc_upstream.links import (
 )
 from services.oidc_upstream.logout import (
     BackchannelLogoutResult,
+    build_upstream_logout_url,
     handle_backchannel_logout,
     record_upstream_session,
     validate_logout_token,
@@ -135,6 +137,8 @@ __all__ = [
     "validate_logout_token",
     "handle_backchannel_logout",
     "record_upstream_session",
+    "build_upstream_logout_url",
+    "POST_LOGOUT_PATH",
     "BackchannelLogoutResult",
     "LogoutTokenError",
     "get_jwks",

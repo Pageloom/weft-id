@@ -100,6 +100,27 @@ def test_create_connection_as_super_admin(
     assert "client_secret" not in data
     assert data["callback_url"].endswith(f"/auth/oidc/{data['id']}/callback")
     assert data["backchannel_logout_url"].endswith(f"/auth/oidc/{data['id']}/backchannel-logout")
+    assert data["post_logout_redirect_uri"].endswith("/logout/complete")
+    assert data["sign_out_at_idp"] is False
+    assert data["end_session_endpoint"] is None
+
+
+def test_create_connection_with_provider_sign_out(
+    client, test_tenant_host, oauth2_super_admin_header, sample_connection_data
+):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            **sample_connection_data,
+            "end_session_endpoint": "https://idp.example.com/logout",
+            "sign_out_at_idp": True,
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["end_session_endpoint"] == "https://idp.example.com/logout"
+    assert data["sign_out_at_idp"] is True
 
 
 def test_create_connection_invalid_provider_type(
@@ -157,6 +178,36 @@ def test_update_connection_as_super_admin(
     )
     assert response.status_code == 200
     assert response.json()["name"] == "Renamed"
+
+
+def test_update_connection_turns_on_provider_sign_out(
+    client, test_tenant_host, oauth2_super_admin_header, created_connection
+):
+    url = f"/api/v1/oidc-upstream/connections/{created_connection['id']}"
+    headers = {"Host": test_tenant_host, **oauth2_super_admin_header}
+    response = client.patch(
+        url,
+        headers=headers,
+        json={"sign_out_at_idp": True, "end_session_endpoint": "https://idp.example.com/bye"},
+    )
+    assert response.status_code == 200
+    assert response.json()["sign_out_at_idp"] is True
+    assert response.json()["end_session_endpoint"] == "https://idp.example.com/bye"
+
+    off = client.patch(url, headers=headers, json={"sign_out_at_idp": False})
+    assert off.json()["sign_out_at_idp"] is False
+    assert off.json()["end_session_endpoint"] == "https://idp.example.com/bye"
+
+
+def test_update_connection_rejects_overlong_end_session_endpoint(
+    client, test_tenant_host, oauth2_super_admin_header, created_connection
+):
+    response = client.patch(
+        f"/api/v1/oidc-upstream/connections/{created_connection['id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"end_session_endpoint": "https://idp.example.com/" + "x" * 2048},
+    )
+    assert response.status_code == 422
 
 
 def test_delete_connection_as_super_admin(

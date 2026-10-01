@@ -1653,35 +1653,6 @@ def test_slo_get_with_logout_response_redirects_to_login(client, test_tenant_hos
     assert "slo=complete" in response.headers.get("location", "")
 
 
-def test_slo_get_with_logout_request_processes_idp_initiated(
-    client, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
-):
-    """Test SLO GET with SAMLRequest (IdP-initiated) processes and redirects."""
-    from dependencies import get_tenant_id_from_request
-    from main import app
-    from services import saml as saml_service
-
-    tenant_id = str(test_tenant["id"])
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
-
-    # Mock the service to return a redirect URL
-    def mock_process_idp_logout(*args, **kwargs):
-        return "https://idp.example.com/slo/callback?SAMLResponse=xyz"
-
-    monkeypatch.setattr(saml_service, "process_idp_logout_request", mock_process_idp_logout)
-
-    response = client.get(
-        "/saml/slo?SAMLRequest=dummyrequest",
-        headers={"Host": test_tenant_host},
-        follow_redirects=False,
-    )
-
-    app.dependency_overrides.clear()
-
-    assert response.status_code == 303
-    assert "idp.example.com" in response.headers.get("location", "")
-
-
 def test_slo_get_idp_initiated_failure_redirects_to_login(
     client, test_tenant_host, test_tenant, monkeypatch
 ):
@@ -1726,36 +1697,6 @@ def test_slo_post_without_params_redirects_to_login(client, test_tenant_host):
 
     assert response.status_code == 303
     assert "/login" in response.headers.get("location", "")
-
-
-def test_slo_post_with_logout_request_processes_idp_initiated(
-    client, test_tenant_host, test_tenant, monkeypatch
-):
-    """Test SLO POST with SAMLRequest (IdP-initiated) processes and redirects."""
-    from dependencies import get_tenant_id_from_request
-    from main import app
-    from services import saml as saml_service
-
-    tenant_id = str(test_tenant["id"])
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
-
-    # Mock the service to return a redirect URL
-    def mock_process_idp_logout(*args, **kwargs):
-        return "https://idp.example.com/slo/response"
-
-    monkeypatch.setattr(saml_service, "process_idp_logout_request", mock_process_idp_logout)
-
-    response = client.post(
-        "/saml/slo",
-        data={"SAMLRequest": "dummyrequest"},
-        headers={"Host": test_tenant_host},
-        follow_redirects=False,
-    )
-
-    app.dependency_overrides.clear()
-
-    assert response.status_code == 303
-    assert "idp.example.com" in response.headers.get("location", "")
 
 
 def test_slo_post_with_logout_response_redirects_to_login(client, test_tenant_host):

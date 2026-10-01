@@ -1,5 +1,11 @@
 """OIDC upstream logout: WeftID as the relying party of an upstream IdP.
 
+RP-Initiated Logout 1.0, RP side. When the connection has "sign out at the
+provider" on and the provider publishes an ``end_session_endpoint``, a WeftID
+sign-out sends the browser on to it (``build_upstream_logout_url``) with the
+session's upstream ID token as ``id_token_hint``; the provider returns the
+browser to WeftID's post-logout landing.
+
 Back-Channel Logout 1.0, RP side. When a user signs in through an upstream
 OIDC connection, ``record_upstream_session`` links the new WeftID session to
 the upstream ``sub`` and, when the IdP sent one, the upstream ``sid``. When the
@@ -31,6 +37,7 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlencode
 
 import database
 import jwt
@@ -57,6 +64,10 @@ _ACCEPTED_TYP = frozenset({"logout+jwt", "application/logout+jwt", "jwt"})
 # link table has the same bound, so such a subject could not sign in anyway).
 _MAX_UPSTREAM_ID_LENGTH = 255
 
+# The ID token kept for id_token_hint (the column's bound). A longer one is
+# dropped; the logout request then identifies WeftID by client_id alone.
+MAX_STORED_ID_TOKEN_LENGTH = 16384
+
 # At most one JWKS refetch per connection in this window (key rotation).
 _JWKS_REFETCH_INTERVAL = 60.0
 _refetch_lock = threading.Lock()
@@ -79,6 +90,7 @@ def record_upstream_session(
     user_id: str,
     upstream_sub: str,
     upstream_sid: str | None,
+    id_token: str | None = None,
 ) -> bool:
     """Link WeftID session ``sid`` to the upstream sign-in that created it.
 
@@ -87,6 +99,10 @@ def record_upstream_session(
 
     No audit of its own: the ``user_signed_in`` event records the sign-in;
     the link is bookkeeping that lets the IdP's logout reach the session.
+
+    ``id_token`` is the verified upstream ID token, kept as the
+    ``id_token_hint`` of a later RP-initiated logout (dropped when longer than
+    ``MAX_STORED_ID_TOKEN_LENGTH``).
 
     Returns:
         False when an identifier is too long to record (nothing written).
@@ -104,8 +120,44 @@ def record_upstream_session(
         user_id=user_id,
         upstream_sub=upstream_sub,
         upstream_sid=upstream_sid,
+        id_token=id_token if id_token and len(id_token) <= MAX_STORED_ID_TOKEN_LENGTH else None,
     )
     return True
+
+
+def build_upstream_logout_url(
+    *, tenant_id: str, sid: str, post_logout_redirect_uri: str
+) -> str | None:
+    """The provider's end_session URL for WeftID session ``sid``, or None.
+
+    Authorization: none -- called while the session itself is being ended,
+    before ``end_oidc_session`` forgets the upstream link.
+
+    None unless the session began at an upstream OIDC connection that has
+    "sign out at the provider" on and an ``end_session_endpoint``. The URL
+    carries ``client_id`` and ``post_logout_redirect_uri`` always, and
+    ``id_token_hint`` when the ID token was kept. Disabled connections still
+    qualify: the session they created is being ended either way.
+
+    No audit: the caller's ``user_signed_out`` event records the logout.
+    """
+    link = database.oidc_upstream.get_idp_session(tenant_id, sid)
+    if link is None:
+        return None
+    connection = database.oidc_upstream.get_connection(tenant_id, str(link["idp_id"]))
+    if connection is None or not connection.get("sign_out_at_idp"):
+        return None
+    endpoint = connection.get("end_session_endpoint")
+    client_id = connection.get("client_id")
+    if not endpoint or not client_id:
+        return None
+    params: dict[str, str] = {}
+    if link.get("id_token"):
+        params["id_token_hint"] = link["id_token"]
+    params["client_id"] = client_id
+    params["post_logout_redirect_uri"] = post_logout_redirect_uri
+    separator = "&" if "?" in endpoint else "?"
+    return f"{endpoint}{separator}{urlencode(params)}"
 
 
 def _may_refetch(tenant_id: str, connection_id: str) -> bool:

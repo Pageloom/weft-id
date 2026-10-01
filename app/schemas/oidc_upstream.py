@@ -57,6 +57,7 @@ class OIDCConnectionCreate(BaseModel):
     token_endpoint: str | None = Field(None, max_length=2048)
     userinfo_endpoint: str | None = Field(None, max_length=2048)
     jwks_uri: str | None = Field(None, max_length=2048)
+    end_session_endpoint: str | None = Field(None, max_length=2048)
     client_id: str | None = Field(None, max_length=255)
     # The column stores the *encrypted* secret (Fernet adds ~44 bytes + base64
     # expansion), so the plaintext bound must be lower than the column's 4096
@@ -86,6 +87,7 @@ class OIDCConnectionCreate(BaseModel):
     require_platform_mfa: bool = False
     jit_provisioning: bool = False
     allow_email_linking: bool = False
+    sign_out_at_idp: bool = False
 
 
 class OIDCConnectionUpdate(BaseModel):
@@ -98,6 +100,7 @@ class OIDCConnectionUpdate(BaseModel):
     token_endpoint: str | None = Field(None, max_length=2048)
     userinfo_endpoint: str | None = Field(None, max_length=2048)
     jwks_uri: str | None = Field(None, max_length=2048)
+    end_session_endpoint: str | None = Field(None, max_length=2048)
     client_id: str | None = Field(None, max_length=255)
     # See OIDCConnectionCreate: the encrypted form is what the column stores.
     client_secret: str | None = Field(None, max_length=3000)
@@ -119,6 +122,7 @@ class OIDCConnectionUpdate(BaseModel):
     require_platform_mfa: bool | None = None
     jit_provisioning: bool | None = None
     allow_email_linking: bool | None = None
+    sign_out_at_idp: bool | None = None
 
 
 class OIDCConnectionConfig(BaseModel):
@@ -135,6 +139,7 @@ class OIDCConnectionConfig(BaseModel):
     token_endpoint: str | None
     userinfo_endpoint: str | None
     jwks_uri: str | None
+    end_session_endpoint: str | None
     discovery_fetched_at: datetime | None
     discovery_error: str | None
     client_id: str | None
@@ -151,8 +156,10 @@ class OIDCConnectionConfig(BaseModel):
     require_platform_mfa: bool
     jit_provisioning: bool
     allow_email_linking: bool
+    sign_out_at_idp: bool
     callback_url: str
     backchannel_logout_url: str
+    post_logout_redirect_uri: str
     created_at: datetime
     updated_at: datetime
 

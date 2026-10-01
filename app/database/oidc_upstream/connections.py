@@ -18,10 +18,10 @@ from database._core import TenantArg, execute, fetchall, fetchone
 _COLUMNS = """
     id, tenant_id, name, provider_type, issuer, discovery_url,
     authorization_endpoint, token_endpoint, userinfo_endpoint, jwks_uri,
-    discovery_fetched_at, discovery_error, client_id, client_secret_enc,
+    end_session_endpoint, discovery_fetched_at, discovery_error, client_id, client_secret_enc,
     scopes, claim_mapping, correlation_claim, group_claim_source,
     group_claim_name_key, hosted_domain, entra_tenant_id, is_enabled, is_default,
-    require_platform_mfa, jit_provisioning, allow_email_linking,
+    require_platform_mfa, jit_provisioning, allow_email_linking, sign_out_at_idp,
     created_by, created_at, updated_at
 """
 
@@ -83,6 +83,7 @@ def create_connection(
     token_endpoint: str | None = None,
     userinfo_endpoint: str | None = None,
     jwks_uri: str | None = None,
+    end_session_endpoint: str | None = None,
     client_id: str | None = None,
     client_secret_enc: str | None = None,
     scopes: str | None = None,
@@ -97,6 +98,7 @@ def create_connection(
     require_platform_mfa: bool = False,
     jit_provisioning: bool = False,
     allow_email_linking: bool = False,
+    sign_out_at_idp: bool = False,
 ) -> dict | None:
     """Create a new OIDC connection.
 
@@ -115,18 +117,18 @@ def create_connection(
         insert into oidc_idp_connections (
             tenant_id, name, provider_type, issuer, discovery_url,
             authorization_endpoint, token_endpoint, userinfo_endpoint, jwks_uri,
-            client_id, client_secret_enc, scopes, claim_mapping,
+            end_session_endpoint, client_id, client_secret_enc, scopes, claim_mapping,
             correlation_claim, group_claim_source, group_claim_name_key, hosted_domain,
             entra_tenant_id, is_enabled, is_default, require_platform_mfa,
-            jit_provisioning, allow_email_linking, created_by
+            jit_provisioning, allow_email_linking, sign_out_at_idp, created_by
         )
         values (
             :tenant_id, :name, :provider_type, :issuer, :discovery_url,
             :authorization_endpoint, :token_endpoint, :userinfo_endpoint, :jwks_uri,
-            :client_id, :client_secret_enc, :scopes, :claim_mapping,
+            :end_session_endpoint, :client_id, :client_secret_enc, :scopes, :claim_mapping,
             :correlation_claim, :group_claim_source, :group_claim_name_key, :hosted_domain,
             :entra_tenant_id, :is_enabled, :is_default, :require_platform_mfa,
-            :jit_provisioning, :allow_email_linking, :created_by
+            :jit_provisioning, :allow_email_linking, :sign_out_at_idp, :created_by
         )
         returning {_COLUMNS}
         """,
@@ -140,6 +142,7 @@ def create_connection(
             "token_endpoint": token_endpoint,
             "userinfo_endpoint": userinfo_endpoint,
             "jwks_uri": jwks_uri,
+            "end_session_endpoint": end_session_endpoint,
             "client_id": client_id,
             "client_secret_enc": client_secret_enc,
             "scopes": scopes,
@@ -154,6 +157,7 @@ def create_connection(
             "require_platform_mfa": require_platform_mfa,
             "jit_provisioning": jit_provisioning,
             "allow_email_linking": allow_email_linking,
+            "sign_out_at_idp": sign_out_at_idp,
             "created_by": created_by,
         },
     )
@@ -180,6 +184,7 @@ def update_connection(
         "token_endpoint",
         "userinfo_endpoint",
         "jwks_uri",
+        "end_session_endpoint",
         "discovery_fetched_at",
         "discovery_error",
         "client_id",
@@ -194,6 +199,7 @@ def update_connection(
         "require_platform_mfa",
         "jit_provisioning",
         "allow_email_linking",
+        "sign_out_at_idp",
     }
 
     # Fields that can be explicitly set to NULL (cleared).
@@ -203,6 +209,7 @@ def update_connection(
         "token_endpoint",
         "userinfo_endpoint",
         "jwks_uri",
+        "end_session_endpoint",
         "discovery_fetched_at",
         "discovery_error",
         "client_id",

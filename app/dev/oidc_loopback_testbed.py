@@ -199,8 +199,14 @@ def step_2_rp_connection(log: logging.Logger, rp_tid: str, rp_admin: RequestingU
     return conn.id
 
 
-def step_3_op_client(log: logging.Logger, op_tid: str, callback_url: str) -> dict:
-    """Register the RP as an OIDC-enabled client on the provider tenant."""
+def step_3_op_client(
+    log: logging.Logger, op_tid: str, callback_url: str, post_logout_redirect_uri: str
+) -> dict:
+    """Register the RP as an OIDC-enabled client on the provider tenant.
+
+    The RP's post-logout landing is registered too, so the RP's "sign out at
+    the provider" round trip can come back.
+    """
     log.info("--- Step 3: OP OAuth2 client ---")
     op_user_id = _user_id(op_tid, OP_USER_EMAIL)
 
@@ -215,6 +221,7 @@ def step_3_op_client(log: logging.Logger, op_tid: str, callback_url: str) -> dic
         name=CLIENT_NAME,
         redirect_uris=[callback_url],
         created_by=op_user_id,
+        post_logout_redirect_uris=[post_logout_redirect_uri],
     )
     if client is None:
         raise RuntimeError("Failed to create OP OAuth2 client")
@@ -249,6 +256,9 @@ def step_4_wire_and_discover(
             OIDCConnectionUpdate(
                 client_id=client["client_id"],
                 client_secret=client["client_secret"],
+                # WeftID sign-out on the RP also ends the OP session (the OP's
+                # end_session_endpoint comes from discovery below).
+                sign_out_at_idp=True,
             ),
             base_url=rp_base,
         )
@@ -274,7 +284,8 @@ def setup(log: logging.Logger) -> dict:
 
     connection_id = step_2_rp_connection(log, rp_tid, rp_admin)
     callback_url = f"{_base_url(RP_SUBDOMAIN)}/auth/oidc/{connection_id}/callback"
-    client = step_3_op_client(log, op_tid, callback_url)
+    post_logout_redirect_uri = f"{_base_url(RP_SUBDOMAIN)}{oidc_service.POST_LOGOUT_PATH}"
+    client = step_3_op_client(log, op_tid, callback_url, post_logout_redirect_uri)
     step_4_wire_and_discover(log, rp_tid, rp_admin, connection_id, client)
 
     return {
@@ -296,6 +307,7 @@ def setup(log: logging.Logger) -> dict:
             "connection_id": connection_id,
             "connection_name": CONNECTION_NAME,
             "callback_url": callback_url,
+            "post_logout_redirect_uri": post_logout_redirect_uri,
         },
     }
 

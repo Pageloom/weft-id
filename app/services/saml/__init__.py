@@ -86,6 +86,7 @@ from services.saml.idp_sp_certificates import (
 
 # Re-export from logout module
 from services.saml.logout import (
+    IdpLogoutRequest,
     initiate_sp_logout,
     process_idp_logout_request,
 )
@@ -166,6 +167,7 @@ __all__ = [
     # Logout
     "initiate_sp_logout",
     "process_idp_logout_request",
+    "IdpLogoutRequest",
     # Metadata
     "fetch_and_parse_idp_metadata",
     "import_idp_from_metadata_url",

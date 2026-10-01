@@ -6,7 +6,9 @@ import services.emails as emails_service
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import RedirectResponse
+from routers.auth._login_completion import stash_upstream_saml_session
 from routers.saml._helpers import get_base_url, store_saml_debug_and_respond
+from schemas.saml import SAMLAuthResult
 from services import saml as saml_service
 from services import settings as settings_service
 from services import users as users_service
@@ -22,6 +24,18 @@ from utils.saml import extract_issuer_from_response
 from utils.session import regenerate_session
 from utils.template_context import get_template_context
 from utils.templates import templates
+
+
+def _saml_session_data(saml_result: SAMLAuthResult) -> dict:
+    """The session keys Single Logout needs from an upstream SAML sign-in."""
+    return {
+        "saml_idp_id": saml_result.idp_id,
+        "saml_name_id": saml_result.attributes.name_id,
+        "saml_name_id_format": saml_result.name_id_format,
+        "saml_session_index": saml_result.session_index,
+        "saml_slo_url": saml_result.slo_url,
+    }
+
 
 router = APIRouter()
 
@@ -344,6 +358,13 @@ def saml_acs_per_idp(
         request.session["pending_mfa_user_id"] = str(user["id"])
         request.session["pending_mfa_method"] = mfa_method
         request.session["pending_saml_relay_state"] = RelayState
+        # Regeneration at MFA completion clears the session; the SAML keys
+        # Single Logout matches on must ride along.
+        stash_upstream_saml_session(
+            request.session,
+            user_id=str(user["id"]),
+            saml_session_data=_saml_session_data(saml_result),
+        )
 
         if mfa_method == "email":
             code = create_email_otp(tenant_id, str(user["id"]))
@@ -369,13 +390,7 @@ def saml_acs_per_idp(
     else:
         max_age = 30 * 24 * 3600
 
-    saml_session_data = {
-        "saml_idp_id": saml_result.idp_id,
-        "saml_name_id": saml_result.attributes.name_id,
-        "saml_name_id_format": saml_result.name_id_format,
-        "saml_session_index": saml_result.session_index,
-        "saml_slo_url": saml_result.slo_url,
-    }
+    saml_session_data = _saml_session_data(saml_result)
 
     from routers.saml_idp._helpers import extract_pending_sso, get_post_auth_redirect
 
@@ -572,6 +587,13 @@ def saml_acs(
         request.session["pending_mfa_user_id"] = str(user["id"])
         request.session["pending_mfa_method"] = mfa_method
         request.session["pending_saml_relay_state"] = RelayState
+        # Regeneration at MFA completion clears the session; the SAML keys
+        # Single Logout matches on must ride along.
+        stash_upstream_saml_session(
+            request.session,
+            user_id=str(user["id"]),
+            saml_session_data=_saml_session_data(saml_result),
+        )
 
         if mfa_method == "email":
             code = create_email_otp(tenant_id, str(user["id"]))
@@ -601,13 +623,7 @@ def saml_acs(
     # CRITICAL: Regenerate session to prevent session fixation attacks
     # This clears all pre-auth data and creates a fresh authenticated session
     # Include SAML session data for SLO support (Phase 4)
-    saml_session_data = {
-        "saml_idp_id": saml_result.idp_id,
-        "saml_name_id": saml_result.attributes.name_id,
-        "saml_name_id_format": saml_result.name_id_format,
-        "saml_session_index": saml_result.session_index,
-        "saml_slo_url": saml_result.slo_url,
-    }
+    saml_session_data = _saml_session_data(saml_result)
 
     # Preserve pending SSO context through session regeneration
     from routers.saml_idp._helpers import extract_pending_sso, get_post_auth_redirect

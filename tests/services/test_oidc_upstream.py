@@ -262,6 +262,7 @@ class TestManualEndpoints:
         "token_endpoint": "https://idp.example.com/token",
         "userinfo_endpoint": "https://idp.example.com/userinfo",
         "jwks_uri": "https://idp.example.com/keys",
+        "end_session_endpoint": "https://idp.example.com/logout",
     }
 
     def test_create_persists_manual_endpoints(self, test_tenant, test_super_admin_user):

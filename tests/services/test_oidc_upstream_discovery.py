@@ -110,6 +110,33 @@ class TestRunDiscovery:
         assert row["userinfo_endpoint"] is None
         assert row["discovery_error"] is None
 
+    def test_end_session_endpoint_persisted(self, test_tenant):
+        conn = _make_connection(test_tenant)
+        doc = dict(DISCOVERY_DOC, end_session_endpoint="https://idp.example.com/logout")
+        with _patch_client(_FakeResponse(200, doc)):
+            row = discovery_service.run_discovery(test_tenant["id"], str(conn["id"]))
+        assert row["end_session_endpoint"] == "https://idp.example.com/logout"
+
+    def test_end_session_endpoint_cleared_when_no_longer_published(self, test_tenant):
+        import database
+
+        conn = _make_connection(test_tenant)
+        database.oidc_upstream.update_connection(
+            test_tenant["id"], str(conn["id"]), end_session_endpoint="https://old.example/logout"
+        )
+        doc = {k: v for k, v in DISCOVERY_DOC.items() if k != "end_session_endpoint"}
+        with _patch_client(_FakeResponse(200, doc)):
+            row = discovery_service.run_discovery(test_tenant["id"], str(conn["id"]), force=True)
+        assert row["end_session_endpoint"] is None
+
+    def test_non_https_end_session_endpoint_rejected(self, test_tenant):
+        conn = _make_connection(test_tenant)
+        bad_doc = dict(DISCOVERY_DOC, end_session_endpoint="http://idp.example.com/logout")
+        with patch("services.oidc_upstream.discovery.settings.IS_DEV", False):
+            with _patch_client(_FakeResponse(200, bad_doc)):
+                with pytest.raises(DiscoveryInsecureEndpointError):
+                    discovery_service.run_discovery(test_tenant["id"], str(conn["id"]))
+
     def test_issuer_mismatch_rejected(self, test_tenant):
         conn = _make_connection(test_tenant)
         bad_doc = dict(DISCOVERY_DOC, issuer="https://evil.example.com")

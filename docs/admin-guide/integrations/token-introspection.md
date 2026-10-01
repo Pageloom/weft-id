@@ -51,7 +51,7 @@ A valid token the caller may see returns:
 ```
 
 * `client_id` -- the app the token was issued to
-* `sub` -- the user's ID, the same value as the `sub` claim in ID tokens and UserInfo. For a service account token it is the service user's ID.
+* `sub` -- the user's ID as the token's app knows it: the same value as the `sub` claim in that app's ID tokens and UserInfo (a [pairwise identifier](pairwise-subjects.md) when the app uses them). For a service account token it is the service user's ID.
 * `scope` -- left out when the token carries no scopes
 * `token_type` -- present for access tokens only
 

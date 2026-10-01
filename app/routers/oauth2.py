@@ -471,7 +471,9 @@ def _handle_authorize_request(
         reauth_reason = "prompt"
     elif max_age is not None and _max_age_exceeded(request.session, max_age):
         reauth_reason = "max_age"
-    elif hint_claims is not None and hint_claims["sub"] != str(user["id"]):
+    elif hint_claims is not None and not oidc_service.subject_matches(
+        client, str(user["id"]), hint_claims["sub"]
+    ):
         reauth_reason = "id_token_hint"
     if reauth_reason is not None:
         if prompt_none:
@@ -1293,6 +1295,7 @@ def _issue_user_tokens(
             nonce=nonce,
             auth_time=auth_time,
             sid=sid,
+            subject=oidc_service.subject_for(client, user_id),
         )
 
     return _token_success(

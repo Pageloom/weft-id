@@ -11,7 +11,9 @@ its docstring so plain-OAuth2 issuance is never affected.
 
 Envelope claims added here (OpenID Connect Core 1.0, section 2):
   * ``iss``       - the tenant issuer (the request's tenant host)
-  * ``sub``       - the stable WeftID user id (never the email)
+  * ``sub``       - the client's subject identifier for the user: the stable
+    WeftID user id (never the email), or a pairwise value
+    (:mod:`services.oidc.subject`)
   * ``aud``       - the client's public client_id
   * ``exp`` / ``iat`` - token lifetime
   * ``auth_time`` - the user's authentication time
@@ -54,6 +56,7 @@ def issue_id_token(
     nonce: str | None = None,
     auth_time: datetime | None = None,
     sid: str | None = None,
+    subject: str | None = None,
 ) -> str:
     """Mint and return a signed RS256 ID token for a user.
 
@@ -70,7 +73,10 @@ def issue_id_token(
         issuer: The `iss` value -- the tenant host base URL the RP used.
         client_uuid: The client's internal UUID, used as the audit artifact id.
         client_id: The public client_id string, used as the `aud`.
-        user_id: The subject; becomes `sub` (stable WeftID id, never email).
+        user_id: The authenticated WeftID user (audit actor, session record).
+        subject: The ``sub`` the client knows the user by
+            (:func:`services.oidc.subject.subject_for`). Defaults to
+            ``user_id``, which is only right for a public-subject client.
         scopes: Granted scope names (recorded in the audit event only).
         nonce: Request nonce; echoed into the token only when supplied.
         auth_time: The user's authentication time. Falls back to issuance time
@@ -92,7 +98,7 @@ def issue_id_token(
 
     payload: dict = {
         "iss": issuer,
-        "sub": str(user_id),
+        "sub": subject if subject is not None else str(user_id),
         "aud": client_id,
         "iat": issued_at,
         "exp": expires_at,
@@ -159,7 +165,9 @@ def verify_id_token_hint(
     ``client_id`` in ``aud``. Expiry is deliberately **not** enforced: a hint
     is routinely presented after the token has expired (the spec allows an
     expired hint), and the caller only uses its ``sub`` to compare with the
-    current session. Any other verification failure returns ``None``.
+    current session (through :func:`services.oidc.subject.subject_matches`,
+    since a pairwise client's ``sub`` is not the user id). Any other
+    verification failure returns ``None``.
     """
     try:
         header = jwt.get_unverified_header(id_token)

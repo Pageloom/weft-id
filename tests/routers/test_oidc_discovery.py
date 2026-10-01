@@ -50,7 +50,7 @@ class TestDiscoveryDocument:
 
     def test_static_capability_values(self, client, test_tenant_host):
         body = _discovery(client, test_tenant_host).json()
-        assert body["subject_types_supported"] == ["public"]
+        assert body["subject_types_supported"] == ["public", "pairwise"]
         assert body["id_token_signing_alg_values_supported"] == ["RS256"]
         assert body["response_types_supported"] == ["code"]
         assert set(body["grant_types_supported"]) == {

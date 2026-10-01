@@ -45,6 +45,7 @@ from urllib.parse import urlencode
 import database
 import jwt
 import settings
+from services.oidc.subject import subject_matches
 from services.oidc.tokens import verify_id_token_hint
 from services.sessions import revoke_session
 
@@ -76,8 +77,14 @@ class EndSessionRequest:
 
     @property
     def hint_subject(self) -> str | None:
-        """The verified hint's ``sub`` (the WeftID user id), or None."""
+        """The verified hint's ``sub`` (the client's identifier for the user), or None."""
         return self.hint_claims["sub"] if self.hint_claims else None
+
+    def hint_matches(self, user_id: str) -> bool:
+        """Whether the verified hint names this user (public or pairwise ``sub``)."""
+        if self.hint_claims is None or self.client is None:
+            return False
+        return subject_matches(self.client, user_id, self.hint_claims["sub"])
 
 
 def _active_normal_client(tenant_id: str, client_id: str) -> dict | None:

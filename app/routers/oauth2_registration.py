@@ -126,7 +126,11 @@ def register_client(
             accepted only for a device-only client (grant_types without
             authorization_code) and cannot be changed later
         id_token_signed_response_alg: "RS256" only
-        subject_type: "public" only
+        subject_type: "public" (default) or "pairwise" (the client gets a
+            sub derived from its sector; Core 8.1)
+        sector_identifier_uri: https URL of a JSON array listing every
+            redirect URI (pairwise only). Its host is the sector; without
+            it the redirect URIs must share one host. Fetched at registration
         logo_uri, client_uri, policy_uri, tos_uri: https URIs. The logo and
             the policy and terms links are shown on the consent page
         contacts: Up to 10 strings
@@ -136,8 +140,9 @@ def register_client(
         backchannel_logout_session_required: As for an admin-created client
             (a device-only client takes no post-logout redirect URIs,
             front-channel logout URI, or initiate_login_uri)
-        Encryption, userinfo signing, request-object, and pairwise metadata
-        are rejected with invalid_client_metadata. Unknown metadata is ignored.
+        Encryption metadata, unsigned request objects and unsigned ID
+        tokens are rejected with invalid_client_metadata. Unknown metadata
+        is ignored.
 
     Returns:
         201 with the registered metadata plus ``client_id``,

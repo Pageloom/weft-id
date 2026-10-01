@@ -203,14 +203,17 @@ def find_token(tenant_id: TenantArg, token: str) -> dict | None:
 
     Returns:
         Dict with id, token_type, client_id (the client's UUID), client_public_id
-        (its string client_id), user_id, scope, created_at and expires_at, or
+        (its string client_id), user_id, scope, created_at and expires_at, plus
+        the client's subject_type, sector_identifier_uri and redirect_uris (to
+        compute the ``sub`` the client knows the user by), or
         None when the token is unknown, expired, or revoked.
     """
     token_record = fetchone(
         tenant_id,
         """
         select t.id, t.token_hash, t.token_type, t.client_id, t.user_id, t.scope,
-               t.created_at, t.expires_at, c.client_id as client_public_id
+               t.created_at, t.expires_at, c.client_id as client_public_id,
+               c.subject_type, c.sector_identifier_uri, c.redirect_uris
         from oauth2_tokens t
         join oauth2_clients c on c.id = t.client_id
         where t.token_lookup = :lookup

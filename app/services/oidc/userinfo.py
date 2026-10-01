@@ -6,8 +6,8 @@ claims themselves come from the SINGLE shared assembler
 (:mod:`services.oidc.claims`) -- the same one the ID-token minter uses -- so the
 userinfo response and the ID token can never carry different claims for the same
 granted scopes. The only claim this layer adds is `sub`, which the userinfo
-response MUST include (OpenID Connect Core 1.0, section 5.3.2) and which is
-always the stable WeftID user id.
+response MUST include (OpenID Connect Core 1.0, section 5.3.2): the client's
+subject identifier for the user (the WeftID user id, or a pairwise value).
 
 The caller (the userinfo router / its bearer dependency) is responsible for
 authenticating the access token and returning the correct OAuth2 error on an
@@ -37,6 +37,7 @@ def get_userinfo(
     client_uuid: str,
     client_id: str,
     scope: str | None,
+    subject: str | None = None,
 ) -> dict:
     """Assemble the scope-gated userinfo claims for a validated bearer token.
 
@@ -51,7 +52,10 @@ def get_userinfo(
 
     Args:
         tenant_id: Tenant ID for RLS scoping.
-        user_id: The token subject's stable WeftID id; becomes `sub`.
+        user_id: The token subject's stable WeftID id.
+        subject: The ``sub`` the client knows the user by
+            (:func:`services.oidc.subject.subject_for`). Defaults to
+            ``user_id``, which is only right for a public-subject client.
         client_uuid: The client's internal UUID (audit artifact id).
         client_id: The client's public client_id (recorded in the audit metadata).
         scope: The token's persisted space-delimited granted scope. Gates which
@@ -65,9 +69,9 @@ def get_userinfo(
     scopes = claims_service.parse_scope(scope)
 
     # Reuse the single shared assembler so userinfo and the ID token can never
-    # drift. It never emits `sub`; we add the stable subject id here.
+    # drift. It never emits `sub`; we add the client's subject identifier here.
     userinfo: dict = claims_service.build_claims(tenant_id, str(user_id), scopes)
-    userinfo["sub"] = str(user_id)
+    userinfo["sub"] = subject if subject is not None else str(user_id)
 
     log_event(
         tenant_id=tenant_id,

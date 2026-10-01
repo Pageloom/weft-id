@@ -741,6 +741,47 @@ class TestIdTokenHint:
         # The hint stays in the stash: it is still true after the fresh login.
         assert "id_token_hint" in session_data[PENDING_OAUTH2_AUTHORIZE_KEY]
 
+    def test_pairwise_hint_for_session_user_shows_consent(
+        self, authed, normal_oauth2_client, test_tenant, test_tenant_host, test_user
+    ):
+        row = database.oauth2.set_client_subject_type(
+            test_tenant["id"],
+            normal_oauth2_client["client_id"],
+            subject_type="pairwise",
+            sector_identifier_uri=None,
+        )
+        hint = oidc_service.issue_id_token(
+            tenant_id=str(test_tenant["id"]),
+            issuer=f"https://{test_tenant_host}",
+            client_uuid=str(row["id"]),
+            client_id=row["client_id"],
+            user_id=str(test_user["id"]),
+            scopes={"openid"},
+            subject=oidc_service.subject_for(row, str(test_user["id"])),
+        )
+        response = authed.get(
+            "/oauth2/authorize", params=_base_params(normal_oauth2_client, id_token_hint=hint)
+        )
+        assert response.status_code == 200
+        assert 'name="auth_request_id"' in response.text
+
+    def test_pairwise_client_hint_with_plain_user_id_forces_login(
+        self, authed, normal_oauth2_client, test_tenant, test_tenant_host, test_user
+    ):
+        """After a switch to pairwise, an old hint (public sub) no longer
+        names the session user."""
+        hint = _mint_hint(test_tenant, test_tenant_host, normal_oauth2_client, str(test_user["id"]))
+        database.oauth2.set_client_subject_type(
+            test_tenant["id"],
+            normal_oauth2_client["client_id"],
+            subject_type="pairwise",
+            sector_identifier_uri=None,
+        )
+        response = authed.get(
+            "/oauth2/authorize", params=_base_params(normal_oauth2_client, id_token_hint=hint)
+        )
+        assert response.headers["location"].startswith("/login")
+
     def test_garbage_hint_is_invalid_request(self, authed, normal_oauth2_client):
         response = authed.get(
             "/oauth2/authorize",

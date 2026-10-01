@@ -15,6 +15,7 @@ import database
 import jwt
 import pytest
 from services.oidc import tokens as tokens_service
+from services.oidc.subject import subject_for
 from utils.session import SESSION_ID_KEY
 
 ISSUER_HOST_SCHEME = "https://"
@@ -444,3 +445,55 @@ class TestSid:
         )
         assert logout.headers["location"] == BYE + "?state=z"
         assert session_data == {}
+
+
+# ============================================================================
+# Pairwise subjects: the hint's sub is the app's identifier, not the user id
+# ============================================================================
+
+
+class TestPairwiseHint:
+    @pytest.fixture
+    def pairwise_hint(self, test_tenant, test_tenant_host, rp_client):
+        row = database.oauth2.set_client_subject_type(
+            test_tenant["id"],
+            rp_client["client_id"],
+            subject_type="pairwise",
+            sector_identifier_uri=None,
+        )
+
+        def _hint(user) -> str:
+            return tokens_service.issue_id_token(
+                tenant_id=str(test_tenant["id"]),
+                issuer=f"{ISSUER_HOST_SCHEME}{test_tenant_host}",
+                client_uuid=str(row["id"]),
+                client_id=row["client_id"],
+                user_id=str(user["id"]),
+                scopes={"openid"},
+                subject=subject_for(row, str(user["id"])),
+            )
+
+        return _hint
+
+    def test_hint_for_session_user_logs_out(
+        self, signed_in, pairwise_hint, test_user, session_data
+    ):
+        response = signed_in.get(
+            "/oauth2/logout",
+            params={"id_token_hint": pairwise_hint(test_user), "post_logout_redirect_uri": BYE},
+        )
+        assert response.headers["location"] == BYE
+        assert session_data == {}
+
+    def test_hint_for_another_user_asks(
+        self, signed_in, pairwise_hint, test_admin_user, session_data
+    ):
+        response = signed_in.get(
+            "/oauth2/logout",
+            params={
+                "id_token_hint": pairwise_hint(test_admin_user),
+                "post_logout_redirect_uri": BYE,
+            },
+        )
+        _assert_confirmation_page(response, session_data)
+        assert "different account" in response.text

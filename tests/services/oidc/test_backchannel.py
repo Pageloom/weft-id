@@ -15,6 +15,7 @@ from jwt.algorithms import RSAAlgorithm
 from services import oidc as oidc_service
 from services.oidc import backchannel as backchannel_service
 from services.oidc import tokens as tokens_service
+from services.oidc.subject import pairwise_subject
 from utils.request_context import system_context
 
 ISSUER = "https://tenant.example.com"
@@ -242,6 +243,30 @@ class TestDelivery:
         claims = _verify(rp.logout_token(), str(test_tenant["id"]), audience=client["client_id"])
         assert "sid" not in claims
         assert claims["sub"] == str(test_user["id"])
+
+    def test_pairwise_client_gets_its_pairwise_sub(
+        self, test_tenant, test_user, test_admin_user, make_client, queue, make_requesting_user
+    ):
+        client = make_client()
+        database.oauth2.set_client_subject_type(
+            test_tenant["id"],
+            client["client_id"],
+            subject_type="pairwise",
+            sector_identifier_uri=None,
+        )
+        queue(client)
+        rp = _RP(200)
+        _deliver(test_tenant, rp)
+        claims = _verify(rp.logout_token(), str(test_tenant["id"]), audience=client["client_id"])
+        assert claims["sub"] == pairwise_subject("rp.example", str(test_user["id"]))
+        # The admin delivery log still names the WeftID user.
+        (delivery,) = backchannel_service.list_backchannel_logout_deliveries(
+            make_requesting_user(
+                user_id=str(test_admin_user["id"]), tenant_id=str(test_tenant["id"]), role="admin"
+            ),
+            client["client_id"],
+        ).items
+        assert delivery.user_id == str(test_user["id"])
 
     def test_nothing_due_sends_nothing(self, test_tenant):
         rp = _RP(200)

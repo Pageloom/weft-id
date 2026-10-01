@@ -44,6 +44,7 @@ from services.auth import require_admin
 from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.oidc.keys import get_active_signing_key
+from services.oidc.subject import subject_for
 from services.types import RequestingUser
 from utils.safe_http import SsrfBlockedError, build_safe_client
 
@@ -144,7 +145,7 @@ def _send(client: httpx.Client, delivery: dict, tenant_id: str) -> tuple[int | N
         tenant_id=tenant_id,
         issuer=delivery["issuer"],
         client_id=delivery["client_id"],
-        sub=delivery["sub"],
+        sub=subject_for(delivery, str(delivery["sub"])),
         sid=delivery["sid"] if delivery.get("backchannel_logout_session_required") else None,
     )
     try:

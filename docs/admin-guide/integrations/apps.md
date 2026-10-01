@@ -138,6 +138,7 @@ Click the app name in the list to open its detail page. From there you can:
 - **Enable OIDC** -- Turn the app into an OpenID Connect provider (see [Sign in with WeftID (OIDC)](oidc-provider-setup.md)).
 - **Regenerate the client secret** -- Immediately invalidates the old secret. A new secret is shown once.
 - **Change client authentication** -- Switch between a client secret and [private key JWT](private-key-jwt.md), and set the app's public keys.
+- **Choose subject identifiers** -- Give the app the user's WeftID ID (public) or a [pairwise identifier](pairwise-subjects.md) that apps in other sectors can't match.
 - **Deactivate** -- Disables the client, revokes all active tokens, and forgets every user's consent. The app can be reactivated later.
 - **Reactivate** -- Re-enables a deactivated app. Users will need to re-authorize.
 - **Allow token introspection for all tenant tokens** -- For an app whose backend acts as a resource server. See [Token Introspection and Revocation](token-introspection.md).

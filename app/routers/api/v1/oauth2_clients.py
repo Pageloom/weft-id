@@ -13,6 +13,7 @@ from schemas.oauth2 import (
     ClientAuthenticationUpdate,
     ClientResponse,
     ClientRoleUpdate,
+    ClientSubjectTypeUpdate,
     ClientUpdate,
     ClientWithSecret,
     NormalClientCreate,
@@ -30,6 +31,7 @@ from services.exceptions import ServiceError
 from services.oidc import backchannel as backchannel_service
 from services.oidc import clients as oidc_client_service
 from services.oidc import consent as consent_service
+from services.oidc import subject as oidc_subject_service
 from utils.service_errors import translate_to_http_exception
 from utils.urls import tenant_base_url
 
@@ -78,6 +80,8 @@ def _client_to_response(
         "require_pushed_authorization_requests": bool(
             client.get("require_pushed_authorization_requests")
         ),
+        "subject_type": client.get("subject_type") or "public",
+        "sector_identifier_uri": client.get("sector_identifier_uri"),
         "created_at": client["created_at"],
     }
     if include_secret:
@@ -342,6 +346,51 @@ def set_client_authentication(
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
     return _client_to_response(client, include_secret=True)
+
+
+@router.put("/{client_id}/subject", response_model=ClientResponse)
+def set_client_subject_type(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    data: ClientSubjectTypeUpdate,
+):
+    """
+    Set whether an app receives public or pairwise subject identifiers.
+
+    Requires admin role. Normal clients (apps) only; 404 for a B2B client.
+
+    Changing it changes the ``sub`` of every user at the app (in ID tokens,
+    userinfo, introspection and logout tokens), so the app sees them as new
+    users unless it links accounts some other way.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+
+    Request Body:
+        subject_type: "public" (sub is the WeftID user id) or "pairwise"
+            (sub is derived from the user id and the app's sector,
+            OpenID Connect Core 8.1)
+        sector_identifier_uri: pairwise only (optional). An https URL serving
+            a JSON array that lists every redirect URI of the app; it is
+            fetched now. Its host is the sector. Without it, all redirect
+            URIs must share one host, which is the sector. Must be omitted
+            or null for public.
+
+    Returns:
+        Client details
+    """
+    try:
+        client = oidc_subject_service.set_client_subject_type(
+            build_requesting_user(user, tenant_id, request),
+            client_id,
+            subject_type=data.subject_type,
+            sector_identifier_uri=data.sector_identifier_uri,
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+    return _client_to_response(client)
 
 
 @router.get("/{client_id}", response_model=ClientResponse)

@@ -176,7 +176,7 @@ def _handle_end_session(
     verified_for_session = (
         resolved.problem is None
         and resolved.hint_subject is not None
-        and (user is None or str(user["id"]) == resolved.hint_subject)
+        and (user is None or resolved.hint_matches(str(user["id"])))
     )
 
     if verified_for_session:

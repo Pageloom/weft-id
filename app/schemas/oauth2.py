@@ -116,6 +116,13 @@ class ClientUpdate(BaseModel):
         None,
         description="Whether the logout token carries the sid claim (normal clients).",
     )
+    can_introspect_tenant_tokens: bool | None = Field(
+        None,
+        description=(
+            "Whether the client may introspect every token in the tenant (a resource "
+            "server), not just its own. Changing it on a B2B client requires super_admin."
+        ),
+    )
 
 
 class ClientRoleUpdate(BaseModel):
@@ -149,6 +156,7 @@ class ClientResponse(BaseModel):
     is_active: bool = True
     oidc_enabled: bool = False
     available_to_all: bool = False
+    can_introspect_tenant_tokens: bool = False
     created_at: datetime
 
 

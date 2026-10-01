@@ -8,12 +8,13 @@ arrives on tenant A's host can never surface tenant B's issuer.
 
 Advertisement policy: this document reflects ONLY what is actually implemented.
 RP-initiated logout (``end_session_endpoint``), front-channel logout (with
-``iss``/``sid``) and back-channel logout (with ``sid``) are advertised;
-introspection, revocation, device grant, PAR, and dynamic client registration
-are absent until they exist. `scopes_supported` is sourced from the shared claim
-assembler's ``SUPPORTED_SCOPES`` so the advertised scopes and the scopes
-actually gated by claim release can never drift; the `groups` scope is
-therefore advertised only once Iteration 4 adds it to that tuple.
+``iss``/``sid``), back-channel logout (with ``sid``), token introspection (RFC
+7662) and token revocation (RFC 7009) are advertised; device grant, PAR, and
+dynamic client registration are absent until they exist. `scopes_supported`
+is sourced from the shared claim assembler's ``SUPPORTED_SCOPES`` so the
+advertised scopes and the scopes actually gated by claim release can never
+drift; the `groups` scope is therefore advertised only once Iteration 4 adds it
+to that tuple.
 """
 
 from __future__ import annotations
@@ -106,6 +107,10 @@ def build_discovery_metadata(issuer: str) -> OIDCProviderMetadata:
         userinfo_endpoint=f"{base}/userinfo",
         jwks_uri=f"{base}/.well-known/jwks.json",
         end_session_endpoint=f"{base}/oauth2/logout",
+        introspection_endpoint=f"{base}/oauth2/introspect",
+        introspection_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
+        revocation_endpoint=f"{base}/oauth2/revoke",
+        revocation_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
         scopes_supported=list(claims_service.SUPPORTED_SCOPES),
         response_types_supported=list(RESPONSE_TYPES_SUPPORTED),
         response_modes_supported=list(RESPONSE_MODES_SUPPORTED),

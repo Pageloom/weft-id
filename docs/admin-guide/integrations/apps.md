@@ -109,6 +109,9 @@ it was issued to. A refresh token issued with an OIDC ID token (the `openid`
 scope) also ends when the user signs out of WeftID; see
 [Refresh tokens end with the session](oidc-provider-setup.md#refresh-tokens-end-with-the-session).
 
+An app can check or revoke its own tokens at the introspection and revocation
+endpoints; see [Token Introspection and Revocation](token-introspection.md).
+
 ## Sign in with WeftID (OIDC)
 
 Apps can act as OpenID Connect relying parties, receiving a signed ID token and identity claims in addition to OAuth2 tokens. Enable OIDC from the app's detail page to get a discovery URL, scope-gated claims, and group-based access control. See [Sign in with WeftID (OIDC)](oidc-provider-setup.md).
@@ -122,6 +125,7 @@ Click the app name in the list to open its detail page. From there you can:
 - **Regenerate the client secret** -- Immediately invalidates the old secret. A new secret is shown once.
 - **Deactivate** -- Disables the client, revokes all active tokens, and forgets every user's consent. The app can be reactivated later.
 - **Reactivate** -- Re-enables a deactivated app. Users will need to re-authorize.
+- **Allow token introspection for all tenant tokens** -- For an app whose backend acts as a resource server. See [Token Introspection and Revocation](token-introspection.md).
 - **Revoke a user's consent** -- The **User Consents** section lists every user who allowed the app and the scopes they granted. Revoking one makes that user see the consent screen again on their next sign-in; it does not revoke tokens the app already holds. Users can also revoke their own consents under **User Settings > Authorized Apps**.
 
 ## Access requirements

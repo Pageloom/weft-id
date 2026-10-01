@@ -189,6 +189,65 @@ def validate_token(token: str, tenant_id: TenantArg | None = None) -> dict | Non
     return None
 
 
+def find_token(tenant_id: TenantArg, token: str) -> dict | None:
+    """
+    Find a live access or refresh token, with the client it was issued to.
+
+    Used by introspection (RFC 7662) and revocation (RFC 7009), which accept
+    either token type. The lookup digest is unique per tenant, so the type
+    hint a caller may send is not needed to find the row.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        token: Plain text token
+
+    Returns:
+        Dict with id, token_type, client_id (the client's UUID), client_public_id
+        (its string client_id), user_id, scope, created_at and expires_at, or
+        None when the token is unknown, expired, or revoked.
+    """
+    token_record = fetchone(
+        tenant_id,
+        """
+        select t.id, t.token_hash, t.token_type, t.client_id, t.user_id, t.scope,
+               t.created_at, t.expires_at, c.client_id as client_public_id
+        from oauth2_tokens t
+        join oauth2_clients c on c.id = t.client_id
+        where t.token_lookup = :lookup
+          and t.expires_at > now()
+        """,
+        {"lookup": oauth2.token_lookup(token)},
+    )
+
+    if token_record and oauth2.verify_token_hash(token, token_record["token_hash"]):
+        del token_record["token_hash"]
+        return token_record
+
+    return None
+
+
+def delete_token(tenant_id: TenantArg, token_id: str) -> int:
+    """
+    Delete one token by id.
+
+    Deleting a refresh token also deletes the access tokens minted from it
+    (the ``parent_token_id`` foreign key cascades).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        token_id: The token row's id
+
+    Returns:
+        1 when the token was deleted, 0 when it was already gone (cascaded
+        rows are not counted)
+    """
+    return execute(
+        tenant_id,
+        "delete from oauth2_tokens where id = :token_id",
+        {"token_id": token_id},
+    )
+
+
 def validate_refresh_token(tenant_id: TenantArg, token: str, client_id: str) -> dict | None:
     """
     Validate an OAuth2 refresh token.

@@ -19,6 +19,7 @@ from urllib.parse import unquote, urlencode, urlparse
 
 import oauth2
 import services.oauth2 as oauth2_service
+import services.oauth2_tokens as oauth2_tokens_service
 import services.oidc as oidc_service
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -988,14 +989,41 @@ def _token_success(body: TokenResponse) -> JSONResponse:
     return JSONResponse(body.model_dump(exclude_none=True), headers=_TOKEN_RESPONSE_HEADERS)
 
 
+def _authenticate_client(
+    request: Request,
+    tenant_id: str,
+    form_client_id: str | None,
+    form_client_secret: str | None,
+) -> dict | JSONResponse:
+    """Authenticate the calling client (token, introspection, and revocation
+    endpoints). Returns the active client record, or the ``invalid_client``
+    error response to send."""
+    credentials = _resolve_client_credentials(request, form_client_id, form_client_secret)
+    if credentials is None:
+        return _token_error("invalid_client", "Client authentication failed")
+    client_id, client_secret = credentials
+
+    client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not client or not oauth2.verify_token_hash(client_secret, client["client_secret_hash"]):
+        return _token_error("invalid_client", "Client authentication failed")
+    if not client.get("is_active", True):
+        return _token_error("invalid_client", "Client is deactivated")
+    return client
+
+
+# Endpoints whose form validation failures are reported as RFC 6749 errors.
+_CLIENT_AUTHENTICATED_PATHS = frozenset({"/oauth2/token", "/oauth2/introspect", "/oauth2/revoke"})
+
+
 async def token_request_validation_handler(
     request: Request, exc: RequestValidationError
 ) -> Response:
-    """Report form validation failures at the token endpoint as RFC 6749
-    ``invalid_request`` (a missing ``grant_type``, an over-long parameter)
-    instead of FastAPI's 422. Every other path keeps the default handler."""
-    if request.url.path == "/oauth2/token":
-        return _token_error("invalid_request", "The token request is malformed.")
+    """Report form validation failures at the token, introspection, and
+    revocation endpoints as RFC 6749 ``invalid_request`` (a missing required
+    parameter, an over-long one) instead of FastAPI's 422. Every other path
+    keeps the default handler."""
+    if request.url.path in _CLIENT_AUTHENTICATED_PATHS:
+        return _token_error("invalid_request", "The request is malformed.")
     return await request_validation_exception_handler(request, exc)
 
 
@@ -1043,16 +1071,9 @@ def token_endpoint(
         code_verifier: PKCE code verifier (if PKCE was used)
         refresh_token: Refresh token (for refresh_token grant)
     """
-    credentials = _resolve_client_credentials(request, client_id, client_secret)
-    if credentials is None:
-        return _token_error("invalid_client", "Client authentication failed")
-    client_id, client_secret = credentials
-
-    client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
-    if not client or not oauth2.verify_token_hash(client_secret, client["client_secret_hash"]):
-        return _token_error("invalid_client", "Client authentication failed")
-    if not client.get("is_active", True):
-        return _token_error("invalid_client", "Client is deactivated")
+    client = _authenticate_client(request, tenant_id, client_id, client_secret)
+    if isinstance(client, JSONResponse):
+        return client
 
     # ========================================================================
     # Grant Type: authorization_code
@@ -1233,3 +1254,87 @@ def token_endpoint(
     # Unsupported grant type
     # ========================================================================
     return _token_error("unsupported_grant_type", f"Grant type '{grant_type}' is not supported")
+
+
+# ============================================================================
+# Introspection (POST /oauth2/introspect) and Revocation (POST /oauth2/revoke)
+# ============================================================================
+
+
+@router.post("/introspect")
+def introspection_endpoint(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    token: Annotated[str, Form(max_length=255)],
+    token_type_hint: Annotated[str | None, Form(max_length=50)] = None,
+    client_id: Annotated[str | None, Form(max_length=255)] = None,
+    client_secret: Annotated[str | None, Form(max_length=255)] = None,
+) -> Response:
+    """
+    OAuth 2.0 Token Introspection (RFC 7662).
+
+    The caller authenticates as a client, the same two ways as at the token
+    endpoint (``client_secret_basic`` or ``client_secret_post``). A client sees
+    the tokens issued to it; a client an admin has allowed to introspect all
+    tenant tokens also sees every other token in the tenant. Anything else,
+    including an unknown, expired, or revoked token, is ``{"active": false}``.
+
+    Responses carry ``Cache-Control: no-store``. Errors use the token endpoint's
+    RFC 6749 section 5.2 format (``invalid_client`` is a 401).
+
+    Form Data:
+        token: The access or refresh token to describe (required)
+        token_type_hint: "access_token" or "refresh_token" (optional; accepted
+            and ignored, since the token is found either way)
+        client_id: OAuth2 client ID (client_secret_post; omit when using Basic)
+        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic)
+
+    Returns:
+        ``active`` and, for an active token, ``scope``, ``client_id``, ``sub``,
+        ``token_type`` (access tokens), ``exp``, ``iat``, and ``iss``.
+    """
+    client = _authenticate_client(request, tenant_id, client_id, client_secret)
+    if isinstance(client, JSONResponse):
+        return client
+
+    body = oauth2_tokens_service.introspect_token(
+        tenant_id, client, token, issuer=tenant_base_url(request)
+    )
+    return JSONResponse(body, headers=_TOKEN_RESPONSE_HEADERS)
+
+
+@router.post("/revoke")
+def revocation_endpoint(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    token: Annotated[str, Form(max_length=255)],
+    token_type_hint: Annotated[str | None, Form(max_length=50)] = None,
+    client_id: Annotated[str | None, Form(max_length=255)] = None,
+    client_secret: Annotated[str | None, Form(max_length=255)] = None,
+) -> Response:
+    """
+    OAuth 2.0 Token Revocation (RFC 7009).
+
+    The caller authenticates as a client, the same two ways as at the token
+    endpoint. A client revokes only tokens issued to it. Revoking a refresh
+    token also revokes the access tokens issued from it; revoking an access
+    token leaves its refresh token valid.
+
+    Always 200 with an empty body once the client is authenticated, including
+    for an unknown, expired, already revoked, or another client's token
+    (RFC 7009 section 2.2), so the response never reveals whether a token
+    exists. Errors use the token endpoint's RFC 6749 section 5.2 format.
+
+    Form Data:
+        token: The access or refresh token to revoke (required)
+        token_type_hint: "access_token" or "refresh_token" (optional; accepted
+            and ignored, since the token is found either way)
+        client_id: OAuth2 client ID (client_secret_post; omit when using Basic)
+        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic)
+    """
+    client = _authenticate_client(request, tenant_id, client_id, client_secret)
+    if isinstance(client, JSONResponse):
+        return client
+
+    oauth2_tokens_service.revoke_token(tenant_id, client, token)
+    return Response(status_code=200, headers=_TOKEN_RESPONSE_HEADERS)

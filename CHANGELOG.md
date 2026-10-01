@@ -119,9 +119,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Authorization code reuse revokes the grant.** Redeeming a code a second
   time is rejected and revokes every token already issued from it. Audit
   event `oauth2_authorization_code_reused`. Migration 0062.
+- **Token introspection and revocation.** `POST /oauth2/introspect`
+  (RFC 7662) tells a resource server whether a token is active and returns
+  its user (`sub`), app (`client_id`), scopes, and expiry. `POST
+  /oauth2/revoke` (RFC 7009) revokes an access or refresh token; revoking a
+  refresh token also revokes the access tokens issued from it. Both
+  authenticate the calling client the same way as the token endpoint and are
+  advertised in discovery. A client sees and revokes only its own tokens. An
+  admin can let one client introspect every token in the tenant (**Token
+  Introspection** on the app or service account page, or
+  `can_introspect_tenant_tokens` on `/api/v1/oauth2/clients`), for an API
+  backend that receives tokens issued to several apps. Revocations are
+  audited as `oauth2_token_revoked`, the setting as
+  `oauth2_client_introspection_changed`. See the new
+  [Token Introspection and Revocation](docs/admin-guide/integrations/token-introspection.md)
+  page. Migration 0069.
 
 ### Fixed
 
+- `GET /api/v1/oauth2/clients` reported `oidc_enabled` and
+  `available_to_all` as `false` for every client. It now returns the stored
+  values, as the single-client endpoint does.
 - **SAML sign-ins with two-step verification could not use Single Logout.**
   When a SAML IdP required WeftID two-step verification, the session lost the
   IdP details Single Logout needs, so signing out never reached the IdP.

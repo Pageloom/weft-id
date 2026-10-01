@@ -412,7 +412,7 @@ class TestCSRFExemptionsMatchAuthentication:
         """
         from middleware.csrf import _is_exempt
 
-        protocol_prefixes = ("/saml/", "/oauth2/token")
+        protocol_prefixes = ("/saml/", "/oauth2/token", "/oauth2/introspect", "/oauth2/revoke")
         protocol_paths = {"/auth/oidc/{connection_id}/backchannel-logout"}
         offenders = [
             (sorted(methods), path)

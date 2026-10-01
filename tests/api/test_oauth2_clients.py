@@ -1663,3 +1663,106 @@ def test_list_backchannel_deliveries_b2b_rejected(
         headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
     )
     assert response.status_code == 400
+
+
+# =============================================================================
+# Tenant token introspection permission
+# =============================================================================
+
+
+def test_client_response_includes_introspection_flag(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    response = client.get(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.json()["can_introspect_tenant_tokens"] is False
+
+
+def test_admin_enables_introspection_on_app(
+    client, test_tenant, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    import database
+
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"can_introspect_tenant_tokens": True, "name": "Resource Server"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["can_introspect_tenant_tokens"] is True
+    assert data["name"] == "Resource Server"
+    listed = client.get(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    ).json()
+    row = next(c for c in listed if c["client_id"] == normal_oauth2_client["client_id"])
+    assert row["can_introspect_tenant_tokens"] is True
+    events = [
+        e
+        for e in database.event_log.list_events(test_tenant["id"], limit=20)
+        if e["event_type"] == "oauth2_client_introspection_changed"
+    ]
+    assert len(events) == 1
+
+
+def test_omitting_introspection_leaves_it_unchanged(
+    client, test_tenant, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.set_client_tenant_introspection(
+        test_tenant["id"], normal_oauth2_client["client_id"], True
+    )
+
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"description": "unrelated"},
+    )
+
+    assert response.json()["can_introspect_tenant_tokens"] is True
+
+
+def test_admin_cannot_set_introspection_on_b2b(
+    client, test_tenant, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+):
+    import database
+
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"can_introspect_tenant_tokens": True},
+    )
+
+    assert response.status_code == 403
+    row = database.oauth2.get_client_by_client_id(test_tenant["id"], b2b_oauth2_client["client_id"])
+    assert row["can_introspect_tenant_tokens"] is False
+
+
+def test_super_admin_sets_introspection_on_b2b(
+    client, test_tenant_host, oauth2_super_admin_authorization_header, b2b_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
+        json={"can_introspect_tenant_tokens": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["can_introspect_tenant_tokens"] is True
+
+
+def test_member_cannot_set_introspection(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"can_introspect_tenant_tokens": True},
+    )
+
+    assert response.status_code == 403

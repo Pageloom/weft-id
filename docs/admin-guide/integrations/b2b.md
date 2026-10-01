@@ -58,7 +58,8 @@ Click the client name in the list to open its detail page. From there you can:
 - **Regenerate the client secret** -- Immediately invalidates the old secret. A new secret is shown once.
 - **Deactivate** -- Disables the client and revokes all active tokens. The client can be reactivated later.
 - **Reactivate** -- Re-enables a deactivated client.
+- **Allow token introspection for all tenant tokens** -- Lets the client check any token in the tenant, for a service account that acts as a resource server (an API backend that receives tokens issued to your apps). See [Token Introspection and Revocation](token-introspection.md).
 
 ## Access requirements
 
-Admin or super admin role required to manage B2B clients.
+Super admin role required to manage B2B clients.

@@ -108,12 +108,19 @@ class TestDiscoveryDocument:
         assert body["backchannel_logout_supported"] is True
         assert body["backchannel_logout_session_supported"] is True
 
+    def test_advertises_introspection_and_revocation(self, client, test_tenant_host):
+        body = _discovery(client, test_tenant_host).json()
+        issuer = body["issuer"]
+        assert body["introspection_endpoint"] == f"{issuer}/oauth2/introspect"
+        assert body["revocation_endpoint"] == f"{issuer}/oauth2/revoke"
+        methods = ["client_secret_basic", "client_secret_post"]
+        assert body["introspection_endpoint_auth_methods_supported"] == methods
+        assert body["revocation_endpoint_auth_methods_supported"] == methods
+
     def test_does_not_advertise_unimplemented_capabilities(self, client, test_tenant_host):
-        """Introspection, revocation, device grant, PAR, DCR do not exist yet."""
+        """Device grant, PAR, DCR do not exist yet."""
         body = _discovery(client, test_tenant_host).json()
         for absent in (
-            "introspection_endpoint",
-            "revocation_endpoint",
             "registration_endpoint",
             "device_authorization_endpoint",
             "pushed_authorization_request_endpoint",

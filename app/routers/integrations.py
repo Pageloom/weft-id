@@ -27,10 +27,12 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child, has_page_access
 from services import oauth2 as oauth2_service
+from services import oauth2_tokens as oauth2_tokens_service
 from services.exceptions import ServiceError
 from services.oidc import backchannel as backchannel_service
 from services.oidc import clients as oidc_client_service
 from services.oidc import consent as consent_service
+from services.oidc.discovery import build_discovery_metadata
 from utils.redirects import safe_redirect
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -279,6 +281,7 @@ def app_detail(
         tenant_id,
         client=client,
         oidc_urls=oidc_urls,
+        introspection_endpoint=oidc_urls.introspection_endpoint,
         assigned_groups=assigned_groups,
         available_groups=available_groups,
         consent_grants=consent_grants,
@@ -352,6 +355,42 @@ def app_edit(
             return safe_redirect(f"{redirect_url}?error=invalid_backchannel_logout_uri")
         logger.warning("Failed to update OAuth2 app: %s", exc)
         return safe_redirect(f"{redirect_url}?error=update_failed")
+
+
+def _set_introspection(
+    request: Request,
+    tenant_id: str,
+    user: dict,
+    client_id: str,
+    enabled: str,
+    redirect_url: str,
+) -> RedirectResponse:
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    try:
+        oauth2_tokens_service.set_tenant_introspection(
+            requesting_user, client_id, enabled == "true"
+        )
+        return safe_redirect(f"{redirect_url}?success=introspection_updated")
+    except ServiceError as exc:
+        logger.warning("Failed to update token introspection: %s", exc)
+        return safe_redirect(f"{redirect_url}?error=introspection_update_failed")
+
+
+@apps_router.post("/{client_id}/introspection", response_class=HTMLResponse)
+def app_set_introspection(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    enabled: Annotated[str, Form(max_length=10)] = "false",
+):
+    """Allow or stop an App introspecting every token in the tenant."""
+    if not has_page_access("/applications/oauth", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    return _set_introspection(
+        request, tenant_id, user, client_id, enabled, f"/applications/oauth/{client_id}"
+    )
 
 
 @apps_router.post("/{client_id}/regenerate-secret", response_class=HTMLResponse)
@@ -588,11 +627,31 @@ def b2b_detail(
         request,
         tenant_id,
         client=client,
+        introspection_endpoint=build_discovery_metadata(
+            tenant_base_url(request)
+        ).introspection_endpoint,
         pending_credentials=pending_credentials,
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
     return templates.TemplateResponse(request, "integrations_b2b_detail.html", context)
+
+
+@b2b_router.post("/{client_id}/introspection", response_class=HTMLResponse)
+def b2b_set_introspection(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    enabled: Annotated[str, Form(max_length=10)] = "false",
+):
+    """Allow or stop a B2B client introspecting every token in the tenant."""
+    if not has_page_access("/applications/service-accounts", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    return _set_introspection(
+        request, tenant_id, user, client_id, enabled, f"/applications/service-accounts/{client_id}"
+    )
 
 
 @b2b_router.post("/{client_id}/edit", response_class=HTMLResponse)

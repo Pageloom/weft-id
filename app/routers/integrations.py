@@ -133,18 +133,24 @@ def apps_create(
     name: str = Form("", max_length=255),
     redirect_uris: str = Form("", max_length=20000),
     description: str = Form("", max_length=2000),
+    is_public: str = Form("", max_length=10),
 ):
-    """Create a new normal OAuth2 client (App)."""
+    """Create a new normal OAuth2 client (App). A public client (device
+    sign-in only) has no redirect URIs and no secret to show."""
     if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
         return RedirectResponse(url="/applications/oauth?error=name_required", status_code=303)
 
-    # Parse redirect URIs from textarea (one per line)
-    uri_list = [uri.strip() for uri in redirect_uris.strip().splitlines() if uri.strip()]
+    public = is_public == "true"
+    # Parse redirect URIs from textarea (one per line). The form hides the
+    # field for a public client; anything still sent is ignored.
+    uri_list = (
+        [] if public else [uri.strip() for uri in redirect_uris.strip().splitlines() if uri.strip()]
+    )
 
-    if not uri_list:
+    if not uri_list and not public:
         return RedirectResponse(
             url="/applications/oauth?error=redirect_uris_required", status_code=303
         )
@@ -156,7 +162,12 @@ def apps_create(
             redirect_uris=uri_list,
             created_by=str(user["id"]),
             description=description.strip() or None,
+            is_public=public,
         )
+
+        if public:
+            # Nothing secret to show once; the client ID is on the app page.
+            return safe_redirect(f"/applications/oauth/{client['client_id']}?success=created")
 
         # Store credentials in session for one-time display
         request.session["pending_credentials"] = {
@@ -328,32 +339,45 @@ def app_edit(
     if not name.strip():
         return safe_redirect(f"{redirect_url}?error=name_required")
 
-    # Parse redirect URIs from textarea (one per line)
-    uri_list = [uri.strip() for uri in redirect_uris.strip().splitlines() if uri.strip()]
-
-    if not uri_list:
-        return safe_redirect(f"{redirect_url}?error=redirect_uris_required")
-
     existing = oauth2_service.get_client_by_client_id(tenant_id, client_id)
     if not existing or existing["client_type"] != "normal":
         return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
 
+    # Parse redirect URIs from textarea (one per line)
+    uri_list = [uri.strip() for uri in redirect_uris.strip().splitlines() if uri.strip()]
+
+    if not uri_list and not existing.get("is_public"):
+        return safe_redirect(f"{redirect_url}?error=redirect_uris_required")
+
     try:
-        client = oauth2_service.update_client(
-            tenant_id=tenant_id,
-            client_id=client_id,
-            actor_user_id=str(user["id"]),
-            name=name.strip(),
-            description=description.strip() or None,
-            redirect_uris=uri_list,
-            post_logout_redirect_uris=post_logout_redirect_uris.splitlines(),
-            frontchannel_logout_uri=frontchannel_logout_uri.strip(),
-            frontchannel_logout_session_required=frontchannel_logout_session_required == "true",
-            backchannel_logout_uri=backchannel_logout_uri.strip(),
-            backchannel_logout_session_required=backchannel_logout_session_required == "true",
-            initiate_login_uri=initiate_login_uri.strip(),
-            device_grant_enabled=device_grant_enabled == "true",
-        )
+        if existing.get("is_public"):
+            # A public client's form has no redirect, front-channel or login
+            # initiation fields, and its device grant is always on.
+            client = oauth2_service.update_client(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                actor_user_id=str(user["id"]),
+                name=name.strip(),
+                description=description.strip() or None,
+                backchannel_logout_uri=backchannel_logout_uri.strip(),
+                backchannel_logout_session_required=backchannel_logout_session_required == "true",
+            )
+        else:
+            client = oauth2_service.update_client(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                actor_user_id=str(user["id"]),
+                name=name.strip(),
+                description=description.strip() or None,
+                redirect_uris=uri_list,
+                post_logout_redirect_uris=post_logout_redirect_uris.splitlines(),
+                frontchannel_logout_uri=frontchannel_logout_uri.strip(),
+                frontchannel_logout_session_required=frontchannel_logout_session_required == "true",
+                backchannel_logout_uri=backchannel_logout_uri.strip(),
+                backchannel_logout_session_required=backchannel_logout_session_required == "true",
+                initiate_login_uri=initiate_login_uri.strip(),
+                device_grant_enabled=device_grant_enabled == "true",
+            )
 
         if not client:
             return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
@@ -424,6 +448,8 @@ def app_regenerate_secret(
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
     if not client or client["client_type"] != "normal":
         return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
+    if client.get("is_public"):
+        return safe_redirect(f"{redirect_url}?error=public_client_no_secret")
 
     new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id, str(user["id"]))
 

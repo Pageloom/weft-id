@@ -61,6 +61,9 @@
                             {% if client.dynamically_registered %}
                             <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300" title="Registered itself through dynamic client registration">Registered</span>
                             {% endif %}
+                            {% if client.is_public %}
+                            <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300" title="Public client: no secret, device sign-in only">Public</span>
+                            {% endif %}
                             {% if client.description %}
                             <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ client.description }}</div>
                             {% endif %}
@@ -127,7 +130,16 @@
                               placeholder="Optional description"></textarea>
                 </div>
 
-                <div>
+                <div class="flex items-start gap-2">
+                    <input type="checkbox" id="is_public" name="is_public" value="true"
+                           class="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                    <label for="is_public" class="text-sm text-gray-700 dark:text-gray-300">
+                        Public client (device sign-in only)
+                        <span class="block text-xs text-gray-500 dark:text-gray-400">For apps that can't keep a secret, such as a TV app or a command-line tool. A public client has no client secret, signs in only with device sign-in, and has no redirect URIs. You can't change this after you create the app.</span>
+                    </label>
+                </div>
+
+                <div id="redirect-uris-field">
                     <label for="redirect_uris" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Redirect URIs <span class="text-red-500">*</span></label>
                     <textarea id="redirect_uris" name="redirect_uris" rows="3" required
                               class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -202,6 +214,13 @@ const dismissCredentials = () => {
 document.getElementById('show-create-btn').addEventListener('click', () => { WeftUtils.showModal('create-modal'); });
 document.getElementById('hide-create-btn').addEventListener('click', () => { WeftUtils.hideModal('create-modal'); });
 document.getElementById('dismiss-credentials-btn')?.addEventListener('click', dismissCredentials);
+
+// A public client has no redirect URIs: hide the field and drop its requirement.
+document.getElementById('is_public').addEventListener('change', (e) => {
+    const isPublic = e.target.checked;
+    document.getElementById('redirect-uris-field').classList.toggle('hidden', isPublic);
+    document.getElementById('redirect_uris').required = !isPublic;
+});
 
 // Copy buttons
 document.querySelectorAll('.copy-btn').forEach((btn) => {

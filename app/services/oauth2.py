@@ -16,7 +16,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import database
 from services.event_log import log_event
-from services.exceptions import ValidationError
+from services.exceptions import NotFoundError, ValidationError
 
 # Upper bound on registered post-logout redirect URIs (matches the CHECK
 # constraint on oauth2_clients.post_logout_redirect_uris).
@@ -484,6 +484,23 @@ def get_all_clients(tenant_id: str, client_type: str | None = None) -> list[dict
     return database.oauth2.get_all_clients(tenant_id, client_type=client_type)
 
 
+def _reject_browser_settings_for_public(
+    redirect_uris: list[str] | None,
+    post_logout_redirect_uris: list[str] | None,
+    frontchannel_logout_uri: str | None,
+    initiate_login_uri: str | None,
+) -> None:
+    """A public client signs in with the device grant only: it never reaches
+    the authorization endpoint, so it has nothing to redirect to. Empty values
+    (clearing a field) are fine; anything set is refused."""
+    if redirect_uris or post_logout_redirect_uris or frontchannel_logout_uri or initiate_login_uri:
+        raise ValidationError(
+            "A public client uses the device grant only, so it has no redirect URIs, "
+            "post-logout redirect URIs, front-channel logout URI, or login initiation URI",
+            code="public_client_browser_settings",
+        )
+
+
 def create_normal_client(
     tenant_id: str,
     name: str,
@@ -497,6 +514,7 @@ def create_normal_client(
     backchannel_logout_session_required: bool = True,
     initiate_login_uri: str | None = None,
     device_grant_enabled: bool = False,
+    is_public: bool = False,
 ) -> dict:
     """
     Create a normal OAuth2 client (authorization code flow).
@@ -521,14 +539,29 @@ def create_normal_client(
             at WeftID (third-party-initiated login, My Apps launch)
         device_grant_enabled: Whether the client may use the device
             authorization grant (RFC 8628)
+        is_public: A public client (RFC 6749 section 2.1): no secret, the
+            device grant only (switched on here), no redirect URIs. Fixed at
+            creation.
 
     Returns:
-        Client dict including plaintext client_secret
+        Client dict including plaintext client_secret (absent for a public
+        client)
 
     Raises:
-        ValidationError: a post-logout redirect URI, a front- or back-channel
-            logout URI, or the login initiation URI is malformed
+        ValidationError: no redirect URI for a confidential client, browser
+            settings for a public one, or a post-logout redirect URI, a
+            front- or back-channel logout URI, or the login initiation URI
+            is malformed
     """
+    if is_public:
+        _reject_browser_settings_for_public(
+            redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri, initiate_login_uri
+        )
+        device_grant_enabled = True
+    elif not redirect_uris:
+        raise ValidationError(
+            "At least one redirect URI is required", code="redirect_uris_required"
+        )
     post_logout_uris = validate_post_logout_redirect_uris(post_logout_redirect_uris or [])
     frontchannel_uri = validate_frontchannel_logout_uri(frontchannel_logout_uri, redirect_uris)
     backchannel_uri = validate_backchannel_logout_uri(backchannel_logout_uri)
@@ -547,6 +580,7 @@ def create_normal_client(
         backchannel_logout_session_required=backchannel_logout_session_required,
         initiate_login_uri=initiate_uri,
         device_grant_enabled=device_grant_enabled,
+        is_public=is_public,
     )
 
     if result is None:
@@ -564,6 +598,7 @@ def create_normal_client(
             "type": "normal",
             "client_id": result["client_id"],
             "device_grant_enabled": device_grant_enabled,
+            "is_public": is_public,
         },
     )
 
@@ -670,11 +705,18 @@ def regenerate_client_secret(tenant_id: str, client_id: str, actor_user_id: str)
 
     Returns:
         New plaintext client secret
+
+    Raises:
+        ValidationError: the client is public (it has no secret)
     """
     # Get client info for logging
     client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    if client and client.get("is_public"):
+        raise ValidationError("A public client has no secret", code="public_client_no_secret")
 
     new_secret = database.oauth2.regenerate_client_secret(tenant_id, client_id)
+    if new_secret is None:
+        raise NotFoundError("OAuth2 client not found", code="client_not_found")
 
     if client:
         log_event(
@@ -739,8 +781,9 @@ def update_client(
             that is malformed or not on a redirect URI's origin (checked
             against the redirect URIs the client will have after the update),
             a malformed back-channel logout URI, a login initiation URI
-            that is malformed or not https, or the device grant switched on
-            for a B2B client
+            that is malformed or not https, the device grant switched on
+            for a B2B client, or, for a public client, browser settings or
+            the device grant switched off
     """
     # Get current client for comparison
     old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
@@ -786,6 +829,15 @@ def update_client(
             "The device authorization grant can only be enabled for normal clients",
             code="device_grant_not_allowed",
         )
+    if old_client.get("is_public"):
+        _reject_browser_settings_for_public(
+            redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri, initiate_login_uri
+        )
+        if device_grant_enabled is False:
+            raise ValidationError(
+                "A public client uses the device grant only, so it cannot be switched off",
+                code="public_client_requires_device_grant",
+            )
     # Re-check the front-channel URI whenever it or the redirect URIs change:
     # it must stay on the origin of a registered redirect URI.
     if frontchannel_logout_uri is not None or redirect_uris is not None:

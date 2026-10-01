@@ -6,7 +6,7 @@ import logging
 import database
 import pytest
 from services import oauth2_tokens as svc
-from services.exceptions import ForbiddenError, NotFoundError
+from services.exceptions import ForbiddenError, NotFoundError, ValidationError
 
 ISSUER = "https://tenant.example.test"
 
@@ -285,3 +285,21 @@ class TestSetTenantIntrospection:
     def test_unknown_client(self, test_tenant, test_admin_user):
         with pytest.raises(NotFoundError):
             svc.set_tenant_introspection(_user(test_tenant, test_admin_user, "admin"), "nope", True)
+
+    def test_public_client_refused(self, test_tenant, test_admin_user):
+        public = database.oauth2.create_normal_client(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            name="TV App",
+            redirect_uris=[],
+            created_by=str(test_admin_user["id"]),
+            device_grant_enabled=True,
+            is_public=True,
+        )
+        admin = _user(test_tenant, test_admin_user, "admin")
+        with pytest.raises(ValidationError) as exc:
+            svc.set_tenant_introspection(admin, public["client_id"], True)
+        assert exc.value.code == "public_client_no_introspection"
+        assert _events(test_tenant, "oauth2_client_introspection_changed") == []
+        # Switching it off stays a harmless no-op.
+        assert svc.set_tenant_introspection(admin, public["client_id"], False)

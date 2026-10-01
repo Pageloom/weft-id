@@ -13,9 +13,11 @@ Two kinds of callers:
   one), the configuration endpoint by the client's registration access token.
   Their audit events use the system actor and name the token in metadata.
 
-A registered client is always a ``normal`` (authorization code) client with
-OIDC enabled, never B2B. It starts available to every user or to no one,
-per the tenant's ``default_access``. Remembered consent applies as for any
+A registered client is always a ``normal`` client with OIDC enabled, never
+B2B. It uses the authorization code grant, the device grant, or both; a
+device-only client may be public (``token_endpoint_auth_method`` ``none``).
+It starts available to every user or to no one, per the tenant's
+``default_access``. Remembered consent applies as for any
 other client; registered clients are never pre-consented.
 
 Metadata policy: values WeftID cannot honour are rejected
@@ -61,8 +63,9 @@ INVALID_CLIENT_METADATA = "invalid_client_metadata"
 
 # What a registered client may ask for. Anything else is rejected.
 SUPPORTED_RESPONSE_TYPES = ("code",)
-SUPPORTED_GRANT_TYPES = ("authorization_code", "refresh_token")
-SUPPORTED_AUTH_METHODS = ("client_secret_basic", "client_secret_post")
+SUPPORTED_GRANT_TYPES = ("authorization_code", "refresh_token", oauth2.DEVICE_CODE_GRANT_TYPE)
+# "none" is a public client: device_code (+ refresh_token) only, no secret.
+SUPPORTED_AUTH_METHODS = ("client_secret_basic", "client_secret_post", "none")
 SUPPORTED_APPLICATION_TYPES = ("web", "native")
 SUPPORTED_ID_TOKEN_ALG = "RS256"
 
@@ -484,16 +487,39 @@ def validate_client_metadata(metadata: dict) -> dict:
         raise _metadata_error("Unsupported id_token_signed_response_alg. Supported: RS256")
 
     application_type = _choice(metadata, "application_type", SUPPORTED_APPLICATION_TYPES, "web")
-    redirect_uris = _validate_redirect_uris(metadata, application_type)
-    response_types = _choice_list(metadata, "response_types", SUPPORTED_RESPONSE_TYPES, ["code"])
     grant_types = _choice_list(
         metadata, "grant_types", SUPPORTED_GRANT_TYPES, ["authorization_code"]
     )
-    if "authorization_code" not in grant_types:
-        raise _metadata_error("grant_types must include authorization_code")
+    uses_code = "authorization_code" in grant_types
+    uses_device = oauth2.DEVICE_CODE_GRANT_TYPE in grant_types
+    if not uses_code and not uses_device:
+        raise _metadata_error(
+            f"grant_types must include authorization_code or {oauth2.DEVICE_CODE_GRANT_TYPE}"
+        )
     auth_method = _choice(
         metadata, "token_endpoint_auth_method", SUPPORTED_AUTH_METHODS, "client_secret_basic"
     )
+    if auth_method == "none" and uses_code:
+        raise _metadata_error(
+            "token_endpoint_auth_method none is supported only for device clients "
+            "(grant_types without authorization_code)"
+        )
+    if uses_code:
+        redirect_uris = _validate_redirect_uris(metadata, application_type)
+        response_types = _choice_list(
+            metadata, "response_types", SUPPORTED_RESPONSE_TYPES, ["code"]
+        )
+    else:
+        # A device-only client never visits the authorization endpoint, so it
+        # has no redirects and no response types.
+        if metadata.get("redirect_uris"):
+            raise _metadata_error(
+                "redirect_uris are only used with the authorization_code grant",
+                INVALID_REDIRECT_URI,
+            )
+        if metadata.get("response_types"):
+            raise _metadata_error("response_types must be empty without authorization_code")
+        redirect_uris, response_types = [], []
 
     client_name = _optional_str(metadata, "client_name", MAX_NAME_LENGTH)
     contacts = _str_list(
@@ -524,6 +550,11 @@ def validate_client_metadata(metadata: dict) -> dict:
         )
     except ValidationError as exc:
         raise _metadata_error(exc.message) from exc
+    if not uses_code and (post_logout_uris or initiate_login_uri):
+        raise _metadata_error(
+            "post_logout_redirect_uris and initiate_login_uri are only used with the "
+            "authorization_code grant"
+        )
 
     return {
         "client_name": client_name or _fallback_name(redirect_uris),
@@ -540,6 +571,8 @@ def validate_client_metadata(metadata: dict) -> dict:
         "policy_uri": _https_uri(metadata, "policy_uri"),
         "tos_uri": _https_uri(metadata, "tos_uri"),
         "initiate_login_uri": initiate_login_uri,
+        "device_grant_enabled": uses_device,
+        "is_public": auth_method == "none",
         # Stored as JSON and echoed; nothing outside this module reads them.
         "extra": {
             key: value
@@ -558,6 +591,8 @@ def validate_client_metadata(metadata: dict) -> dict:
 
 
 def _fallback_name(redirect_uris: list[str]) -> str:
+    if not redirect_uris:
+        return "Registered device client"
     host = urlsplit(redirect_uris[0]).hostname or "unknown host"
     return f"Registered client ({host})"[:MAX_NAME_LENGTH]
 
@@ -653,6 +688,8 @@ def register_client(
         The registration response: the client configuration plus
         ``client_secret``, ``client_secret_expires_at`` (0, never) and the
         ``registration_access_token``. Both secrets exist only in this value.
+        A public client (``token_endpoint_auth_method`` ``none``) gets no
+        ``client_secret`` and no ``client_secret_expires_at``.
 
     Raises:
         NotFoundError: registration is off
@@ -683,6 +720,8 @@ def register_client(
         registration_access_token_hash=oauth2.hash_token(registration_access_token),
         registered_with_token_id=str(token_row["id"]) if token_row else None,
         available_to_all=available_to_all,
+        device_grant_enabled=accepted["device_grant_enabled"],
+        is_public=accepted["is_public"],
     )
     if token_row is not None:
         database.oauth2.touch_initial_access_token(tenant_id, str(token_row["id"]))
@@ -698,14 +737,17 @@ def register_client(
             "client_id": client["client_id"],
             "redirect_uris": accepted["redirect_uris"],
             "available_to_all": available_to_all,
+            "device_grant_enabled": accepted["device_grant_enabled"],
+            "is_public": accepted["is_public"],
             "initial_access_token_id": str(token_row["id"]) if token_row else None,
             "initial_access_token_name": token_row["name"] if token_row else None,
         },
     )
 
     body = client_configuration(client, base_url)
-    body["client_secret"] = client["client_secret"]
-    body["client_secret_expires_at"] = 0
+    if not accepted["is_public"]:
+        body["client_secret"] = client["client_secret"]
+        body["client_secret_expires_at"] = 0
     body["registration_access_token"] = registration_access_token
     return body
 
@@ -757,7 +799,9 @@ def update_client_configuration(
     server-managed fields (``registration_access_token``,
     ``registration_client_uri``, ``client_secret_expires_at``,
     ``client_id_issued_at``) are ignored. Credentials and access settings are
-    unchanged.
+    unchanged, and so is whether the client is public: a
+    ``token_endpoint_auth_method`` that switches between ``none`` and a secret
+    method is refused.
 
     Logs: oauth2_client_registration_updated (system actor).
 
@@ -779,6 +823,10 @@ def update_client_configuration(
             raise _metadata_error("client_secret does not match")
 
     accepted = validate_client_metadata(metadata)
+    if accepted["is_public"] != bool(client.get("is_public")):
+        raise _metadata_error(
+            "token_endpoint_auth_method cannot switch between none and a client secret"
+        )
     updated = database.oauth2.replace_registered_client(
         tenant_id,
         client["client_id"],
@@ -795,6 +843,7 @@ def update_client_configuration(
         tos_uri=accepted["tos_uri"],
         initiate_login_uri=accepted["initiate_login_uri"],
         registration_metadata=accepted["extra"],
+        device_grant_enabled=accepted["device_grant_enabled"],
     )
     if updated is None:
         raise UnauthorizedError(message="The registration access token is not valid")

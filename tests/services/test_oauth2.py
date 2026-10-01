@@ -10,7 +10,7 @@ Most functions are thin wrappers over database operations, so tests focus on:
 import database
 import pytest
 from services import oauth2 as oauth2_service
-from services.exceptions import ValidationError
+from services.exceptions import NotFoundError, ValidationError
 
 # =============================================================================
 # Client Operations Tests
@@ -1433,3 +1433,146 @@ def test_update_b2b_client_rejects_device_grant(test_tenant, b2b_oauth2_client, 
     assert exc.value.code == "device_grant_not_allowed"
     # Switching it off on a B2B client is a harmless no-op.
     assert _update(test_tenant, b2b_oauth2_client, test_admin_user, device_grant_enabled=False)
+
+
+# =============================================================================
+# Public clients (device grant only, no secret)
+# =============================================================================
+
+
+def _create_public(test_tenant, test_admin_user, **kw):
+    return oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="TV App",
+        redirect_uris=[],
+        created_by=test_admin_user["id"],
+        is_public=True,
+        **kw,
+    )
+
+
+def test_create_public_client(test_tenant, test_admin_user):
+    client = _create_public(test_tenant, test_admin_user)
+    assert client["is_public"] is True
+    # The device grant is switched on even though it was not asked for.
+    assert client["device_grant_enabled"] is True
+    assert "client_secret" not in client
+    assert client["redirect_uris"] == []
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "oauth2_client_created"
+    assert events[0]["metadata"]["is_public"] is True
+    assert events[0]["metadata"]["device_grant_enabled"] is True
+
+
+def test_confidential_client_is_not_public(test_tenant, test_admin_user):
+    client = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="Web App",
+        redirect_uris=["https://rp.example/cb"],
+        created_by=test_admin_user["id"],
+    )
+    assert client["is_public"] is False
+    assert client["client_secret"]
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["metadata"]["is_public"] is False
+
+
+def test_confidential_client_requires_a_redirect_uri(test_tenant, test_admin_user):
+    with pytest.raises(ValidationError) as exc:
+        oauth2_service.create_normal_client(
+            tenant_id=test_tenant["id"],
+            name="Web App",
+            redirect_uris=[],
+            created_by=test_admin_user["id"],
+        )
+    assert exc.value.code == "redirect_uris_required"
+
+
+@pytest.mark.parametrize(
+    "browser_setting",
+    [
+        {"redirect_uris": ["https://rp.example/cb"]},
+        {"post_logout_redirect_uris": ["https://rp.example/bye"]},
+        {"frontchannel_logout_uri": "https://rp.example/fc"},
+        {"initiate_login_uri": "https://rp.example/login"},
+    ],
+)
+def test_public_client_refuses_browser_settings_on_create(
+    test_tenant, test_admin_user, browser_setting
+):
+    kw = {"redirect_uris": [], **browser_setting}
+    with pytest.raises(ValidationError) as exc:
+        oauth2_service.create_normal_client(
+            tenant_id=test_tenant["id"],
+            name="TV App",
+            created_by=test_admin_user["id"],
+            is_public=True,
+            **kw,
+        )
+    assert exc.value.code == "public_client_browser_settings"
+
+
+def test_public_client_may_have_backchannel_logout(test_tenant, test_admin_user):
+    client = _create_public(
+        test_tenant, test_admin_user, backchannel_logout_uri="https://rp.example/bc"
+    )
+    assert client["backchannel_logout_uri"] == "https://rp.example/bc"
+
+
+@pytest.mark.parametrize(
+    "browser_setting",
+    [
+        {"redirect_uris": ["https://rp.example/cb"]},
+        {"post_logout_redirect_uris": ["https://rp.example/bye"]},
+        {"frontchannel_logout_uri": "https://rp.example/fc"},
+        {"initiate_login_uri": "https://rp.example/login"},
+    ],
+)
+def test_public_client_refuses_browser_settings_on_update(
+    test_tenant, test_admin_user, browser_setting
+):
+    public = _create_public(test_tenant, test_admin_user)
+    with pytest.raises(ValidationError) as exc:
+        _update(test_tenant, public, test_admin_user, **browser_setting)
+    assert exc.value.code == "public_client_browser_settings"
+
+
+def test_public_client_update_allows_clearing_and_renaming(test_tenant, test_admin_user):
+    public = _create_public(test_tenant, test_admin_user)
+    updated = _update(
+        test_tenant,
+        public,
+        test_admin_user,
+        name="Living Room TV",
+        post_logout_redirect_uris=[],
+        frontchannel_logout_uri="",
+        initiate_login_uri="",
+        device_grant_enabled=True,
+    )
+    assert updated["name"] == "Living Room TV"
+    assert updated["is_public"] is True
+
+
+def test_public_client_device_grant_cannot_be_switched_off(test_tenant, test_admin_user):
+    public = _create_public(test_tenant, test_admin_user)
+    with pytest.raises(ValidationError) as exc:
+        _update(test_tenant, public, test_admin_user, device_grant_enabled=False)
+    assert exc.value.code == "public_client_requires_device_grant"
+
+
+def test_public_client_has_no_secret_to_regenerate(test_tenant, test_admin_user):
+    public = _create_public(test_tenant, test_admin_user)
+    before = database.event_log.list_events(test_tenant["id"], limit=1)[0]["id"]
+    with pytest.raises(ValidationError) as exc:
+        oauth2_service.regenerate_client_secret(
+            test_tenant["id"], public["client_id"], str(test_admin_user["id"])
+        )
+    assert exc.value.code == "public_client_no_secret"
+    assert database.event_log.list_events(test_tenant["id"], limit=1)[0]["id"] == before
+
+
+def test_regenerate_secret_of_unknown_client(test_tenant, test_admin_user):
+    with pytest.raises(NotFoundError):
+        oauth2_service.regenerate_client_secret(
+            test_tenant["id"], "weft-id_client_nope", str(test_admin_user["id"])
+        )

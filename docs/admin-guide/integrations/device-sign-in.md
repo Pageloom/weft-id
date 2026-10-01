@@ -11,9 +11,26 @@ Device sign-in is off for every app until you turn it on:
 
 Through the API, set `device_grant_enabled` to `true` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`. Service accounts (B2B clients) cannot use device sign-in.
 
+## Public clients
+
+A TV app or a command-line tool you hand out to users can't keep a client secret: anyone who has the app can read it. For these, create a **public client**. A public client has no secret and identifies itself by its client ID alone.
+
+To create one, check **Public client (device sign-in only)** in the **Create App** dialog. Through the API, send `"is_public": true` with `POST /api/v1/oauth2/clients`. You can't make an existing app public, or turn a public app into one with a secret. Create a new app instead.
+
+A public client:
+
+* Signs in with device sign-in only, which is always on for it. It can also refresh its tokens.
+* Has no redirect URIs, so it can't use the authorization endpoint. It has no post-logout redirect URIs, front-channel logout URI, or login initiation URI either. A back-channel logout URI is allowed.
+* Sends `client_id` with no `client_secret` and no `Authorization` header at the device authorization, token, and revocation endpoints. It can't use the introspection endpoint.
+* Has no secret to regenerate.
+
+Every other rule on this page applies unchanged. Users still confirm every sign-in on the `/device` page, and refresh tokens are rotated on every use, so a stolen refresh token stops working once either party uses it.
+
+An application can also register itself as a public client through [client registration](client-registration.md) with `"token_endpoint_auth_method": "none"`.
+
 ## How the device signs in
 
-1. The device asks for a code at the device authorization endpoint, authenticating with its client ID and secret the same way as at the token endpoint:
+1. The device asks for a code at the device authorization endpoint, authenticating with its client ID and secret the same way as at the token endpoint (a public client sends `client_id` alone):
 
     ```
     POST /oauth2/device_authorization

@@ -24,7 +24,7 @@ _CLIENT_COLUMNS = """
     frontchannel_logout_session_required, service_user_id, is_active,
     oidc_enabled, available_to_all, can_introspect_tenant_tokens, dynamically_registered,
     logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
-    registration_metadata, registered_with_token_id, created_at
+    is_public, registration_metadata, registered_with_token_id, created_at
 """
 
 _TOKEN_COLUMNS = """
@@ -219,12 +219,15 @@ def create_registered_client(
     registration_access_token_hash: str,
     registered_with_token_id: str | None,
     available_to_all: bool,
+    device_grant_enabled: bool = False,
+    is_public: bool = False,
 ) -> dict:
     """Insert a dynamically registered client.
 
-    Always a ``normal`` (authorization code) client with OIDC enabled and no
-    creating user. Returns the row plus the plaintext ``client_secret``, which
-    exists only in this return value.
+    Always a ``normal`` client with OIDC enabled and no creating user. Returns
+    the row plus the plaintext ``client_secret``, which exists only in this
+    return value. A public client gets no secret (it stores the hash of one
+    nobody ever sees).
     """
     client_secret = oauth2.generate_client_secret()
     client = fetchone(
@@ -237,6 +240,7 @@ def create_registered_client(
             backchannel_logout_uri, backchannel_logout_session_required,
             oidc_enabled, available_to_all, dynamically_registered,
             logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri,
+            device_grant_enabled, is_public,
             registration_metadata, registration_access_token_hash, registered_with_token_id,
             created_by
         ) values (
@@ -246,6 +250,7 @@ def create_registered_client(
             :backchannel_logout_uri, :backchannel_logout_session_required,
             true, :available_to_all, true,
             :logo_uri, :client_uri, :policy_uri, :tos_uri, :initiate_login_uri,
+            :device_grant_enabled, :is_public,
             :registration_metadata, :registration_access_token_hash, :registered_with_token_id,
             null
         )
@@ -268,13 +273,16 @@ def create_registered_client(
             "policy_uri": policy_uri,
             "tos_uri": tos_uri,
             "initiate_login_uri": initiate_login_uri,
+            "device_grant_enabled": device_grant_enabled,
+            "is_public": is_public,
             "registration_metadata": Json(registration_metadata),
             "registration_access_token_hash": registration_access_token_hash,
             "registered_with_token_id": registered_with_token_id,
         },
     )
     assert client is not None  # INSERT ... RETURNING always returns a row
-    client["client_secret"] = client_secret
+    if not is_public:
+        client["client_secret"] = client_secret
     return client
 
 
@@ -295,11 +303,13 @@ def replace_registered_client(
     tos_uri: str | None,
     initiate_login_uri: str | None,
     registration_metadata: dict,
+    device_grant_enabled: bool = False,
 ) -> dict | None:
     """Replace a dynamically registered client's metadata (RFC 7592 section 2.2).
 
-    Credentials, access settings, and the registration bookkeeping are left
-    alone. Only rows marked ``dynamically_registered`` are touched.
+    Credentials (and whether the client is public), access settings, and the
+    registration bookkeeping are left alone. Only rows marked
+    ``dynamically_registered`` are touched.
     """
     return fetchone(
         tenant_id,
@@ -317,6 +327,7 @@ def replace_registered_client(
             policy_uri = :policy_uri,
             tos_uri = :tos_uri,
             initiate_login_uri = :initiate_login_uri,
+            device_grant_enabled = :device_grant_enabled,
             registration_metadata = :registration_metadata
         where client_id = :client_id and dynamically_registered
         returning {_CLIENT_COLUMNS}
@@ -335,6 +346,7 @@ def replace_registered_client(
             "policy_uri": policy_uri,
             "tos_uri": tos_uri,
             "initiate_login_uri": initiate_login_uri,
+            "device_grant_enabled": device_grant_enabled,
             "registration_metadata": Json(registration_metadata),
         },
     )

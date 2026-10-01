@@ -16,9 +16,11 @@ class NormalClientCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Client name")
     description: str | None = Field(None, max_length=500, description="Optional client description")
     redirect_uris: list[Annotated[str, Field(max_length=2048)]] = Field(
-        ...,
-        min_length=1,
-        description="List of exact redirect URIs (no wildcards)",
+        default_factory=list,
+        description=(
+            "List of exact redirect URIs (no wildcards). At least one is required, "
+            "except for a public client, which has none."
+        ),
     )
     post_logout_redirect_uris: list[Annotated[str, Field(max_length=2048)]] = Field(
         default_factory=list,
@@ -71,6 +73,16 @@ class NormalClientCreate(BaseModel):
         description=(
             "Whether the client may use the OAuth 2.0 device authorization grant "
             "(RFC 8628) for devices without a convenient browser (default false)."
+        ),
+    )
+    is_public: bool = Field(
+        False,
+        description=(
+            "Create a public client (default false): no client secret; it sends its "
+            "client_id alone and may use only the device authorization and refresh "
+            "token grants. Switches the device grant on, takes no redirect URIs, "
+            "post-logout redirect URIs, front-channel logout URI, or login initiation "
+            "URI, and cannot be changed after creation."
         ),
     )
 
@@ -200,13 +212,23 @@ class ClientResponse(BaseModel):
     device_grant_enabled: bool = Field(
         False, description="Whether the client may use the device authorization grant."
     )
+    is_public: bool = Field(
+        False,
+        description=(
+            "Whether the client is public: no secret, device authorization and "
+            "refresh token grants only."
+        ),
+    )
     created_at: datetime
 
 
 class ClientWithSecret(ClientResponse):
     """Response schema for OAuth2 client with secret (only returned on creation)."""
 
-    client_secret: str = Field(..., description="Client secret - shown only once, store securely")
+    client_secret: str | None = Field(
+        None,
+        description="Client secret - shown only once, store securely (null for a public client)",
+    )
 
 
 # ============================================================================

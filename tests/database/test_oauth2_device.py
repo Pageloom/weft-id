@@ -13,14 +13,15 @@ from uuid import uuid4
 import database
 import oauth2
 import pytest
+from psycopg.errors import CheckViolation
 
 
 def _client(test_tenant, test_admin_user, **kwargs):
+    kwargs.setdefault("redirect_uris", ["http://localhost:3000/callback"])
     return database.oauth2.create_normal_client(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
         name="Device App",
-        redirect_uris=["http://localhost:3000/callback"],
         created_by=str(test_admin_user["id"]),
         **kwargs,
     )
@@ -82,6 +83,96 @@ class TestDeviceGrantColumn:
         # Omitted leaves it alone.
         kept = database.oauth2.update_client(tid, created["client_id"], name="Renamed")
         assert kept["device_grant_enabled"] is False
+
+
+class TestPublicClientColumn:
+    def _public(self, test_tenant, test_admin_user):
+        return _client(
+            test_tenant,
+            test_admin_user,
+            redirect_uris=[],
+            device_grant_enabled=True,
+            is_public=True,
+        )
+
+    def test_defaults_to_false_everywhere(self, test_tenant, normal_oauth2_client):
+        tid = test_tenant["id"]
+        assert normal_oauth2_client["is_public"] is False
+        assert (
+            database.oauth2.get_client_by_client_id(tid, normal_oauth2_client["client_id"])[
+                "is_public"
+            ]
+            is False
+        )
+        assert (
+            database.oauth2.get_client_by_id(tid, str(normal_oauth2_client["id"]))["is_public"]
+            is False
+        )
+
+    def test_public_client_gets_no_secret(self, test_tenant, test_admin_user):
+        tid = test_tenant["id"]
+        created = self._public(test_tenant, test_admin_user)
+        assert created["is_public"] is True
+        assert "client_secret" not in created
+
+        row = database.oauth2.get_client_by_client_id(tid, created["client_id"])
+        assert row["is_public"] is True
+        # The stored hash is of a secret nobody has: it is still a valid hash.
+        assert row["client_secret_hash"].startswith("$argon2")
+        listed = [c for c in database.oauth2.get_all_clients(tid, client_type="normal")]
+        assert [c["is_public"] for c in listed if c["client_id"] == created["client_id"]] == [True]
+        # Every update path returns the flag.
+        assert database.oauth2.update_client(tid, created["client_id"], name="TV")["is_public"]
+
+    def test_public_client_must_keep_the_device_grant(self, test_tenant, test_admin_user):
+        created = self._public(test_tenant, test_admin_user)
+        with pytest.raises(CheckViolation, match="chk_oauth2_clients_public_device_only"):
+            database.oauth2.update_client(
+                test_tenant["id"], created["client_id"], device_grant_enabled=False
+            )
+
+    def test_public_client_needs_the_device_grant_at_creation(self, test_tenant, test_admin_user):
+        with pytest.raises(CheckViolation, match="chk_oauth2_clients_public_device_only"):
+            _client(test_tenant, test_admin_user, redirect_uris=[], is_public=True)
+
+    def test_secret_cannot_be_regenerated(self, test_tenant, test_admin_user):
+        tid = test_tenant["id"]
+        created = self._public(test_tenant, test_admin_user)
+        before = database.oauth2.get_client_by_client_id(tid, created["client_id"])
+
+        assert database.oauth2.regenerate_client_secret(tid, created["client_id"]) is None
+        after = database.oauth2.get_client_by_client_id(tid, created["client_id"])
+        assert after["client_secret_hash"] == before["client_secret_hash"]
+
+    def test_regenerate_unknown_client(self, test_tenant):
+        assert database.oauth2.regenerate_client_secret(test_tenant["id"], "nope") is None
+
+    def test_registered_public_client(self, test_tenant):
+        created = database.oauth2.create_registered_client(
+            test_tenant["id"],
+            str(test_tenant["id"]),
+            name="TV",
+            redirect_uris=[],
+            post_logout_redirect_uris=[],
+            frontchannel_logout_uri=None,
+            frontchannel_logout_session_required=True,
+            backchannel_logout_uri=None,
+            backchannel_logout_session_required=True,
+            logo_uri=None,
+            client_uri=None,
+            policy_uri=None,
+            tos_uri=None,
+            initiate_login_uri=None,
+            registration_metadata={},
+            registration_access_token_hash="x",
+            registered_with_token_id=None,
+            available_to_all=False,
+            device_grant_enabled=True,
+            is_public=True,
+        )
+        assert created["is_public"] is True
+        assert created["device_grant_enabled"] is True
+        assert "client_secret" not in created
 
 
 class TestCreate:

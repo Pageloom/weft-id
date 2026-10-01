@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the token endpoint with the `urn:ietf:params:oauth:grant-type:device_code`
   grant. The user enters the code at `/device` and approves on a
   confirmation page. See [Device Sign-In](docs/admin-guide/integrations/device-sign-in.md).
+- **Public clients for device sign-in.** An app that can't keep a secret,
+  such as a TV app or a command-line tool, can be created as a public client
+  (**Public client (device sign-in only)** in the Create App dialog, or
+  `is_public` on `POST /api/v1/oauth2/clients`). It has no secret, sends its
+  `client_id` alone (`token_endpoint_auth_method` `none`), and may use only
+  device sign-in and refresh tokens. It can revoke its tokens but not
+  introspect them. Dynamic client registration accepts the device grant
+  (`urn:ietf:params:oauth:grant-type:device_code`) and, for device-only
+  apps, `none`. Discovery lists `none` for the token and revocation
+  endpoints.
 - **OIDC apps in My Apps (third-party-initiated login).** An OIDC app can
   now be launched from the dashboard like a SAML application. Set its
   **Login initiation URI** (the app's `https` URL that starts a sign-in) on

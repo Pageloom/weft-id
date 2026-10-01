@@ -31,22 +31,24 @@ A token can register any number of apps until it expires or you revoke it. The l
 
 An application sends its metadata as JSON. WeftID accepts:
 
-* `redirect_uris` (required). Absolute `https` URIs without a fragment. An app with `"application_type": "native"` may also use `http` on a loopback address (`localhost`, `127.0.0.1`, `[::1]`).
-* `client_name`, shown to users on the consent page. Without it, WeftID names the app after its first redirect URI's host.
+* `redirect_uris` (required with the `authorization_code` grant). Absolute `https` URIs without a fragment. An app with `"application_type": "native"` may also use `http` on a loopback address (`localhost`, `127.0.0.1`, `[::1]`).
+* `client_name`, shown to users on the consent page. Without it, WeftID names the app after its first redirect URI's host, or "Registered device client" when it has none.
 * `logo_uri`, `policy_uri`, `tos_uri`, and `client_uri` (all `https`). The consent page shows the logo and links to the privacy policy and terms of service.
-* `grant_types`: `authorization_code`, optionally with `refresh_token`.
-* `token_endpoint_auth_method`: `client_secret_basic` (default) or `client_secret_post`.
+* `grant_types`: `authorization_code` (the default), `urn:ietf:params:oauth:grant-type:device_code` for [device sign-in](device-sign-in.md), or both, optionally with `refresh_token`.
+* `token_endpoint_auth_method`: `client_secret_basic` (default), `client_secret_post`, or `none` for a [public client](device-sign-in.md#public-clients). `none` is accepted only for an app that uses device sign-in without `authorization_code`.
 * `contacts`, `jwks`, or `jwks_uri`. WeftID stores these and returns them, but does not use the keys yet.
 * The logout settings an admin can set on an app: `post_logout_redirect_uris`, `frontchannel_logout_uri`, `backchannel_logout_uri`, and their `_session_required` flags.
 * `initiate_login_uri` (`https`), the app's URL that starts a sign-in with WeftID. Users who can access the app see it in **My Apps** (see [Launching from My Apps](oidc-provider-setup.md#launching-from-my-apps)).
 
-WeftID rejects metadata it cannot honour rather than quietly ignoring it. That includes other response types, the implicit and client credentials grants, `private_key_jwt` and public clients, unsigned or encrypted ID tokens, signed userinfo, request objects, and pairwise subjects. A rejected request gets HTTP 400 with `invalid_redirect_uri` or `invalid_client_metadata`. Metadata WeftID does not recognise is ignored.
+WeftID rejects metadata it cannot honour rather than quietly ignoring it. That includes other response types, the implicit and client credentials grants, `private_key_jwt`, public clients that ask for `authorization_code`, unsigned or encrypted ID tokens, signed userinfo, request objects, and pairwise subjects. A rejected request gets HTTP 400 with `invalid_redirect_uri` or `invalid_client_metadata`. Metadata WeftID does not recognise is ignored.
 
 A registered app is always an ordinary OAuth2 / OIDC app with OIDC turned on. An application cannot register a service account.
 
+An app that uses device sign-in without `authorization_code` has no browser redirects. It must leave out `redirect_uris`, `response_types` (or send an empty list), `post_logout_redirect_uris`, `frontchannel_logout_uri`, and `initiate_login_uri`.
+
 ## After registration
 
-The response contains the client ID and secret, plus a **registration access token** and a `registration_client_uri`. With that token, the application can read (`GET`), replace (`PUT`), or delete (`DELETE`) its own registration at that address. A `PUT` replaces everything: anything left out returns to its default. These calls keep working if you later turn registration off.
+The response contains the client ID and secret (a public client gets no secret), plus a **registration access token** and a `registration_client_uri`. With that token, the application can read (`GET`), replace (`PUT`), or delete (`DELETE`) its own registration at that address. A `PUT` replaces everything: anything left out returns to its default. It can't switch `token_endpoint_auth_method` between `none` and a secret method. These calls keep working if you later turn registration off.
 
 Registered apps appear on **Applications > OAuth2 / OIDC** with a **Registered** badge. You manage them like any other app: grant access, edit, deactivate, regenerate the secret, or delete. A deactivated app can no longer use its registration access token.
 

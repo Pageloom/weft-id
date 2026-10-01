@@ -633,3 +633,202 @@ class TestClientConfiguration:
         svc.delete_client_configuration(test_tenant["id"], client)
 
         assert len(_events(test_tenant, "oauth2_client_registration_deleted")) == 1
+
+
+# =============================================================================
+# Device clients: the device grant, and public clients ("none")
+# =============================================================================
+
+DEVICE = oauth2.DEVICE_CODE_GRANT_TYPE
+
+
+class TestDeviceClientMetadata:
+    def test_public_device_client(self):
+        accepted = svc.validate_client_metadata(
+            {
+                "grant_types": [DEVICE, "refresh_token"],
+                "token_endpoint_auth_method": "none",
+                "application_type": "native",
+            }
+        )
+        assert accepted["is_public"] is True
+        assert accepted["device_grant_enabled"] is True
+        assert accepted["redirect_uris"] == []
+        assert accepted["client_name"] == "Registered device client"
+        assert accepted["extra"]["response_types"] == []
+        assert accepted["extra"]["grant_types"] == [DEVICE, "refresh_token"]
+        assert accepted["extra"]["token_endpoint_auth_method"] == "none"
+
+    def test_confidential_device_only_client(self):
+        accepted = svc.validate_client_metadata({"grant_types": [DEVICE]})
+        assert accepted["is_public"] is False
+        assert accepted["device_grant_enabled"] is True
+        assert accepted["extra"]["token_endpoint_auth_method"] == "client_secret_basic"
+
+    def test_code_and_device_client_needs_redirect_uris(self):
+        assert (
+            _error_code({"grant_types": ["authorization_code", DEVICE]}) == "invalid_redirect_uri"
+        )
+        accepted = svc.validate_client_metadata(
+            {"grant_types": ["authorization_code", DEVICE], "redirect_uris": ["https://rp/cb"]}
+        )
+        assert accepted["device_grant_enabled"] is True
+        assert accepted["is_public"] is False
+
+    def test_code_client_has_no_device_grant(self):
+        accepted = svc.validate_client_metadata({"redirect_uris": ["https://rp.example/cb"]})
+        assert accepted["device_grant_enabled"] is False
+        assert accepted["is_public"] is False
+
+    def test_device_only_client_with_redirect_uris(self):
+        metadata = {"grant_types": [DEVICE], "redirect_uris": ["https://rp.example/cb"]}
+        assert _error_code(metadata) == "invalid_redirect_uri"
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            # "none" needs a device-only client.
+            {"grant_types": ["authorization_code", DEVICE], "token_endpoint_auth_method": "none"},
+            {"grant_types": ["refresh_token"], "token_endpoint_auth_method": "none"},
+            {"grant_types": [DEVICE], "response_types": ["code"]},
+            {"grant_types": [DEVICE], "post_logout_redirect_uris": ["https://rp.example/bye"]},
+            {"grant_types": [DEVICE], "initiate_login_uri": "https://rp.example/login"},
+            {"grant_types": [DEVICE], "frontchannel_logout_uri": "https://rp.example/fc"},
+        ],
+    )
+    def test_invalid_device_client_metadata(self, extra):
+        assert _error_code(extra) == "invalid_client_metadata"
+
+    def test_device_only_client_may_have_backchannel_logout(self):
+        accepted = svc.validate_client_metadata(
+            {"grant_types": [DEVICE], "backchannel_logout_uri": "https://rp.example/bc"}
+        )
+        assert accepted["backchannel_logout_uri"] == "https://rp.example/bc"
+
+
+PUBLIC_DEVICE = {
+    "grant_types": [DEVICE, "refresh_token"],
+    "token_endpoint_auth_method": "none",
+    "client_name": "TV App",
+}
+
+
+class TestRegisterDeviceClient:
+    def test_public_client_gets_no_secret(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, PUBLIC_DEVICE)
+
+        assert "client_secret" not in body
+        assert "client_secret_expires_at" not in body
+        assert body["registration_access_token"]
+        assert body["token_endpoint_auth_method"] == "none"
+        assert body["grant_types"] == [DEVICE, "refresh_token"]
+        assert body["response_types"] == []
+        assert body["redirect_uris"] == []
+
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["is_public"] is True
+        assert row["device_grant_enabled"] is True
+        event = _events(test_tenant, "oauth2_client_registered")[0]
+        assert event["metadata"]["is_public"] is True
+        assert event["metadata"]["device_grant_enabled"] is True
+
+    def test_confidential_device_client_gets_a_secret(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, {"grant_types": [DEVICE]})
+
+        assert body["client_secret"]
+        assert body["client_secret_expires_at"] == 0
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["is_public"] is False
+        assert row["device_grant_enabled"] is True
+
+    def test_token_required_policy_applies(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "token_required")
+        with pytest.raises(UnauthorizedError):
+            _register(test_tenant, PUBLIC_DEVICE)
+
+
+class TestDeviceClientConfiguration:
+    def _registered(self, test_tenant, admin, metadata):
+        _set_policy(test_tenant, admin, "open")
+        body = _register(test_tenant, metadata)
+        client = svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )
+        return body, client
+
+    def test_public_client_stays_public(self, test_tenant, test_admin_user):
+        body, client = self._registered(test_tenant, test_admin_user, PUBLIC_DEVICE)
+
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {**PUBLIC_DEVICE, "client_id": body["client_id"], "client_name": "Kitchen TV"},
+            BASE,
+        )
+        assert updated["client_name"] == "Kitchen TV"
+        assert "client_secret" not in updated
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["is_public"] is True
+        assert row["device_grant_enabled"] is True
+
+    def test_public_client_cannot_become_confidential(self, test_tenant, test_admin_user):
+        body, client = self._registered(test_tenant, test_admin_user, PUBLIC_DEVICE)
+
+        with pytest.raises(ValidationError) as exc:
+            svc.update_client_configuration(
+                test_tenant["id"],
+                client,
+                {
+                    **PUBLIC_DEVICE,
+                    "client_id": body["client_id"],
+                    "token_endpoint_auth_method": "client_secret_basic",
+                },
+                BASE,
+            )
+        assert exc.value.code == "invalid_client_metadata"
+
+    def test_public_client_presenting_a_secret(self, test_tenant, test_admin_user):
+        body, client = self._registered(test_tenant, test_admin_user, PUBLIC_DEVICE)
+
+        with pytest.raises(ValidationError):
+            svc.update_client_configuration(
+                test_tenant["id"],
+                client,
+                {**PUBLIC_DEVICE, "client_id": body["client_id"], "client_secret": "guess"},
+                BASE,
+            )
+
+    def test_confidential_client_cannot_become_public(self, test_tenant, test_admin_user):
+        body, client = self._registered(test_tenant, test_admin_user, {"grant_types": [DEVICE]})
+
+        with pytest.raises(ValidationError) as exc:
+            svc.update_client_configuration(
+                test_tenant["id"],
+                client,
+                {
+                    "client_id": body["client_id"],
+                    "grant_types": [DEVICE],
+                    "token_endpoint_auth_method": "none",
+                },
+                BASE,
+            )
+        assert exc.value.code == "invalid_client_metadata"
+
+    def test_confidential_client_can_drop_the_device_grant(self, test_tenant, test_admin_user):
+        body, client = self._registered(
+            test_tenant,
+            test_admin_user,
+            {"grant_types": ["authorization_code", DEVICE], "redirect_uris": ["https://rp/cb"]},
+        )
+        assert client["device_grant_enabled"] is True
+
+        svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {"client_id": body["client_id"], "redirect_uris": ["https://rp/cb"]},
+            BASE,
+        )
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["device_grant_enabled"] is False

@@ -25,7 +25,7 @@ import logging
 import database
 from services.auth import require_admin, require_super_admin
 from services.event_log import log_event
-from services.exceptions import NotFoundError
+from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
 
 logger = logging.getLogger(__name__)
@@ -142,6 +142,7 @@ def set_tenant_introspection(
     Raises:
         NotFoundError: No such client
         ForbiddenError: Insufficient role
+        ValidationError: Switching it on for a public client
     """
     require_admin(requesting_user)
     tenant_id = requesting_user["tenant_id"]
@@ -151,6 +152,12 @@ def set_tenant_introspection(
         raise NotFoundError(message="Client not found", code="oauth2_client_not_found")
     if old["client_type"] == "b2b":
         require_super_admin(requesting_user)
+    if enabled and old.get("is_public"):
+        # A public client cannot authenticate at the introspection endpoint.
+        raise ValidationError(
+            message="A public client cannot introspect tokens",
+            code="public_client_no_introspection",
+        )
 
     updated = database.oauth2.set_client_tenant_introspection(tenant_id, client_id, enabled)
     if updated is None:

@@ -66,6 +66,7 @@ def _client_to_response(
         "client_uri": client.get("client_uri"),
         "policy_uri": client.get("policy_uri"),
         "tos_uri": client.get("tos_uri"),
+        "initiate_login_uri": client.get("initiate_login_uri"),
         "created_at": client["created_at"],
     }
     if include_secret:
@@ -130,6 +131,9 @@ def create_normal_client(
             fragment)
         backchannel_logout_session_required: Whether the logout token carries
             the sid claim (default true)
+        initiate_login_uri: Optional URL of the app that starts a sign-in at
+            WeftID (absolute https, no fragment). An OIDC-enabled client with
+            one appears in My Apps and launches there with the iss parameter.
 
     Returns:
         Client details including client_secret (shown only once!)
@@ -149,6 +153,7 @@ def create_normal_client(
             frontchannel_logout_session_required=client_data.frontchannel_logout_session_required,
             backchannel_logout_uri=client_data.backchannel_logout_uri,
             backchannel_logout_session_required=client_data.backchannel_logout_session_required,
+            initiate_login_uri=client_data.initiate_login_uri,
         )
 
         return _client_to_response(client, include_secret=True)
@@ -298,7 +303,7 @@ def update_client(
 ):
     """
     Update an OAuth2 client's name, description, redirect URIs, logout settings,
-    and token introspection permission.
+    login initiation URL, and token introspection permission.
 
     Requires admin role.
 
@@ -320,6 +325,8 @@ def update_client(
             clients (optional; absolute http/https, no fragment; "" clears it)
         backchannel_logout_session_required: Whether the logout token carries
             the sid claim (optional, normal clients)
+        initiate_login_uri: New login initiation URL for normal clients
+            (optional; absolute https, no fragment; "" clears it)
         can_introspect_tenant_tokens: Whether the client may introspect every
             token in the tenant, not just its own (optional, any client type)
 
@@ -345,6 +352,7 @@ def update_client(
             frontchannel_logout_session_required=client_data.frontchannel_logout_session_required,
             backchannel_logout_uri=client_data.backchannel_logout_uri,
             backchannel_logout_session_required=client_data.backchannel_logout_session_required,
+            initiate_login_uri=client_data.initiate_login_uri,
         )
 
         if not client:

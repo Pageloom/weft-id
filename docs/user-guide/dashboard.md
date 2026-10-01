@@ -12,6 +12,8 @@ Lists the applications you can access through single sign-on. Each application s
 
 This is called IdP-initiated SSO. For details on how the sign-on flow works, see [SSO Flow](../admin-guide/service-providers/sso-flow.md).
 
+Some applications sign you in with OpenID Connect instead. Clicking one of these opens the application, which asks WeftID to sign you in. Because you are already signed in to WeftID, this usually happens without any prompt, apart from a one-time consent screen the first time you use the application.
+
 If no applications are assigned to your groups, this section is empty. Contact your administrator to request access.
 
 ## My Groups

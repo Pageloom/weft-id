@@ -1419,3 +1419,92 @@ def test_bulk_create_oauth2_client_assignments_empty(test_tenant, test_user):
         )
         == 0
     )
+
+
+# -- get_launchable_oauth2_clients_for_user ------------------------------------
+
+LOGIN_URI = "https://wiki.example.com/login"
+
+
+def _create_oidc_client(
+    tid, uid, name="OIDC App", *, initiate_login_uri=LOGIN_URI, oidc=True, available_to_all=False
+):
+    client = database.oauth2.create_normal_client(
+        tenant_id=tid,
+        tenant_id_value=str(tid),
+        name=name,
+        redirect_uris=["https://wiki.example.com/callback"],
+        created_by=str(uid),
+        initiate_login_uri=initiate_login_uri,
+    )
+    database.oauth2.update_client_oidc_settings(
+        tid, client["client_id"], oidc_enabled=oidc, available_to_all=available_to_all
+    )
+    return client
+
+
+def _launchable_ids(tid, uid):
+    rows = database.sp_group_assignments.get_launchable_oauth2_clients_for_user(tid, str(uid))
+    return [str(r["id"]) for r in rows]
+
+
+def test_launchable_clients_direct_inherited_and_available_to_all(test_tenant, test_user):
+    """Group grants (direct and through the DAG) and available_to_all, by name."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+
+    direct = _create_oidc_client(tid, uid, name="Charlie")
+    group = _create_group(tid, name="OIDC Direct Group")
+    database.sp_group_assignments.create_oauth2_client_assignment(
+        tid, str(tid), direct["id"], group["id"], str(uid)
+    )
+    database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+    inherited = _create_oidc_client(tid, uid, name="Alpha")
+    parent = _create_group(tid, name="OIDC Parent Group")
+    child = _create_group(tid, name="OIDC Child Group")
+    database.groups.add_group_relationship(tid, str(tid), parent["id"], child["id"])
+    database.sp_group_assignments.create_oauth2_client_assignment(
+        tid, str(tid), inherited["id"], parent["id"], str(uid)
+    )
+    database.groups.add_group_member(tid, str(tid), child["id"], str(uid))
+
+    # Granted twice: through a group and to everyone. One row.
+    both = _create_oidc_client(tid, uid, name="Bravo", available_to_all=True)
+    database.sp_group_assignments.create_oauth2_client_assignment(
+        tid, str(tid), both["id"], group["id"], str(uid)
+    )
+
+    rows = database.sp_group_assignments.get_launchable_oauth2_clients_for_user(tid, str(uid))
+
+    assert [r["name"] for r in rows] == ["Alpha", "Bravo", "Charlie"]
+    assert all(r["initiate_login_uri"] == LOGIN_URI for r in rows)
+    assert {str(r["id"]) for r in rows} == {
+        str(direct["id"]),
+        str(inherited["id"]),
+        str(both["id"]),
+    }
+
+
+def test_launchable_clients_exclude_what_cannot_be_launched(test_tenant, test_user):
+    """No URI, OIDC off, deactivated, or no grant: not in My Apps."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+
+    _create_oidc_client(tid, uid, name="No URI", initiate_login_uri=None, available_to_all=True)
+    _create_oidc_client(tid, uid, name="Plain OAuth2", oidc=False, available_to_all=True)
+    deactivated = _create_oidc_client(tid, uid, name="Deactivated", available_to_all=True)
+    database.oauth2.deactivate_client(tid, deactivated["client_id"])
+    _create_oidc_client(tid, uid, name="Not granted")
+
+    assert _launchable_ids(tid, uid) == []
+
+
+def test_launchable_clients_tenant_isolation(test_tenant, test_user):
+    """A client in another tenant is never listed."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    _create_oidc_client(tid, uid, name="Visible", available_to_all=True)
+
+    other_tenant = str(uuid4())
+    assert _launchable_ids(other_tenant, uid) == []

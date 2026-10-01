@@ -73,6 +73,7 @@ class TestValidateClientMetadata:
             "token_endpoint_auth_method": "client_secret_basic",
         }
         assert accepted["logo_uri"] is None
+        assert accepted["initiate_login_uri"] is None
 
     def test_full_request(self):
         accepted = svc.validate_client_metadata(
@@ -93,6 +94,7 @@ class TestValidateClientMetadata:
                 "frontchannel_logout_uri": "https://rp.example/fc",
                 "frontchannel_logout_session_required": False,
                 "backchannel_logout_uri": "https://rp.example/bc",
+                "initiate_login_uri": "https://rp.example/login",
                 "unknown_field": "ignored",
             }
         )
@@ -107,6 +109,9 @@ class TestValidateClientMetadata:
         assert accepted["frontchannel_logout_session_required"] is False
         assert accepted["backchannel_logout_uri"] == "https://rp.example/bc"
         assert accepted["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+        # A column (admins set it too), not registration_metadata.
+        assert accepted["initiate_login_uri"] == "https://rp.example/login"
+        assert "initiate_login_uri" not in accepted["extra"]
 
     def test_inline_jwks_stored(self):
         jwks = {"keys": [{"kty": "RSA", "e": "AQAB", "n": "abc"}]}
@@ -188,6 +193,11 @@ class TestValidateClientMetadata:
             {"post_logout_redirect_uris": ["ftp://rp.example/bye"]},
             {"frontchannel_logout_uri": "https://other.example/fc"},
             {"backchannel_logout_uri": "https://rp.example/bc#x"},
+            {"initiate_login_uri": "http://rp.example/login"},
+            {"initiate_login_uri": "https://rp.example/login#x"},
+            {"initiate_login_uri": "/login"},
+            {"initiate_login_uri": ["https://rp.example/login"]},
+            {"initiate_login_uri": "https://rp.example/" + "x" * 2048},
         ],
     )
     def test_invalid_client_metadata(self, extra):
@@ -477,6 +487,7 @@ def registered(test_tenant, test_admin_user):
             "client_name": "Acme",
             "grant_types": ["authorization_code", "refresh_token"],
             "logo_uri": "https://rp.example/logo.png",
+            "initiate_login_uri": "https://rp.example/login",
         },
     )
 
@@ -535,6 +546,7 @@ class TestClientConfiguration:
             if k not in ("client_secret", "client_secret_expires_at", "registration_access_token")
         }
         assert body == expected
+        assert body["initiate_login_uri"] == "https://rp.example/login"
 
     def test_update_replaces_and_logs(self, test_tenant, registered):
         body = svc.update_client_configuration(
@@ -553,6 +565,7 @@ class TestClientConfiguration:
         assert body["redirect_uris"] == ["https://rp.example/new"]
         assert body["grant_types"] == ["authorization_code"]
         assert "logo_uri" not in body
+        assert "initiate_login_uri" not in body
         assert body["client_name"] == "Registered client (rp.example)"
         assert body["client_id_issued_at"] == registered["client_id_issued_at"]
         event = _events(test_tenant, "oauth2_client_registration_updated")[0]

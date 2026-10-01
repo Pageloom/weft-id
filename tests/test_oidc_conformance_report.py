@@ -403,7 +403,7 @@ class TestCheckedInFiles:
 
     def test_profiles_match_runner_plans(self, report):
         runner = _load("oidc_conformance_for_report_test", "oidc_conformance.py")
-        plan_names = [plan.split("[")[0] for plan in runner.PLANS]
+        plan_names = [plan.split("[")[0] for plan in (*runner.PLANS, *runner.DYNAMIC_PLANS)]
         assert plan_names == [plan for _, plan in report.PROFILES]
 
     def test_every_expected_entry_has_a_public_comment(self, report):

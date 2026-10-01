@@ -286,19 +286,21 @@ class SPGroupBulkAssign(BaseModel):
 class UserApp(BaseModel):
     """An application accessible to the user.
 
-    Covers both SAML service providers (``kind="saml"``) and forward-auth
-    proxy apps (``kind="proxy"``). ``launch_url`` is computed server-side so
-    consumers do not need to know the per-kind URL convention: SAML apps launch
-    via ``/saml/idp/launch/{id}``, proxy apps launch by navigating to their
-    external URL (which trips the forward-auth handshake). The SAML-only fields
-    (``entity_id``, ``has_logo``, ``logo_updated_at``) are absent/false for
-    proxy rows.
+    Covers SAML service providers (``kind="saml"``), forward-auth proxy apps
+    (``kind="proxy"``), and OIDC clients with a login initiation URI
+    (``kind="oidc"``). ``launch_url`` is computed server-side so consumers do
+    not need to know the per-kind URL convention: SAML apps launch via
+    ``/saml/idp/launch/{id}``, proxy apps launch by navigating to their
+    external URL (which trips the forward-auth handshake), and OIDC apps launch
+    by navigating to their ``initiate_login_uri`` with ``iss`` (third-party-
+    initiated login). The SAML-only fields (``entity_id``, ``has_logo``,
+    ``logo_updated_at``) are absent/false for the other kinds.
     """
 
     id: str
     name: str
     description: str | None = None
-    kind: Literal["saml", "proxy"] = "saml"
+    kind: Literal["saml", "proxy", "oidc"] = "saml"
     launch_url: str
     entity_id: str | None = None
     has_logo: bool = Field(False, description="Whether a custom logo is uploaded for this SP")

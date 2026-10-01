@@ -43,6 +43,7 @@ def testbed() -> dict:
         "client3": {"client_id": "id3", "client_secret": "s3"},
         "client4": {"client_id": "id4", "client_secret": "s4"},
         "client5": {"client_id": "id5", "client_secret": "s5"},
+        "initial_access_token": "weft-id_iat_abc",
     }
 
 
@@ -224,6 +225,39 @@ class TestPlanArguments:
         # Static clients are what the testbed provisions.
         assert "[client_registration=static_client]" in joined
         assert "dynamic_client" not in joined
+
+    def test_dynamic_plans_cover_third_party_initiated_login(self, runner):
+        assert runner.DYNAMIC_PLANS == (
+            "oidcc-3rdparty-init-login-certification-test-plan[response_type=code]",
+        )
+
+
+class TestDynamicConfig:
+    def test_dynamic_template_carries_the_initial_access_token(self, runner, testbed):
+        cfg = json.loads(runner.render_config(runner.DYNAMIC_TEMPLATE_PATH.read_text(), testbed))
+        assert cfg["server"]["discoveryUrl"] == (
+            "https://oidc-conformance.weftid.localhost/.well-known/openid-configuration"
+        )
+        assert cfg["client"]["initial_access_token"] == "weft-id_iat_abc"
+        assert cfg["client"]["client_name"]
+        # A different alias from the static plans: no clash of callback URLs.
+        assert cfg["alias"] != "weftid"
+        assert "client_id" not in cfg["client"]
+
+    def test_missing_initial_access_token_is_an_error(self, runner, testbed):
+        del testbed["initial_access_token"]
+        with pytest.raises(runner.ConformanceError, match="initial_access_token"):
+            runner.render_config(runner.DYNAMIC_TEMPLATE_PATH.read_text(), testbed)
+
+    def test_configs_are_written_private_and_match_the_expected_files_glob(self, runner, tmp_path):
+        static = runner.write_config(tmp_path, "{}")
+        dynamic = runner.write_config(tmp_path, "{}", name="dynamic-config.json")
+        assert static.name == "config.json"
+        assert dynamic.name == "dynamic-config.json"
+        for path in (static, dynamic):
+            # The expected-failures/skips entries match by "*config.json".
+            assert path.name.endswith("config.json")
+            assert path.stat().st_mode & 0o777 == 0o600
 
 
 class TestRunnerEnvironment:

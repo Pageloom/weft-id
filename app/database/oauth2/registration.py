@@ -23,7 +23,7 @@ _CLIENT_COLUMNS = """
     backchannel_logout_uri, backchannel_logout_session_required,
     frontchannel_logout_session_required, service_user_id, is_active,
     oidc_enabled, available_to_all, can_introspect_tenant_tokens, dynamically_registered,
-    logo_uri, client_uri, policy_uri, tos_uri, registration_metadata,
+    logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, registration_metadata,
     registered_with_token_id, created_at
 """
 
@@ -214,6 +214,7 @@ def create_registered_client(
     client_uri: str | None,
     policy_uri: str | None,
     tos_uri: str | None,
+    initiate_login_uri: str | None,
     registration_metadata: dict,
     registration_access_token_hash: str,
     registered_with_token_id: str | None,
@@ -235,16 +236,18 @@ def create_registered_client(
             frontchannel_logout_uri, frontchannel_logout_session_required,
             backchannel_logout_uri, backchannel_logout_session_required,
             oidc_enabled, available_to_all, dynamically_registered,
-            logo_uri, client_uri, policy_uri, tos_uri, registration_metadata,
-            registration_access_token_hash, registered_with_token_id, created_by
+            logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri,
+            registration_metadata, registration_access_token_hash, registered_with_token_id,
+            created_by
         ) values (
             :tenant_id, :client_id, :client_secret_hash, 'normal', :name,
             :redirect_uris, :post_logout_redirect_uris,
             :frontchannel_logout_uri, :frontchannel_logout_session_required,
             :backchannel_logout_uri, :backchannel_logout_session_required,
             true, :available_to_all, true,
-            :logo_uri, :client_uri, :policy_uri, :tos_uri, :registration_metadata,
-            :registration_access_token_hash, :registered_with_token_id, null
+            :logo_uri, :client_uri, :policy_uri, :tos_uri, :initiate_login_uri,
+            :registration_metadata, :registration_access_token_hash, :registered_with_token_id,
+            null
         )
         returning {_CLIENT_COLUMNS}
         """,
@@ -264,6 +267,7 @@ def create_registered_client(
             "client_uri": client_uri,
             "policy_uri": policy_uri,
             "tos_uri": tos_uri,
+            "initiate_login_uri": initiate_login_uri,
             "registration_metadata": Json(registration_metadata),
             "registration_access_token_hash": registration_access_token_hash,
             "registered_with_token_id": registered_with_token_id,
@@ -289,6 +293,7 @@ def replace_registered_client(
     client_uri: str | None,
     policy_uri: str | None,
     tos_uri: str | None,
+    initiate_login_uri: str | None,
     registration_metadata: dict,
 ) -> dict | None:
     """Replace a dynamically registered client's metadata (RFC 7592 section 2.2).
@@ -311,6 +316,7 @@ def replace_registered_client(
             client_uri = :client_uri,
             policy_uri = :policy_uri,
             tos_uri = :tos_uri,
+            initiate_login_uri = :initiate_login_uri,
             registration_metadata = :registration_metadata
         where client_id = :client_id and dynamically_registered
         returning {_CLIENT_COLUMNS}
@@ -328,6 +334,7 @@ def replace_registered_client(
             "client_uri": client_uri,
             "policy_uri": policy_uri,
             "tos_uri": tos_uri,
+            "initiate_login_uri": initiate_login_uri,
             "registration_metadata": Json(registration_metadata),
         },
     )

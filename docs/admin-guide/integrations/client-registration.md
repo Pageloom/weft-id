@@ -38,6 +38,7 @@ An application sends its metadata as JSON. WeftID accepts:
 * `token_endpoint_auth_method`: `client_secret_basic` (default) or `client_secret_post`.
 * `contacts`, `jwks`, or `jwks_uri`. WeftID stores these and returns them, but does not use the keys yet.
 * The logout settings an admin can set on an app: `post_logout_redirect_uris`, `frontchannel_logout_uri`, `backchannel_logout_uri`, and their `_session_required` flags.
+* `initiate_login_uri` (`https`), the app's URL that starts a sign-in with WeftID. Users who can access the app see it in **My Apps** (see [Launching from My Apps](oidc-provider-setup.md#launching-from-my-apps)).
 
 WeftID rejects metadata it cannot honour rather than quietly ignoring it. That includes other response types, the implicit and client credentials grants, `private_key_jwt` and public clients, unsigned or encrypted ID tokens, signed userinfo, request objects, and pairwise subjects. A rejected request gets HTTP 400 with `invalid_redirect_uri` or `invalid_client_metadata`. Metadata WeftID does not recognise is ignored.
 
@@ -57,4 +58,4 @@ Registered apps appear on **Applications > OAuth2 / OIDC** with a **Registered**
 
 ## API
 
-The settings and tokens are also available under `/api/v1/oauth2/registration`: `GET` and `PATCH /settings`, `GET` and `POST /initial-access-tokens`, and `POST /initial-access-tokens/{id}/revoke`. All require the admin role. Client records on `/api/v1/oauth2/clients` include `dynamically_registered` and the registered `logo_uri`, `client_uri`, `policy_uri`, and `tos_uri`.
+The settings and tokens are also available under `/api/v1/oauth2/registration`: `GET` and `PATCH /settings`, `GET` and `POST /initial-access-tokens`, and `POST /initial-access-tokens/{id}/revoke`. All require the admin role. Client records on `/api/v1/oauth2/clients` include `dynamically_registered` and the registered `logo_uri`, `client_uri`, `policy_uri`, `tos_uri`, and `initiate_login_uri`.

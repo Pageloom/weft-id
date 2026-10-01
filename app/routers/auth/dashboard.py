@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from services import groups as groups_service
 from services import service_providers as sp_service
 from utils.templates import templates
+from utils.urls import tenant_base_url
 
 router = APIRouter()
 
@@ -38,7 +39,9 @@ def dashboard(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_
     # Fetch user's groups and accessible apps for the dashboard
     requesting_user = build_requesting_user(user, tenant_id, request)
     user_groups = groups_service.get_my_groups(requesting_user)
-    user_apps = sp_service.get_user_accessible_apps(requesting_user)
+    user_apps = sp_service.get_user_accessible_apps(
+        requesting_user, issuer=tenant_base_url(request)
+    )
 
     # Banner data: required+unlocked attributes the user is missing. Only
     # unlocked fields appear in the banner (locked-required-missing is an

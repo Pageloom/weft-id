@@ -2108,3 +2108,97 @@ def test_app_detail_backchannel_shows_most_recent_only(
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
     assert "Showing the 2 most recent of 3." in response.text
+
+
+# =============================================================================
+# Login initiation URI (real database)
+# =============================================================================
+
+
+def test_app_edit_saves_and_clears_initiate_login_uri(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    url = f"/applications/oauth/{normal_oauth2_client['client_id']}/edit"
+    response = TestClient(app).post(
+        url,
+        data=_edit_form(normal_oauth2_client, initiate_login_uri="  https://rp.example/login  "),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=updated" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["initiate_login_uri"] == "https://rp.example/login"
+
+    TestClient(app).post(url, data=_edit_form(normal_oauth2_client), follow_redirects=False)
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["initiate_login_uri"] is None
+
+
+def test_app_edit_http_initiate_login_uri_shows_error(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(normal_oauth2_client, initiate_login_uri="http://rp.example/login"),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=invalid_initiate_login_uri" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["initiate_login_uri"] is None
+
+
+def test_app_edit_initiate_login_uri_member_blocked(
+    test_tenant, test_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    # The edit route reads get_current_user; a member gets through auth and is
+    # stopped by the page check.
+    override_auth(test_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(normal_oauth2_client, initiate_login_uri="https://rp.example/login"),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["initiate_login_uri"] is None
+
+
+def test_app_detail_renders_initiate_login_uri_and_error(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        initiate_login_uri="https://rp.example/login",
+    )
+    override_auth(test_admin_user, level="admin")
+    page = f"/applications/oauth/{normal_oauth2_client['client_id']}"
+    response = TestClient(app).get(page)
+    assert response.status_code == 200
+    assert re.search(
+        r'id="initiate_login_uri" name="initiate_login_uri"[^>]*value="https://rp.example/login"',
+        response.text,
+    )
+
+    response = TestClient(app).get(f"{page}?error=invalid_initiate_login_uri")
+    assert "The login initiation URI must be an absolute https URI" in response.text

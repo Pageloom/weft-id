@@ -19,6 +19,10 @@ WeftID as an OpenID Provider with static client registration:
   * a fifth client, registered with the suite's ``backchannel_logout`` URL
     (session required), used only by the back-channel logout module, for
     the same reason.
+  * dynamic client registration switched on (``token_required``, new clients
+    available to all users) and a fresh initial access token, for the
+    3rd Party-Init OP plan, which registers its own clients. Clients that
+    earlier runs registered, and earlier testbed tokens, are deleted first.
 
 The host-side runner (``dev/oidc_conformance.py``) calls this inside the app
 container with ``--json-output`` and renders the suite's plan config from the
@@ -32,9 +36,11 @@ Idempotent: safe to re-run. The clients are recreated on every run so the
 plaintext secrets (only returned at creation) are always available.
 """
 
+import hashlib
 import json
 import logging
 import os
+import secrets
 import sys
 
 import argh
@@ -73,6 +79,10 @@ FRONTCHANNEL_CLIENT = ("client4", "Conformance client 4 (front-channel logout)")
 # The back-channel logout client (the ``client`` section of the
 # oidcc-backchannel-rp-initiated-logout override).
 BACKCHANNEL_CLIENT = ("client5", "Conformance client 5 (back-channel logout)")
+
+
+# Name of the initial access token minted for the 3rd Party-Init OP plan.
+IAT_NAME = "Conformance 3rd Party-Init OP"
 
 
 def _tenant_id(subdomain: str) -> str:
@@ -124,6 +134,32 @@ def _recreate_client(
     assert updated is not None and updated["oidc_enabled"], "oidc_enabled not set"
     log.info("Created OIDC-enabled client %s (%s)", client["client_id"], name)
     return {"client_id": client["client_id"], "client_secret": client["client_secret"]}
+
+
+def _enable_registration(tid: str, created_by: str) -> str:
+    """Turn on token-gated registration and mint an initial access token.
+
+    Clients registered by earlier runs (the suite does not always delete what
+    it registers) and earlier testbed tokens are removed first, so the tenant
+    does not grow with every run. Returns the plaintext token.
+    """
+    database.execute(tid, "delete from oauth2_clients where dynamically_registered", {})
+    database.execute(
+        tid, "delete from oauth2_initial_access_tokens where name = :name", {"name": IAT_NAME}
+    )
+    database.oauth2.upsert_registration_settings(
+        tid, tid, policy="token_required", default_access="all", updated_by=created_by
+    )
+    token = f"weft-id_iat_{secrets.token_urlsafe(32)}"
+    database.oauth2.create_initial_access_token(
+        tid,
+        tid,
+        name=IAT_NAME,
+        token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),
+        created_by=created_by,
+    )
+    log.info("Enabled client registration (token required) and minted '%s'", IAT_NAME)
+    return token
 
 
 def setup(suite_base_url: str, alias: str) -> dict:
@@ -182,6 +218,8 @@ def setup(suite_base_url: str, alias: str) -> dict:
         backchannel_logout_uri=backchannel_logout_uri,
     )
 
+    initial_access_token = _enable_registration(tid, created_by=str(uid))
+
     return {
         "tenant_id": tid,
         "subdomain": SUBDOMAIN,
@@ -193,6 +231,7 @@ def setup(suite_base_url: str, alias: str) -> dict:
         "frontchannel_logout_uri": frontchannel_logout_uri,
         "backchannel_logout_uri": backchannel_logout_uri,
         "alias": alias,
+        "initial_access_token": initial_access_token,
         **clients,
     }
 

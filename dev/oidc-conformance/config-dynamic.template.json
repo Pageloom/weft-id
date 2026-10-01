@@ -1,0 +1,11 @@
+{
+    "description": "WeftID OpenID Provider ({WEFTID_ISSUER}), dynamic client registration",
+    "alias": "{ALIAS}-dynamic",
+    "server": {
+        "discoveryUrl": "{WEFTID_ISSUER}/.well-known/openid-configuration"
+    },
+    "client": {
+        "client_name": "Conformance dynamic client",
+        "initial_access_token": "{INITIAL_ACCESS_TOKEN}"
+    }
+}

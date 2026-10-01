@@ -7,6 +7,8 @@ from uuid import uuid4
 import pytest
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError
 
+ISSUER = "https://acme.weftid.localhost"
+
 # =============================================================================
 # Helpers
 # =============================================================================
@@ -1122,7 +1124,7 @@ class TestGetUserAccessibleApps:
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
             mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             assert result.total == 2
             assert len(result.items) == 2
@@ -1143,7 +1145,7 @@ class TestGetUserAccessibleApps:
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
             mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             assert result.total == 0
             assert result.items == []
@@ -1162,7 +1164,7 @@ class TestGetUserAccessibleApps:
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
             mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-            sp_service.get_user_accessible_apps(requesting_user)
+            sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             mock_track.assert_called_once_with(tenant_id, requesting_user["id"])
 
@@ -1180,7 +1182,7 @@ class TestGetUserAccessibleApps:
                 mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
                 mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-                result = sp_service.get_user_accessible_apps(requesting_user)
+                result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
                 assert result.total == 0
 
@@ -1212,7 +1214,7 @@ class TestGetUserAccessibleAppsExtended:
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
             mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             assert result.total == 3
             assert [item.name for item in result.items] == ["App A", "App B", "App C"]
@@ -1233,7 +1235,7 @@ class TestGetUserAccessibleAppsExtended:
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
             mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             assert result.total == 1
             assert result.items[0].id == sp_id
@@ -1260,7 +1262,7 @@ class TestGetUserAccessibleAppsExtended:
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [app_row]
             mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             item = result.items[0]
             assert item.id == sp_id
@@ -1287,7 +1289,7 @@ class TestGetUserAccessibleAppsExtended:
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [app_row]
             mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             assert result.items[0].description is None
 
@@ -1310,7 +1312,7 @@ class TestGetUserAccessibleAppsExtended:
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
             mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             names = [item.name for item in result.items]
             assert names == ["Alpha", "Beta", "Gamma"]
@@ -1340,7 +1342,7 @@ class TestGetUserAccessibleAppsWithProxy:
             ]
             mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             item = result.items[0]
             assert item.kind == "saml"
@@ -1367,7 +1369,7 @@ class TestGetUserAccessibleAppsWithProxy:
                 )
             ]
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             item = result.items[0]
             assert item.id == proxy_id
@@ -1397,7 +1399,7 @@ class TestGetUserAccessibleAppsWithProxy:
                 _make_proxy_app_row(name="Delta"),
             ]
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             assert result.total == 4
             assert [i.name for i in result.items] == ["Alpha", "bravo", "charlie", "Delta"]
@@ -1424,7 +1426,7 @@ class TestGetUserAccessibleAppsWithProxy:
                 _make_proxy_app_row(name="Sonarr")
             ]
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             assert result.total == 1
             assert result.items[0].kind == "proxy"
@@ -1453,13 +1455,89 @@ class TestGetUserAccessibleAppsWithProxy:
                 _make_proxy_app_row(proxy_app_id=proxy_id, name="Dashboards")
             ]
 
-            result = sp_service.get_user_accessible_apps(requesting_user)
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=ISSUER)
 
             assert result.total == 2
             kinds = sorted(i.kind for i in result.items)
             assert kinds == ["proxy", "saml"]
             ids = {i.id for i in result.items}
             assert ids == {sp_id, proxy_id}
+
+
+# =============================================================================
+# get_user_accessible_apps - OIDC apps (third-party-initiated login)
+# =============================================================================
+
+
+def _make_oidc_client_row(client_uuid=None, name="Wiki", initiate_login_uri=None):
+    return {
+        "id": client_uuid or str(uuid4()),
+        "name": name,
+        "description": "Team wiki",
+        "initiate_login_uri": initiate_login_uri or "https://wiki.example.com/login",
+    }
+
+
+class TestGetUserAccessibleAppsWithOidc:
+    """My Apps includes OIDC clients that can be launched."""
+
+    def _apps(self, make_requesting_user, oidc_rows, sp_rows=(), issuer=ISSUER):
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="user")
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = list(sp_rows)
+            mock_db.sp_group_assignments.get_accessible_proxy_apps_for_user.return_value = []
+            mock_db.sp_group_assignments.get_launchable_oauth2_clients_for_user.return_value = (
+                oidc_rows
+            )
+            result = sp_service.get_user_accessible_apps(requesting_user, issuer=issuer)
+            mock_db.sp_group_assignments.get_launchable_oauth2_clients_for_user.assert_called_once_with(
+                requesting_user["tenant_id"], requesting_user["id"]
+            )
+        return result
+
+    def test_oidc_app_launches_at_initiate_login_uri_with_iss(self, make_requesting_user):
+        client_uuid = str(uuid4())
+        result = self._apps(make_requesting_user, [_make_oidc_client_row(client_uuid)])
+
+        item = result.items[0]
+        assert item.id == client_uuid
+        assert item.kind == "oidc"
+        assert item.description == "Team wiki"
+        assert item.launch_url == (
+            "https://wiki.example.com/login?iss=https%3A%2F%2Facme.weftid.localhost"
+        )
+        assert item.entity_id is None
+        assert item.has_logo is False
+
+    def test_existing_query_is_kept_and_iss_replaced(self, make_requesting_user):
+        row = _make_oidc_client_row(
+            initiate_login_uri="https://wiki.example.com/sso?tenant=7&iss=https://evil.example"
+        )
+        result = self._apps(make_requesting_user, [row])
+
+        assert result.items[0].launch_url == (
+            "https://wiki.example.com/sso?tenant=7&iss=https%3A%2F%2Facme.weftid.localhost"
+        )
+
+    def test_oidc_apps_sorted_with_other_kinds(self, make_requesting_user):
+        result = self._apps(
+            make_requesting_user,
+            [_make_oidc_client_row(name="Beta"), _make_oidc_client_row(name="delta")],
+            sp_rows=[_make_app_row(name="alpha"), _make_app_row(name="Charlie")],
+        )
+
+        assert [(i.name, i.kind) for i in result.items] == [
+            ("alpha", "saml"),
+            ("Beta", "oidc"),
+            ("Charlie", "saml"),
+            ("delta", "oidc"),
+        ]
+        assert result.total == 4
 
 
 # =============================================================================

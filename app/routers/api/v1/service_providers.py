@@ -42,6 +42,7 @@ from services.exceptions import RateLimitError, ServiceError
 from services.scim import admin as scim_admin_service
 from utils.ratelimit import MINUTE, ratelimit
 from utils.service_errors import translate_to_http_exception
+from utils.urls import tenant_base_url
 
 router = APIRouter(prefix="/api/v1/service-providers", tags=["Service Providers"])
 
@@ -957,13 +958,15 @@ my_apps_router = APIRouter(prefix="/api/v1", tags=["My Apps"])
 
 @my_apps_router.get("/my-apps", response_model=UserAppList)
 def get_my_apps(
+    request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user_api)],
 ):
     """Get applications accessible to the current user.
 
     Any authenticated user can call this endpoint. The returned list merges
-    SAML service providers and forward-auth proxy apps, sorted by name.
+    SAML service providers, forward-auth proxy apps, and OIDC apps that
+    support third-party-initiated login, sorted by name.
 
     Each item carries:
 
@@ -971,19 +974,21 @@ def get_my_apps(
     * ``name`` - display name
     * ``description`` - optional description
     * ``kind`` - ``"saml"`` for a SAML service provider, ``"proxy"`` for a
-      forward-auth proxy app
+      forward-auth proxy app, ``"oidc"`` for an OIDC app
     * ``launch_url`` - where to navigate to launch the app. For SAML apps this
       is the IdP-initiated launch path (``/saml/idp/launch/{id}``); for proxy
       apps this is the app's external URL (navigating to it trips the
-      forward-auth handshake).
-    * ``entity_id`` - SAML entity ID (SAML apps only; ``null`` for proxy apps)
+      forward-auth handshake); for OIDC apps this is the app's login
+      initiation URI with the ``iss`` parameter (the app then starts a sign-in
+      at WeftID).
+    * ``entity_id`` - SAML entity ID (SAML apps only; ``null`` otherwise)
     * ``has_logo`` - whether a custom logo is uploaded (SAML apps only;
-      ``false`` for proxy apps)
+      ``false`` otherwise)
     * ``logo_updated_at`` - when the logo was last updated (SAML apps only;
-      ``null`` for proxy apps)
+      ``null`` otherwise)
     """
     requesting_user = build_requesting_user(user, tenant_id, None)
     try:
-        return sp_service.get_user_accessible_apps(requesting_user)
+        return sp_service.get_user_accessible_apps(requesting_user, issuer=tenant_base_url(request))
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

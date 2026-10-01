@@ -62,6 +62,16 @@ If your organization requires stronger sign-in (enhanced [authentication policy]
 
 If your administrator has required a password reset, you will be prompted to choose a new password after entering your current one. You must complete this step before reaching the dashboard.
 
+## Signing in on a device
+
+Some apps run on devices where typing a password is awkward, such as a command-line tool or a TV. They show a short code, such as `BCDF-GHJK`, and an address ending in `/device`.
+
+1. Open that address on your phone or computer and sign in to WeftID if asked.
+2. Enter the code. Capital letters and the dash are optional.
+3. Check that the app and the code match what your device shows, then click **Allow**.
+
+The device signs in a few seconds later. Only allow a code you got from a device in front of you. If someone sends you a code and asks you to enter it, click **Deny**: approving would give them access to your account. You can see and revoke the apps you allowed under [Authorized Apps](authorized-apps.md).
+
 ## Signing out
 
 Click **Sign Out** in the navigation bar. WeftID terminates your session and notifies each application you accessed during the session so they can end their sessions too. This is called Single Logout (SLO).

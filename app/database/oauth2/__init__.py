@@ -3,6 +3,7 @@
 This module provides all OAuth2-related database operations including:
 - Client management (normal and B2B clients)
 - Authorization code flow
+- Device authorization grant (RFC 8628)
 - Token operations (access/refresh tokens)
 - Remembered consent grants
 - Which clients received an ID token in which session (logout fan-out)
@@ -51,6 +52,15 @@ from database.oauth2.consent import (
     list_consent_grants_for_client,
     list_consent_grants_for_user,
     upsert_consent_grant,
+)
+from database.oauth2.device import (
+    cleanup_expired_device_codes,
+    create_device_code,
+    decide_device_code,
+    find_device_code,
+    get_pending_by_user_code,
+    record_poll,
+    redeem_device_code,
 )
 from database.oauth2.registration import (
     create_initial_access_token,
@@ -105,6 +115,14 @@ __all__ = [
     "create_authorization_code",
     "validate_and_consume_code",
     "cleanup_expired_codes",
+    # device authorization grant
+    "create_device_code",
+    "get_pending_by_user_code",
+    "decide_device_code",
+    "find_device_code",
+    "record_poll",
+    "redeem_device_code",
+    "cleanup_expired_device_codes",
     # tokens
     "create_access_token",
     "create_refresh_token",

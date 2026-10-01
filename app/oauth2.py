@@ -17,6 +17,17 @@ ACCESS_TOKEN_EXPIRY = timedelta(seconds=settings.OAUTH2_ACCESS_TOKEN_EXPIRY)
 REFRESH_TOKEN_EXPIRY = timedelta(seconds=settings.OAUTH2_REFRESH_TOKEN_EXPIRY)
 CLIENT_CREDENTIALS_TOKEN_EXPIRY = timedelta(seconds=settings.OAUTH2_CLIENT_CREDENTIALS_TOKEN_EXPIRY)
 
+# Device authorization grant (RFC 8628): how long a device code lives and the
+# default polling interval the device is told to keep.
+DEVICE_CODE_EXPIRY = timedelta(minutes=10)
+DEVICE_POLL_INTERVAL_SECONDS = 5
+
+# RFC 8628 section 6.1: a user code alphabet of consonants only (no vowels, so
+# no words are spelled; no easily confused characters), 8 characters long,
+# shown as two groups of four.
+USER_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXZ"
+USER_CODE_LENGTH = 8
+
 
 def generate_opaque_token(prefix: str = "weft-id") -> str:
     """
@@ -154,6 +165,35 @@ def generate_client_secret() -> str:
         The hash is stored, not the plain text secret.
     """
     return secrets.token_hex(32)  # 64 character hex string
+
+
+def generate_user_code() -> str:
+    """Generate a device-flow user code (RFC 8628 section 6.1).
+
+    Returns:
+        Eight characters from ``USER_CODE_ALPHABET`` without separator. Use
+        ``format_user_code`` to display it.
+    """
+    return "".join(secrets.choice(USER_CODE_ALPHABET) for _ in range(USER_CODE_LENGTH))
+
+
+def normalize_user_code(value: str) -> str | None:
+    """Normalise what a person typed into a stored-form user code.
+
+    Upper-cases and drops separators (dashes and whitespace). Returns None
+    when the result is not exactly ``USER_CODE_LENGTH`` characters from the
+    alphabet, so a lookup is never attempted for a malformed code.
+    """
+    cleaned = "".join(ch for ch in value.upper() if ch not in "- \t")
+    if len(cleaned) != USER_CODE_LENGTH or any(ch not in USER_CODE_ALPHABET for ch in cleaned):
+        return None
+    return cleaned
+
+
+def format_user_code(code: str) -> str:
+    """Display form of a user code: ``BCDF-GHJK``."""
+    half = len(code) // 2
+    return f"{code[:half]}-{code[half:]}"
 
 
 def calculate_expires_at(expiry_delta: timedelta) -> datetime:

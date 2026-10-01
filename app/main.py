@@ -26,6 +26,7 @@ from routers import account_passkeys as account_passkeys_router  # noqa: E402
 from routers import audit as audit_router  # noqa: E402
 from routers import auth, mfa, oauth2, saml, tenants, users  # noqa: E402
 from routers import branding as branding_router  # noqa: E402
+from routers import device as device_router  # noqa: E402
 from routers import directory as directory_router  # noqa: E402
 from routers import forward_auth as forward_auth_router  # noqa: E402
 from routers import groups as groups_router  # noqa: E402
@@ -191,6 +192,7 @@ app.include_router(users.router)
 
 # Include OAuth2 and SAML routers
 app.include_router(oauth2.router)
+app.include_router(device_router.router)
 app.include_router(oauth2_registration_router.router)
 app.include_router(saml.router)
 

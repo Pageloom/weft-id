@@ -2202,3 +2202,56 @@ def test_app_detail_renders_initiate_login_uri_and_error(
 
     response = TestClient(app).get(f"{page}?error=invalid_initiate_login_uri")
     assert "The login initiation URI must be an absolute https URI" in response.text
+
+
+# =============================================================================
+# Device authorization grant switch (real database)
+# =============================================================================
+
+
+def test_app_edit_turns_device_grant_on_and_off(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    url = f"/applications/oauth/{normal_oauth2_client['client_id']}/edit"
+    response = TestClient(app).post(
+        url,
+        data=_edit_form(normal_oauth2_client, device_grant_enabled="true"),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=updated" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["device_grant_enabled"] is True
+
+    # An unchecked box is absent from the form: off.
+    TestClient(app).post(url, data=_edit_form(normal_oauth2_client), follow_redirects=False)
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["device_grant_enabled"] is False
+
+
+def test_app_detail_renders_device_grant_checkbox_and_endpoint(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"], normal_oauth2_client["client_id"], device_grant_enabled=True
+    )
+    database.oauth2.update_client_oidc_settings(
+        test_tenant["id"], normal_oauth2_client["client_id"], oidc_enabled=True
+    )
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
+    assert response.status_code == 200
+    assert re.search(
+        r'id="device_grant_enabled" name="device_grant_enabled" value="true"\s+checked',
+        response.text,
+    )
+    assert re.search(r'id="oidc-device"[^>]*>[^<]*/oauth2/device_authorization<', response.text)

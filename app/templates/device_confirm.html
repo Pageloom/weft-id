@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm Device Sign-In - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="flex justify-center">
+    <div class="w-full max-w-md">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+            <h1 class="text-2xl font-semibold text-center mb-6 text-gray-900 dark:text-gray-100">Confirm device sign-in</h1>
+
+            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-gray-700 text-blue-800 dark:text-blue-300 px-4 py-3 rounded mb-6">
+                <div class="flex items-center gap-3 mb-2">
+                    {% if client.logo_uri %}
+                    <img src="{{ client.logo_uri }}" id="client-logo" width="40" height="40"
+                         class="w-10 h-10 rounded object-contain bg-white flex-shrink-0" alt="{{ client.name }} logo">
+                    {% endif %}
+                    <p class="font-semibold" id="client-name">{{ client.name }}</p>
+                </div>
+                <p class="text-sm">A device is asking to sign in to this application as you.</p>
+            </div>
+
+            <div class="mb-6 text-center">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Code</p>
+                <p id="device-user-code" class="text-2xl font-mono font-semibold tracking-widest text-gray-900 dark:text-gray-100">{{ user_code }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Check that this matches the code on your device.</p>
+            </div>
+
+            <div class="mb-6 p-3 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-md text-sm text-amber-800 dark:text-amber-300" role="note">
+                Only allow this if you started the sign-in yourself, on a device you have in front of you. If someone else sent you this code, deny it.
+            </div>
+
+            <div class="mb-6">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Signed in as:</p>
+                <p class="font-semibold text-gray-900 dark:text-gray-100">{{ user.first_name }} {{ user.last_name }}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400">{{ user.email }}</p>
+            </div>
+
+            {% if requested_scopes %}
+            <div class="mb-6">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">The device is requesting:</p>
+                <ul class="border border-gray-200 dark:border-gray-700 rounded divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for scope in requested_scopes %}
+                    <li class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                        <span class="font-medium">{{ scope.description }}</span>
+                        <span class="text-gray-500 dark:text-gray-400">({{ scope.name }})</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <form method="post" action="/device/decision">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="flex gap-4">
+                    <button type="submit" name="action" value="allow"
+                            class="flex-1 bg-blue-600 text-white py-3 px-4 rounded hover:bg-blue-700 font-semibold">
+                        Allow
+                    </button>
+                    <button type="submit" name="action" value="deny"
+                            class="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 px-4 rounded hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold">
+                        Deny
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

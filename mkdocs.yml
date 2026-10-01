@@ -85,6 +85,7 @@ nav:
         - Sign in with WeftID (OIDC): admin-guide/integrations/oidc-provider-setup.md
         - Token Introspection and Revocation: admin-guide/integrations/token-introspection.md
         - Client Registration: admin-guide/integrations/client-registration.md
+        - Device Sign-In: admin-guide/integrations/device-sign-in.md
       - Forward Auth: admin-guide/service-providers/forward-auth.md
       - Service Accounts: admin-guide/integrations/b2b.md
     - Security:

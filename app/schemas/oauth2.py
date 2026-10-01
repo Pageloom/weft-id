@@ -66,6 +66,13 @@ class NormalClientCreate(BaseModel):
             "with one appears in My Apps. Optional."
         ),
     )
+    device_grant_enabled: bool = Field(
+        False,
+        description=(
+            "Whether the client may use the OAuth 2.0 device authorization grant "
+            "(RFC 8628) for devices without a convenient browser (default false)."
+        ),
+    )
 
 
 class B2BClientCreate(BaseModel):
@@ -133,6 +140,10 @@ class ClientUpdate(BaseModel):
             "An empty string clears it."
         ),
     )
+    device_grant_enabled: bool | None = Field(
+        None,
+        description="Whether the device authorization grant is allowed (normal clients only).",
+    )
     can_introspect_tenant_tokens: bool | None = Field(
         None,
         description=(
@@ -185,6 +196,9 @@ class ClientResponse(BaseModel):
     initiate_login_uri: str | None = Field(
         None,
         description="The client's URL that starts a sign-in at WeftID (My Apps launch).",
+    )
+    device_grant_enabled: bool = Field(
+        False, description="Whether the client may use the device authorization grant."
     )
     created_at: datetime
 
@@ -294,13 +308,27 @@ class TokenResponse(BaseModel):
     )
 
 
+class DeviceAuthorizationResponse(BaseModel):
+    """Device authorization response (RFC 8628 section 3.2)."""
+
+    device_code: str = Field(..., description="Code the device polls the token endpoint with")
+    user_code: str = Field(..., description="Code the user types on the verification page")
+    verification_uri: str = Field(..., description="Page where the user enters the user code")
+    verification_uri_complete: str = Field(
+        ..., description="The verification page with the user code filled in (for a QR code)"
+    )
+    expires_in: int = Field(..., description="Lifetime of both codes in seconds")
+    interval: int = Field(..., description="Minimum seconds between token endpoint polls")
+
+
 class TokenErrorResponse(BaseModel):
     """Standard OAuth2 error response."""
 
     error: str = Field(
         ...,
         description="Error code: invalid_request, invalid_client, invalid_grant, "
-        "unauthorized_client, unsupported_grant_type",
+        "unauthorized_client, unsupported_grant_type; for the device_code grant also "
+        "authorization_pending, slow_down, access_denied, expired_token",
     )
     error_description: str | None = Field(None, description="Human-readable error description")
 

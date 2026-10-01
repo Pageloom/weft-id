@@ -479,6 +479,8 @@ def revoke_all_user_tokens(tenant_id: TenantArg, user_id: str) -> int:
     Revoke all tokens for a user.
 
     Used when a user is inactivated to ensure their API access is immediately revoked.
+    Device authorization requests the user approved but the device has not yet
+    redeemed are deleted too, so no token can be minted from them afterwards.
 
     Args:
         tenant_id: Tenant ID for scoping
@@ -487,6 +489,11 @@ def revoke_all_user_tokens(tenant_id: TenantArg, user_id: str) -> int:
     Returns:
         Number of tokens deleted
     """
+    execute(
+        tenant_id,
+        "delete from oauth2_device_codes where user_id = :user_id and status = 'approved'",
+        {"user_id": user_id},
+    )
     return execute(
         tenant_id,
         "delete from oauth2_tokens where user_id = :user_id",

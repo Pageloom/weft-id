@@ -39,7 +39,12 @@ RESPONSE_TYPES_SUPPORTED = ["code"]
 RESPONSE_MODES_SUPPORTED = ["query", "form_post"]
 
 # Grant types the token endpoint accepts today.
-GRANT_TYPES_SUPPORTED = ["authorization_code", "refresh_token", "client_credentials"]
+GRANT_TYPES_SUPPORTED = [
+    "authorization_code",
+    "refresh_token",
+    "client_credentials",
+    "urn:ietf:params:oauth:grant-type:device_code",
+]
 
 # Client authentication methods the token endpoint accepts (RFC 6749 section
 # 2.3.1). Basic is the spec-mandated method and the discovery default when this
@@ -115,6 +120,7 @@ def build_discovery_metadata(
         introspection_endpoint=f"{base}/oauth2/introspect",
         introspection_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
         revocation_endpoint=f"{base}/oauth2/revoke",
+        device_authorization_endpoint=f"{base}/oauth2/device_authorization",
         revocation_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
         registration_endpoint=f"{base}/oauth2/register" if registration_enabled else None,
         scopes_supported=list(claims_service.SUPPORTED_SCOPES),

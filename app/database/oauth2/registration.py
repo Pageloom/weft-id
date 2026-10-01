@@ -23,8 +23,8 @@ _CLIENT_COLUMNS = """
     backchannel_logout_uri, backchannel_logout_session_required,
     frontchannel_logout_session_required, service_user_id, is_active,
     oidc_enabled, available_to_all, can_introspect_tenant_tokens, dynamically_registered,
-    logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, registration_metadata,
-    registered_with_token_id, created_at
+    logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
+    registration_metadata, registered_with_token_id, created_at
 """
 
 _TOKEN_COLUMNS = """

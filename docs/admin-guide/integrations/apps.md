@@ -90,6 +90,7 @@ WeftID supports Proof Key for Code Exchange (PKCE) for public clients that canno
 | Token | Lifetime |
 |-------|----------|
 | Authorization code | 5 minutes |
+| Device code (device sign-in) | 10 minutes |
 | Access token | 1 hour |
 | Refresh token | 30 days |
 
@@ -111,6 +112,12 @@ scope) also ends when the user signs out of WeftID; see
 
 An app can check or revoke its own tokens at the introspection and revocation
 endpoints; see [Token Introspection and Revocation](token-introspection.md).
+
+## Device sign-in
+
+An app on a device without a convenient browser (a command-line tool, a TV)
+can sign users in with a short code they enter on another screen. Turn on
+**Allow device sign-in** on the app's edit form. See [Device Sign-In](device-sign-in.md).
 
 ## Sign in with WeftID (OIDC)
 

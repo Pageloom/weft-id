@@ -818,6 +818,17 @@ PAGES = [
         show_in_nav=False,
         creates_nav_level=False,
     ),
+    # Device verification page (OAuth 2.0 Device Authorization Grant). PUBLIC
+    # at the page-access layer like the authorization endpoint: it checks the
+    # session itself so an anonymous visitor goes through login and resumes
+    # here (with the user code from the device's link) instead of the dashboard.
+    Page(
+        path="/device",
+        title="Connect a Device",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
     # OIDC userinfo endpoint. PUBLIC at the page-access layer (like the SAML
     # ACS endpoints); it enforces its own OAuth2 Bearer access-token check in
     # the endpoint dependency rather than via page-role gating.

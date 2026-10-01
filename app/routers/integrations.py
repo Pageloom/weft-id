@@ -317,6 +317,7 @@ def app_edit(
     backchannel_logout_uri: str = Form("", max_length=2048),
     backchannel_logout_session_required: str = Form("", max_length=10),
     initiate_login_uri: str = Form("", max_length=2048),
+    device_grant_enabled: str = Form("", max_length=10),
 ):
     """Update a normal OAuth2 client (App)."""
     if not has_page_access("/applications/oauth", user.get("role")):
@@ -351,6 +352,7 @@ def app_edit(
             backchannel_logout_uri=backchannel_logout_uri.strip(),
             backchannel_logout_session_required=backchannel_logout_session_required == "true",
             initiate_login_uri=initiate_login_uri.strip(),
+            device_grant_enabled=device_grant_enabled == "true",
         )
 
         if not client:

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Connect a Device - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="flex justify-center">
+    <div class="w-full max-w-md">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 text-center" id="device-outcome" data-outcome="{{ outcome }}">
+            {% if outcome == "approved" %}
+            <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Device connected</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400">You can close this page and go back to your device.</p>
+            {% elif outcome == "denied" %}
+            <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Sign-in denied</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400">The device was not given access to your account.</p>
+            {% elif outcome == "no_access" %}
+            <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Access denied</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400">You do not have access to this application. Contact your administrator to request access.</p>
+            {% else %}
+            <h1 class="text-2xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Request expired</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">This sign-in request has expired or was already handled. Start again on your device to get a new code.</p>
+            <a href="/device" class="text-blue-600 dark:text-blue-400 hover:underline">Enter a code</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

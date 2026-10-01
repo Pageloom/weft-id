@@ -57,6 +57,7 @@ class TestDiscoveryDocument:
             "authorization_code",
             "refresh_token",
             "client_credentials",
+            "urn:ietf:params:oauth:grant-type:device_code",
         }
         # Both confidential-client methods the token endpoint implements.
         # Basic is the RFC 6749 mandated method (and the discovery default).
@@ -117,12 +118,17 @@ class TestDiscoveryDocument:
         assert body["introspection_endpoint_auth_methods_supported"] == methods
         assert body["revocation_endpoint_auth_methods_supported"] == methods
 
+    def test_advertises_device_authorization_endpoint(self, client, test_tenant_host):
+        body = _discovery(client, test_tenant_host).json()
+        assert body["device_authorization_endpoint"] == (
+            f"{body['issuer']}/oauth2/device_authorization"
+        )
+
     def test_does_not_advertise_unimplemented_capabilities(self, client, test_tenant_host):
-        """Device grant, PAR, DCR do not exist yet."""
+        """PAR does not exist yet; DCR only while the tenant turns it on."""
         body = _discovery(client, test_tenant_host).json()
         for absent in (
             "registration_endpoint",
-            "device_authorization_endpoint",
             "pushed_authorization_request_endpoint",
         ):
             assert absent not in body

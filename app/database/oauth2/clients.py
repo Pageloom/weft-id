@@ -18,6 +18,7 @@ def create_normal_client(
     backchannel_logout_uri: str | None = None,
     backchannel_logout_session_required: bool = True,
     initiate_login_uri: str | None = None,
+    device_grant_enabled: bool = False,
 ) -> dict | None:
     """
     Create a normal OAuth2 client for authorization code flow.
@@ -41,6 +42,8 @@ def create_normal_client(
             ``sid`` (default True)
         initiate_login_uri: RP URL that starts a third-party-initiated login
             (optional)
+        device_grant_enabled: Whether the client may use the device
+            authorization grant (default False)
 
     Returns:
         Dict with client details including id, client_id, and plain text client_secret
@@ -60,19 +63,19 @@ def create_normal_client(
             name, description, redirect_uris, post_logout_redirect_uris,
             backchannel_logout_uri, backchannel_logout_session_required,
             frontchannel_logout_uri, frontchannel_logout_session_required,
-            initiate_login_uri, created_by
+            initiate_login_uri, device_grant_enabled, created_by
         )
         values (
             :tenant_id, :client_id, :client_secret_hash, 'normal',
             :name, :description, :redirect_uris, :post_logout_redirect_uris,
             :backchannel_logout_uri, :backchannel_logout_session_required,
             :frontchannel_logout_uri, :frontchannel_logout_session_required,
-            :initiate_login_uri, :created_by
+            :initiate_login_uri, :device_grant_enabled, :created_by
         )
         returning id, tenant_id, client_id, client_type, name, description,
                   redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                   backchannel_logout_uri, backchannel_logout_session_required,
-                  frontchannel_logout_session_required, initiate_login_uri,
+                  frontchannel_logout_session_required, initiate_login_uri, device_grant_enabled,
                   service_user_id, is_active, created_at
         """,
         {
@@ -88,6 +91,7 @@ def create_normal_client(
             "backchannel_logout_uri": backchannel_logout_uri,
             "backchannel_logout_session_required": backchannel_logout_session_required,
             "initiate_login_uri": initiate_login_uri,
+            "device_grant_enabled": device_grant_enabled,
             "created_by": created_by,
         },
     )
@@ -195,7 +199,8 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
                backchannel_logout_uri, backchannel_logout_session_required,
                frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
                available_to_all, can_introspect_tenant_tokens, dynamically_registered,
-               logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, registration_metadata,
+               logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
+               registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
         where client_id = :client_id
@@ -225,7 +230,8 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
                backchannel_logout_uri, backchannel_logout_session_required,
                frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
                available_to_all, can_introspect_tenant_tokens, dynamically_registered,
-               logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, registration_metadata,
+               logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
+               registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
         where id = :id
@@ -256,7 +262,7 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                    c.service_user_id, c.is_active, c.oidc_enabled, c.available_to_all,
                    c.can_introspect_tenant_tokens, c.dynamically_registered, c.logo_uri,
                    c.client_uri, c.policy_uri, c.tos_uri, c.initiate_login_uri,
-                   c.registration_metadata,
+                   c.device_grant_enabled, c.registration_metadata,
                    c.registered_with_token_id,
                    c.created_at, u.role as service_role
             from oauth2_clients c
@@ -275,7 +281,7 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.oidc_enabled, c.available_to_all, c.can_introspect_tenant_tokens,
                c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
-               c.initiate_login_uri,
+               c.initiate_login_uri, c.device_grant_enabled,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -364,6 +370,7 @@ def update_client(
     backchannel_logout_uri: str | None = None,
     backchannel_logout_session_required: bool | None = None,
     initiate_login_uri: str | None = None,
+    device_grant_enabled: bool | None = None,
 ) -> dict | None:
     """
     Update an OAuth2 client's name, description, redirect URIs, and logout settings.
@@ -384,6 +391,8 @@ def update_client(
         backchannel_logout_session_required: New ``sid`` flag (optional)
         initiate_login_uri: New third-party login initiation URI (optional; an
             empty string clears it)
+        device_grant_enabled: Whether the device authorization grant is
+            allowed (optional)
 
     Returns:
         Updated client record, or None if not found
@@ -430,6 +439,10 @@ def update_client(
         updates.append("initiate_login_uri = :initiate_login_uri")
         params["initiate_login_uri"] = initiate_login_uri or None
 
+    if device_grant_enabled is not None:
+        updates.append("device_grant_enabled = :device_grant_enabled")
+        params["device_grant_enabled"] = device_grant_enabled
+
     if not updates:
         # No fields to update, just return current record
         return get_client_by_client_id(tenant_id, client_id)
@@ -444,7 +457,7 @@ def update_client(
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri,
+                  initiate_login_uri, device_grant_enabled,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -492,7 +505,7 @@ def update_client_oidc_settings(
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri,
+                  initiate_login_uri, device_grant_enabled,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -524,7 +537,7 @@ def set_client_tenant_introspection(
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri,
+                  initiate_login_uri, device_grant_enabled,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id, "enabled": enabled},
@@ -565,7 +578,7 @@ def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> d
                c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.oidc_enabled, c.available_to_all, c.can_introspect_tenant_tokens,
                c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
-               c.initiate_login_uri,
+               c.initiate_login_uri, c.device_grant_enabled,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -599,7 +612,7 @@ def deactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri,
+                  initiate_login_uri, device_grant_enabled,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},
@@ -629,7 +642,7 @@ def reactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri,
+                  initiate_login_uri, device_grant_enabled,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},

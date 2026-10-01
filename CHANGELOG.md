@@ -201,6 +201,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Group views show the connection name as the group's source, and IdP group
   audit events carry an `idp_source` of `saml` or `oidc`.
 
+### Security
+
+- Updated PyJWT to 2.15.1 (13 advisories, including algorithm confusion when
+  symmetric and asymmetric algorithms share one verification path, and JWKS
+  fetches following redirects) and urllib3 to 2.8.0 (3 advisories).
+
 ## [1.12.0] - 2026-09-13
 
 ### Added

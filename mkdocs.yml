@@ -85,6 +85,7 @@ nav:
         - Sign in with WeftID (OIDC): admin-guide/integrations/oidc-provider-setup.md
         - Token Introspection and Revocation: admin-guide/integrations/token-introspection.md
         - Private Key JWT: admin-guide/integrations/private-key-jwt.md
+        - Pairwise Subject Identifiers: admin-guide/integrations/pairwise-subjects.md
         - Client Registration: admin-guide/integrations/client-registration.md
         - Device Sign-In: admin-guide/integrations/device-sign-in.md
       - Forward Auth: admin-guide/service-providers/forward-auth.md

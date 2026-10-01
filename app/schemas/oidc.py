@@ -115,7 +115,7 @@ class OIDCProviderMetadata(BaseModel):
         ..., description="OAuth2 grant types supported at the token endpoint."
     )
     subject_types_supported: list[str] = Field(
-        ..., description="Subject identifier types. Always ['public']."
+        ..., description="Subject identifier types: public (default) and pairwise (per client)."
     )
     id_token_signing_alg_values_supported: list[str] = Field(
         ..., description="ID-token signing algorithms. Always ['RS256']."

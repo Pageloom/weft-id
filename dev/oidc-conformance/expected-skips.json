@@ -80,22 +80,6 @@
         "comment": "The module sends an unsigned request object; request_object_signing_alg_values_supported does not list none (only signed request objects are accepted), so the suite skips it."
     },
     {
-        "test-name": "oidcc-registration-sector-uri",
-        "variant": {
-            "client_registration": "dynamic_client"
-        },
-        "configuration-filename": "*dynamic-config.json",
-        "comment": "Pairwise subject identifiers are not supported yet (subject_types_supported lists only public), so the suite skips the sector_identifier_uri modules. The entry goes when pairwise subjects are supported."
-    },
-    {
-        "test-name": "oidcc-registration-sector-bad",
-        "variant": {
-            "client_registration": "dynamic_client"
-        },
-        "configuration-filename": "*dynamic-config.json",
-        "comment": "Pairwise subject identifiers are not supported yet (subject_types_supported lists only public), so the suite skips the sector_identifier_uri modules. The entry goes when pairwise subjects are supported."
-    },
-    {
         "test-name": "oidcc-idtoken-unsigned",
         "variant": {
             "client_registration": "dynamic_client"

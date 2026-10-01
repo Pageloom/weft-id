@@ -17,6 +17,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import database
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
+from services.oidc import subject as subject_service
 
 # Upper bound on registered post-logout redirect URIs (matches the CHECK
 # constraint on oauth2_clients.post_logout_redirect_uris).
@@ -794,7 +795,8 @@ def update_client(
             that is malformed or not https, the device grant switched on
             for a B2B client, PAR required of a B2B or public client, or,
             for a public client, browser settings or the device grant
-            switched off
+            switched off, or, for a pairwise app, redirect URIs its sector
+            does not cover
     """
     # Get current client for comparison
     old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
@@ -856,6 +858,12 @@ def update_client(
                 "A public client uses the device grant only, so it cannot be switched off",
                 code="public_client_requires_device_grant",
             )
+    # A pairwise app's sector must survive a redirect URI change: the URIs
+    # must stay on one host, or stay listed in its sector document.
+    if redirect_uris is not None and old_client.get("subject_type") == subject_service.PAIRWISE:
+        subject_service.validate_subject_settings(
+            subject_service.PAIRWISE, old_client.get("sector_identifier_uri"), redirect_uris
+        )
     # Re-check the front-channel URI whenever it or the redirect URIs change:
     # it must stay on the origin of a registered redirect URI.
     if frontchannel_logout_uri is not None or redirect_uris is not None:

@@ -40,7 +40,8 @@ def userinfo(
     alternatively as the ``access_token`` form field (RFC 6750 section 2.2);
     not both.
 
-    The response always includes `sub` (the stable WeftID user id) and,
+    The response always includes `sub` (the WeftID user id, or a pairwise
+    value for an app set to pairwise subjects) and,
     depending on the token's granted scope, the same profile/email claims the
     ID token would carry. Emits ``oidc_userinfo_accessed``.
 
@@ -54,6 +55,7 @@ def userinfo(
         client_uuid=str(token_data["client_id"]),
         client_id=str(client.get("client_id", "")),
         scope=token_data.get("scope"),
+        subject=oidc_service.subject_for(client, str(token_data["user_id"])),
     )
     signed = oidc_service.sign_userinfo(
         tenant_id=tenant_id, issuer=tenant_base_url(request), client=client, userinfo=claims

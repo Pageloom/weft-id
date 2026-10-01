@@ -21,7 +21,7 @@ class TestBuildDiscoveryMetadata:
 
     def test_static_capability_values(self):
         meta = discovery_service.build_discovery_metadata("https://t.example.com")
-        assert meta.subject_types_supported == ["public"]
+        assert meta.subject_types_supported == ["public", "pairwise"]
         assert meta.id_token_signing_alg_values_supported == ["RS256"]
         assert meta.response_types_supported == ["code"]
         assert meta.response_modes_supported == ["query", "form_post"]

@@ -49,6 +49,13 @@ from services.oidc.logout import (
     end_user_oidc_sessions,
     resolve_end_session_request,
 )
+from services.oidc.subject import (
+    SUBJECT_TYPES,
+    set_client_subject_type,
+    subject_for,
+    subject_matches,
+    validate_subject_settings,
+)
 from services.oidc.tokens import ID_TOKEN_EXPIRY, issue_id_token, verify_id_token_hint
 from services.oidc.userinfo import (
     USERINFO_SIGNING_ALG_VALUES_SUPPORTED,
@@ -94,4 +101,9 @@ __all__ = [
     "revoke_my_grant",
     "list_client_grants",
     "revoke_client_grant",
+    "SUBJECT_TYPES",
+    "set_client_subject_type",
+    "subject_for",
+    "subject_matches",
+    "validate_subject_settings",
 ]

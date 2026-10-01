@@ -26,9 +26,9 @@ from services import oauth2_client_auth, oauth2_request_objects
 from services.oidc import claims as claims_service
 from services.oidc import userinfo as userinfo_service
 
-# Subject identifier type. WeftID uses the stable user id directly (never a
-# pairwise identifier); pairwise `sub` is deferred to the Hardening item.
-SUBJECT_TYPES_SUPPORTED = ["public"]
+# Subject identifier types (Core 8). Public (the stable user id) by default;
+# pairwise is a per-client opt-in (services.oidc.subject).
+SUBJECT_TYPES_SUPPORTED = ["public", "pairwise"]
 
 # The only signing algorithm the signing-key model issues (Iteration 1).
 ID_TOKEN_SIGNING_ALG_VALUES_SUPPORTED = ["RS256"]

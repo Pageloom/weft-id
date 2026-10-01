@@ -33,7 +33,10 @@ def claim_due_deliveries(tenant_id: TenantArg, *, limit: int, lease_seconds: int
     Each dict has the delivery's ``id``, ``client_uuid``, ``sub``, ``sid``,
     ``issuer`` and ``attempts`` (before this one), and the client's public
     ``client_id``, ``client_type``, ``is_active``, ``oidc_enabled``,
-    ``backchannel_logout_uri`` and ``backchannel_logout_session_required``.
+    ``backchannel_logout_uri``, ``backchannel_logout_session_required``,
+    and the ``subject_type``, ``sector_identifier_uri`` and ``redirect_uris``
+    that decide the ``sub`` the client knows the user by. ``sub`` on the
+    delivery itself is always the WeftID user id.
     """
     return fetchall(
         tenant_id,
@@ -52,7 +55,8 @@ def claim_due_deliveries(tenant_id: TenantArg, *, limit: int, lease_seconds: int
         where d.id = due.id and c.id = d.client_id
         returning d.id, d.client_id as client_uuid, d.sub, d.sid, d.issuer, d.attempts,
                   c.client_id, c.client_type, c.is_active, c.oidc_enabled,
-                  c.backchannel_logout_uri, c.backchannel_logout_session_required
+                  c.backchannel_logout_uri, c.backchannel_logout_session_required,
+                  c.subject_type, c.sector_identifier_uri, c.redirect_uris
         """,
         {"limit": limit, "lease_seconds": lease_seconds},
     )

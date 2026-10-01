@@ -36,6 +36,7 @@ from services.exceptions import ServiceError
 from services.oidc import backchannel as backchannel_service
 from services.oidc import clients as oidc_client_service
 from services.oidc import consent as consent_service
+from services.oidc import subject as subject_service
 from services.oidc.discovery import build_discovery_metadata
 from utils.redirects import safe_redirect
 from utils.template_context import get_template_context
@@ -398,6 +399,8 @@ def app_edit(
             return safe_redirect(f"{redirect_url}?error=invalid_backchannel_logout_uri")
         if exc.code == "invalid_initiate_login_uri":
             return safe_redirect(f"{redirect_url}?error=invalid_initiate_login_uri")
+        if exc.code == subject_service.INVALID_SECTOR_IDENTIFIER_URI:
+            return safe_redirect(f"{redirect_url}?error=pairwise_redirect_uris")
         logger.warning("Failed to update OAuth2 app: %s", exc)
         return safe_redirect(f"{redirect_url}?error=update_failed")
 
@@ -497,6 +500,38 @@ def app_set_authentication(
         jwks=jwks,
         jwks_uri=jwks_uri,
     )
+
+
+@apps_router.post("/{client_id}/subject", response_class=HTMLResponse)
+def app_set_subject_type(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    subject_type: Annotated[str, Form(max_length=50)] = "public",
+    sector_identifier_uri: Annotated[str, Form(max_length=2048)] = "",
+):
+    """Set whether an App gets public or pairwise subject identifiers."""
+    if not has_page_access("/applications/oauth", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    redirect_url = f"/applications/oauth/{client_id}"
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    try:
+        subject_service.set_client_subject_type(
+            requesting_user,
+            client_id,
+            subject_type=subject_type,
+            sector_identifier_uri=(
+                sector_identifier_uri if subject_type == subject_service.PAIRWISE else None
+            ),
+        )
+    except ServiceError as exc:
+        if exc.code == subject_service.INVALID_SECTOR_IDENTIFIER_URI:
+            return safe_redirect(f"{redirect_url}?error=invalid_sector_identifier_uri")
+        logger.warning("Failed to update subject identifiers: %s", exc)
+        return safe_redirect(f"{redirect_url}?error=subject_update_failed")
+    return safe_redirect(f"{redirect_url}?success=subject_updated")
 
 
 @apps_router.post("/{client_id}/introspection", response_class=HTMLResponse)

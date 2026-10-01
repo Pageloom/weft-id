@@ -55,6 +55,7 @@ from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import NotFoundError, UnauthorizedError, ValidationError
+from services.oidc import subject as subject_service
 from services.types import RequestingUser
 
 logger = logging.getLogger(__name__)
@@ -504,8 +505,6 @@ def validate_client_metadata(metadata: dict) -> dict:
     for name in _UNSUPPORTED_ALG_FIELDS:
         if metadata.get(name) is not None:
             raise _metadata_error(f"{name} is not supported")
-    if metadata.get("subject_type") not in (None, "public"):
-        raise _metadata_error("Unsupported subject_type. Supported: public")
     id_token_alg = metadata.get("id_token_signed_response_alg")
     if id_token_alg not in (None, SUPPORTED_ID_TOKEN_ALG):
         raise _metadata_error("Unsupported id_token_signed_response_alg. Supported: RS256")
@@ -620,6 +619,18 @@ def validate_client_metadata(metadata: dict) -> dict:
             "require_pushed_authorization_requests needs the authorization_code grant "
             "and a confidential client"
         )
+    # Last: a sector identifier URI is fetched, so cheap checks fail first.
+    subject_type = metadata.get("subject_type")
+    if subject_type is not None and not isinstance(subject_type, str):
+        raise _metadata_error("subject_type must be a string")
+    try:
+        subject_type, sector_identifier_uri = subject_service.validate_subject_settings(
+            subject_type,
+            _optional_str(metadata, "sector_identifier_uri", MAX_URI_LENGTH),
+            redirect_uris,
+        )
+    except ValidationError as exc:
+        raise _metadata_error(exc.message) from exc
 
     return {
         "client_name": client_name or _fallback_name(redirect_uris),
@@ -647,6 +658,8 @@ def validate_client_metadata(metadata: dict) -> dict:
         "jwks_uri": jwks_uri,
         "token_endpoint_auth_signing_alg": signing_alg,
         "require_pushed_authorization_requests": require_par,
+        "subject_type": subject_type,
+        "sector_identifier_uri": sector_identifier_uri,
         # Stored as JSON and echoed.
         "extra": {
             key: value
@@ -693,7 +706,7 @@ def client_configuration(client: dict, base_url: str) -> dict:
             "token_endpoint_auth_method", "client_secret_basic"
         ),
         "id_token_signed_response_alg": SUPPORTED_ID_TOKEN_ALG,
-        "subject_type": "public",
+        "subject_type": client.get("subject_type") or subject_service.PUBLIC,
         "registration_client_uri": registration_client_uri(base_url, client["client_id"]),
     }
     for name in ("logo_uri", "client_uri", "policy_uri", "tos_uri", "initiate_login_uri"):
@@ -707,7 +720,7 @@ def client_configuration(client: dict, base_url: str) -> dict:
     ):
         if extra.get(name) is not None:
             body[name] = extra[name]
-    for name in ("jwks", "jwks_uri", "token_endpoint_auth_signing_alg"):
+    for name in ("jwks", "jwks_uri", "token_endpoint_auth_signing_alg", "sector_identifier_uri"):
         if client.get(name) is not None:
             body[name] = client[name]
     if client.get("require_pushed_authorization_requests"):
@@ -814,6 +827,8 @@ def register_client(
         jwks_uri=accepted["jwks_uri"],
         token_endpoint_auth_signing_alg=accepted["token_endpoint_auth_signing_alg"],
         require_pushed_authorization_requests=accepted["require_pushed_authorization_requests"],
+        subject_type=accepted["subject_type"],
+        sector_identifier_uri=accepted["sector_identifier_uri"],
     )
     if token_row is not None:
         database.oauth2.touch_initial_access_token(tenant_id, str(token_row["id"]))
@@ -832,6 +847,7 @@ def register_client(
             "device_grant_enabled": accepted["device_grant_enabled"],
             "is_public": accepted["is_public"],
             "client_auth_method": accepted["client_auth_method"],
+            "subject_type": accepted["subject_type"],
             "initial_access_token_id": str(token_row["id"]) if token_row else None,
             "initial_access_token_name": token_row["name"] if token_row else None,
         },
@@ -948,6 +964,8 @@ def update_client_configuration(
         jwks_uri=accepted["jwks_uri"],
         token_endpoint_auth_signing_alg=accepted["token_endpoint_auth_signing_alg"],
         require_pushed_authorization_requests=accepted["require_pushed_authorization_requests"],
+        subject_type=accepted["subject_type"],
+        sector_identifier_uri=accepted["sector_identifier_uri"],
     )
     if updated is None:
         raise UnauthorizedError(message="The registration access token is not valid")
@@ -964,6 +982,7 @@ def update_client_configuration(
             "name": updated["name"],
             "client_id": updated["client_id"],
             "redirect_uris": accepted["redirect_uris"],
+            "subject_type": accepted["subject_type"],
         },
     )
     return client_configuration(updated, base_url)

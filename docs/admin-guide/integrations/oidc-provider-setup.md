@@ -106,7 +106,7 @@ WeftID gates released claims by the scopes a relying party **requests** at autho
 
 Supported scopes and the claims they release:
 
-* `openid` -- required for an ID token. Releases the envelope claims: `sub` (the stable WeftID user id, never the email), `iss`, `aud`, `exp`, `iat`, `auth_time`, `nonce` (when supplied), and `sid` (the WeftID session the user signed in with).
+* `openid` -- required for an ID token. Releases the envelope claims: `sub` (the stable WeftID user id, never the email, or a [pairwise identifier](pairwise-subjects.md) for an app set to pairwise), `iss`, `aud`, `exp`, `iat`, `auth_time`, `nonce` (when supplied), and `sid` (the WeftID session the user signed in with).
 * `profile` -- `name`, `given_name`, `family_name`, `locale`, `zoneinfo`, `updated_at`. Claims WeftID has no data for (such as `nickname`, `picture`, or `birthdate`) are left out, never sent empty.
 * `email` -- `email`, `email_verified`.
 * `groups` -- `groups`, the user's effective group memberships (see below).
@@ -181,7 +181,7 @@ Admin or super admin role required to manage OIDC settings and group assignments
 
 ## What is not supported
 
-WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [private key JWT](private-key-jwt.md) client authentication, [client registration](client-registration.md), [third-party-initiated login](#launching-from-my-apps), [device sign-in](device-sign-in.md), [request objects](#request-objects-and-signed-userinfo), [pushed authorization requests](#pushed-authorization-requests), and group-based access control. Pairwise subject identifiers are not available yet.
+WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [private key JWT](private-key-jwt.md) client authentication, [client registration](client-registration.md), [third-party-initiated login](#launching-from-my-apps), [device sign-in](device-sign-in.md), [request objects](#request-objects-and-signed-userinfo), [pushed authorization requests](#pushed-authorization-requests), [pairwise subject identifiers](pairwise-subjects.md), and group-based access control.
 
 These parts of the specification are not supported, and discovery says so:
 

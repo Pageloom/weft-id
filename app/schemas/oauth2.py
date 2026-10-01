@@ -196,6 +196,27 @@ class ClientAuthenticationUpdate(BaseModel):
     )
 
 
+class ClientSubjectTypeUpdate(BaseModel):
+    """Request schema for setting an app's subject identifier type."""
+
+    subject_type: Literal["public", "pairwise"] = Field(
+        ...,
+        description=(
+            "public (sub is the WeftID user id) or pairwise (sub is derived from the "
+            "user id and the app's sector, OpenID Connect Core 8.1)."
+        ),
+    )
+    sector_identifier_uri: str | None = Field(
+        None,
+        max_length=2048,
+        description=(
+            "pairwise only: https URL of a JSON array listing every redirect URI of the "
+            "app. Its host is the sector. Without it, the redirect URIs must share one "
+            "host, which is the sector."
+        ),
+    )
+
+
 class ClientRoleUpdate(BaseModel):
     """Request schema for updating a B2B client's service role."""
 
@@ -269,6 +290,13 @@ class ClientResponse(BaseModel):
             "Whether the client may only start an authorization through the pushed "
             "authorization request (PAR) endpoint."
         ),
+    )
+    subject_type: str = Field(
+        "public",
+        description="The sub the client receives: public (the user id) or pairwise.",
+    )
+    sector_identifier_uri: str | None = Field(
+        None, description="The pairwise sector identifier URI, when one is set."
     )
     created_at: datetime
 

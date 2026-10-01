@@ -9,7 +9,7 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 <!-- conformance-results:start -->
 
 * **Suite version:** 5.2.4
-* **WeftID version:** 1.12.0 (`d6af3026`)
+* **WeftID version:** 1.12.0 (`6831d822`)
 * **Run date:** 2026-10-01
 
 | Profile | Test plan | Outcome | Passed | Warning | Review | Skipped | Failed |
@@ -21,7 +21,7 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 | Front-Channel OP | `oidcc-frontchannel-rp-initiated-logout-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
 | Back-Channel OP | `oidcc-backchannel-rp-initiated-logout-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
 | private_key_jwt clients | `oidcc-test-plan` | Green | 25 | 3 | 4 | 5 | 0 |
-| Dynamic OP | `oidcc-dynamic-certification-test-plan` | Green (1 accepted failure) | 11 | 0 | 6 | 5 | 1 |
+| Dynamic OP | `oidcc-dynamic-certification-test-plan` | Green (1 accepted failure) | 13 | 0 | 6 | 3 | 1 |
 | 3rd Party-Init OP | `oidcc-3rdparty-init-login-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
 
 **Accepted failures** (each is a deviation listed below):
@@ -42,8 +42,6 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 * `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` (Basic OP, Form Post OP, private_key_jwt clients): Only signed request objects are accepted; request_object_signing_alg_values_supported does not list none, so the suite skips the unsigned-request-object module.
 * `oidcc-ensure-request-object-with-redirect-uri` (Basic OP, Form Post OP, private_key_jwt clients, Dynamic OP): The module sends an unsigned request object; request_object_signing_alg_values_supported does not list none (only signed request objects are accepted), so the suite skips it.
 * `oidcc-idtoken-unsigned` (Dynamic OP): ID tokens are always signed; id_token_signing_alg_values_supported does not list none, so the suite skips the unsigned ID token module.
-* `oidcc-registration-sector-uri` (Dynamic OP): Pairwise subject identifiers are not supported yet (subject_types_supported lists only public), so the suite skips the sector_identifier_uri modules. The entry goes when pairwise subjects are supported.
-* `oidcc-registration-sector-bad` (Dynamic OP): Pairwise subject identifiers are not supported yet (subject_types_supported lists only public), so the suite skips the sector_identifier_uri modules. The entry goes when pairwise subjects are supported.
 * `oidcc-request-uri-unsigned` (Dynamic OP): Only signed request objects are accepted; request_object_signing_alg_values_supported does not list none, so the suite skips the unsigned request_uri module.
 
 **Review** means the suite captured a screenshot (an error page, a second login page, or the consent page) for a person to judge, because it cannot judge page content itself:
@@ -97,7 +95,6 @@ These are the places where WeftID knowingly differs from what the suite checks f
 * **Partial `profile` claim set.** The `profile` scope releases the claims WeftID holds data for: `name`, `given_name`, `family_name`, `locale`, `zoneinfo`, and `updated_at`. Claims without data (`nickname`, `picture`, `website`, `gender`, `birthdate`, `middle_name`, `preferred_username`, `profile`) are omitted, never sent as `null`, as OpenID Connect Core section 5.1 allows. The suite warns.
 * **Signed request objects only.** Request objects must be signed (`RS256`, `PS256`, or `ES256`). Discovery does not list `none` in `request_object_signing_alg_values_supported`, so the suite skips its unsigned request object modules (by value and by reference).
 * **Dynamic OP discovery check.** A Dynamic OP must list the implicit grant and the `id_token` and `id_token token` response types in its discovery document (OpenID Connect Core section 15.2). WeftID issues authorization codes only, so `oidcc-discovery-endpoint-verification` fails in the Dynamic OP plan. Every other Dynamic OP module passes or is skipped.
-* **No pairwise subject identifiers yet.** Every client gets the same `sub` for a user (`subject_types_supported` lists `public` only), so the suite skips its `sector_identifier_uri` registration modules.
 * **Unsigned ID tokens are never issued.** Discovery does not list `none` in `id_token_signing_alg_values_supported`, so the suite skips its unsigned ID token module.
 * **No mutual-TLS client authentication.** Confidential clients authenticate with a client secret or `private_key_jwt`; mTLS client authentication (RFC 8705) is not supported.
 * **No `address` or `phone` scopes.** WeftID has no attributes to fill them, so they are not advertised and the suite skips their modules.

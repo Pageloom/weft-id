@@ -82,6 +82,7 @@ def create_normal_client(
                   frontchannel_logout_session_required, initiate_login_uri, device_grant_enabled,
                   is_public, client_auth_method, jwks, jwks_uri,
                   token_endpoint_auth_signing_alg, require_pushed_authorization_requests,
+                  subject_type, sector_identifier_uri,
                   service_user_id, is_active, created_at
         """,
         {
@@ -209,6 +210,7 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
                logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
                is_public, client_auth_method, jwks, jwks_uri,
                token_endpoint_auth_signing_alg, require_pushed_authorization_requests,
+               subject_type, sector_identifier_uri,
                registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
@@ -242,6 +244,7 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
                logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
                is_public, client_auth_method, jwks, jwks_uri,
                token_endpoint_auth_signing_alg, require_pushed_authorization_requests,
+               subject_type, sector_identifier_uri,
                registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
@@ -275,6 +278,7 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                    c.client_uri, c.policy_uri, c.tos_uri, c.initiate_login_uri,
                    c.device_grant_enabled, c.is_public, c.client_auth_method, c.jwks, c.jwks_uri,
                    c.token_endpoint_auth_signing_alg, c.require_pushed_authorization_requests,
+                   c.subject_type, c.sector_identifier_uri,
                    c.registration_metadata,
                    c.registered_with_token_id,
                    c.created_at, u.role as service_role
@@ -297,6 +301,7 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                c.initiate_login_uri, c.device_grant_enabled, c.is_public, c.client_auth_method,
                c.jwks, c.jwks_uri, c.token_endpoint_auth_signing_alg,
                c.require_pushed_authorization_requests,
+               c.subject_type, c.sector_identifier_uri,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -487,6 +492,7 @@ def update_client(
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   require_pushed_authorization_requests,
+                  subject_type, sector_identifier_uri,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -537,6 +543,7 @@ def update_client_oidc_settings(
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   require_pushed_authorization_requests,
+                  subject_type, sector_identifier_uri,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -571,6 +578,7 @@ def set_client_tenant_introspection(
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   require_pushed_authorization_requests,
+                  subject_type, sector_identifier_uri,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id, "enabled": enabled},
@@ -626,6 +634,7 @@ def set_client_authentication(
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   require_pushed_authorization_requests,
+                  subject_type, sector_identifier_uri,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {
@@ -641,6 +650,52 @@ def set_client_authentication(
     if client and rotate_secret and client_auth_method == "client_secret":
         client["client_secret"] = client_secret
     return client
+
+
+def set_client_subject_type(
+    tenant_id: TenantArg,
+    client_id: str,
+    *,
+    subject_type: str,
+    sector_identifier_uri: str | None,
+) -> dict | None:
+    """Set the ``sub`` a client receives: public or pairwise (with its sector URI).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        client_id: Client ID (the TEXT identifier, e.g., "weft-id_client_abc123")
+        subject_type: ``public`` or ``pairwise``
+        sector_identifier_uri: The sector identifier URI, or None (always None
+            for ``public``)
+
+    Returns:
+        Updated client record, or None if not found or not a normal client
+    """
+    return fetchone(
+        tenant_id,
+        """
+        update oauth2_clients
+        set subject_type = :subject_type,
+            sector_identifier_uri = :sector_identifier_uri
+        where client_id = :client_id and client_type = 'normal'
+        returning id, tenant_id, client_id, client_type, name, description,
+                  redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+                  backchannel_logout_uri, backchannel_logout_session_required,
+                  frontchannel_logout_session_required, service_user_id, is_active,
+                  oidc_enabled, available_to_all, can_introspect_tenant_tokens,
+                  dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
+                  initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
+                  jwks, jwks_uri, token_endpoint_auth_signing_alg,
+                  require_pushed_authorization_requests,
+                  subject_type, sector_identifier_uri,
+                  registration_metadata, registered_with_token_id, created_at
+        """,
+        {
+            "client_id": client_id,
+            "subject_type": subject_type,
+            "sector_identifier_uri": sector_identifier_uri,
+        },
+    )
 
 
 def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> dict | None:
@@ -680,6 +735,7 @@ def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> d
                c.initiate_login_uri, c.device_grant_enabled, c.is_public, c.client_auth_method,
                c.jwks, c.jwks_uri, c.token_endpoint_auth_signing_alg,
                c.require_pushed_authorization_requests,
+               c.subject_type, c.sector_identifier_uri,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -716,6 +772,7 @@ def deactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   require_pushed_authorization_requests,
+                  subject_type, sector_identifier_uri,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},
@@ -748,6 +805,7 @@ def reactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   require_pushed_authorization_requests,
+                  subject_type, sector_identifier_uri,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},

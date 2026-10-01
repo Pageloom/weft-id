@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Pairwise subject identifiers.** An app can receive a pairwise `sub`
+  (OpenID Connect Core section 8) instead of the user's WeftID ID, so apps in
+  different sectors can't match users by `sub`. It is an opt-in per app:
+  **Subject Identifiers** on the app's OpenID Connect section,
+  `PUT /api/v1/oauth2/clients/{client_id}/subject`, or `subject_type` and
+  `sector_identifier_uri` at client registration. The sector is the host of
+  the app's redirect URIs, or of its sector identifier URI (fetched through
+  the SSRF guard and checked to list every redirect URI). The pairwise value
+  is used in ID tokens, UserInfo, introspection, back-channel logout tokens,
+  and `id_token_hint` checks. Discovery lists `pairwise` in
+  `subject_types_supported`. See
+  [Pairwise Subject Identifiers](docs/admin-guide/integrations/pairwise-subjects.md).
 - **Pushed authorization requests (PAR, RFC 9126).** A confidential app can
   post its authorization request to `POST /oauth2/par` (authenticated like
   the token endpoint) and send the browser to the authorization endpoint with

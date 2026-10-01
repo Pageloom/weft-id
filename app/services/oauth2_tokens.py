@@ -26,6 +26,7 @@ import database
 from services.auth import require_admin, require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
+from services.oidc.subject import subject_for
 from services.types import RequestingUser
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,8 @@ def introspect_token(tenant_id: str, client: dict, token: str, issuer: str) -> d
     if found.get("scope"):
         response["scope"] = found["scope"]
     response["client_id"] = found["client_public_id"]
-    response["sub"] = str(found["user_id"])
+    # The token's client's identifier for the user (pairwise for a pairwise app).
+    response["sub"] = subject_for(found, str(found["user_id"]))
     if found["token_type"] == "access":
         response["token_type"] = "Bearer"
     response["exp"] = int(found["expires_at"].timestamp())

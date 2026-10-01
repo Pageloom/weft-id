@@ -5,6 +5,7 @@ RFC 7591 / RFC 7592 protocol functions. Real database."""
 from datetime import UTC, datetime, timedelta
 
 import database
+import httpx
 import oauth2
 import pytest
 from schemas.oauth2 import InitialAccessTokenCreate, RegistrationSettingsUpdate
@@ -175,7 +176,11 @@ class TestValidateClientMetadata:
             {"application_type": "desktop"},
             {"id_token_signed_response_alg": "none"},
             {"id_token_signed_response_alg": "HS256"},
-            {"subject_type": "pairwise"},
+            {"subject_type": "pseudonymous"},
+            {"subject_type": ["pairwise"]},
+            {"sector_identifier_uri": "https://rp.example/s.json"},
+            {"subject_type": "pairwise", "sector_identifier_uri": "http://rp.example/s.json"},
+            {"subject_type": "pairwise", "sector_identifier_uri": 7},
             {"userinfo_signed_response_alg": "HS256"},
             {"userinfo_signed_response_alg": "none"},
             {"userinfo_encrypted_response_alg": "RSA-OAEP"},
@@ -1142,3 +1147,89 @@ class TestRequirePushedAuthorizationRequestsMetadata:
     )
     def test_invalid(self, metadata):
         assert _error_code(metadata) == "invalid_client_metadata"
+
+
+class TestPairwiseSubjectMetadata:
+    SECTOR = "https://sector.example/redirect_uris.json"
+
+    def _serve(self, monkeypatch, document):
+        from services.oidc import subject as subject_service
+
+        monkeypatch.setattr(
+            subject_service,
+            "build_safe_client",
+            lambda **_: httpx.Client(
+                transport=httpx.MockTransport(lambda request: httpx.Response(200, json=document))
+            ),
+        )
+
+    def test_public_by_default(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant)
+        assert body["subject_type"] == "public"
+        assert "sector_identifier_uri" not in body
+
+    def test_pairwise_from_redirect_host(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(
+            test_tenant, {"redirect_uris": ["https://rp.example/cb"], "subject_type": "pairwise"}
+        )
+        assert body["subject_type"] == "pairwise"
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["subject_type"] == "pairwise"
+        assert row["sector_identifier_uri"] is None
+        (event,) = _events(test_tenant, "oauth2_client_registered")
+        assert event["metadata"]["subject_type"] == "pairwise"
+
+    def test_pairwise_with_sector_identifier_uri(self, monkeypatch, test_tenant, test_admin_user):
+        """oidcc-registration-sector-uri: the document lists the redirect URI."""
+        _set_policy(test_tenant, test_admin_user, "open")
+        uris = ["https://a.example/cb", "https://b.example/cb"]
+        self._serve(monkeypatch, uris)
+        body = _register(
+            test_tenant,
+            {
+                "redirect_uris": uris,
+                "subject_type": "pairwise",
+                "sector_identifier_uri": self.SECTOR,
+            },
+        )
+        assert body["subject_type"] == "pairwise"
+        assert body["sector_identifier_uri"] == self.SECTOR
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["sector_identifier_uri"] == self.SECTOR
+
+    def test_sector_document_without_redirect_uri_rejected(self, monkeypatch):
+        """oidcc-registration-sector-bad: 400 invalid_client_metadata."""
+        self._serve(monkeypatch, ["https://example.com/op"])
+        metadata = {
+            "redirect_uris": ["https://rp.example/cb"],
+            "subject_type": "pairwise",
+            "sector_identifier_uri": self.SECTOR,
+        }
+        assert _error_code(metadata) == "invalid_client_metadata"
+
+    def test_pairwise_across_hosts_needs_sector(self):
+        metadata = {
+            "redirect_uris": ["https://a.example/cb", "https://b.example/cb"],
+            "subject_type": "pairwise",
+        }
+        assert _error_code(metadata) == "invalid_client_metadata"
+
+    def test_update_can_switch_back_to_public(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(
+            test_tenant, {"redirect_uris": ["https://rp.example/cb"], "subject_type": "pairwise"}
+        )
+        client = svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {"client_id": body["client_id"], "redirect_uris": ["https://rp.example/cb"]},
+            BASE,
+        )
+        assert updated["subject_type"] == "public"
+        (event,) = _events(test_tenant, "oauth2_client_registration_updated")
+        assert event["metadata"]["subject_type"] == "public"

@@ -1,8 +1,9 @@
 name: OIDC Conformance
 
 # Runs the OpenID Foundation conformance suite against WeftID's OpenID
-# Provider (Basic, Config, Form Post, RP-Initiated, Front-Channel, and
-# Back-Channel OP plans).
+# Provider (Basic, Config, Form Post, RP-Initiated, Front-Channel, Back-Channel,
+# Dynamic, and 3rd Party-Init OP plans, plus the general test plan with
+# private_key_jwt clients).
 # Same triggers as the E2E workflow; a separate workflow so a conformance
 # failure is never mistaken for an E2E failure. The job drives the same
 # scripts as a local run (dev/oidc-conformance.sh, dev/oidc_conformance.py); see

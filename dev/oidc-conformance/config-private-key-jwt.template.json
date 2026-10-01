@@ -1,0 +1,15 @@
+{
+    "description": "WeftID OpenID Provider ({WEFTID_ISSUER}), private_key_jwt static clients",
+    "alias": "{ALIAS}",
+    "server": {
+        "discoveryUrl": "{WEFTID_ISSUER}/.well-known/openid-configuration"
+    },
+    "client": {
+        "client_id": "{CLIENT6_ID}",
+        "jwks": "{CLIENT6_JWKS}"
+    },
+    "client2": {
+        "client_id": "{CLIENT7_ID}",
+        "jwks": "{CLIENT7_JWKS}"
+    }
+}

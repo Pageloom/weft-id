@@ -15,8 +15,10 @@ Usage:
     python dev/oidc_conformance_report.py --write-docs   # update the docs page
 
 A profile is green when every module finished as PASSED, WARNING, REVIEW or
-SKIPPED. The report also flags anything the expected files do not account
-for; the runner's exit code is still the gate, this is the presentation.
+SKIPPED, or as FAILED with an expected-failures entry of result "failure"
+(an accepted deviation, listed by name). The report also flags anything the
+expected files do not account for; the runner's exit code is still the gate,
+this is the presentation.
 """
 
 from __future__ import annotations
@@ -49,6 +51,8 @@ PROFILES = (
     ("RP-Initiated OP", "oidcc-rp-initiated-logout-certification-test-plan"),
     ("Front-Channel OP", "oidcc-frontchannel-rp-initiated-logout-certification-test-plan"),
     ("Back-Channel OP", "oidcc-backchannel-rp-initiated-logout-certification-test-plan"),
+    ("private_key_jwt clients", "oidcc-test-plan"),
+    ("Dynamic OP", "oidcc-dynamic-certification-test-plan"),
     ("3rd Party-Init OP", "oidcc-3rdparty-init-login-certification-test-plan"),
 )
 
@@ -86,13 +90,24 @@ class ProfileReport:
     run: PlanRun
     counts: dict[str, int] = field(default_factory=dict)
     accepted_warnings: list[tuple[str, str]] = field(default_factory=list)
+    accepted_failures: list[tuple[str, str]] = field(default_factory=list)
     expected_skips: list[tuple[str, str]] = field(default_factory=list)
     review: list[str] = field(default_factory=list)
     unexpected: list[str] = field(default_factory=list)
 
     @property
     def green(self) -> bool:
-        return all(m.status == "FINISHED" and m.result in GREEN_RESULTS for m in self.run.modules)
+        """Every module green, or failed with an accepted deviation."""
+        return self.counts.get("FAILED", 0) == len(self.accepted_failures)
+
+    @property
+    def outcome(self) -> str:
+        if not self.green:
+            return "**Red**"
+        accepted = len(self.accepted_failures)
+        if accepted:
+            return f"Green ({accepted} accepted failure{'s' if accepted > 1 else ''})"
+        return "Green"
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +207,13 @@ def classify(run: PlanRun, failures: list[dict], skips: list[dict]) -> ProfileRe
     for module in run.modules:
         if module.status != "FINISHED" or module.result not in GREEN_RESULTS:
             report.counts["FAILED"] += 1
-            report.unexpected.append(f"`{module.test_name}` {module.status} {module.result}")
+            comment = None
+            if module.status == "FINISHED" and module.result == "FAILED":
+                comment = _comment(failures, module, "failure")
+            if comment is None:
+                report.unexpected.append(f"`{module.test_name}` {module.status} {module.result}")
+            else:
+                report.accepted_failures.append((module.test_name, comment))
             continue
         report.counts[module.result] += 1
         if module.result == "WARNING":
@@ -263,11 +284,15 @@ def render_markdown(reports: list[ProfileReport], weftid: str) -> str:
     ]
     for r in reports:
         c = r.counts
-        outcome = "Green" if r.green else "**Red**"
         lines.append(
-            f"| {r.run.profile} | `{r.run.plan}` | {outcome} | {c['PASSED']} | "
+            f"| {r.run.profile} | `{r.run.plan}` | {r.outcome} | {c['PASSED']} | "
             f"{c['WARNING']} | {c['REVIEW']} | {c['SKIPPED']} | {c['FAILED']} |"
         )
+
+    failures = _bullets(reports, "accepted_failures")
+    if failures:
+        lines += ["", "**Accepted failures** (each is a deviation listed below):", ""]
+        lines += failures
 
     warnings = _bullets(reports, "accepted_warnings")
     if warnings:
@@ -287,8 +312,9 @@ def render_markdown(reports: list[ProfileReport], weftid: str) -> str:
     if review:
         lines += [
             "",
-            "**Review** means the suite captured a screenshot (an error page, or a second "
-            "login page) for a person to judge, because it cannot judge page content itself:",
+            "**Review** means the suite captured a screenshot (an error page, a second "
+            "login page, or the consent page) for a person to judge, because it cannot "
+            "judge page content itself:",
             "",
         ]
         lines += review

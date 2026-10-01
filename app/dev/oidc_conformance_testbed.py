@@ -19,17 +19,29 @@ WeftID as an OpenID Provider with static client registration:
   * a fifth client, registered with the suite's ``backchannel_logout`` URL
     (session required), used only by the back-channel logout module, for
     the same reason.
-  * dynamic client registration switched on (``token_required``, new clients
-    available to all users) and a fresh initial access token, for the
-    3rd Party-Init OP plan, which registers its own clients. Clients that
-    earlier runs registered, and earlier testbed tokens, are deleted first.
+  * two ``private_key_jwt`` clients (sixth and seventh), registered with the
+    public half of a fresh RSA key each, for the ``private_key_jwt`` variant
+    of the general OIDC test plan. The private JWKS is returned so the suite
+    can sign its client assertions.
+  * dynamic client registration switched on (``open``, new clients available
+    to all users) and a fresh initial access token, for the Dynamic OP and
+    3rd Party-Init OP plans, which register their own clients. The suite
+    sends the token with a module's first registration only, so the policy
+    is open rather than token-gated; a presented token must still be valid.
+    Clients that earlier runs registered, and earlier testbed tokens, are
+    deleted first.
 
 The host-side runner (``dev/oidc_conformance.py``) calls this inside the app
 container with ``--json-output`` and renders the suite's plan config from the
 result, so the client secrets are never written into the repository.
 
+It also rotates the tenant's OIDC signing key on demand
+(``--rotate-signing-key-flag``): ``oidcc-server-rotate-keys`` pauses until the
+operator has rotated the OP's keys, and the runner's hook calls this then.
+
 Usage:
     python ./dev/oidc_conformance_testbed.py --json-output
+    python ./dev/oidc_conformance_testbed.py --rotate-signing-key-flag
     python ./dev/oidc_conformance_testbed.py --teardown-flag
 
 Idempotent: safe to re-run. The clients are recreated on every run so the
@@ -57,6 +69,8 @@ BASE_DOMAIN = "weftid.localhost"
 SUBDOMAIN = "oidc-conformance"
 TENANT_NAME = "OIDC Conformance"
 USER_EMAIL = "conformance-user@oidc-conformance.test"
+# Super admin that performs the signing-key rotation (the service requires one).
+ADMIN_EMAIL = "conformance-admin@oidc-conformance.test"
 
 # Suite defaults; see dev/oidc-conformance.sh. The alias is the fixed test
 # instance name the suite uses for static-client plans; its callback URL is
@@ -79,6 +93,14 @@ FRONTCHANNEL_CLIENT = ("client4", "Conformance client 4 (front-channel logout)")
 # The back-channel logout client (the ``client`` section of the
 # oidcc-backchannel-rp-initiated-logout override).
 BACKCHANNEL_CLIENT = ("client5", "Conformance client 5 (back-channel logout)")
+
+
+# The private_key_jwt clients (``client`` and ``client2`` of the
+# private_key_jwt plan config).
+PRIVATE_KEY_JWT_CLIENTS = (
+    ("client6", "Conformance client 6 (private_key_jwt)"),
+    ("client7", "Conformance client 7 (private_key_jwt)"),
+)
 
 
 # Name of the initial access token minted for the 3rd Party-Init OP plan.
@@ -136,8 +158,40 @@ def _recreate_client(
     return {"client_id": client["client_id"], "client_secret": client["client_secret"]}
 
 
+def _private_key_jwks() -> tuple[dict, dict]:
+    """Generate an RS256 key; return (private JWKS, public JWKS)."""
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from jwt.algorithms import RSAAlgorithm
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    meta = {"kid": secrets.token_urlsafe(12), "alg": "RS256", "use": "sig"}
+    private = {**RSAAlgorithm.to_jwk(key, as_dict=True), **meta}
+    public = {**RSAAlgorithm.to_jwk(key.public_key(), as_dict=True), **meta}
+    return {"keys": [private]}, {"keys": [public]}
+
+
+def _recreate_private_key_jwt_client(
+    tid: str, name: str, redirect_uri: str, post_logout_redirect_uri: str, created_by: str
+) -> dict:
+    """Recreate a client that authenticates with ``private_key_jwt``."""
+    client = _recreate_client(tid, name, redirect_uri, post_logout_redirect_uri, created_by)
+    private_jwks, public_jwks = _private_key_jwks()
+    updated = database.oauth2.set_client_authentication(
+        tid,
+        client["client_id"],
+        client_auth_method="private_key_jwt",
+        jwks=public_jwks,
+        jwks_uri=None,
+        token_endpoint_auth_signing_alg=None,
+        rotate_secret=True,
+    )
+    assert updated is not None, f"client '{name}' not switched to private_key_jwt"
+    log.info("Switched %s to private_key_jwt", client["client_id"])
+    return {"client_id": client["client_id"], "jwks": private_jwks}
+
+
 def _enable_registration(tid: str, created_by: str) -> str:
-    """Turn on token-gated registration and mint an initial access token.
+    """Turn on open registration and mint an initial access token.
 
     Clients registered by earlier runs (the suite does not always delete what
     it registers) and earlier testbed tokens are removed first, so the tenant
@@ -148,7 +202,7 @@ def _enable_registration(tid: str, created_by: str) -> str:
         tid, "delete from oauth2_initial_access_tokens where name = :name", {"name": IAT_NAME}
     )
     database.oauth2.upsert_registration_settings(
-        tid, tid, policy="token_required", default_access="all", updated_by=created_by
+        tid, tid, policy="open", default_access="all", updated_by=created_by
     )
     token = f"weft-id_iat_{secrets.token_urlsafe(32)}"
     database.oauth2.create_initial_access_token(
@@ -158,7 +212,7 @@ def _enable_registration(tid: str, created_by: str) -> str:
         token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),
         created_by=created_by,
     )
-    log.info("Enabled client registration (token required) and minted '%s'", IAT_NAME)
+    log.info("Enabled client registration (open) and minted '%s'", IAT_NAME)
     return token
 
 
@@ -218,6 +272,11 @@ def setup(suite_base_url: str, alias: str) -> dict:
         backchannel_logout_uri=backchannel_logout_uri,
     )
 
+    for key, name in PRIVATE_KEY_JWT_CLIENTS:
+        clients[key] = _recreate_private_key_jwt_client(
+            tid, name, redirect_uri, post_logout_redirect_uri, created_by=str(uid)
+        )
+
     initial_access_token = _enable_registration(tid, created_by=str(uid))
 
     return {
@@ -236,6 +295,39 @@ def setup(suite_base_url: str, alias: str) -> dict:
     }
 
 
+def rotate_signing_key() -> dict:
+    """Rotate the testbed tenant's OIDC signing key through the service layer.
+
+    A rotation is refused while the previous one's grace period runs (at
+    least an hour), and conformance runs come closer together than that. The
+    testbed ends any running grace period first, so every run rotates. Real
+    tenants never take this shortcut.
+    """
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    from services.oidc.keys import cleanup_previous_signing_key
+    from services.oidc.keys import rotate_signing_key as rotate
+    from services.types import RequestingUser
+    from services.users import get_user_id_by_email
+    from utils.request_context import system_context
+
+    tid = _tenant_id(SUBDOMAIN)
+    add_user(SUBDOMAIN, ADMIN_EMAIL, DEV_PASSWORD, role="super_admin")
+    admin_id = get_user_id_by_email(tid, ADMIN_EMAIL)
+    assert admin_id is not None, "admin not created"
+
+    database.execute(
+        tid,
+        "update oidc_signing_keys set rotation_grace_period_ends_at = now() - interval '1 second'"
+        " where rotation_grace_period_ends_at is not null",
+        {},
+    )
+    with system_context():
+        cleanup_previous_signing_key(tid, actor_user_id=str(admin_id))
+        result = rotate(RequestingUser(id=str(admin_id), tenant_id=tid, role="super_admin"))
+    log.info("Rotated signing key: %s -> %s", result.previous_kid, result.kid)
+    return {"kid": result.kid, "previous_kid": result.previous_kid}
+
+
 def teardown():
     """Delete the testbed tenant (cascades to users, clients, codes, tokens)."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -250,6 +342,7 @@ def teardown():
 def main(
     json_output: bool = False,
     teardown_flag: bool = False,
+    rotate_signing_key_flag: bool = False,
     suite_base_url: str = DEFAULT_SUITE_BASE_URL,
     alias: str = DEFAULT_ALIAS,
 ):
@@ -258,11 +351,15 @@ def main(
     Args:
         json_output: print the config as JSON (for the host-side runner).
         teardown_flag: delete the testbed tenant and exit.
+        rotate_signing_key_flag: rotate the tenant's OIDC signing key and exit.
         suite_base_url: the conformance suite's base URL (redirect URI host).
         alias: the suite test-instance alias used in the callback URL.
     """
     if teardown_flag:
         teardown()
+        return
+    if rotate_signing_key_flag:
+        print(json.dumps(rotate_signing_key()))
         return
     config = setup(suite_base_url, alias)
     if json_output:
@@ -273,5 +370,6 @@ def main(
 
 
 if __name__ == "__main__":
-    # argh maps --json-output / --teardown-flag / --suite-base-url / --alias.
+    # argh maps --json-output / --teardown-flag / --rotate-signing-key-flag /
+    # --suite-base-url / --alias.
     argh.dispatch_command(main)

@@ -134,8 +134,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `oauth2_client_introspection_changed`. See the new
   [Token Introspection and Revocation](docs/admin-guide/integrations/token-introspection.md)
   page. Migration 0069.
+- **Dynamic client registration.** Applications can register themselves as
+  OAuth2 / OIDC apps at `POST /oauth2/register` (OpenID Connect Dynamic
+  Client Registration, RFC 7591) and read, replace, or delete their
+  registration with the registration access token they receive (RFC 7592).
+  Off by default: **Applications > Client Registration** (or
+  `/api/v1/oauth2/registration`) sets who may register (no one, holders of
+  an admin-issued initial access token, or anyone) and whether a new app is
+  available to every user or to no one until an admin grants access.
+  Registered apps carry a **Registered** badge and are managed like any
+  other app. The consent page now shows an app's registered logo and
+  privacy policy and terms links. The endpoint is advertised in discovery
+  only while registration is on. Audited as `oauth2_client_registered`,
+  `oauth2_client_registration_updated`, `oauth2_client_registration_deleted`,
+  `oauth2_registration_settings_updated`,
+  `oauth2_initial_access_token_created`, and
+  `oauth2_initial_access_token_revoked`. See the new
+  [Client Registration](docs/admin-guide/integrations/client-registration.md)
+  page. Migration 0070.
 
 ### Fixed
+
+- Deleting a user who created an OAuth2 client failed, because the
+  client's creator reference could not be cleared. It is now cleared and
+  the client is kept (migration 0070).
 
 - `GET /api/v1/oauth2/clients` reported `oidc_enabled` and
   `available_to_all` as `false` for every client. It now returns the stored

@@ -413,7 +413,11 @@ class TestCSRFExemptionsMatchAuthentication:
         from middleware.csrf import _is_exempt
 
         protocol_prefixes = ("/saml/", "/oauth2/token", "/oauth2/introspect", "/oauth2/revoke")
-        protocol_paths = {"/auth/oidc/{connection_id}/backchannel-logout"}
+        protocol_paths = {
+            "/auth/oidc/{connection_id}/backchannel-logout",
+            "/oauth2/register",
+            "/oauth2/register/{client_id}",
+        }
         offenders = [
             (sorted(methods), path)
             for path, methods, deps in unsafe_app_routes()

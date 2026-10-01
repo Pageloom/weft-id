@@ -9,6 +9,9 @@ covers four kinds of client, each its own tab:
 - **OAuth2 / OIDC** — OAuth2 clients for interactive applications. Users authorize access through
   a consent screen; an app can also enable OIDC to receive a signed identity token. See
   [Apps](../integrations/apps.md) and [Sign in with WeftID (OIDC)](../integrations/oidc-provider-setup.md).
+- **Client Registration** — Let applications register themselves as OAuth2 / OIDC apps, open to
+  anyone or only to holders of an initial access token. Off by default. See
+  [Client Registration](../integrations/client-registration.md).
 - **Forward Auth** — Gate HTTP applications that have no built-in SSO at your reverse proxy,
   organized as **Domains** (the DNS/web domains you've verified) and **Apps** (the individual
   proxied applications under a verified domain). See [Forward Auth for HTTP Apps](../service-providers/forward-auth.md).

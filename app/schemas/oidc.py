@@ -66,6 +66,13 @@ class OIDCProviderMetadata(BaseModel):
     revocation_endpoint_auth_methods_supported: list[str] = Field(
         ..., description="Client authentication methods the revocation endpoint accepts."
     )
+    registration_endpoint: str | None = Field(
+        None,
+        description=(
+            "Dynamic Client Registration (RFC 7591) endpoint URL. Present only while the "
+            "tenant's registration policy is not off; omitted otherwise."
+        ),
+    )
     scopes_supported: list[str] = Field(..., description="Scopes this provider recognises.")
     response_types_supported: list[str] = Field(
         ..., description="OAuth2 response types supported at the authorization endpoint."

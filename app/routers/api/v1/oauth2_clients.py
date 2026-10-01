@@ -61,6 +61,11 @@ def _client_to_response(
         "oidc_enabled": client.get("oidc_enabled", False),
         "available_to_all": client.get("available_to_all", False),
         "can_introspect_tenant_tokens": bool(client.get("can_introspect_tenant_tokens")),
+        "dynamically_registered": bool(client.get("dynamically_registered")),
+        "logo_uri": client.get("logo_uri"),
+        "client_uri": client.get("client_uri"),
+        "policy_uri": client.get("policy_uri"),
+        "tos_uri": client.get("tos_uri"),
         "created_at": client["created_at"],
     }
     if include_secret:

@@ -510,6 +510,13 @@ PAGES = [
                 docs_path="/docs/admin-guide/integrations/apps/",
             ),
             Page(
+                path="/applications/client-registration",
+                title="Client Registration",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+                docs_path="/docs/admin-guide/integrations/client-registration/",
+            ),
+            Page(
                 path="/applications/forward-auth",
                 title="Forward Auth",
                 permission=PagePermission.SUPER_ADMIN,

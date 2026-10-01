@@ -507,6 +507,11 @@ def _handle_authorize_request(
     # SSO post binding (``routers.saml_idp.sso``).
     request.state.csp_form_action_url = _form_action_origin(redirect_uri)
 
+    # A registered logo (an https URI, validated at registration or by the
+    # admin) is loaded from the client's own origin; allow just that origin.
+    if client.get("logo_uri"):
+        request.state.csp_img_src_origins = [_form_action_origin(client["logo_uri"])]
+
     # Show authorization page
     return templates.TemplateResponse(
         request,

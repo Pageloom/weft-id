@@ -7,6 +7,7 @@ from services.exceptions import (
     NotFoundError,
     RateLimitError,
     ServiceError,
+    UnauthorizedError,
     ValidationError,
 )
 from starlette.responses import Response
@@ -24,6 +25,9 @@ def translate_to_http_exception(exc: ServiceError) -> HTTPException:
 
     if isinstance(exc, ValidationError):
         return HTTPException(status_code=400, detail=exc.message)
+
+    if isinstance(exc, UnauthorizedError):
+        return HTTPException(status_code=401, detail=exc.message)
 
     if isinstance(exc, ConflictError):
         if exc.code in ("routing_change", "email_impact"):

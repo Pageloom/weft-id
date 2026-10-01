@@ -33,6 +33,7 @@ from routers import health as health_router  # noqa: E402
 from routers import identity_providers as identity_providers_router  # noqa: E402
 from routers import integrations as integrations_router  # noqa: E402
 from routers import legacy_redirects as legacy_redirects_router  # noqa: E402
+from routers import oauth2_registration as oauth2_registration_router  # noqa: E402
 from routers import oidc as oidc_router  # noqa: E402
 from routers import oidc_upstream as oidc_upstream_router  # noqa: E402
 from routers import protected_domains as protected_domains_router  # noqa: E402
@@ -49,6 +50,7 @@ from routers.api.v1 import exports as exports_api  # noqa: E402
 from routers.api.v1 import groups as groups_api  # noqa: E402
 from routers.api.v1 import jobs as jobs_api  # noqa: E402
 from routers.api.v1 import oauth2_clients  # noqa: E402
+from routers.api.v1 import oauth2_registration as oauth2_registration_api  # noqa: E402
 from routers.api.v1 import oidc_signing_keys as oidc_signing_keys_api  # noqa: E402
 from routers.api.v1 import oidc_upstream as oidc_upstream_api  # noqa: E402
 from routers.api.v1 import protected_domains as protected_domains_api  # noqa: E402
@@ -189,6 +191,7 @@ app.include_router(users.router)
 
 # Include OAuth2 and SAML routers
 app.include_router(oauth2.router)
+app.include_router(oauth2_registration_router.router)
 app.include_router(saml.router)
 
 # Include OIDC provider router (root-path .well-known endpoints)
@@ -206,6 +209,7 @@ app.include_router(exports_api.router)
 app.include_router(groups_api.router)
 app.include_router(jobs_api.router)
 app.include_router(oauth2_clients.router)
+app.include_router(oauth2_registration_api.router)
 app.include_router(oidc_signing_keys_api.router)
 app.include_router(oidc_upstream_api.router)
 app.include_router(protected_domains_api.router)

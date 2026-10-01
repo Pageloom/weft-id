@@ -460,15 +460,16 @@ def test_applications_container_permission_is_admin():
 
 
 def test_applications_children_structure():
-    """Test the Applications page has the four expected children."""
+    """Test the Applications page has the five expected children."""
     page = get_page_by_path("/applications")
     assert page.children is not None
-    assert len(page.children) == 4
+    assert len(page.children) == 5
 
     child_paths = [child.path for child in page.children]
     assert child_paths == [
         "/applications/saml",
         "/applications/oauth",
+        "/applications/client-registration",
         "/applications/forward-auth",
         "/applications/service-accounts",
     ]
@@ -1055,3 +1056,11 @@ def test_settings_get_all_paths():
         "/settings/branding/groups",
         "/settings/about",
     ]
+
+
+def test_client_registration_page_is_admin():
+    page = get_page_by_path("/applications/client-registration")
+    assert page.permission == PagePermission.ADMIN
+    assert page.show_in_nav is True
+    assert not has_page_access("/applications/client-registration", "member")
+    assert has_page_access("/applications/client-registration", "admin")

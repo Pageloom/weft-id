@@ -7,6 +7,7 @@ This module provides all OAuth2-related database operations including:
 - Remembered consent grants
 - Which clients received an ID token in which session (logout fan-out)
 - Back-channel logout deliveries (queue and delivery log)
+- Dynamic client registration (settings, initial access tokens, registered clients)
 """
 
 from database.oauth2.authorization import (
@@ -50,6 +51,18 @@ from database.oauth2.consent import (
     list_consent_grants_for_client,
     list_consent_grants_for_user,
     upsert_consent_grant,
+)
+from database.oauth2.registration import (
+    create_initial_access_token,
+    create_registered_client,
+    get_initial_access_token,
+    get_initial_access_token_by_hash,
+    get_registration_settings,
+    list_initial_access_tokens,
+    replace_registered_client,
+    revoke_initial_access_token,
+    touch_initial_access_token,
+    upsert_registration_settings,
 )
 from database.oauth2.sessions import (
     consume_session_clients,
@@ -115,6 +128,17 @@ __all__ = [
     "delete_consent_grant",
     "delete_consent_grants_for_user",
     "delete_consent_grants_for_client",
+    # dynamic client registration
+    "get_registration_settings",
+    "upsert_registration_settings",
+    "create_initial_access_token",
+    "list_initial_access_tokens",
+    "get_initial_access_token",
+    "get_initial_access_token_by_hash",
+    "revoke_initial_access_token",
+    "touch_initial_access_token",
+    "create_registered_client",
+    "replace_registered_client",
     # sessions
     "upsert_session_client",
     "consume_session_clients",

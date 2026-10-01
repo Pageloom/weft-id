@@ -26,7 +26,9 @@ from dependencies import (
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child, has_page_access
+from schemas.oauth2 import InitialAccessTokenCreate, RegistrationSettingsUpdate
 from services import oauth2 as oauth2_service
+from services import oauth2_registration as registration_service
 from services import oauth2_tokens as oauth2_tokens_service
 from services.exceptions import ServiceError
 from services.oidc import backchannel as backchannel_service
@@ -54,6 +56,13 @@ top_router = APIRouter(
 apps_router = APIRouter(
     prefix="/applications/oauth",
     tags=["applications-oauth"],
+    dependencies=[Depends(require_admin)],
+    include_in_schema=False,
+)
+
+registration_router = APIRouter(
+    prefix="/applications/client-registration",
+    tags=["applications-client-registration"],
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
 )
@@ -804,6 +813,130 @@ def b2b_reactivate(
 
 
 # =============================================================================
+# Client Registration (RFC 7591 policy and initial access tokens)
+# =============================================================================
+
+_REGISTRATION_PAGE = "/applications/client-registration"
+
+
+@registration_router.get("", response_class=HTMLResponse)
+def client_registration_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Dynamic client registration settings and initial access tokens."""
+    if not has_page_access(_REGISTRATION_PAGE, user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    settings = registration_service.get_registration_settings(
+        requesting_user, tenant_base_url(request)
+    )
+    tokens = registration_service.list_initial_access_tokens(requesting_user)
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        settings=settings,
+        tokens=tokens,
+        registration_endpoint=registration_service.registration_endpoint_url(
+            tenant_base_url(request)
+        ),
+        pending_token=request.session.pop("pending_initial_access_token", None),
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse(request, "integrations_client_registration.html", context)
+
+
+@registration_router.post("/settings", response_class=HTMLResponse)
+def client_registration_settings(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    policy: str = Form("", max_length=50),
+    default_access: str = Form("", max_length=50),
+):
+    """Save the registration policy and default access for registered clients."""
+    if not has_page_access(_REGISTRATION_PAGE, user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        update = RegistrationSettingsUpdate(policy=policy, default_access=default_access)
+    except ValueError:
+        return RedirectResponse(
+            url="/applications/client-registration?error=invalid_settings", status_code=303
+        )
+
+    registration_service.update_registration_settings(
+        build_requesting_user(user, tenant_id, request), update, tenant_base_url(request)
+    )
+    return RedirectResponse(
+        url="/applications/client-registration?success=settings_saved", status_code=303
+    )
+
+
+@registration_router.post("/tokens", response_class=HTMLResponse)
+def client_registration_create_token(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    name: str = Form("", max_length=255),
+    expires_in_days: str = Form("", max_length=10),
+):
+    """Issue an initial access token and show its value once."""
+    if not has_page_access(_REGISTRATION_PAGE, user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    if not name.strip():
+        return RedirectResponse(
+            url="/applications/client-registration?error=name_required", status_code=303
+        )
+    try:
+        data = InitialAccessTokenCreate(
+            name=name.strip(),
+            expires_in_days=int(expires_in_days) if expires_in_days.strip() else None,
+        )
+    except ValueError:
+        return RedirectResponse(
+            url="/applications/client-registration?error=invalid_expiry", status_code=303
+        )
+
+    created = registration_service.create_initial_access_token(
+        build_requesting_user(user, tenant_id, request), data
+    )
+    request.session["pending_initial_access_token"] = {"name": created.name, "token": created.token}
+    return RedirectResponse(
+        url="/applications/client-registration?success=token_created", status_code=303
+    )
+
+
+@registration_router.post("/tokens/{token_id}/revoke", response_class=HTMLResponse)
+def client_registration_revoke_token(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    token_id: str,
+):
+    """Revoke an initial access token."""
+    if not has_page_access(_REGISTRATION_PAGE, user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        registration_service.revoke_initial_access_token(
+            build_requesting_user(user, tenant_id, request), token_id
+        )
+    except ServiceError:
+        return RedirectResponse(
+            url="/applications/client-registration?error=token_not_found", status_code=303
+        )
+    return RedirectResponse(
+        url="/applications/client-registration?success=token_revoked", status_code=303
+    )
+
+
+# =============================================================================
 # Combined router (mounted once in main.py)
 # =============================================================================
 
@@ -811,3 +944,4 @@ router = APIRouter()
 router.include_router(top_router)
 router.include_router(apps_router)
 router.include_router(b2b_router)
+router.include_router(registration_router)

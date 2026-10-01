@@ -200,3 +200,11 @@ def test_csp_frame_src_only_when_origins_are_given():
     assert "frame-src 'self' https://a.example https://b:8443; " in widened
     assert "frame-ancestors 'none'" in widened
     assert "script-src 'self' 'nonce-n'" in widened
+
+
+def test_csp_img_src_widened_only_when_origins_are_given():
+    from middleware.security_headers import _build_csp_with_nonce
+
+    assert "img-src 'self' data:;" in _build_csp_with_nonce("n")
+    widened = _build_csp_with_nonce("n", img_src_origins=["https://cdn.example"])
+    assert "img-src 'self' data: https://cdn.example;" in widened

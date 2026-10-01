@@ -182,11 +182,14 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
     return fetchone(
         tenant_id,
         """
-        select id, tenant_id, client_id, client_secret_hash, client_type,
+        select id, tenant_id, client_id, client_secret_hash, registration_access_token_hash,
+               client_type,
                name, description, redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                backchannel_logout_uri, backchannel_logout_session_required,
                frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
-               available_to_all, can_introspect_tenant_tokens, created_at
+               available_to_all, can_introspect_tenant_tokens, dynamically_registered,
+               logo_uri, client_uri, policy_uri, tos_uri, registration_metadata,
+               registered_with_token_id, created_at
         from oauth2_clients
         where client_id = :client_id
         """,
@@ -214,7 +217,9 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
                redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                backchannel_logout_uri, backchannel_logout_session_required,
                frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
-               available_to_all, can_introspect_tenant_tokens, created_at
+               available_to_all, can_introspect_tenant_tokens, dynamically_registered,
+               logo_uri, client_uri, policy_uri, tos_uri, registration_metadata,
+               registered_with_token_id, created_at
         from oauth2_clients
         where id = :id
         """,
@@ -242,7 +247,10 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                    c.backchannel_logout_uri, c.backchannel_logout_session_required,
                    c.frontchannel_logout_uri, c.frontchannel_logout_session_required,
                    c.service_user_id, c.is_active, c.oidc_enabled, c.available_to_all,
-                   c.can_introspect_tenant_tokens, c.created_at, u.role as service_role
+                   c.can_introspect_tenant_tokens, c.dynamically_registered, c.logo_uri,
+                   c.client_uri, c.policy_uri, c.tos_uri, c.registration_metadata,
+                   c.registered_with_token_id,
+                   c.created_at, u.role as service_role
             from oauth2_clients c
             left join users u on c.service_user_id = u.id
             where c.client_type = :client_type
@@ -258,7 +266,9 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                c.backchannel_logout_uri, c.backchannel_logout_session_required,
                c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.oidc_enabled, c.available_to_all, c.can_introspect_tenant_tokens,
-               c.created_at, u.role as service_role
+               c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
+               c.registration_metadata, c.registered_with_token_id, c.created_at,
+               u.role as service_role
         from oauth2_clients c
         left join users u on c.service_user_id = u.id
         order by c.created_at desc
@@ -416,7 +426,9 @@ def update_client(
                   redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                   backchannel_logout_uri, backchannel_logout_session_required,
                   frontchannel_logout_session_required, service_user_id, is_active,
-                  oidc_enabled, available_to_all, can_introspect_tenant_tokens, created_at
+                  oidc_enabled, available_to_all, can_introspect_tenant_tokens,
+                  dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
+                  registration_metadata, registered_with_token_id, created_at
     """
 
     return fetchone(tenant_id, query, params)
@@ -461,7 +473,9 @@ def update_client_oidc_settings(
                   redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                   backchannel_logout_uri, backchannel_logout_session_required,
                   frontchannel_logout_session_required, service_user_id, is_active,
-                  oidc_enabled, available_to_all, can_introspect_tenant_tokens, created_at
+                  oidc_enabled, available_to_all, can_introspect_tenant_tokens,
+                  dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
+                  registration_metadata, registered_with_token_id, created_at
     """
 
     return fetchone(tenant_id, query, params)
@@ -490,7 +504,9 @@ def set_client_tenant_introspection(
                   redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                   backchannel_logout_uri, backchannel_logout_session_required,
                   frontchannel_logout_session_required, service_user_id, is_active,
-                  oidc_enabled, available_to_all, can_introspect_tenant_tokens, created_at
+                  oidc_enabled, available_to_all, can_introspect_tenant_tokens,
+                  dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
+                  registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id, "enabled": enabled},
     )
@@ -529,7 +545,9 @@ def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> d
                c.backchannel_logout_uri, c.backchannel_logout_session_required,
                c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.oidc_enabled, c.available_to_all, c.can_introspect_tenant_tokens,
-               c.created_at, u.role as service_role
+               c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
+               c.registration_metadata, c.registered_with_token_id, c.created_at,
+               u.role as service_role
         from oauth2_clients c
         left join users u on c.service_user_id = u.id
         where c.client_id = :client_id
@@ -559,7 +577,9 @@ def deactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                   backchannel_logout_uri, backchannel_logout_session_required,
                   frontchannel_logout_session_required, service_user_id, is_active,
-                  oidc_enabled, available_to_all, can_introspect_tenant_tokens, created_at
+                  oidc_enabled, available_to_all, can_introspect_tenant_tokens,
+                  dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
+                  registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},
     )
@@ -586,7 +606,9 @@ def reactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                   backchannel_logout_uri, backchannel_logout_session_required,
                   frontchannel_logout_session_required, service_user_id, is_active,
-                  oidc_enabled, available_to_all, can_introspect_tenant_tokens, created_at
+                  oidc_enabled, available_to_all, can_introspect_tenant_tokens,
+                  dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
+                  registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},
     )

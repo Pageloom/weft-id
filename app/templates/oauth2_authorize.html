@@ -9,8 +9,21 @@
             <h1 class="text-2xl font-semibold text-center mb-6 text-gray-900 dark:text-gray-100">Authorize Application</h1>
 
             <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-gray-700 text-blue-800 dark:text-blue-300 px-4 py-3 rounded mb-6">
-                <p class="font-semibold mb-2">{{ client.name }}</p>
+                <div class="flex items-center gap-3 mb-2">
+                    {% if client.logo_uri %}
+                    <img src="{{ client.logo_uri }}" id="client-logo" width="40" height="40"
+                         class="w-10 h-10 rounded object-contain bg-white flex-shrink-0" alt="{{ client.name }} logo">
+                    {% endif %}
+                    <p class="font-semibold">{{ client.name }}</p>
+                </div>
                 <p class="text-sm">This application is requesting access to your account.</p>
+                {% if client.policy_uri or client.tos_uri %}
+                <p class="text-sm mt-2">
+                    {% if client.policy_uri %}<a href="{{ client.policy_uri }}" id="client-policy" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline">Privacy policy</a>{% endif %}
+                    {% if client.policy_uri and client.tos_uri %}<span aria-hidden="true"> &middot; </span>{% endif %}
+                    {% if client.tos_uri %}<a href="{{ client.tos_uri }}" id="client-tos" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline">Terms of service</a>{% endif %}
+                </p>
+                {% endif %}
             </div>
 
             <div class="mb-6">

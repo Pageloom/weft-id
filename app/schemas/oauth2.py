@@ -157,6 +157,14 @@ class ClientResponse(BaseModel):
     oidc_enabled: bool = False
     available_to_all: bool = False
     can_introspect_tenant_tokens: bool = False
+    dynamically_registered: bool = Field(
+        False,
+        description="Whether the client registered itself through dynamic client registration.",
+    )
+    logo_uri: str | None = Field(None, description="Logo shown on the consent page.")
+    client_uri: str | None = Field(None, description="The client's home page.")
+    policy_uri: str | None = Field(None, description="The client's privacy policy.")
+    tos_uri: str | None = Field(None, description="The client's terms of service.")
     created_at: datetime
 
 
@@ -164,6 +172,81 @@ class ClientWithSecret(ClientResponse):
     """Response schema for OAuth2 client with secret (only returned on creation)."""
 
     client_secret: str = Field(..., description="Client secret - shown only once, store securely")
+
+
+# ============================================================================
+# Dynamic Client Registration (admin side)
+# ============================================================================
+
+REGISTRATION_POLICIES = ("off", "token_required", "open")
+REGISTRATION_DEFAULT_ACCESS = ("none", "all")
+
+
+class RegistrationSettings(BaseModel):
+    """The tenant's dynamic client registration settings."""
+
+    policy: str = Field(
+        ...,
+        description=(
+            "off: the registration endpoint is closed (default). token_required: a "
+            "registration needs an initial access token. open: anyone who can reach "
+            "the tenant can register a client."
+        ),
+    )
+    default_access: str = Field(
+        ...,
+        description=(
+            "none: a newly registered client is available to no one until an admin "
+            "assigns groups (default). all: it is available to every user."
+        ),
+    )
+    registration_endpoint: str | None = Field(
+        None, description="The registration endpoint URL, when the policy is not off."
+    )
+
+
+class RegistrationSettingsUpdate(BaseModel):
+    """Fields to change on the registration settings (omitted fields are kept)."""
+
+    policy: str | None = Field(
+        None, max_length=50, pattern="^(off|token_required|open)$", description="See response."
+    )
+    default_access: str | None = Field(
+        None, max_length=50, pattern="^(none|all)$", description="See response."
+    )
+
+
+class InitialAccessTokenCreate(BaseModel):
+    """Request schema for issuing an initial access token."""
+
+    name: str = Field(..., min_length=1, max_length=255, description="Who or what the token is for")
+    expires_in_days: int | None = Field(
+        None,
+        ge=1,
+        le=365,
+        description="Days until the token stops working (1 to 365). Omit for no expiry.",
+    )
+
+
+class InitialAccessTokenResponse(BaseModel):
+    """An initial access token (never the token value)."""
+
+    id: str
+    name: str
+    created_by: str | None = None
+    created_by_name: str | None = None
+    created_at: datetime
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    last_used_at: datetime | None = None
+    registered_client_count: int = 0
+    status: str = Field(..., description="active, expired, or revoked")
+
+
+class InitialAccessTokenCreated(InitialAccessTokenResponse):
+    """A newly issued initial access token, with its value (shown only once)."""
+
+    token: str = Field(..., description="The token value. Shown only once, store securely")
 
 
 # ============================================================================

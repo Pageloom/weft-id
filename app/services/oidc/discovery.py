@@ -9,8 +9,9 @@ arrives on tenant A's host can never surface tenant B's issuer.
 Advertisement policy: this document reflects ONLY what is actually implemented.
 RP-initiated logout (``end_session_endpoint``), front-channel logout (with
 ``iss``/``sid``), back-channel logout (with ``sid``), token introspection (RFC
-7662) and token revocation (RFC 7009) are advertised; device grant, PAR, and
-dynamic client registration are absent until they exist. `scopes_supported`
+7662) and token revocation (RFC 7009) are advertised; dynamic client
+registration (RFC 7591) is advertised only while the tenant has it turned on;
+device grant and PAR are absent until they exist. `scopes_supported`
 is sourced from the shared claim assembler's ``SUPPORTED_SCOPES`` so the
 advertised scopes and the scopes actually gated by claim release can never
 drift; the `groups` scope is therefore advertised only once Iteration 4 adds it
@@ -88,12 +89,16 @@ CLAIMS_SUPPORTED = [
 ]
 
 
-def build_discovery_metadata(issuer: str) -> OIDCProviderMetadata:
+def build_discovery_metadata(
+    issuer: str, *, registration_enabled: bool = False
+) -> OIDCProviderMetadata:
     """Assemble the OpenID Provider metadata for a tenant.
 
     Args:
         issuer: The tenant base URL (``https://<tenant-host>``) derived from the
             request host. Becomes the `issuer` and the prefix of every endpoint.
+        registration_enabled: Whether the tenant's dynamic client registration
+            policy is on; adds `registration_endpoint`.
 
     Returns:
         The populated discovery document. All endpoints are absolute URLs on the
@@ -111,6 +116,7 @@ def build_discovery_metadata(issuer: str) -> OIDCProviderMetadata:
         introspection_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
         revocation_endpoint=f"{base}/oauth2/revoke",
         revocation_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
+        registration_endpoint=f"{base}/oauth2/register" if registration_enabled else None,
         scopes_supported=list(claims_service.SUPPORTED_SCOPES),
         response_types_supported=list(RESPONSE_TYPES_SUPPORTED),
         response_modes_supported=list(RESPONSE_MODES_SUPPORTED),

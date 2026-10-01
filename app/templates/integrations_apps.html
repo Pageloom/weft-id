@@ -58,6 +58,9 @@
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {% if not client.is_active %}opacity-60{% endif %}">
                         <td class="px-4 py-4">
                             <a href="/applications/oauth/{{ client.client_id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">{{ client.name }}</a>
+                            {% if client.dynamically_registered %}
+                            <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300" title="Registered itself through dynamic client registration">Registered</span>
+                            {% endif %}
                             {% if client.description %}
                             <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ client.description }}</div>
                             {% endif %}

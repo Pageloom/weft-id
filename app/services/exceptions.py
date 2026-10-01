@@ -62,6 +62,18 @@ class ValidationError(ServiceError):
 
 
 @dataclass
+class UnauthorizedError(ServiceError):
+    """A protocol caller presented no valid credential (a bearer token).
+
+    Translates to: HTTP 401. Authentication of signed-in users happens in
+    router dependencies; this is for credentials checked inside a service,
+    such as a registration access token.
+    """
+
+    code: str = "invalid_token"
+
+
+@dataclass
 class ConflictError(ServiceError):
     """Resource already exists or state conflict.
 

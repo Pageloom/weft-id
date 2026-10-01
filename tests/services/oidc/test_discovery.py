@@ -66,3 +66,15 @@ class TestBuildDiscoveryMetadata:
         dumped = meta.model_dump()
         assert dumped["request_parameter_supported"] is False
         assert dumped["request_uri_parameter_supported"] is False
+
+    def test_registration_endpoint_only_when_enabled(self):
+        assert (
+            discovery_service.build_discovery_metadata(
+                "https://t.example.com"
+            ).registration_endpoint
+            is None
+        )
+        meta = discovery_service.build_discovery_metadata(
+            "https://t.example.com/", registration_enabled=True
+        )
+        assert meta.registration_endpoint == "https://t.example.com/oauth2/register"

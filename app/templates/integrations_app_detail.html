@@ -18,6 +18,11 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-mono">{{ client.client_id }}</p>
             </div>
             <div class="flex items-center gap-2">
+                {% if client.dynamically_registered %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300" title="Registered itself through dynamic client registration">
+                    Registered
+                </span>
+                {% endif %}
                 {% if client.is_active %}
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
                     Active
@@ -29,6 +34,22 @@
                 {% endif %}
             </div>
         </div>
+
+        {% if client.dynamically_registered %}
+        <div class="mb-6 p-4 border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 rounded-md text-sm text-purple-900 dark:text-purple-200">
+            <p>This app registered itself through <a href="/applications/client-registration" class="underline hover:no-underline">dynamic client registration</a>. It can read, change, or delete its own registration. You can still manage it here.</p>
+            {% if client.client_uri or client.policy_uri or client.tos_uri or client.logo_uri %}
+            <dl class="mt-2 grid grid-cols-1 sm:grid-cols-4 gap-x-2 gap-y-1 text-xs">
+                {% for label, uri in [("Home page", client.client_uri), ("Privacy policy", client.policy_uri), ("Terms of service", client.tos_uri), ("Logo", client.logo_uri)] %}
+                {% if uri %}
+                <dt class="font-medium">{{ label }}</dt>
+                <dd class="sm:col-span-3 font-mono break-all">{{ uri }}</dd>
+                {% endif %}
+                {% endfor %}
+            </dl>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <!-- Success/Error Messages -->
         {% if success == 'updated' %}

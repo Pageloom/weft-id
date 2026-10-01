@@ -152,6 +152,17 @@ WeftID signs ID tokens with a per-tenant RSA key, published at the JWKS URI. The
 
 New tokens are signed with the new key as soon as the rotation completes. Relying parties that fetch keys from the JWKS URI (the normal case) pick up the change automatically. A background sweep removes retired keys once their grace period lapses; rotations and cleanups are recorded in the audit log.
 
+## Request objects and signed UserInfo
+
+An app can send its authorization request parameters inside a signed JWT, a **request object** (OpenID Connect Core section 6), instead of in the URL:
+
+* **By value**: the `request` parameter holds the JWT.
+* **By reference**: the `request_uri` parameter holds an `https` URL where WeftID fetches the JWT. The URL must be one the app registered in `request_uris` through [client registration](client-registration.md). A fragment on the URL is ignored when matching.
+
+The request object must be signed with `RS256`, `PS256`, or `ES256` by one of the app's public keys (set under **Client Authentication** on the app page, or registered as `jwks` / `jwks_uri`). Unsigned request objects are refused. When the object carries `iss` it must be the app's client ID, and when it carries `aud` it must include the tenant issuer. Values in the object replace the same parameters in the URL. `client_id` and `response_type` must match when both are present. A request object that cannot be used is answered with `invalid_request_object` or `invalid_request_uri`.
+
+An app registered with `userinfo_signed_response_alg` set to `RS256` gets UserInfo responses as a JWT (`application/jwt`), signed with the tenant's OIDC signing key and carrying `iss` and `aud`.
+
 ## Access requirements
 
 Admin or super admin role required to manage OIDC settings and group assignments. Signing-key rotation and cleanup require the super admin role.
@@ -162,7 +173,7 @@ WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256
 
 These parts of the specification are not supported, and discovery says so:
 
-* **Request objects** (`request` and `request_uri`) are rejected with `request_not_supported` or `request_uri_not_supported`.
+* **Unsigned or encrypted request objects.** Request objects must be signed (see [Request objects and signed UserInfo](#request-objects-and-signed-userinfo)).
 * **The `claims` request parameter** is ignored (`claims_parameter_supported` is `false`). Claims are released by scope only.
 * **No `acr` claim.** WeftID defines no authentication context classes, so `acr_values` is accepted but has no effect.
 * **Response types other than `code`** (implicit and hybrid flows).

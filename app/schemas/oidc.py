@@ -127,20 +127,32 @@ class OIDCProviderMetadata(BaseModel):
         ..., description="Claims that may appear in ID tokens or userinfo responses."
     )
     request_parameter_supported: bool = Field(
-        False,
+        True,
         description=(
             "Whether the authorization endpoint accepts a request object by value "
-            "(the `request` parameter). Always false: such requests are rejected with "
-            "request_not_supported."
+            "(the `request` parameter). Request objects must be signed."
         ),
     )
     request_uri_parameter_supported: bool = Field(
-        False,
+        True,
         description=(
             "Whether the authorization endpoint accepts a request object by reference "
-            "(the `request_uri` parameter). Always false: such requests are rejected "
-            "with request_uri_not_supported. The OIDC Discovery default for this field "
-            "is true, so it is stated explicitly."
+            "(the `request_uri` parameter)."
+        ),
+    )
+    require_request_uri_registration: bool = Field(
+        True,
+        description="Whether a request_uri must be pre-registered in the client's request_uris.",
+    )
+    request_object_signing_alg_values_supported: list[str] = Field(
+        ...,
+        description="JWS algorithms accepted for request objects. Unsigned objects are refused.",
+    )
+    userinfo_signing_alg_values_supported: list[str] = Field(
+        ...,
+        description=(
+            "JWS algorithms for signed userinfo responses "
+            "(clients registered with userinfo_signed_response_alg)."
         ),
     )
     claims_parameter_supported: bool = Field(

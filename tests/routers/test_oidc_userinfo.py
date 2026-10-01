@@ -286,3 +286,63 @@ class TestUserInfoEvent:
         assert kwargs["artifact_id"] == str(oidc_client["id"])
         assert kwargs["metadata"]["client_id"] == oidc_client["client_id"]
         assert kwargs["metadata"]["scopes"] == ["email", "openid"]
+
+
+class TestSignedUserInfo:
+    """A client registered with userinfo_signed_response_alg=RS256 gets the
+    claims as a JWT signed with the tenant key (Core 5.3.2)."""
+
+    @pytest.fixture
+    def signing_client(self, test_tenant, oidc_client):
+        database.execute(
+            test_tenant["id"],
+            "update oauth2_clients set registration_metadata = cast(:meta as jsonb) where id = :id",
+            {"meta": '{"userinfo_signed_response_alg": "RS256"}', "id": oidc_client["id"]},
+        )
+        return oidc_client
+
+    def _verify(self, test_tenant, token: str) -> dict:
+        from services import oidc as oidc_service
+
+        kid = jwt.get_unverified_header(token)["kid"]
+        public_pem = oidc_service.get_verification_public_keys(str(test_tenant["id"]))[kid]
+        return jwt.decode(token, public_pem, algorithms=["RS256"], options={"verify_aud": False})
+
+    @pytest.mark.parametrize("method", ["get", "post"])
+    def test_signed_response(
+        self, client, test_tenant, test_tenant_host, signing_client, test_user, method
+    ):
+        token = _access_token(test_tenant, signing_client, test_user, scope="openid email")
+        resp = getattr(client, method)(
+            "/userinfo", headers={"Host": test_tenant_host, "Authorization": f"Bearer {token}"}
+        )
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/jwt")
+        claims = self._verify(test_tenant, resp.text)
+        assert claims["sub"] == str(test_user["id"])
+        assert claims["email"] == test_user["email"]
+        assert claims["iss"] == f"https://{test_tenant_host}"
+        assert claims["aud"] == signing_client["client_id"]
+        assert "nonce" not in claims
+
+    def test_signed_response_is_audited(
+        self, client, test_tenant, test_tenant_host, signing_client, test_user
+    ):
+        token = _access_token(test_tenant, signing_client, test_user, scope="openid")
+        with patch("services.oidc.userinfo.log_event") as mock_log:
+            resp = _userinfo(client, test_tenant_host, token)
+        assert resp.status_code == 200
+        assert mock_log.call_args.kwargs["event_type"] == "oidc_userinfo_accessed"
+
+    def test_unknown_alg_falls_back_to_json(
+        self, client, test_tenant, test_tenant_host, oidc_client, test_user
+    ):
+        database.execute(
+            test_tenant["id"],
+            "update oauth2_clients set registration_metadata = cast(:meta as jsonb) where id = :id",
+            {"meta": '{"userinfo_signed_response_alg": "HS256"}', "id": oidc_client["id"]},
+        )
+        token = _access_token(test_tenant, oidc_client, test_user, scope="openid")
+        resp = _userinfo(client, test_tenant_host, token)
+        assert resp.headers["content-type"].startswith("application/json")
+        assert resp.json()["sub"] == str(test_user["id"])

@@ -37,6 +37,7 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
@@ -270,17 +271,18 @@ def _decode(assertion: str, key: jwt.PyJWK, *, client_id: str, audiences: list[s
 
 
 def _verify_with_keys(
-    tenant_id: str, client: dict, assertion: str, header: dict, alg: str, audiences: list[str]
+    tenant_id: str, client: dict, header: dict, alg: str, decode: Callable[[jwt.PyJWK], dict]
 ) -> dict:
-    """Verify the assertion against the client's keys; refetch once on a miss."""
+    """Verify a client-signed JWT against the client's keys; refetch once on a miss.
+
+    ``decode`` verifies the token with one candidate key and returns its claims.
+    """
     jwks = _client_jwks(tenant_id, client, refresh=False)
     for attempt in range(2):
         if jwks is not None:
             for key in _candidate_keys(jwks, header, alg):
                 try:
-                    return _decode(
-                        assertion, key, client_id=client["client_id"], audiences=audiences
-                    )
+                    return decode(key)
                 except jwt.InvalidSignatureError:
                     continue
                 except jwt.PyJWTError as exc:
@@ -323,7 +325,13 @@ def _check_assertion(
     if not isinstance(alg, str) or alg not in allowed:
         raise _AssertionRejectedError(f"alg {str(alg)[:20]!r} is not allowed")
 
-    claims = _verify_with_keys(tenant_id, client, assertion, header, alg, audiences)
+    claims = _verify_with_keys(
+        tenant_id,
+        client,
+        header,
+        alg,
+        lambda key: _decode(assertion, key, client_id=client["client_id"], audiences=audiences),
+    )
 
     jti = claims["jti"]
     if not isinstance(jti, str) or not jti or len(jti) > MAX_JTI_LENGTH:
@@ -370,6 +378,44 @@ def authenticate_client_assertion(
         raise UnauthorizedError(
             message="Client authentication failed", code="invalid_client"
         ) from None
+
+
+def verify_client_signed_jwt(
+    tenant_id: str, client: dict, token: str, *, allowed_algs: tuple[str, ...]
+) -> dict:
+    """Verify a JWT signed with one of the client's keys and return its claims.
+
+    Used for request objects (OpenID Connect Core 1.0 section 6), which any
+    client with registered keys may sign, whatever its authentication method.
+    Checks the signature (``alg`` in ``allowed_algs``, a key chosen as for
+    assertions, one refetch of a ``jwks_uri`` on a miss) and ``exp`` / ``nbf``
+    when present. Every other claim is the caller's to check.
+
+    Raises:
+        ValueError: the token is not a JWT signed by the client (the message
+            is a reason for logs, not for the caller's user)
+    """
+    try:
+        header = jwt.get_unverified_header(token)
+    except jwt.PyJWTError as exc:
+        raise ValueError("not a JWT") from exc
+    alg = header.get("alg")
+    if not isinstance(alg, str) or alg not in allowed_algs:
+        raise ValueError(f"alg {str(alg)[:20]!r} is not allowed")
+
+    def decode(key: jwt.PyJWK) -> dict:
+        return jwt.decode(
+            token,
+            key=key,
+            algorithms=[key.algorithm_name],
+            leeway=_LEEWAY_SECONDS,
+            options={"verify_aud": False, "enforce_minimum_key_length": True},
+        )
+
+    try:
+        return _verify_with_keys(tenant_id, client, header, alg, decode)
+    except _AssertionRejectedError as exc:
+        raise ValueError(str(exc)) from None
 
 
 # =============================================================================

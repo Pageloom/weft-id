@@ -13,13 +13,21 @@ The caller (the userinfo router / its bearer dependency) is responsible for
 authenticating the access token and returning the correct OAuth2 error on an
 invalid/expired/revoked/missing token; this service assumes an already-validated
 token and only assembles + audits the claim release.
+
+A client that registered ``userinfo_signed_response_alg`` (RS256) gets the
+claims as a JWT signed with the tenant's OIDC key, with ``iss`` and ``aud``
+added (Core 5.3.2); :func:`sign_userinfo` builds it.
 """
 
 from __future__ import annotations
 
+import jwt
 from services.activity import track_activity
 from services.event_log import log_event
 from services.oidc import claims as claims_service
+from services.oidc.keys import get_active_signing_key
+
+USERINFO_SIGNING_ALG_VALUES_SUPPORTED = ("RS256",)
 
 
 def get_userinfo(
@@ -74,3 +82,32 @@ def get_userinfo(
     )
 
     return userinfo
+
+
+def userinfo_signing_alg(client: dict) -> str | None:
+    """The ``userinfo_signed_response_alg`` the client registered, if any."""
+    alg = (client.get("registration_metadata") or {}).get("userinfo_signed_response_alg")
+    return alg if alg in USERINFO_SIGNING_ALG_VALUES_SUPPORTED else None
+
+
+def sign_userinfo(*, tenant_id: str, issuer: str, client: dict, userinfo: dict) -> str | None:
+    """Sign the userinfo claims for a client that asked for a signed response.
+
+    Authorization: none of its own -- ``userinfo`` was assembled (and audited)
+    by :func:`get_userinfo` for a validated token of this client.
+
+    Returns:
+        The compact JWT (``iss`` the issuer, ``aud`` the client_id), or None
+        when the client takes plain JSON.
+    """
+    alg = userinfo_signing_alg(client)
+    if alg is None:
+        return None
+    signing_key = get_active_signing_key(tenant_id)
+    payload = {**userinfo, "iss": issuer.rstrip("/"), "aud": client["client_id"]}
+    return jwt.encode(
+        payload,
+        signing_key.private_key_pem,
+        algorithm=alg,
+        headers={"kid": signing_key.kid},
+    )

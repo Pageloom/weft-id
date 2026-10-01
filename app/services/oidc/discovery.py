@@ -11,7 +11,8 @@ RP-initiated logout (``end_session_endpoint``), front-channel logout (with
 ``iss``/``sid``), back-channel logout (with ``sid``), token introspection (RFC
 7662) and token revocation (RFC 7009) are advertised; dynamic client
 registration (RFC 7591) is advertised only while the tenant has it turned on;
-device grant and PAR are absent until they exist. `scopes_supported`
+signed request objects and signed userinfo are advertised with their
+algorithms; PAR is absent until it exists. `scopes_supported`
 is sourced from the shared claim assembler's ``SUPPORTED_SCOPES`` so the
 advertised scopes and the scopes actually gated by claim release can never
 drift; the `groups` scope is therefore advertised only once Iteration 4 adds it
@@ -21,8 +22,9 @@ to that tuple.
 from __future__ import annotations
 
 from schemas.oidc import OIDCProviderMetadata
-from services import oauth2_client_auth
+from services import oauth2_client_auth, oauth2_request_objects
 from services.oidc import claims as claims_service
+from services.oidc import userinfo as userinfo_service
 
 # Subject identifier type. WeftID uses the stable user id directly (never a
 # pairwise identifier); pairwise `sub` is deferred to the Hardening item.
@@ -63,13 +65,15 @@ AUTH_SIGNING_ALG_VALUES_SUPPORTED = list(oauth2_client_auth.SIGNING_ALG_VALUES_S
 # RFC 7009 section 2.1). Public clients exist for the device grant only.
 TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED = [*CONFIDENTIAL_AUTH_METHODS, "none"]
 
-# Request objects (OpenID Connect Core 1.0, section 6) are not accepted: the
-# authorization endpoint rejects `request` with request_not_supported and
-# `request_uri` with request_uri_not_supported. Both flags are advertised
-# explicitly because the Discovery default for request_uri_parameter_supported
-# is true, and RPs (and the conformance suite) read the absence as support.
-REQUEST_PARAMETER_SUPPORTED = False
-REQUEST_URI_PARAMETER_SUPPORTED = False
+# Request objects (OpenID Connect Core 1.0, section 6) are accepted by value
+# and by reference, signed only (no "none"), and a request_uri must be one the
+# client registered (services.oauth2_request_objects).
+REQUEST_PARAMETER_SUPPORTED = True
+REQUEST_URI_PARAMETER_SUPPORTED = True
+REQUIRE_REQUEST_URI_REGISTRATION = True
+REQUEST_OBJECT_SIGNING_ALG_VALUES_SUPPORTED = list(
+    oauth2_request_objects.SIGNING_ALG_VALUES_SUPPORTED
+)
 
 # The `claims` request parameter (OpenID Connect Core 1.0, section 5.5) is not
 # honoured: claims are released by scope only. Advertised explicitly because
@@ -152,6 +156,13 @@ def build_discovery_metadata(
         claims_supported=list(CLAIMS_SUPPORTED),
         request_parameter_supported=REQUEST_PARAMETER_SUPPORTED,
         request_uri_parameter_supported=REQUEST_URI_PARAMETER_SUPPORTED,
+        require_request_uri_registration=REQUIRE_REQUEST_URI_REGISTRATION,
+        request_object_signing_alg_values_supported=list(
+            REQUEST_OBJECT_SIGNING_ALG_VALUES_SUPPORTED
+        ),
+        userinfo_signing_alg_values_supported=list(
+            userinfo_service.USERINFO_SIGNING_ALG_VALUES_SUPPORTED
+        ),
         claims_parameter_supported=CLAIMS_PARAMETER_SUPPORTED,
         frontchannel_logout_supported=True,
         frontchannel_logout_session_supported=True,

@@ -9,14 +9,14 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 <!-- conformance-results:start -->
 
 * **Suite version:** 5.2.4
-* **WeftID version:** 1.12.0 (`9e6fa703`)
+* **WeftID version:** 1.12.0 (`3526f439`)
 * **Run date:** 2026-10-01
 
 | Profile | Test plan | Outcome | Passed | Warning | Review | Skipped | Failed |
 |---|---|---|---|---|---|---|---|
-| Basic OP | `oidcc-basic-certification-test-plan` | Green | 24 | 3 | 4 | 4 | 0 |
+| Basic OP | `oidcc-basic-certification-test-plan` | Green | 24 | 3 | 3 | 5 | 0 |
 | Config OP | `oidcc-config-certification-test-plan` | Green | 1 | 0 | 0 | 0 | 0 |
-| Form Post OP | `oidcc-formpost-basic-certification-test-plan` | Green | 24 | 3 | 4 | 4 | 0 |
+| Form Post OP | `oidcc-formpost-basic-certification-test-plan` | Green | 24 | 3 | 3 | 5 | 0 |
 | RP-Initiated OP | `oidcc-rp-initiated-logout-certification-test-plan` | Green | 3 | 0 | 8 | 0 | 0 |
 | Front-Channel OP | `oidcc-frontchannel-rp-initiated-logout-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
 | Back-Channel OP | `oidcc-backchannel-rp-initiated-logout-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
@@ -33,14 +33,14 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 * `oidcc-scope-address` (Basic OP, Form Post OP): Address and phone scopes are not advertised; WeftID has no attributes to populate their claims
 * `oidcc-scope-phone` (Basic OP, Form Post OP): Address and phone scopes are not advertised; WeftID has no attributes to populate their claims
 * `oidcc-scope-all` (Basic OP, Form Post OP): Address and phone scopes are not advertised; WeftID has no attributes to populate their claims
-* `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` (Basic OP, Form Post OP): Request objects are rejected with request_not_supported and discovery says request_parameter_supported=false; the suite skips the remainder of the module (the 'rejected as unsupported' outcome).
+* `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` (Basic OP, Form Post OP): Only signed request objects are accepted; request_object_signing_alg_values_supported does not list none, so the suite skips the unsigned-request-object module.
+* `oidcc-ensure-request-object-with-redirect-uri` (Basic OP, Form Post OP): The module sends an unsigned request object; request_object_signing_alg_values_supported does not list none (only signed request objects are accepted), so the suite skips it.
 
 **Review** means the suite captured a screenshot (an error page, or a second login page) for a person to judge, because it cannot judge page content itself:
 
 * `oidcc-prompt-login` (Basic OP, Form Post OP)
 * `oidcc-max-age-1` (Basic OP, Form Post OP)
 * `oidcc-ensure-registered-redirect-uri` (Basic OP, Form Post OP)
-* `oidcc-ensure-request-object-with-redirect-uri` (Basic OP, Form Post OP)
 * `oidcc-rp-initiated-logout-bad-post-logout-redirect-uri` (RP-Initiated OP)
 * `oidcc-rp-initiated-logout-modified-id-token-hint` (RP-Initiated OP)
 * `oidcc-rp-initiated-logout-no-id-token-hint` (RP-Initiated OP)
@@ -59,7 +59,7 @@ Each profile is one test plan made of test modules. A profile is **green** when 
 * **Passed**: every check succeeded.
 * **Warning**: the provider did something the specification allows but recommends against (a SHOULD). Every warning WeftID accepts is listed by name under the table and explained in [Deviations](#deviations).
 * **Review**: the module passed its automated checks and captured a screenshot for a person to judge, because the suite cannot judge page content. These are the error page for an unregistered redirect URI, the second login page for `prompt=login` and `max_age`, and the sign-out confirmation and signed-out pages for RP-initiated logout.
-* **Skipped**: the module tests a feature WeftID does not offer and says so in its discovery document (for example the `address` and `phone` scopes, or request objects).
+* **Skipped**: the module tests a feature WeftID does not offer and says so in its discovery document (for example the `address` and `phone` scopes, or unsigned request objects).
 
 A single **Failed** or unfinished module makes the profile red.
 
@@ -70,7 +70,7 @@ The runner compares every run against two files checked into the repository: [`e
 * **Implicit OP** and **Hybrid OP**: WeftID issues authorization codes only (`response_type=code`). The implicit and hybrid flows return tokens through the browser, and current OAuth security guidance advises against them.
 * **Session OP** (OpenID Connect Session Management): the `check_session_iframe` mechanism relies on third-party cookies, which browsers now block.
 
-Dynamic OP is planned. Dynamic client registration itself is implemented (the 3rd Party-Init OP plan registers its clients with it), and so is `private_key_jwt` client authentication, but the Dynamic OP plan also requires request objects and signed userinfo responses. It will be added to the table once those are implemented and it passes.
+Dynamic OP is planned. Dynamic client registration, `private_key_jwt` client authentication, signed request objects (by value and by reference), and signed userinfo responses are implemented. The plan will be added to the table once its test harness is in place and it passes.
 
 ## Deviations
 
@@ -79,7 +79,7 @@ These are the places where WeftID knowingly differs from what the suite checks f
 * **No `acr` claim.** WeftID defines no authentication context classes, so it returns no `acr` claim when a relying party sends `acr_values`. The suite warns (SHOULD).
 * **No `claims` request parameter.** Claims are released by scope only, and discovery says `claims_parameter_supported: false`. The suite warns when a claim requested through `claims` is absent (SHOULD).
 * **Partial `profile` claim set.** The `profile` scope releases the claims WeftID holds data for: `name`, `given_name`, `family_name`, `locale`, `zoneinfo`, and `updated_at`. Claims without data (`nickname`, `picture`, `website`, `gender`, `birthdate`, `middle_name`, `preferred_username`, `profile`) are omitted, never sent as `null`, as OpenID Connect Core section 5.1 allows. The suite warns.
-* **No request objects.** The `request` and `request_uri` parameters are rejected with `request_not_supported`, and discovery says so. The suite accepts this and skips the rest of the module.
+* **Signed request objects only.** Request objects must be signed (`RS256`, `PS256`, or `ES256`). Discovery does not list `none` in `request_object_signing_alg_values_supported`, so the suite skips its unsigned request object modules.
 * **No `address` or `phone` scopes.** WeftID has no attributes to fill them, so they are not advertised and the suite skips their modules.
 * **Re-authentication is local.** `prompt=login` and an expired `max_age` make the user sign in to WeftID again (password, then two-step verification per policy). The re-authentication is not passed on to an upstream SAML or OIDC identity provider.
 

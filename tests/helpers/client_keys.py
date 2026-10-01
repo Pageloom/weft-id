@@ -57,3 +57,11 @@ def make_assertion(
             claims[name] = value
     headers = {"kid": kid} if kid is not None else {}
     return jwt.encode(claims, key, algorithm=alg, headers=headers)
+
+
+def make_request_object(
+    claims: dict, *, key=RSA_KEY, alg: str = "RS256", kid: str | None = "rsa-1"
+) -> str:
+    """A request object (OpenID Connect Core 1.0 section 6) signed by a client key."""
+    headers = {"kid": kid} if kid is not None else {}
+    return jwt.encode(claims, key, algorithm=alg, headers=headers)

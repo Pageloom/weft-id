@@ -176,9 +176,18 @@ class TestValidateClientMetadata:
             {"id_token_signed_response_alg": "none"},
             {"id_token_signed_response_alg": "HS256"},
             {"subject_type": "pairwise"},
-            {"userinfo_signed_response_alg": "RS256"},
+            {"userinfo_signed_response_alg": "HS256"},
+            {"userinfo_signed_response_alg": "none"},
+            {"userinfo_encrypted_response_alg": "RSA-OAEP"},
             {"id_token_encrypted_response_alg": "RSA-OAEP"},
             {"request_object_signing_alg": "RS256"},
+            {"request_object_signing_alg": "none", "jwks": JWKS},
+            {"request_object_encryption_alg": "RSA-OAEP"},
+            {"request_uris": "https://rp.example/req"},
+            {"request_uris": ["http://rp.example/req"]},
+            {"request_uris": ["/req"]},
+            {"request_uris": [7]},
+            {"request_uris": [f"https://rp.example/r{i}" for i in range(21)]},
             {"token_endpoint_auth_signing_alg": "RS256"},
             {"client_name": 42},
             {"client_name": "x" * 256},
@@ -998,3 +1007,76 @@ class TestPrivateKeyJwtConfiguration:
             BASE,
         )
         assert updated["token_endpoint_auth_method"] == "client_secret_post"
+
+
+class TestRequestObjectAndUserinfoMetadata:
+    FULL = {
+        "redirect_uris": ["https://rp.example/cb"],
+        "jwks": JWKS,
+        "request_uris": ["https://rp.example/req.jwt#abc"],
+        "request_object_signing_alg": "PS256",
+        "userinfo_signed_response_alg": "RS256",
+    }
+
+    def test_accepted_into_registration_metadata(self):
+        accepted = svc.validate_client_metadata(self.FULL)
+        assert accepted["extra"]["request_uris"] == ["https://rp.example/req.jwt#abc"]
+        assert accepted["extra"]["request_object_signing_alg"] == "PS256"
+        assert accepted["extra"]["userinfo_signed_response_alg"] == "RS256"
+
+    def test_absent_values_are_not_stored(self):
+        accepted = svc.validate_client_metadata({"redirect_uris": ["https://rp.example/cb"]})
+        for name in ("request_uris", "request_object_signing_alg", "userinfo_signed_response_alg"):
+            assert name not in accepted["extra"]
+
+    def test_empty_request_uris_are_not_stored(self):
+        accepted = svc.validate_client_metadata(
+            {"redirect_uris": ["https://rp.example/cb"], "request_uris": []}
+        )
+        assert "request_uris" not in accepted["extra"]
+
+    def test_userinfo_signing_for_device_client(self):
+        accepted = svc.validate_client_metadata(
+            {"grant_types": [DEVICE], "userinfo_signed_response_alg": "RS256"}
+        )
+        assert accepted["extra"]["userinfo_signed_response_alg"] == "RS256"
+
+    @pytest.mark.parametrize(
+        "metadata",
+        [
+            {"grant_types": [DEVICE], "request_uris": ["https://rp.example/req"]},
+            {"grant_types": [DEVICE], "jwks": JWKS, "request_object_signing_alg": "RS256"},
+        ],
+    )
+    def test_request_objects_need_the_code_grant(self, metadata):
+        assert _error_code(metadata) == "invalid_client_metadata"
+
+    def test_registered_and_echoed(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, self.FULL)
+        assert body["request_uris"] == ["https://rp.example/req.jwt#abc"]
+        assert body["request_object_signing_alg"] == "PS256"
+        assert body["userinfo_signed_response_alg"] == "RS256"
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["registration_metadata"]["request_uris"] == ["https://rp.example/req.jwt#abc"]
+
+    def test_update_replaces_and_clears(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, self.FULL)
+        client = svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {
+                "client_id": body["client_id"],
+                "redirect_uris": ["https://rp.example/cb"],
+                "jwks": JWKS,
+                "request_uris": ["https://rp.example/v2.jwt"],
+            },
+            BASE,
+        )
+        assert updated["request_uris"] == ["https://rp.example/v2.jwt"]
+        assert "request_object_signing_alg" not in updated
+        assert "userinfo_signed_response_alg" not in updated

@@ -1,4 +1,12 @@
-"""Logout endpoint with SAML SLO support.
+"""Logout endpoint, upstream logout hops, and the post-logout landing.
+
+A WeftID sign-out continues at the upstream identity provider when the
+session began there: SAML Single Logout (when the IdP has an SLO URL) or
+OpenID Connect RP-Initiated Logout (when the connection has "sign out at the
+provider" on). A logout an RP started through end_session keeps its return
+address across that round trip in the (new, signed-out) session; the IdP
+sends the browser back to ``/logout/complete`` (OIDC) or ``/saml/slo``
+(SAML), which finish at it.
 
 Architectural Note: This module contains direct log_event() calls for the user_signed_out
 event. This is an accepted exception to the "event logging in services" pattern because
@@ -8,6 +16,7 @@ business logic mutation.
 
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Annotated
 from urllib.parse import urlsplit
@@ -16,9 +25,11 @@ from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse, Response
 from services import oidc as oidc_service
+from services import oidc_upstream as oidc_upstream_service
 from services.event_log import log_event
 from services.oidc import OidcSessionEnd
 from utils.csp_nonce import get_csp_nonce
+from utils.redirects import safe_redirect
 from utils.request_metadata import extract_request_metadata
 from utils.session import SESSION_ID_KEY
 from utils.templates import templates
@@ -32,6 +43,14 @@ router = APIRouter()
 # URIs are validated at registration; this keeps a header value from ever
 # carrying anything but a plain origin.
 _CSP_ORIGIN = re.compile(r"^https?://[A-Za-z0-9.\-]+(:[0-9]{1,5})?$")
+
+# Where the browser goes once an upstream logout round trip returns, when the
+# logout was started by an RP through end_session (its verified
+# post_logout_redirect_uri, or the signed-out page). Written into the
+# signed-out session, so only this server can have put it there; short-lived
+# and consumed on use.
+PENDING_LOGOUT_RETURN_KEY = "pending_logout_return"
+PENDING_LOGOUT_RETURN_MAX_AGE = 10 * 60
 
 
 @dataclass(frozen=True)
@@ -48,11 +67,33 @@ class TerminatedSession:
             caller renders them with ``frontchannel_logout_response``.
         backchannel_logout_count: OIDC back-channel logout deliveries queued
             for the worker.
+        upstream_oidc_logout_url: The upstream OIDC provider's end_session
+            URL, when the session began at a connection with "sign out at the
+            provider" on (read before the session's upstream link is removed).
     """
 
     upstream: dict = field(default_factory=dict)
     frontchannel_logout_urls: list[str] = field(default_factory=list)
     backchannel_logout_count: int = 0
+    upstream_oidc_logout_url: str | None = None
+
+
+def _upstream_oidc_logout_url(request: Request, tenant_id: str) -> str | None:
+    """The upstream OIDC end_session URL for the current session; never raises."""
+    sid = request.session.get(SESSION_ID_KEY)
+    if not isinstance(sid, str) or not sid:
+        return None
+    try:
+        return oidc_upstream_service.build_upstream_logout_url(
+            tenant_id=tenant_id,
+            sid=sid,
+            post_logout_redirect_uri=(
+                f"{tenant_base_url(request)}{oidc_upstream_service.POST_LOGOUT_PATH}"
+            ),
+        )
+    except Exception:
+        logger.warning("Upstream OIDC logout URL could not be built", exc_info=True)
+        return None
 
 
 def end_oidc_session_quietly(
@@ -147,6 +188,9 @@ def terminate_session(
     # Get active downstream SP sessions before clearing
     active_sps = request.session.get("sso_active_sps", [])
 
+    # Before end_oidc_session forgets the session's upstream link.
+    upstream_oidc_logout_url = _upstream_oidc_logout_url(request, tenant_id) if user_id else None
+
     oidc_end = end_oidc_session_quietly(request, tenant_id) if user_id else OidcSessionEnd()
 
     # Log the logout event before clearing session
@@ -162,6 +206,7 @@ def terminate_session(
                 "frontchannel_logout_count": len(oidc_end.frontchannel_logout_urls),
                 "backchannel_logout_count": oidc_end.backchannel_logout_count,
                 "refresh_tokens_revoked": oidc_end.refresh_tokens_revoked,
+                "upstream_oidc_logout": upstream_oidc_logout_url is not None,
                 **(metadata or {}),
             },
             request_metadata=extract_request_metadata(request),
@@ -188,7 +233,94 @@ def terminate_session(
         upstream=upstream,
         frontchannel_logout_urls=oidc_end.frontchannel_logout_urls,
         backchannel_logout_count=oidc_end.backchannel_logout_count,
+        upstream_oidc_logout_url=upstream_oidc_logout_url,
     )
+
+
+def _upstream_saml_logout_url(
+    request: Request, tenant_id: str, terminated: TerminatedSession
+) -> str | None:
+    """The signed SAML LogoutRequest URL at the upstream IdP; never raises."""
+    from services import saml as saml_service
+
+    upstream = terminated.upstream
+    if not upstream.get("saml_idp_id") or not upstream.get("saml_name_id"):
+        return None
+    try:
+        host = request.headers.get("x-forwarded-host", request.url.netloc)
+        return saml_service.initiate_sp_logout(
+            tenant_id=tenant_id,
+            saml_idp_id=upstream["saml_idp_id"],
+            name_id=upstream["saml_name_id"],
+            name_id_format=upstream.get("saml_name_id_format"),
+            session_index=upstream.get("saml_session_index"),
+            base_url=f"https://{host}",
+        )
+    except Exception:
+        logger.warning("SAML SLO could not be started, continuing with local logout")
+        return None
+
+
+def upstream_logout_response(
+    request: Request,
+    tenant_id: str,
+    terminated: TerminatedSession,
+    *,
+    return_to: str | None = None,
+) -> Response | None:
+    """Continue a finished WeftID logout at the upstream identity provider.
+
+    SAML Single Logout when the session came from a SAML IdP with an SLO URL,
+    otherwise the upstream OIDC provider's end_session endpoint when the
+    connection signs users out there. None when neither applies.
+
+    ``return_to`` (a same-origin path, or an RP's verified
+    post_logout_redirect_uri) is where the browser finishes once the IdP
+    sends it back; it is stashed in the signed-out session. Without it the
+    browser finishes on the login page.
+
+    The OIDC hop always goes through a page (the front-channel page, which
+    also loads RP logout iframes when there are any): a 303 off-origin after
+    the logout form's POST is cut off by the form's CSP ``form-action`` in
+    Chromium. The SAML hop's origin is allowed there already (the SLO URL is
+    in the session), so it stays a redirect unless iframes must load first.
+    """
+    saml_url = _upstream_saml_logout_url(request, tenant_id, terminated)
+    target = saml_url or terminated.upstream_oidc_logout_url
+    if not target:
+        return None
+    if return_to:
+        request.session[PENDING_LOGOUT_RETURN_KEY] = {"url": return_to, "at": int(time.time())}
+    if terminated.frontchannel_logout_urls or saml_url is None:
+        return frontchannel_logout_response(request, terminated.frontchannel_logout_urls, target)
+    # redirect-ok: external IdP SLO endpoint
+    return RedirectResponse(url=target, status_code=303)
+
+
+def pending_logout_return_response(request: Request) -> Response | None:
+    """Finish an upstream logout round trip at the stashed destination.
+
+    Pops the stash either way; None when there is none, or it is stale or
+    malformed.
+    """
+    pending = request.session.pop(PENDING_LOGOUT_RETURN_KEY, None)
+    if not isinstance(pending, dict):
+        return None
+    url = pending.get("url")
+    at = pending.get("at")
+    if (
+        not isinstance(url, str)
+        or not url
+        or not isinstance(at, int)
+        or time.time() - at > PENDING_LOGOUT_RETURN_MAX_AGE
+    ):
+        return None
+    if url.startswith("/"):
+        return safe_redirect(url)
+    # Written by this server into the signed session after end_session matched
+    # it exactly against the client's registered post_logout_redirect_uris.
+    # redirect-ok: registered post_logout_redirect_uri, verified before stashing
+    return RedirectResponse(url=url, status_code=303)
 
 
 @router.post("/logout")
@@ -196,17 +328,13 @@ def logout(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
 ):
-    """Handle logout with optional SAML SLO.
+    """End the WeftID session, then the upstream IdP session when configured.
 
-    If the user logged in via SAML and the IdP has SLO configured,
-    initiates Single Logout by redirecting to the IdP. Otherwise,
-    just clears the local session.
-
-    SLO errors are logged but never block local logout.
+    SAML sessions continue to the IdP's Single Logout when it has an SLO URL;
+    sessions from an upstream OIDC connection continue to its end_session
+    endpoint when the connection signs users out there. Either way the local
+    session is already gone; upstream errors never block the logout.
     """
-    from services import saml as saml_service
-
-    user_id = request.session.get("user_id")
     saml_idp_id = request.session.get("saml_idp_id")
     saml_name_id = request.session.get("saml_name_id")
 
@@ -215,32 +343,25 @@ def logout(
         tenant_id,
         metadata={"saml_slo_attempted": saml_idp_id is not None and saml_name_id is not None},
     )
-    upstream = terminated.upstream
 
-    # Attempt upstream SLO if this was a SAML session
-    if saml_idp_id and saml_name_id:
-        try:
-            host = request.headers.get("x-forwarded-host", request.url.netloc)
-            base_url = f"https://{host}"
-
-            slo_redirect = saml_service.initiate_sp_logout(
-                tenant_id=tenant_id,
-                saml_idp_id=saml_idp_id,
-                name_id=saml_name_id,
-                name_id_format=upstream["saml_name_id_format"],
-                session_index=upstream["saml_session_index"],
-                base_url=base_url,
-            )
-            if slo_redirect:
-                if terminated.frontchannel_logout_urls:
-                    return frontchannel_logout_response(
-                        request, terminated.frontchannel_logout_urls, slo_redirect
-                    )
-                # redirect-ok: external IdP SLO endpoint
-                return RedirectResponse(url=slo_redirect, status_code=303)
-        except Exception:
-            logger.warning("SLO failed for user %s, continuing with local logout", user_id)
+    upstream = upstream_logout_response(request, tenant_id, terminated)
+    if upstream is not None:
+        return upstream
 
     if terminated.frontchannel_logout_urls:
         return frontchannel_logout_response(request, terminated.frontchannel_logout_urls, "/login")
+    return RedirectResponse(url="/login", status_code=303)
+
+
+@router.get(oidc_upstream_service.POST_LOGOUT_PATH)
+def logout_complete(request: Request):
+    """Where an upstream OIDC provider returns the browser after logout.
+
+    The post_logout_redirect_uri WeftID registers at upstream providers.
+    Finishes at the destination an RP-started logout stashed, else the
+    login page.
+    """
+    finish = pending_logout_return_response(request)
+    if finish is not None:
+        return finish
     return RedirectResponse(url="/login", status_code=303)

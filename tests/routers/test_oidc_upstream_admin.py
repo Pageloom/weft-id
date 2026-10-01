@@ -235,6 +235,11 @@ def test_details_tab_renders_and_hides_secret(
     # So is the back-channel logout URL, with its own copy button.
     assert f"/auth/oidc/{conn['id']}/backchannel-logout" in response.text
     assert 'id="copy-backchannel-logout-url"' in response.text
+    # And the post-logout redirect URI for provider sign-out.
+    assert "/logout/complete" in response.text
+    assert 'id="copy-post-logout-redirect-uri"' in response.text
+    assert "End Session Endpoint" in response.text
+    assert 'id="sign_out_at_idp"' in response.text
     # The secret is never rendered.
     assert "super-secret-value" not in response.text
 
@@ -317,6 +322,51 @@ def test_edit_settings(super_admin_session, test_tenant_host, test_tenant, test_
     )
     assert response.status_code == 303
     assert "success=settings_updated" in response.headers["location"]
+
+
+def test_edit_settings_turns_provider_sign_out_on_and_off(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    url = f"/identity-providers/oidc/{conn['id']}/edit-settings"
+    super_admin_session.post(
+        url,
+        data={"sign_out_at_idp": "on"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])["sign_out_at_idp"]
+
+    # An unchecked box is absent from the form: off.
+    super_admin_session.post(
+        url, data={}, headers={"Host": test_tenant_host}, follow_redirects=False
+    )
+    row = database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])
+    assert row["sign_out_at_idp"] is False
+
+
+def test_details_tab_warns_when_provider_publishes_no_end_session_endpoint(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    database.oidc_upstream.update_connection(test_tenant["id"], conn["id"], sign_out_at_idp=True)
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/details", headers={"Host": test_tenant_host}
+    )
+    assert "publishes no end session endpoint" in response.text
+
+    database.oidc_upstream.update_connection(
+        test_tenant["id"], conn["id"], end_session_endpoint="https://idp.example.com/logout"
+    )
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/details", headers={"Host": test_tenant_host}
+    )
+    assert "publishes no end session endpoint" not in response.text
+    assert "https://idp.example.com/logout" in response.text
 
 
 def test_toggle_connection(
@@ -428,7 +478,13 @@ def test_new_connection_form_renders_manual_endpoint_fields(super_admin_session,
     )
     assert response.status_code == 200
     assert "Advanced: manual endpoints" in response.text
-    for field in ("authorization_endpoint", "token_endpoint", "userinfo_endpoint", "jwks_uri"):
+    for field in (
+        "authorization_endpoint",
+        "token_endpoint",
+        "userinfo_endpoint",
+        "jwks_uri",
+        "end_session_endpoint",
+    ):
         assert f'name="{field}"' in response.text
 
 
@@ -448,6 +504,7 @@ def test_create_connection_with_manual_endpoints(
             "token_endpoint": "https://idp.example.com/token",
             "userinfo_endpoint": "https://idp.example.com/userinfo",
             "jwks_uri": "https://idp.example.com/keys",
+            "end_session_endpoint": "https://idp.example.com/logout",
         },
         headers={"Host": test_tenant_host},
         follow_redirects=False,
@@ -461,6 +518,7 @@ def test_create_connection_with_manual_endpoints(
     assert row["authorization_endpoint"] == "https://idp.example.com/authorize"
     assert row["token_endpoint"] == "https://idp.example.com/token"
     assert row["userinfo_endpoint"] == "https://idp.example.com/userinfo"
+    assert row["end_session_endpoint"] == "https://idp.example.com/logout"
     assert row["jwks_uri"] == "https://idp.example.com/keys"
 
 
@@ -541,6 +599,7 @@ def test_edit_endpoints(super_admin_session, test_tenant_host, test_tenant, test
             "authorization_endpoint": "https://idp.example.com/authorize",
             "token_endpoint": "https://idp.example.com/token",
             "jwks_uri": "https://idp.example.com/keys",
+            "end_session_endpoint": "https://idp.example.com/logout",
             # Blank keeps the stored value.
             "userinfo_endpoint": "",
         },
@@ -555,6 +614,7 @@ def test_edit_endpoints(super_admin_session, test_tenant_host, test_tenant, test
     assert row["token_endpoint"] == "https://idp.example.com/token"
     assert row["jwks_uri"] == "https://idp.example.com/keys"
     assert row["userinfo_endpoint"] == "https://idp.example.com/userinfo"
+    assert row["end_session_endpoint"] == "https://idp.example.com/logout"
 
 
 def test_edit_endpoints_rejects_insecure_url(

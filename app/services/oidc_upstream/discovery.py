@@ -1,8 +1,9 @@
 """OIDC upstream discovery.
 
 Fetches and validates an IdP's OpenID Connect discovery document
-(``/.well-known/openid-configuration``) and persists the four endpoints plus
-the issuer on the connection row. This is the relying-party mirror of
+(``/.well-known/openid-configuration``) and persists the endpoints (the four
+used at sign-in plus the optional ``end_session_endpoint`` used at sign-out)
+on the connection row. This is the relying-party mirror of
 ``services.oidc.discovery`` (which *assembles* the document for downstream
 RPs); here we *consume* it.
 
@@ -57,8 +58,8 @@ _REQUIRED_ENDPOINT_FIELDS = (
 )
 
 # Optional endpoint fields: validated only if present, persisted as None when
-# absent.
-_OPTIONAL_ENDPOINT_FIELDS = ("userinfo_endpoint",)
+# absent. ``end_session_endpoint`` is OpenID Connect RP-Initiated Logout 1.0.
+_OPTIONAL_ENDPOINT_FIELDS = ("userinfo_endpoint", "end_session_endpoint")
 
 # The well-known path appended to an issuer when no explicit discovery URL
 # is configured.
@@ -223,6 +224,7 @@ def run_discovery(tenant_id: str, connection_id: str, *, force: bool = False) ->
         token_endpoint=endpoints["token_endpoint"],
         userinfo_endpoint=endpoints["userinfo_endpoint"],
         jwks_uri=endpoints["jwks_uri"],
+        end_session_endpoint=endpoints["end_session_endpoint"],
         discovery_fetched_at=datetime.now(UTC),
         discovery_error=None,
     )

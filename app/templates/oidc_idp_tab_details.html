@@ -31,6 +31,21 @@
     </div>
 </div>
 
+{# Post-logout redirect URI to paste into the IdP console #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Post-Logout Redirect URI</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+        Needed only when <strong>Sign Out at the Provider</strong> is on. Register this as a post-logout redirect URI in your IdP console. The IdP sends users back here after it signs them out.
+    </p>
+    <div class="flex items-center gap-2">
+        <code id="post-logout-redirect-uri" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ connection.post_logout_redirect_uri }}</code>
+        <button type="button" id="copy-post-logout-redirect-uri"
+                class="shrink-0 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+            Copy
+        </button>
+    </div>
+</div>
+
 {# Connection Configuration #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <dl class="grid grid-cols-1 gap-4">
@@ -82,6 +97,10 @@
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">JWKS URI</dt>
             <dd class="mt-1 text-sm text-gray-{% if connection.jwks_uri %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.jwks_uri or 'Not discovered' }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">End Session Endpoint</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.end_session_endpoint %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.end_session_endpoint or 'Not published' }}</dd>
         </div>
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client ID</dt>
@@ -172,6 +191,24 @@
                         (requires <code>email_verified: true</code>). Leave off unless you trust the
                         IdP to verify emails.
                     </p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="sign_out_at_idp" name="sign_out_at_idp"
+                           {% if connection.sign_out_at_idp %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="sign_out_at_idp" class="text-sm font-medium text-gray-700 dark:text-gray-300">Sign Out at the Provider</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">When users sign out of WeftID, also sign them out of this provider. Register the post-logout redirect URI above first.</p>
+                    {% if connection.sign_out_at_idp and not connection.end_session_endpoint %}
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        {{ icon("exclamation-triangle", class="w-3 h-3 inline-block mr-1 -mt-0.5") }}
+                        The provider publishes no end session endpoint, so users are signed out of WeftID only.
+                    </p>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -267,6 +304,11 @@
                 <input type="url" id="edit-jwks-uri" name="jwks_uri" value="{{ connection.jwks_uri or '' }}"
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
+            <div class="mb-4">
+                <label for="edit-end-session-endpoint" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Session Endpoint <span class="text-gray-500 dark:text-gray-400 font-normal">(optional)</span></label>
+                <input type="url" id="edit-end-session-endpoint" name="end_session_endpoint" value="{{ connection.end_session_endpoint or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
             <div class="flex justify-end space-x-3">
                 <button type="button" id="cancel-endpoints-btn"
                         class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -284,7 +326,11 @@
 
 <script nonce="{{ csp_nonce }}">
 (function() {
-    [['copy-callback-url', 'callback-url'], ['copy-backchannel-logout-url', 'backchannel-logout-url']].forEach(([btnId, codeId]) => {
+    [
+        ['copy-callback-url', 'callback-url'],
+        ['copy-backchannel-logout-url', 'backchannel-logout-url'],
+        ['copy-post-logout-redirect-uri', 'post-logout-redirect-uri'],
+    ].forEach(([btnId, codeId]) => {
         const copyBtn = document.getElementById(btnId);
         copyBtn?.addEventListener('click', () => {
             const url = document.getElementById(codeId).textContent.trim();

@@ -130,6 +130,7 @@ saml_idp_created
 saml_idp_deleted
 saml_idp_disabled
 saml_idp_enabled
+saml_idp_logout_rejected
 saml_idp_metadata_refreshed
 saml_idp_set_default
 saml_idp_sp_certificate_auto_rotated

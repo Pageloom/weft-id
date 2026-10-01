@@ -139,6 +139,7 @@ def create_connection(
     token_endpoint: Annotated[str, Form(max_length=2048)] = "",
     userinfo_endpoint: Annotated[str, Form(max_length=2048)] = "",
     jwks_uri: Annotated[str, Form(max_length=2048)] = "",
+    end_session_endpoint: Annotated[str, Form(max_length=2048)] = "",
     client_id: Annotated[str, Form(max_length=255)] = "",
     client_secret: Annotated[str, Form(max_length=3000)] = "",
     scopes: Annotated[str, Form(max_length=500)] = "",
@@ -167,6 +168,7 @@ def create_connection(
             token_endpoint=token_endpoint.strip() or None,
             userinfo_endpoint=userinfo_endpoint.strip() or None,
             jwks_uri=jwks_uri.strip() or None,
+            end_session_endpoint=end_session_endpoint.strip() or None,
             client_id=client_id.strip() or None,
             client_secret=client_secret or None,
             scopes=scopes.strip() or None,
@@ -512,12 +514,13 @@ def edit_connection_endpoints(
     token_endpoint: Annotated[str, Form(max_length=2048)] = "",
     userinfo_endpoint: Annotated[str, Form(max_length=2048)] = "",
     jwks_uri: Annotated[str, Form(max_length=2048)] = "",
+    end_session_endpoint: Annotated[str, Form(max_length=2048)] = "",
 ):
-    """Set the four endpoints by hand for an IdP that publishes no discovery.
+    """Set the endpoints by hand for an IdP that publishes no discovery.
 
     Mirrors the ``PATCH /api/v1/oidc-upstream/connections/{id}`` semantics: a
     blank field leaves the stored value untouched. A later successful Test
-    Connection overwrites all four with the discovered values.
+    Connection overwrites them with the discovered values.
     """
     requesting_user = build_requesting_user(user, tenant_id, request)
 
@@ -526,6 +529,7 @@ def edit_connection_endpoints(
         token_endpoint=token_endpoint.strip() or None,
         userinfo_endpoint=userinfo_endpoint.strip() or None,
         jwks_uri=jwks_uri.strip() or None,
+        end_session_endpoint=end_session_endpoint.strip() or None,
     )
 
     try:
@@ -554,8 +558,9 @@ def edit_connection_settings(
     require_platform_mfa: Annotated[bool, Form()] = False,
     jit_provisioning: Annotated[bool, Form()] = False,
     allow_email_linking: Annotated[bool, Form()] = False,
+    sign_out_at_idp: Annotated[bool, Form()] = False,
 ):
-    """Update connection settings (enabled, default, MFA, JIT, email linking)."""
+    """Update connection settings (enabled, default, MFA, JIT, email linking, sign-out)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
     base_url = tenant_base_url(request)
 
@@ -577,6 +582,7 @@ def edit_connection_settings(
                 require_platform_mfa=require_platform_mfa,
                 jit_provisioning=jit_provisioning,
                 allow_email_linking=allow_email_linking,
+                sign_out_at_idp=sign_out_at_idp,
             ),
             base_url,
         )

@@ -23,7 +23,9 @@ The browser flow per sign-in:
 
 Test ordering is load-bearing: the first sign-in JIT-provisions the RP user
 and the `(connection, sub)` link; the second sign-in must correlate on that
-link (no duplicate user, no second link). Pytest preserves definition order
+link (no duplicate user, no second link). The last test signs out on the RP
+with "sign out at the provider" on and follows the round trip through the
+OP's end_session endpoint. Pytest preserves definition order
 within a module, and E2E runs sequentially (`-n 0`).
 
 All assertions are SQL via `psql`, matching `test_scim_loopback_e2e.py`.
@@ -348,3 +350,56 @@ class TestUpstreamOidcSecondSignIn:
         page.wait_for_selector("#first_name", timeout=10000)
         assert page.locator("#first_name").input_value() == op["user_first_name"]
         assert page.locator("#last_name").input_value() == op["user_last_name"]
+
+
+# ---------------------------------------------------------------------------
+# Sign-out at the provider: RP-initiated logout upstream
+# ---------------------------------------------------------------------------
+
+
+class TestUpstreamOidcSignOut:
+    """Signing out of the RP also ends the OP session, then returns to the RP.
+
+    The RP's logout form POSTs /logout; the RP answers with a page (a 303
+    off-origin after a form POST is cut off by the form's CSP form-action in
+    Chromium) that navigates to the OP's end_session endpoint with the
+    upstream ID token as id_token_hint. The OP verifies the hint, ends its
+    session, and redirects to the RP's registered post-logout landing, which
+    finishes on the RP login page.
+    """
+
+    def test_sign_out_ends_the_provider_session(self, page, login, loopback_config):
+        cfg = loopback_config
+        op, rp = cfg["op"], cfg["rp"]
+
+        _sign_in_via_upstream_oidc(page, login, cfg)
+        rp_signed_out_before = _event_count(rp["tenant_id"], "user_signed_out")
+        op_signed_out_before = _event_count(op["tenant_id"], "user_signed_out")
+
+        page.locator("form[action='/logout']").evaluate("form => form.submit()")
+
+        # Through the OP's end_session endpoint and back to the RP.
+        page.wait_for_url(f"{rp['base_url']}/login**", timeout=20000)
+
+        # The OP session is gone: its dashboard asks for a sign-in.
+        page.goto(f"{op['base_url']}/dashboard")
+        page.wait_for_url(f"{op['base_url']}/login**", timeout=10000)
+
+        # So is the RP session.
+        page.goto(f"{rp['base_url']}/dashboard")
+        page.wait_for_url(f"{rp['base_url']}/login**", timeout=10000)
+
+        assert _event_count(rp["tenant_id"], "user_signed_out") == rp_signed_out_before + 1
+        assert _event_count(op["tenant_id"], "user_signed_out") == op_signed_out_before + 1
+        assert _last_signed_out_metadata(rp["tenant_id"], "upstream_oidc_logout") == "true"
+        assert _last_signed_out_metadata(op["tenant_id"], "reason") == "rp_initiated_logout"
+
+
+def _last_signed_out_metadata(tenant_id: str, key: str) -> str:
+    """A metadata field of the tenant's latest user_signed_out event."""
+    return _run_sql(
+        f"SELECT m.metadata->>'{key}' FROM event_logs e "
+        "JOIN event_log_metadata m ON m.metadata_hash = e.metadata_hash "
+        f"WHERE e.tenant_id = '{tenant_id}' AND e.event_type = 'user_signed_out' "
+        "ORDER BY e.created_at DESC LIMIT 1;"
+    )

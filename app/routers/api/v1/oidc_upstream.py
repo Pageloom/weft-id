@@ -84,8 +84,9 @@ def create_connection(
     - provider_type: One of generic, google, entra
     - issuer: The IdP issuer URL (<=2048 chars)
     - discovery_url: Optional discovery document URL (<=2048 chars)
-    - authorization_endpoint / token_endpoint / userinfo_endpoint / jwks_uri:
-      Optional manual endpoint overrides (<=2048 chars each)
+    - authorization_endpoint / token_endpoint / userinfo_endpoint / jwks_uri /
+      end_session_endpoint: Optional manual endpoint overrides (<=2048 chars
+      each; discovery fills them when the provider publishes a document)
     - client_id: OAuth2 client id (<=255 chars)
     - client_secret: OAuth2 client secret (write-only, encrypted at rest)
     - scopes: Space-separated scopes (<=500 chars)
@@ -100,6 +101,9 @@ def create_connection(
     - entra_tenant_id: Entra tenant id for authority composition (<=100 chars)
     - is_enabled / is_default / require_platform_mfa / jit_provisioning /
       allow_email_linking: Behavior flags
+    - sign_out_at_idp: On WeftID sign-out, send the browser to the provider's
+      end_session_endpoint so the provider session ends too (default false).
+      Register the returned post_logout_redirect_uri at the provider first
 
     Returns the created connection. The client secret is never returned.
     """
@@ -155,10 +159,11 @@ def update_connection(
 
     Request body (all fields optional):
     - name, issuer, discovery_url, authorization_endpoint, token_endpoint,
-      userinfo_endpoint, jwks_uri, client_id, client_secret, scopes,
-      claim_mapping, correlation_claim, group_claim_source,
-      group_claim_name_key, hosted_domain, entra_tenant_id,
-      require_platform_mfa, jit_provisioning, allow_email_linking.
+      userinfo_endpoint, jwks_uri, end_session_endpoint, client_id,
+      client_secret, scopes, claim_mapping, correlation_claim,
+      group_claim_source, group_claim_name_key, hosted_domain,
+      entra_tenant_id, require_platform_mfa, jit_provisioning,
+      allow_email_linking, sign_out_at_idp.
       An empty string for group_claim_source or group_claim_name_key clears
       the setting
 

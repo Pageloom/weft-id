@@ -67,6 +67,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   and revokes their refresh tokens. Audited as `user_signed_out` with reason
   `upstream_backchannel_logout`; a rejected or replayed token is audited as
   `oidc_idp_logout_rejected`. Migration 0067.
+- **Sign-out at upstream OIDC providers.** An OIDC identity provider
+  connection can sign users out of the provider when they sign out of
+  WeftID (OpenID Connect RP-Initiated Logout). Turn on **Sign Out at the
+  Provider** (`sign_out_at_idp` on `/api/v1/oidc-upstream`, off by default)
+  and register the connection's **Post-Logout Redirect URI**
+  (`post_logout_redirect_uri`) at the provider. The provider's end session
+  endpoint is read from discovery or entered by hand
+  (`end_session_endpoint`). Logouts started by an app through WeftID's end
+  session endpoint also go through the provider, then back to the app.
+  Migration 0068.
+- **Signing out at a SAML identity provider ends the WeftID session.** A
+  logout request the IdP sends through the browser now ends the matching
+  WeftID session (same IdP, name ID and session index) instead of only being
+  acknowledged. The request must be signed by the IdP and addressed to
+  WeftID. Audited as `user_signed_out` with reason `upstream_saml_slo`, or
+  `saml_idp_logout_rejected` when refused.
 - **`sid` claim.** ID tokens now carry `sid`, an opaque identifier of the
   WeftID session the user signed in with, renewed at every sign-in.
 - **Remembered consent.** WeftID now remembers a user's **Allow** on the
@@ -106,6 +122,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **SAML sign-ins with two-step verification could not use Single Logout.**
+  When a SAML IdP required WeftID two-step verification, the session lost the
+  IdP details Single Logout needs, so signing out never reached the IdP.
+  They now survive the verification step.
 - **SAML IdP single sign-on ignored stale sessions.** The SAML IdP endpoints
   (SSO request, consent, and app launch) read the signed-in user from the
   session without the checks every other page runs, so a session past the
@@ -135,6 +155,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   next request. The switch-account and SP-initiated logout paths also notify
   downstream OIDC apps (back-channel) and revoke their session refresh
   tokens, like the sign-out button.
+- **SAML Single Logout messages are signed and verified.** WeftID now signs
+  the logout requests and responses it sends to SAML identity providers, and
+  refuses unsigned logout requests from them (SAML Profiles 4.4.4.1). An IdP
+  that sends unsigned logout requests must be configured to sign them.
+  Signing out through the OIDC end session endpoint now also starts Single
+  Logout at the upstream SAML IdP, as the sign-out button does.
 - **OAuth2 / OIDC provider behaviour changes that relying parties may notice.**
   These make the provider pass the OpenID Foundation conformance suite's
   Basic, Config, and Form Post OP plans.

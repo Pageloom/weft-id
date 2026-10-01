@@ -47,6 +47,14 @@ After trust is established, you can configure additional settings on the IdP det
 | **JIT provisioning** | Automatically create user accounts on first SAML sign-in. |
 | **SLO URL** | Single Logout URL for sending logout requests to the IdP. |
 
+## Single Logout
+
+When the IdP has an SLO URL, signing out of WeftID also signs the user out at the IdP. WeftID sends the IdP a signed logout request, and the IdP returns the browser to WeftID's SLO endpoint (`https://<your-tenant>.example.com/saml/slo`, listed in WeftID's SP metadata). This also happens when an app signs the user out through WeftID's OpenID Connect end session endpoint. The browser then finishes at the app's post-logout redirect URI.
+
+Signing out at the IdP ends the WeftID session too, when the IdP sends its logout request through the browser. WeftID accepts the request only if it is signed with one of the IdP's certificates and addressed to WeftID's SLO endpoint. It ends the session only if the session came from that IdP with the same name ID (and session index, when the request gives one). WeftID then answers the IdP with a signed logout response. The ended session is audited as `user_signed_out` with reason `upstream_saml_slo`. A request that fails the checks ends nothing and is audited as `saml_idp_logout_rejected`.
+
+Logout requests the IdP sends server to server (SOAP, or a POST without the user's browser) are answered but end no WeftID session. WeftID only knows which session to end from the browser's cookie.
+
 ## Attribute mapping
 
 WeftID maps SAML assertion attributes to user fields. Default mappings are pre-filled based on the provider type:

@@ -494,6 +494,11 @@ def build_saml_settings(
             "authnRequestsSigned": True,
             "wantAssertionsSigned": True,
             "wantMessagesSigned": False,
+            # Single Logout messages are signed both ways (SAML Profiles
+            # 4.4.3.1 / 4.4.4.1); inbound LogoutRequests are verified in
+            # validate_logout_request.
+            "logoutRequestSigned": True,
+            "logoutResponseSigned": True,
             "wantAssertionsEncrypted": False,
             "signMetadata": False,
             "requestedAuthnContext": False,
@@ -651,81 +656,177 @@ def process_logout_response(
         return False, str(e)
 
 
-def process_logout_request(
-    settings: dict[str, Any],
-    request_data: dict[str, Any],
-) -> tuple[str | None, str | None, str | None]:
+class LogoutRequestError(Exception):
+    """An IdP's LogoutRequest failed validation (``reason`` is a short code)."""
+
+    def __init__(self, reason: str, detail: str = ""):
+        super().__init__(f"{reason}: {detail}" if detail else reason)
+        self.reason = reason
+        self.detail = detail
+
+
+def decode_logout_request(saml_request: str) -> str:
+    """Decode a SAMLRequest (base64, deflated or not) into LogoutRequest XML.
+
+    Raises:
+        LogoutRequestError: ``malformed`` when it does not decode.
     """
-    Process an incoming SAML LogoutRequest from IdP (IdP-initiated SLO).
-
-    Args:
-        settings: python3-saml settings dict (from build_saml_settings)
-        request_data: Request data dict with get_data or post_data containing SAMLRequest
-
-    Returns:
-        Tuple of (name_id, session_index, request_id)
-        - name_id: The NameID of the user to log out (None if parsing fails)
-        - session_index: The session index (None if not provided)
-        - request_id: The ID of the LogoutRequest (for response correlation)
-    """
-    from onelogin.saml2.auth import OneLogin_Saml2_Auth
-
-    auth = OneLogin_Saml2_Auth(request_data, settings)
+    from onelogin.saml2.utils import OneLogin_Saml2_Utils
 
     try:
-        # Process the SLO request (this validates signature, etc.)
-        # We use keep_local_session=True because we handle session ourselves
-        auth.process_slo(
-            keep_local_session=True,
-            delete_session_cb=lambda: None,
+        xml = OneLogin_Saml2_Utils.decode_base64_and_inflate(saml_request, ignore_zip=True)
+    except Exception as exc:  # noqa: BLE001 - any decoding failure is "malformed"
+        raise LogoutRequestError("malformed", str(exc)) from exc
+    return xml.decode("utf-8") if isinstance(xml, bytes) else str(xml)
+
+
+def logout_request_issuer(xml: str) -> str | None:
+    """The ``<saml:Issuer>`` of a LogoutRequest, or None (unparseable too)."""
+    from onelogin.saml2.logout_request import OneLogin_Saml2_Logout_Request
+
+    try:
+        issuer = OneLogin_Saml2_Logout_Request.get_issuer(xml)
+    except Exception:  # noqa: BLE001 - an unparseable request has no issuer
+        return None
+    return issuer if isinstance(issuer, str) else None
+
+
+def _verify_enveloped_logout_request_signature(xml: str, settings: dict[str, Any]) -> None:
+    """Verify the XML signature of a POST-binding LogoutRequest.
+
+    The signature must be a direct child of the root and reference the root
+    by its ``ID`` (exactly one element carries it), so a signature over some
+    other element cannot vouch for the request (signature wrapping).
+    """
+    from onelogin.saml2.utils import OneLogin_Saml2_Utils
+    from onelogin.saml2.xml_utils import OneLogin_Saml2_XML
+
+    root = OneLogin_Saml2_XML.to_etree(xml)
+    root_id = root.get("ID")
+    signatures = OneLogin_Saml2_XML.query(root, "/samlp:LogoutRequest/ds:Signature")
+    if not root_id or len(signatures) != 1:
+        raise LogoutRequestError("unsigned")
+    references = OneLogin_Saml2_XML.query(signatures[0], "./ds:SignedInfo/ds:Reference")
+    if len(references) != 1 or references[0].get("URI") != f"#{root_id}":
+        raise LogoutRequestError("signature_reference")
+    if len(root.xpath("//*[@ID=$id]", id=root_id)) != 1:
+        raise LogoutRequestError("signature_reference")
+
+    # The settings hold bare base64 certificates; xmlsec needs PEM.
+    idp = settings["idp"]
+    certs = [
+        OneLogin_Saml2_Utils.format_cert(cert)
+        for cert in idp.get("x509certMulti", {}).get("signing") or [idp["x509cert"]]
+    ]
+    try:
+        verified = OneLogin_Saml2_Utils.validate_sign(
+            xml,
+            xpath="/samlp:LogoutRequest/ds:Signature",
+            multicerts=certs,
         )
+    except Exception as exc:  # noqa: BLE001 - the library raises on a bad signature
+        raise LogoutRequestError("signature", str(exc)) from exc
+    if not verified:
+        raise LogoutRequestError("signature")
 
-        # Get the NameID from the request
-        name_id = auth.get_nameid()
-        session_index = auth.get_session_index()
-        request_id = auth.get_last_request_id()
 
-        return name_id, session_index, request_id
+def validate_logout_request(
+    settings: dict[str, Any],
+    saml_request: str,
+    *,
+    request_data: dict[str, Any],
+) -> tuple[str | None, str, list[str]]:
+    """Validate an IdP's LogoutRequest and read who it signs out.
 
-    except Exception:
-        return None, None, None
+    SAML Profiles 4.4.4.1: the request must be signed. The HTTP-Redirect
+    binding carries the signature in the query (``Signature``/``SigAlg``,
+    checked against the raw query string); the HTTP-POST binding carries an
+    enveloped XML signature. Either is checked against the IdP's signing
+    certificates. Then python3-saml's strict checks: schema, ``Issuer`` is
+    the IdP, ``Destination`` is this endpoint, ``NotOnOrAfter`` not passed.
+
+    Args:
+        settings: python3-saml settings for the IdP (``build_saml_settings``).
+        saml_request: The SAMLRequest parameter as received.
+        request_data: python3-saml request data for this endpoint:
+            ``https``, ``http_host``, ``script_name``, ``get_data`` (the
+            query parameters for the redirect binding, else empty) and, for
+            the redirect binding, ``query_string``.
+
+    Returns:
+        ``(request_id, name_id, session_indexes)``.
+
+    Raises:
+        LogoutRequestError: with the reason the request was refused.
+    """
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth
+    from onelogin.saml2.logout_request import OneLogin_Saml2_Logout_Request
+    from onelogin.saml2.settings import OneLogin_Saml2_Settings
+
+    xml = decode_logout_request(saml_request)
+    get_data = request_data.get("get_data") or {}
+
+    if get_data.get("SAMLRequest"):
+        if not get_data.get("Signature") or not get_data.get("SigAlg"):
+            raise LogoutRequestError("unsigned")
+        auth = OneLogin_Saml2_Auth({**request_data, "validate_signature_from_qs": True}, settings)
+        if not auth.validate_request_signature(get_data):
+            raise LogoutRequestError("signature")
+    else:
+        _verify_enveloped_logout_request_signature(xml, settings)
+
+    logout_request = OneLogin_Saml2_Logout_Request(OneLogin_Saml2_Settings(settings), saml_request)
+    try:
+        logout_request.is_valid(request_data, raise_exceptions=True)
+    except Exception as exc:  # noqa: BLE001 - python3-saml validation errors
+        raise LogoutRequestError("invalid", str(exc)) from exc
+
+    try:
+        name_id = OneLogin_Saml2_Logout_Request.get_nameid(xml, key=settings["sp"]["privateKey"])
+    except Exception as exc:  # noqa: BLE001 - missing or undecryptable NameID
+        raise LogoutRequestError("name_id", str(exc)) from exc
+    if not name_id:
+        raise LogoutRequestError("name_id")
+
+    return (
+        OneLogin_Saml2_Logout_Request.get_id(xml),
+        name_id,
+        OneLogin_Saml2_Logout_Request.get_session_indexes(xml),
+    )
 
 
 def build_logout_response(
     settings: dict[str, Any],
     in_response_to: str | None = None,
+    relay_state: str | None = None,
 ) -> str:
-    """
-    Build a SAML LogoutResponse for IdP-initiated SLO.
+    """Build the signed HTTP-Redirect URL answering an IdP's LogoutRequest.
 
     Args:
         settings: python3-saml settings dict (from build_saml_settings)
         in_response_to: The ID of the LogoutRequest we're responding to
+        relay_state: The request's RelayState, echoed back (Bindings 3.4.3)
 
     Returns:
-        Redirect URL with encoded LogoutResponse
+        The IdP's SLO URL with ``SAMLResponse``, ``RelayState`` (when given),
+        ``SigAlg`` and ``Signature``.
     """
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth
     from onelogin.saml2.logout_response import OneLogin_Saml2_Logout_Response
     from onelogin.saml2.settings import OneLogin_Saml2_Settings
     from onelogin.saml2.utils import OneLogin_Saml2_Utils
 
-    saml_settings = OneLogin_Saml2_Settings(settings)
-
-    # Build the logout response
-    logout_response = OneLogin_Saml2_Logout_Response(saml_settings)
-    logout_response.build(in_response_to)
-
-    # Get the IdP's SLO URL
     idp_slo_url = settings.get("idp", {}).get("singleLogoutService", {}).get("url", "")
-
     if not idp_slo_url:
         raise ValueError("IdP has no SLO URL configured")
 
-    # Encode and build redirect URL
-    response_encoded = OneLogin_Saml2_Utils.deflate_and_base64_encode(logout_response.get_xml())
+    saml_settings = OneLogin_Saml2_Settings(settings)
+    logout_response = OneLogin_Saml2_Logout_Response(saml_settings)
+    logout_response.build(in_response_to)
 
-    # Build redirect URL with SAMLResponse parameter
-    separator = "&" if "?" in idp_slo_url else "?"
-    redirect_url = f"{idp_slo_url}{separator}SAMLResponse={response_encoded}"
-
-    return redirect_url
+    parameters = {"SAMLResponse": logout_response.get_response()}
+    if relay_state:
+        parameters["RelayState"] = relay_state
+    auth = OneLogin_Saml2_Auth({"http_host": "", "script_name": "", "get_data": {}}, settings)
+    auth.add_response_signature(parameters, saml_settings.get_security_data()["signatureAlgorithm"])
+    return str(OneLogin_Saml2_Utils.redirect(idp_slo_url, parameters))

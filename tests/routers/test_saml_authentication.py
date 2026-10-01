@@ -363,6 +363,11 @@ def test_per_idp_acs_mfa_email_required(
     """Test ACS redirects to MFA verify when email MFA required."""
     mock_result = MagicMock()
     mock_result.requires_mfa = True
+    mock_result.idp_id = str(uuid4())
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = None
+    mock_result.session_index = "_session-1"
+    mock_result.slo_url = None
     mock_process.return_value = mock_result
 
     user_id = str(uuid4())
@@ -391,6 +396,11 @@ def test_per_idp_acs_mfa_totp_required(
     """Test ACS redirects to MFA verify when TOTP MFA required (no email sent)."""
     mock_result = MagicMock()
     mock_result.requires_mfa = True
+    mock_result.idp_id = str(uuid4())
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = None
+    mock_result.session_index = "_session-1"
+    mock_result.slo_url = None
     mock_process.return_value = mock_result
 
     user_id = str(uuid4())
@@ -422,6 +432,11 @@ def test_per_idp_acs_mfa_enforced_when_user_has_no_mfa_method(
     """MFA enforced even when user has no mfa_method (defaults to email OTP)."""
     mock_result = MagicMock()
     mock_result.requires_mfa = True
+    mock_result.idp_id = str(uuid4())
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = None
+    mock_result.session_index = "_session-1"
+    mock_result.slo_url = None
     mock_process.return_value = mock_result
 
     user_id = str(uuid4())
@@ -1219,6 +1234,11 @@ def test_legacy_acs_mfa_email_required(
 
     mock_result = MagicMock()
     mock_result.requires_mfa = True
+    mock_result.idp_id = str(uuid4())
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = None
+    mock_result.session_index = "_session-1"
+    mock_result.slo_url = None
     mock_process.return_value = mock_result
 
     user_id = str(uuid4())
@@ -1262,6 +1282,11 @@ def test_legacy_acs_mfa_enforced_when_user_has_no_mfa_method(
 
     mock_result = MagicMock()
     mock_result.requires_mfa = True
+    mock_result.idp_id = str(uuid4())
+    mock_result.attributes.name_id = "user@example.com"
+    mock_result.name_id_format = None
+    mock_result.session_index = "_session-1"
+    mock_result.slo_url = None
     mock_process.return_value = mock_result
 
     user_id = str(uuid4())

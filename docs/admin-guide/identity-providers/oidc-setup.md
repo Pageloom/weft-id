@@ -69,11 +69,29 @@ When the provider ends a session, it sends WeftID a signed logout token. WeftID 
 
 Registering the URL is optional. Without it, signing out at the provider leaves WeftID sessions running until they expire or the user signs out of WeftID.
 
+## Sign-out at the provider
+
+The other direction is optional too. With **Sign Out at the Provider** on (under **Settings** on the **Details** tab), a user who signed in through this connection and then signs out of WeftID is also signed out of the provider, using OpenID Connect RP-Initiated Logout. After the WeftID session ends, the browser goes to the provider's end session endpoint and then back to WeftID's sign-in page.
+
+To set it up:
+
+1. Copy the **Post-Logout Redirect URI** from the **Details** tab and register it in the provider's console as a post-logout (or sign-out) redirect URI:
+
+    ```
+    https://<your-tenant>.example.com/logout/complete
+    ```
+
+2. Turn on **Sign Out at the Provider** and save.
+
+The provider's end session endpoint comes from its discovery document and is shown on the **Details** tab. If the provider publishes none, the setting has no effect and the tab says so. For a provider without discovery, enter the endpoint by hand (see below). WeftID sends the ID token from the user's sign-in as `id_token_hint`, along with `client_id` and the post-logout redirect URI.
+
+The same applies when an app signs a user out through WeftID's own end session endpoint. The browser goes to the provider first and then on to the app's post-logout redirect URI, so the app still gets the user back.
+
 ## Providers without discovery
 
 A provider that does not publish `/.well-known/openid-configuration` can still be used by entering its endpoints by hand. This applies to the Generic provider type only. Google and Entra always publish discovery, so the manual fields are not shown for them.
 
-* **When creating a connection**, expand **Advanced: manual endpoints** on the form and fill in the authorization endpoint, token endpoint, userinfo endpoint, and JWKS URI.
+* **When creating a connection**, expand **Advanced: manual endpoints** on the form and fill in the authorization endpoint, token endpoint, userinfo endpoint, and JWKS URI. The end session endpoint is optional and only used by **Sign Out at the Provider**.
 * **On an existing connection**, open the **Details** tab and click the pencil next to **Endpoints**. A blank field keeps its current value.
 
 Every endpoint must be an `https` URL. The same rule discovery applies to a fetched document applies here.
@@ -84,9 +102,9 @@ The endpoints can also be set through the API:
 PATCH /api/v1/oidc-upstream/connections/{connection_id}
 ```
 
-Send any of `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, and `jwks_uri`.
+Send any of `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, `jwks_uri`, and `end_session_endpoint`.
 
-Manual values are not protected from discovery. If you later click **Test connection** and the fetch succeeds, all four endpoints are replaced with the discovered values. For a provider with no discovery document the test fails and your manual values are left as they are.
+Manual values are not protected from discovery. If you later click **Test connection** and the fetch succeeds, the endpoints are replaced with the discovered values. For a provider with no discovery document the test fails and your manual values are left as they are.
 
 ## Connection settings
 
@@ -95,6 +113,7 @@ Manual values are not protected from discovery. If you later click **Test connec
 * **JIT provisioning** — create a WeftID account on first successful sign-in. Without it, only users who already exist and are already linked can sign in.
 * **Require two-step verification** — after the provider authenticates the user, WeftID additionally requires its own two-step verification before the session is established. Use this when you do not want to rely solely on the upstream provider's authentication.
 * **Allow email linking** — see below.
+* **Sign out at the provider** — see [Sign-out at the provider](#sign-out-at-the-provider).
 * **Scopes** — space-separated. `openid` is always requested.
 
 ### Allow email linking

@@ -41,6 +41,10 @@ logger = logging.getLogger(__name__)
 # expose the other.
 _cipher = Fernet(derive_fernet_key(b"oidc-upstream-client-secret"))
 
+# Where an upstream provider sends the browser back after WeftID's
+# RP-initiated logout (the post_logout_redirect_uri to register at the IdP).
+POST_LOGOUT_PATH = "/logout/complete"
+
 
 # Optional text settings where an explicit empty string from the API or a form
 # means "clear" and is stored as NULL.
@@ -82,6 +86,7 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         token_endpoint=row.get("token_endpoint"),
         userinfo_endpoint=row.get("userinfo_endpoint"),
         jwks_uri=row.get("jwks_uri"),
+        end_session_endpoint=row.get("end_session_endpoint"),
         discovery_fetched_at=row.get("discovery_fetched_at"),
         discovery_error=row.get("discovery_error"),
         client_id=row.get("client_id"),
@@ -98,8 +103,10 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         require_platform_mfa=row["require_platform_mfa"],
         jit_provisioning=row["jit_provisioning"],
         allow_email_linking=row["allow_email_linking"],
+        sign_out_at_idp=row["sign_out_at_idp"],
         callback_url=f"{base_url}/auth/oidc/{connection_id}/callback",
         backchannel_logout_url=f"{base_url}/auth/oidc/{connection_id}/backchannel-logout",
+        post_logout_redirect_uri=f"{base_url}{POST_LOGOUT_PATH}",
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -120,7 +127,7 @@ def _row_to_list_item(row: dict) -> OIDCConnectionListItem:
     )
 
 
-# The four endpoint fields an admin may set by hand when the IdP publishes no
+# The endpoint fields an admin may set by hand when the IdP publishes no
 # discovery document. Discovery validates the same fields on the way in; this
 # check is the manual-entry counterpart so the form and the API PATCH cannot
 # persist a plaintext (or malformed) endpoint that discovery would reject.
@@ -129,6 +136,7 @@ _MANUAL_ENDPOINT_FIELDS = (
     "token_endpoint",
     "userinfo_endpoint",
     "jwks_uri",
+    "end_session_endpoint",
 )
 
 
@@ -302,6 +310,7 @@ def create_connection(
         token_endpoint=data.token_endpoint,
         userinfo_endpoint=data.userinfo_endpoint,
         jwks_uri=data.jwks_uri,
+        end_session_endpoint=data.end_session_endpoint,
         client_id=data.client_id,
         client_secret_enc=client_secret_enc,
         scopes=data.scopes,
@@ -316,6 +325,7 @@ def create_connection(
         require_platform_mfa=data.require_platform_mfa,
         jit_provisioning=data.jit_provisioning,
         allow_email_linking=data.allow_email_linking,
+        sign_out_at_idp=data.sign_out_at_idp,
     )
 
     if row is None:
@@ -393,6 +403,7 @@ def update_connection(
         "token_endpoint",
         "userinfo_endpoint",
         "jwks_uri",
+        "end_session_endpoint",
         "client_id",
         "scopes",
         "claim_mapping",
@@ -404,6 +415,7 @@ def update_connection(
         "require_platform_mfa",
         "jit_provisioning",
         "allow_email_linking",
+        "sign_out_at_idp",
     ]:
         value = getattr(data, field, None)
         if value is None:

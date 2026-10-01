@@ -15,7 +15,7 @@ from datetime import datetime
 
 from database._core import UNSCOPED, TenantArg, execute, fetchall, fetchone
 
-_COLUMNS = "tenant_id, sid, idp_id, user_id, upstream_sub, upstream_sid, created_at"
+_COLUMNS = "tenant_id, sid, idp_id, user_id, upstream_sub, upstream_sid, id_token, created_at"
 
 
 def record_idp_session(
@@ -27,6 +27,7 @@ def record_idp_session(
     user_id: str,
     upstream_sub: str,
     upstream_sid: str | None,
+    id_token: str | None = None,
 ) -> int:
     """Record that WeftID session ``sid`` began with this upstream sign-in.
 
@@ -37,12 +38,13 @@ def record_idp_session(
         tenant_id,
         """
         insert into oidc_idp_sessions
-            (tenant_id, sid, idp_id, user_id, upstream_sub, upstream_sid)
-        values (:tenant_id, :sid, :idp_id, :user_id, :upstream_sub, :upstream_sid)
+            (tenant_id, sid, idp_id, user_id, upstream_sub, upstream_sid, id_token)
+        values (:tenant_id, :sid, :idp_id, :user_id, :upstream_sub, :upstream_sid, :id_token)
         on conflict (tenant_id, sid) do update
             set idp_id = excluded.idp_id, user_id = excluded.user_id,
                 upstream_sub = excluded.upstream_sub,
-                upstream_sid = excluded.upstream_sid, created_at = now()
+                upstream_sid = excluded.upstream_sid, id_token = excluded.id_token,
+                created_at = now()
         """,
         {
             "tenant_id": tenant_id_value,
@@ -51,6 +53,7 @@ def record_idp_session(
             "user_id": user_id,
             "upstream_sub": upstream_sub,
             "upstream_sid": upstream_sid,
+            "id_token": id_token,
         },
     )
 

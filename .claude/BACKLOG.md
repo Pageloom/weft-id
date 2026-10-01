@@ -56,6 +56,37 @@ forward-auth iteration 6 review and deferred.
 
 ---
 
+## Optional: Back-Channel SAML Single Logout (IdP-Initiated, No Browser)
+
+**User Story:**
+As a tenant admin whose SAML IdP sends logout requests server to server (SOAP or a POST without the user's browser),
+I want those requests to end the matching WeftID sessions,
+So that signing out at the IdP signs users out of WeftID even when the IdP never sends the browser back.
+
+**Context:**
+
+Since the OIDC hardening work (Iteration 8b, 2026-09-27), IdP-initiated SAML SLO ends the WeftID session only
+over the front channel: the browser carries the session cookie, so WeftID knows which session the request
+names. A request that arrives server to server is validated and answered but ends nothing, because nothing
+maps a SAML NameID / SessionIndex to a WeftID session id. The OIDC equivalent already exists
+(`oidc_idp_sessions`, written at sign-in, consumed by the upstream back-channel logout receiver).
+
+**Acceptance Criteria:**
+- [ ] A SAML session link table (tenant, WeftID sid, IdP, NameID, SessionIndex) written at the ACS, including
+      through the platform-MFA detour, deleted when the session ends, swept after 90 days
+- [ ] A LogoutRequest that validates (signature, issuer, destination, expiry) revokes every linked session it
+      names (by SessionIndex, or every session of the NameID when none is given) via
+      `services.sessions.revoke_session`, notifies downstream OIDC apps, and audits `user_signed_out`
+      (reason `upstream_saml_slo`)
+- [ ] SOAP binding support (synchronous LogoutResponse in the SOAP body), if an IdP in use needs it; otherwise
+      HTTP-POST without a browser is enough
+- [ ] Admin docs updated (the SAML setup page currently says server-to-server requests end nothing)
+
+**Effort:** M
+**Value:** Low to Medium (only IdPs that use back-channel SLO benefit; most enterprise IdPs use the browser)
+
+---
+
 ## Drop SendGrid Email Backend; Add Amazon SES and Postmark
 
 **User Story:**

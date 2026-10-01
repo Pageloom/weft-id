@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 3 | File Structure (pre-existing); SSRF blocklist gaps (IPv6 unspecified, NAT64/6to4); composite created_by FKs break user delete |
-| Low | 2 | Upload-auth temp-file leak (warning-ignored, tracked); expired OAuth2 tokens never swept |
+| Low | 3 | Upload-auth temp-file leak (warning-ignored, tracked); expired OAuth2 tokens never swept; back-channel claim tests race the dev worker |
 
 Note: the HIGH CSRF-never-enforced finding (middleware ordering, discovered 2026-09-14 on
 the oidc-conformance branch) was resolved on 2026-09-14; see ISSUES_ARCHIVE.md.
@@ -176,3 +176,28 @@ and NAT64 (`64:ff9b::/96`, last 32 bits) before checking the inner IPv4. Tests f
 
 **Files Affected:** `app/utils/url_safety.py`, `tests/utils/test_url_safety.py`
 
+---
+
+## [TEST] Back-channel delivery claim tests race the running dev worker
+
+**Discovered:** 2026-10-01 (oidc-conformance Iteration 11b, `make quality-all`)
+**Severity:** Low (flaky test, no production impact)
+**Found in:** `tests/database/test_oauth2_backchannel.py` (`test_claim_respects_limit`, and in
+principle every test that queues a delivery and then calls `claim_due_deliveries`)
+
+Unit tests run against the dev database (`appdb`, see `tests/conftest.py`). The dev worker
+container runs `deliver_oidc_backchannel_logouts` every few seconds, and
+`list_tenants_with_due_backchannel_logouts()` returns every tenant with a due delivery, test
+tenants included. When the worker leases a row between the test queueing it and the test's own
+claim, the test sees fewer rows (`assert 1 == 2`). Seen once in a full parallel run; passes in
+isolation (3/3).
+
+**Suggested fix:** Isolate tests from the worker rather than patch the test. Options: run unit
+tests against a separate database (`appdb_test`) the worker never connects to; or stop the
+worker for the test run (`make test` could `docker compose stop worker` and restart it after).
+A test-only filter in the SQL function is not acceptable (production code must not know about
+test tenants). Check other worker-swept tables (session sweeps, token cleanup) for the same race
+once the isolation exists.
+
+**Files Affected:** `tests/conftest.py`, `Makefile` (or the dev compose), possibly
+`tests/database/test_oauth2_backchannel.py`

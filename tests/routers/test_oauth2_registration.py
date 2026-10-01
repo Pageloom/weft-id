@@ -439,3 +439,30 @@ class TestConsentPage:
 
         assert response.status_code == 403
         assert "do not have access" in response.text
+
+
+class TestPublicDeviceClientRegistration:
+    def test_registered_public_client_signs_in_with_client_id_alone(
+        self, client, test_tenant_host, set_policy
+    ):
+        set_policy("open", default_access="all")
+        response = _register(
+            client,
+            test_tenant_host,
+            {
+                "client_name": "TV App",
+                "grant_types": ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
+                "token_endpoint_auth_method": "none",
+            },
+        )
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert "client_secret" not in body
+        assert body["token_endpoint_auth_method"] == "none"
+
+        started = client.post(
+            "/oauth2/device_authorization",
+            headers={"Host": test_tenant_host},
+            data={"client_id": body["client_id"], "scope": "openid"},
+        )
+        assert started.status_code == 200, started.text

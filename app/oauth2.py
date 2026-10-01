@@ -17,6 +17,9 @@ ACCESS_TOKEN_EXPIRY = timedelta(seconds=settings.OAUTH2_ACCESS_TOKEN_EXPIRY)
 REFRESH_TOKEN_EXPIRY = timedelta(seconds=settings.OAUTH2_REFRESH_TOKEN_EXPIRY)
 CLIENT_CREDENTIALS_TOKEN_EXPIRY = timedelta(seconds=settings.OAUTH2_CLIENT_CREDENTIALS_TOKEN_EXPIRY)
 
+# RFC 8628 section 3.4: the device authorization grant's grant_type value.
+DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
+
 # Device authorization grant (RFC 8628): how long a device code lives and the
 # default polling interval the device is told to keep.
 DEVICE_CODE_EXPIRY = timedelta(minutes=10)

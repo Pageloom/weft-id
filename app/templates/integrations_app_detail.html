@@ -23,6 +23,11 @@
                     Registered
                 </span>
                 {% endif %}
+                {% if client.is_public %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300" title="Public client: no secret, device sign-in only">
+                    Public
+                </span>
+                {% endif %}
                 {% if client.is_active %}
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
                     Active
@@ -55,6 +60,10 @@
         {% if success == 'updated' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">App updated.</p>
+        </div>
+        {% elif success == 'created' %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">App created. A public client has no secret: the device sends only the client ID.</p>
         </div>
         {% elif success == 'secret_regenerated' and not pending_credentials %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
@@ -117,6 +126,8 @@
                 Failed to remove the group assignment.
                 {% elif error == 'consent_revoke_failed' %}
                 Failed to revoke the consent. It may already have been revoked.
+                {% elif error == 'public_client_no_secret' %}
+                A public client has no client secret.
                 {% elif error == 'introspection_update_failed' %}
                 Failed to update the token introspection setting. Try again.
                 {% else %}
@@ -142,6 +153,12 @@
                           class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ client.description or '' }}</textarea>
             </div>
 
+            {% if client.is_public %}
+            <div class="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Public client (device sign-in only)</p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">This app has no client secret. It sends only its client ID, signs users in with device sign-in, and can refresh its tokens. It has no redirect URIs and can't use the authorization endpoint or token introspection. Device sign-in is always on for a public client.</p>
+            </div>
+            {% else %}
             <div>
                 <label for="redirect_uris" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Redirect URIs <span class="text-red-500">*</span></label>
                 <textarea id="redirect_uris" name="redirect_uris" rows="4" required
@@ -168,6 +185,7 @@
                     Send the issuer and session ID (<code>iss</code> and <code>sid</code>) with the request
                 </label>
             </div>
+            {% endif %}
 
             <div>
                 <label for="backchannel_logout_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Back-channel logout URI</label>
@@ -182,6 +200,7 @@
                 </label>
             </div>
 
+            {% if not client.is_public %}
             <div>
                 <label for="initiate_login_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Login initiation URI</label>
                 <input type="url" id="initiate_login_uri" name="initiate_login_uri" maxlength="2048" value="{{ client.initiate_login_uri or '' }}"
@@ -198,6 +217,7 @@
                 </label>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">For apps on devices without a convenient browser, such as command-line tools and TVs. The device shows a short code, and the user enters it at <code>/device</code> on their phone or computer to approve the sign-in (OAuth 2.0 device authorization grant).</p>
             </div>
+            {% endif %}
 
             <div class="flex justify-end">
                 <button type="submit"
@@ -449,7 +469,8 @@
         </div>
         {% endif %}
 
-        <!-- Token Introspection -->
+        <!-- Token Introspection (a public client cannot authenticate there) -->
+        {% if not client.is_public %}
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Token Introspection</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -483,13 +504,15 @@
                 </form>
             </div>
         </div>
+        {% endif %}
 
         <!-- Actions Section -->
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Actions</h2>
 
             <div class="space-y-4">
-                <!-- Regenerate Secret -->
+                <!-- Regenerate Secret (a public client has none) -->
+                {% if not client.is_public %}
                 <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div>
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Regenerate Client Secret</h3>
@@ -500,6 +523,7 @@
                         Regenerate
                     </button>
                 </div>
+                {% endif %}
 
                 <!-- Deactivate/Reactivate -->
                 <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">

@@ -9,7 +9,7 @@ Both are advertised in the discovery document as `introspection_endpoint` and `r
 
 ## Who calls these endpoints
 
-Any OAuth2 client (an app or a service account) can call both endpoints, authenticating with its own client ID and secret. Both are machine-to-machine calls. Users never see them.
+Any OAuth2 client (an app or a service account) can call both endpoints, authenticating with its own client ID and secret. A [public client](device-sign-in.md#public-clients) has no secret: it can revoke its tokens by sending its `client_id` alone, but it can't introspect. Both are machine-to-machine calls. Users never see them.
 
 The typical caller of the introspection endpoint is a **resource server**: an API backend that receives requests carrying `Authorization: Bearer <token>`. The backend never signed anyone in. It needs to know whether the token is valid, which user it belongs to, and which scopes it carries.
 
@@ -20,7 +20,7 @@ Use the same two methods the token endpoint accepts:
 * **HTTP Basic** (`client_secret_basic`) -- `Authorization: Basic base64(client_id:client_secret)`
 * **Form fields** (`client_secret_post`) -- `client_id` and `client_secret` in the request body
 
-Use one method per request, not both. A wrong secret, an unknown client, or a deactivated client gets HTTP 401 with `{"error": "invalid_client"}`.
+Use one method per request, not both. A wrong secret, an unknown client, or a deactivated client gets HTTP 401 with `{"error": "invalid_client"}`. At the revocation endpoint, a public client sends `client_id` with no secret (`none`).
 
 ## Introspecting a token
 

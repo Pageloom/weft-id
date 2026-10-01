@@ -218,6 +218,7 @@ def test_apps_create_success(test_admin_user, override_auth, mocker):
         redirect_uris=["https://example.com/callback"],
         created_by=str(test_admin_user["id"]),
         description=None,
+        is_public=False,
     )
 
 
@@ -805,9 +806,14 @@ def test_app_edit_empty_name_returns_error(test_admin_user, override_auth):
     assert "error=name_required" in response.headers["location"]
 
 
-def test_app_edit_empty_uris_returns_error(test_admin_user, override_auth):
+def test_app_edit_empty_uris_returns_error(test_admin_user, override_auth, mocker):
     """Test editing an app with empty redirect URIs returns error."""
     override_auth(test_admin_user, level="admin")
+    mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id").return_value = {
+        "client_id": "weft-id_client_edit123",
+        "client_type": "normal",
+        "is_public": False,
+    }
 
     client = TestClient(app)
     response = client.post(
@@ -2255,3 +2261,162 @@ def test_app_detail_renders_device_grant_checkbox_and_endpoint(
         response.text,
     )
     assert re.search(r'id="oidc-device"[^>]*>[^<]*/oauth2/device_authorization<', response.text)
+
+
+# =============================================================================
+# Public clients (real database)
+# =============================================================================
+
+
+@pytest.fixture
+def public_app(test_tenant, test_admin_user):
+    import database
+
+    return database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="TV App",
+        redirect_uris=[],
+        created_by=str(test_admin_user["id"]),
+        device_grant_enabled=True,
+        is_public=True,
+    )
+
+
+def test_apps_create_public_client(test_tenant, test_admin_user, override_auth):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        "/applications/oauth/create",
+        data={
+            "name": "TV App",
+            "redirect_uris": "https://ignored.example/cb",
+            "description": "",
+            "is_public": "true",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert location.startswith("/applications/oauth/weft-id_client_")
+    assert location.endswith("?success=created")
+
+    client_id = location.split("/")[-1].split("?")[0]
+    saved = database.oauth2.get_client_by_client_id(test_tenant["id"], client_id)
+    assert saved["is_public"] is True
+    assert saved["device_grant_enabled"] is True
+    assert saved["redirect_uris"] == []
+
+
+def test_apps_create_public_client_does_not_need_redirect_uris(
+    test_admin_user, override_auth, mocker
+):
+    override_auth(test_admin_user, level="admin")
+    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_normal_client")
+    mock_create.return_value = {"client_id": "weft-id_client_pub", "name": "TV"}
+
+    response = TestClient(app).post(
+        "/applications/oauth/create",
+        data={"name": "TV", "redirect_uris": "", "is_public": "true", "csrf_token": "t"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error" not in response.headers["location"]
+    assert mock_create.call_args.kwargs["is_public"] is True
+    assert mock_create.call_args.kwargs["redirect_uris"] == []
+
+
+def test_app_detail_public_client(test_admin_user, override_auth, public_app):
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(f"/applications/oauth/{public_app['client_id']}?success=created")
+    assert response.status_code == 200
+    text = response.text
+    assert "Public client (device sign-in only)" in text
+    assert "A public client has no secret" in text
+    # No browser-redirect fields, no secret to regenerate, no introspection.
+    assert 'id="redirect_uris"' not in text
+    assert 'id="frontchannel_logout_uri"' not in text
+    assert 'id="initiate_login_uri"' not in text
+    assert 'id="device_grant_enabled"' not in text
+    assert 'id="show-regenerate-btn"' not in text
+    assert "/introspection" not in text
+    # Back-channel logout stays.
+    assert 'id="backchannel_logout_uri"' in text
+
+
+def test_app_detail_confidential_client_unchanged(
+    test_admin_user, override_auth, normal_oauth2_client
+):
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
+    text = response.text
+    assert 'id="redirect_uris"' in text
+    assert 'id="show-regenerate-btn"' in text
+    assert "Public client (device sign-in only)" not in text
+
+
+def test_app_edit_public_client(test_tenant, test_admin_user, override_auth, public_app):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{public_app['client_id']}/edit",
+        data={
+            "name": "Living Room TV",
+            "description": "Lounge",
+            "backchannel_logout_uri": "https://rp.example/bc",
+            # Fields the public form does not have are ignored, not saved.
+            "redirect_uris": "https://evil.example/cb",
+            "initiate_login_uri": "https://evil.example/login",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=updated" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(test_tenant["id"], public_app["client_id"])
+    assert saved["name"] == "Living Room TV"
+    assert saved["backchannel_logout_uri"] == "https://rp.example/bc"
+    assert saved["redirect_uris"] == []
+    assert saved["initiate_login_uri"] is None
+    # The form has no device checkbox; the grant stays on.
+    assert saved["device_grant_enabled"] is True
+
+
+def test_app_regenerate_secret_public_client(
+    test_tenant, test_admin_user, override_auth, public_app
+):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    before = database.oauth2.get_client_by_client_id(test_tenant["id"], public_app["client_id"])
+    response = TestClient(app).post(
+        f"/applications/oauth/{public_app['client_id']}/regenerate-secret",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=public_client_no_secret" in response.headers["location"]
+    after = database.oauth2.get_client_by_client_id(test_tenant["id"], public_app["client_id"])
+    assert after["client_secret_hash"] == before["client_secret_hash"]
+
+
+def test_app_set_introspection_public_client(test_admin_user, override_auth, public_app):
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{public_app['client_id']}/introspection",
+        data={"enabled": "true", "csrf_token": "test-token"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=introspection_update_failed" in response.headers["location"]
+
+
+def test_apps_list_marks_public_clients(test_admin_user, override_auth, public_app):
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).get("/applications/oauth")
+    assert response.status_code == 200
+    assert 'title="Public client: no secret, device sign-in only">Public</span>' in response.text
+    assert 'id="is_public" name="is_public" value="true"' in response.text

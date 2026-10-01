@@ -61,9 +61,11 @@ class TestDiscoveryDocument:
         }
         # Both confidential-client methods the token endpoint implements.
         # Basic is the RFC 6749 mandated method (and the discovery default).
+        # "none" is a public (device-only) client.
         assert body["token_endpoint_auth_methods_supported"] == [
             "client_secret_basic",
             "client_secret_post",
+            "none",
         ]
 
     def test_scopes_supported_reflects_implemented_scopes(self, client, test_tenant_host):
@@ -115,8 +117,9 @@ class TestDiscoveryDocument:
         assert body["introspection_endpoint"] == f"{issuer}/oauth2/introspect"
         assert body["revocation_endpoint"] == f"{issuer}/oauth2/revoke"
         methods = ["client_secret_basic", "client_secret_post"]
+        # A public client cannot introspect, but may revoke (RFC 7009 2.1).
         assert body["introspection_endpoint_auth_methods_supported"] == methods
-        assert body["revocation_endpoint_auth_methods_supported"] == methods
+        assert body["revocation_endpoint_auth_methods_supported"] == [*methods, "none"]
 
     def test_advertises_device_authorization_endpoint(self, client, test_tenant_host):
         body = _discovery(client, test_tenant_host).json()

@@ -68,10 +68,11 @@ def _client_to_response(
         "tos_uri": client.get("tos_uri"),
         "initiate_login_uri": client.get("initiate_login_uri"),
         "device_grant_enabled": bool(client.get("device_grant_enabled")),
+        "is_public": bool(client.get("is_public")),
         "created_at": client["created_at"],
     }
     if include_secret:
-        data["client_secret"] = client["client_secret"]
+        data["client_secret"] = client.get("client_secret")
         return ClientWithSecret(**data)
     return ClientResponse(**data)
 
@@ -119,7 +120,8 @@ def create_normal_client(
     Request Body:
         name: Client name
         description: Optional client description
-        redirect_uris: List of exact redirect URIs
+        redirect_uris: List of exact redirect URIs (at least one, except for a
+            public client, which takes none)
         post_logout_redirect_uris: Optional list of exact URIs the end_session
             endpoint may redirect to after logout (absolute http/https, no fragment)
         frontchannel_logout_uri: Optional URL loaded in an iframe when the
@@ -137,9 +139,15 @@ def create_normal_client(
             one appears in My Apps and launches there with the iss parameter.
         device_grant_enabled: Whether the client may use the OAuth 2.0 device
             authorization grant (RFC 8628) (default false)
+        is_public: Create a public client (default false): no secret; it sends
+            its client_id alone and may use only the device authorization and
+            refresh token grants. Switches the device grant on, takes no
+            redirect URIs, post-logout redirect URIs, front-channel logout URI,
+            or login initiation URI. Cannot be changed after creation.
 
     Returns:
-        Client details including client_secret (shown only once!)
+        Client details including client_secret (shown only once!; null for a
+        public client)
 
     Note:
         The client_secret is only returned once. Store it securely.
@@ -158,6 +166,7 @@ def create_normal_client(
             backchannel_logout_session_required=client_data.backchannel_logout_session_required,
             initiate_login_uri=client_data.initiate_login_uri,
             device_grant_enabled=client_data.device_grant_enabled,
+            is_public=client_data.is_public,
         )
 
         return _client_to_response(client, include_secret=True)
@@ -243,7 +252,8 @@ def regenerate_client_secret(
     """
     Regenerate the client secret for an OAuth2 client.
 
-    The old secret is immediately invalidated.
+    The old secret is immediately invalidated. A public client has no secret
+    (400).
 
     Requires admin role.
 
@@ -264,7 +274,10 @@ def regenerate_client_secret(
     _require_super_admin_for_b2b(client, user)
 
     # Regenerate secret
-    new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id, str(user["id"]))
+    try:
+        new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id, str(user["id"]))
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
     # Return client with new secret
     client["client_secret"] = new_secret
@@ -334,7 +347,12 @@ def update_client(
         device_grant_enabled: Whether the client may use the OAuth 2.0 device
             authorization grant (optional, normal clients only)
         can_introspect_tenant_tokens: Whether the client may introspect every
-            token in the tenant, not just its own (optional, any client type)
+            token in the tenant, not just its own (optional, any client type
+            except a public client)
+
+    Whether a client is public is fixed at creation. A public client keeps the
+    device grant on and takes no redirect URIs, post-logout redirect URIs,
+    front-channel logout URL, or login initiation URL (400).
 
     Returns:
         Updated client details

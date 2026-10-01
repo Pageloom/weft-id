@@ -83,7 +83,7 @@ secret), which uses HTTP 401 with a `WWW-Authenticate: Basic` header.
 
 ### PKCE support
 
-WeftID supports Proof Key for Code Exchange (PKCE) for public clients that cannot securely store a client secret. Include `code_challenge` and `code_challenge_method` in the authorization request, and `code_verifier` in the token exchange. Supported methods: `S256` (recommended) and `plain`.
+WeftID supports Proof Key for Code Exchange (PKCE), which binds the authorization code to the client that asked for it. The token exchange still needs the client secret: a public client (no secret) can sign users in only with [device sign-in](device-sign-in.md#public-clients). Include `code_challenge` and `code_challenge_method` in the authorization request, and `code_verifier` in the token exchange. Supported methods: `S256` (recommended) and `plain`.
 
 ### Token lifetimes
 
@@ -117,7 +117,9 @@ endpoints; see [Token Introspection and Revocation](token-introspection.md).
 
 An app on a device without a convenient browser (a command-line tool, a TV)
 can sign users in with a short code they enter on another screen. Turn on
-**Allow device sign-in** on the app's edit form. See [Device Sign-In](device-sign-in.md).
+**Allow device sign-in** on the app's edit form. An app that can't keep a secret,
+such as one installed on users' own devices, can be created as a **public client**
+with no secret. See [Device Sign-In](device-sign-in.md).
 
 ## Sign in with WeftID (OIDC)
 

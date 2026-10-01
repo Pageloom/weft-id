@@ -46,10 +46,16 @@ GRANT_TYPES_SUPPORTED = [
     "urn:ietf:params:oauth:grant-type:device_code",
 ]
 
-# Client authentication methods the token endpoint accepts (RFC 6749 section
-# 2.3.1). Basic is the spec-mandated method and the discovery default when this
-# field is omitted; post is the form-field variant many SDKs send.
-TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED = ["client_secret_basic", "client_secret_post"]
+# Client authentication methods the introspection endpoint accepts (RFC 6749
+# section 2.3.1). Basic is the spec-mandated method and the discovery default
+# when the token endpoint's field is omitted; post is the form-field variant
+# many SDKs send. Introspection needs an authenticated client, so no "none".
+CONFIDENTIAL_AUTH_METHODS = ["client_secret_basic", "client_secret_post"]
+
+# The token (and device authorization) and revocation endpoints also accept
+# public clients, which send client_id alone ("none"; RFC 6749 section 2.1,
+# RFC 7009 section 2.1). Public clients exist for the device grant only.
+TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED = [*CONFIDENTIAL_AUTH_METHODS, "none"]
 
 # Request objects (OpenID Connect Core 1.0, section 6) are not accepted: the
 # authorization endpoint rejects `request` with request_not_supported and
@@ -118,7 +124,7 @@ def build_discovery_metadata(
         jwks_uri=f"{base}/.well-known/jwks.json",
         end_session_endpoint=f"{base}/oauth2/logout",
         introspection_endpoint=f"{base}/oauth2/introspect",
-        introspection_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
+        introspection_endpoint_auth_methods_supported=list(CONFIDENTIAL_AUTH_METHODS),
         revocation_endpoint=f"{base}/oauth2/revoke",
         device_authorization_endpoint=f"{base}/oauth2/device_authorization",
         revocation_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),

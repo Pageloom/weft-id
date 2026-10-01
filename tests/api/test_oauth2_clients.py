@@ -150,12 +150,26 @@ def test_create_normal_client_validation_error(
         "/api/v1/oauth2/clients",
         headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
         json={
-            "name": "Invalid Client",
-            # Missing redirect_uris
+            # Missing name
+            "redirect_uris": ["https://example.com/callback"],
         },
     )
 
     assert response.status_code == 422  # Validation error
+
+
+def test_create_normal_client_requires_redirect_uri(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """A confidential client without redirect URIs is refused (400): only a
+    public client may have none."""
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "No URIs"},
+    )
+
+    assert response.status_code == 400
 
 
 # =============================================================================
@@ -1927,5 +1941,110 @@ def test_update_b2b_client_device_grant_rejected(
         f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}",
         headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
         json={"device_grant_enabled": True},
+    )
+    assert response.status_code == 400
+
+
+# =============================================================================
+# Public clients
+# =============================================================================
+
+
+def _create_public(client, host, headers, **extra):
+    return client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": host, **headers},
+        json={"name": "TV App", "is_public": True, **extra},
+    )
+
+
+def test_create_public_client(client, test_tenant_host, oauth2_admin_authorization_header):
+    response = _create_public(client, test_tenant_host, oauth2_admin_authorization_header)
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["is_public"] is True
+    assert body["device_grant_enabled"] is True
+    assert body["client_secret"] is None
+    assert body["redirect_uris"] == []
+
+    fetched = client.get(
+        f"/api/v1/oauth2/clients/{body['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    ).json()
+    assert fetched["is_public"] is True
+
+
+def test_create_client_is_confidential_by_default(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Web App", "redirect_uris": ["https://rp.example/cb"]},
+    )
+    assert response.json()["is_public"] is False
+    assert response.json()["client_secret"]
+
+
+def test_create_public_client_with_redirect_uris_rejected(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    response = _create_public(
+        client,
+        test_tenant_host,
+        oauth2_admin_authorization_header,
+        redirect_uris=["https://rp.example/cb"],
+    )
+    assert response.status_code == 400
+
+
+def test_create_public_client_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header
+):
+    response = _create_public(client, test_tenant_host, oauth2_authorization_header)
+    assert response.status_code == 403
+
+
+def test_public_flag_cannot_be_changed(client, test_tenant_host, oauth2_admin_authorization_header):
+    headers = {"Host": test_tenant_host, **oauth2_admin_authorization_header}
+    created = _create_public(client, test_tenant_host, oauth2_admin_authorization_header).json()
+    url = f"/api/v1/oauth2/clients/{created['client_id']}"
+
+    # is_public is not an update field: it is ignored.
+    response = client.patch(url, headers=headers, json={"is_public": False, "name": "TV"})
+    assert response.status_code == 200
+    assert response.json()["is_public"] is True
+
+    # Its device grant cannot be switched off, and it takes no redirect URIs.
+    assert (
+        client.patch(url, headers=headers, json={"device_grant_enabled": False}).status_code == 400
+    )
+    assert (
+        client.patch(
+            url, headers=headers, json={"redirect_uris": ["https://rp.example/cb"]}
+        ).status_code
+        == 400
+    )
+
+
+def test_public_client_secret_cannot_be_regenerated(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    created = _create_public(client, test_tenant_host, oauth2_admin_authorization_header).json()
+    response = client.post(
+        f"/api/v1/oauth2/clients/{created['client_id']}/regenerate-secret",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 400
+
+
+def test_public_client_cannot_be_allowed_to_introspect(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    created = _create_public(client, test_tenant_host, oauth2_admin_authorization_header).json()
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{created['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"can_introspect_tenant_tokens": True},
     )
     assert response.status_code == 400

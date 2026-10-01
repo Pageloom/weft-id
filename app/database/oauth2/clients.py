@@ -19,6 +19,7 @@ def create_normal_client(
     backchannel_logout_session_required: bool = True,
     initiate_login_uri: str | None = None,
     device_grant_enabled: bool = False,
+    is_public: bool = False,
 ) -> dict | None:
     """
     Create a normal OAuth2 client for authorization code flow.
@@ -44,10 +45,12 @@ def create_normal_client(
             (optional)
         device_grant_enabled: Whether the client may use the device
             authorization grant (default False)
+        is_public: A public client (no secret). It stores the hash of a random
+            secret that is never returned, so no secret can ever match it.
 
     Returns:
         Dict with client details including id, client_id, and plain text client_secret
-        (client_secret is only returned once!)
+        (client_secret is only returned once, and never for a public client!)
     """
     # Generate client credentials
     client_id = oauth2.generate_client_id()
@@ -63,19 +66,20 @@ def create_normal_client(
             name, description, redirect_uris, post_logout_redirect_uris,
             backchannel_logout_uri, backchannel_logout_session_required,
             frontchannel_logout_uri, frontchannel_logout_session_required,
-            initiate_login_uri, device_grant_enabled, created_by
+            initiate_login_uri, device_grant_enabled, is_public, created_by
         )
         values (
             :tenant_id, :client_id, :client_secret_hash, 'normal',
             :name, :description, :redirect_uris, :post_logout_redirect_uris,
             :backchannel_logout_uri, :backchannel_logout_session_required,
             :frontchannel_logout_uri, :frontchannel_logout_session_required,
-            :initiate_login_uri, :device_grant_enabled, :created_by
+            :initiate_login_uri, :device_grant_enabled, :is_public, :created_by
         )
         returning id, tenant_id, client_id, client_type, name, description,
                   redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                   backchannel_logout_uri, backchannel_logout_session_required,
                   frontchannel_logout_session_required, initiate_login_uri, device_grant_enabled,
+                  is_public,
                   service_user_id, is_active, created_at
         """,
         {
@@ -92,11 +96,12 @@ def create_normal_client(
             "backchannel_logout_session_required": backchannel_logout_session_required,
             "initiate_login_uri": initiate_login_uri,
             "device_grant_enabled": device_grant_enabled,
+            "is_public": is_public,
             "created_by": created_by,
         },
     )
 
-    if client:
+    if client and not is_public:
         client["client_secret"] = client_secret  # Add plain text secret (shown once)
 
     return client
@@ -200,6 +205,7 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
                frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
                available_to_all, can_introspect_tenant_tokens, dynamically_registered,
                logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
+               is_public,
                registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
@@ -231,6 +237,7 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
                frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
                available_to_all, can_introspect_tenant_tokens, dynamically_registered,
                logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
+               is_public,
                registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
@@ -262,7 +269,7 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                    c.service_user_id, c.is_active, c.oidc_enabled, c.available_to_all,
                    c.can_introspect_tenant_tokens, c.dynamically_registered, c.logo_uri,
                    c.client_uri, c.policy_uri, c.tos_uri, c.initiate_login_uri,
-                   c.device_grant_enabled, c.registration_metadata,
+                   c.device_grant_enabled, c.is_public, c.registration_metadata,
                    c.registered_with_token_id,
                    c.created_at, u.role as service_role
             from oauth2_clients c
@@ -281,7 +288,7 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.oidc_enabled, c.available_to_all, c.can_introspect_tenant_tokens,
                c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
-               c.initiate_login_uri, c.device_grant_enabled,
+               c.initiate_login_uri, c.device_grant_enabled, c.is_public,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -309,7 +316,7 @@ def delete_client(tenant_id: TenantArg, client_id: str) -> int:
     )
 
 
-def regenerate_client_secret(tenant_id: TenantArg, client_id: str) -> str:
+def regenerate_client_secret(tenant_id: TenantArg, client_id: str) -> str | None:
     """
     Regenerate client secret for an OAuth2 client.
 
@@ -318,24 +325,25 @@ def regenerate_client_secret(tenant_id: TenantArg, client_id: str) -> str:
         client_id: Client ID to regenerate secret for
 
     Returns:
-        New plain text client_secret (shown only once!)
+        New plain text client_secret (shown only once!), or None when the
+        client is unknown or public (a public client never has a secret)
     """
     # Generate new secret
     client_secret = oauth2.generate_client_secret()
     client_secret_hash = oauth2.hash_token(client_secret)
 
     # Update client
-    execute(
+    rows = execute(
         tenant_id,
         """
         update oauth2_clients
         set client_secret_hash = :client_secret_hash
-        where client_id = :client_id
+        where client_id = :client_id and not is_public
         """,
         {"client_secret_hash": client_secret_hash, "client_id": client_id},
     )
 
-    return client_secret
+    return client_secret if rows else None
 
 
 def get_b2b_client_by_service_user(tenant_id: TenantArg, user_id: str) -> dict | None:
@@ -457,7 +465,7 @@ def update_client(
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled,
+                  initiate_login_uri, device_grant_enabled, is_public,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -505,7 +513,7 @@ def update_client_oidc_settings(
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled,
+                  initiate_login_uri, device_grant_enabled, is_public,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -537,7 +545,7 @@ def set_client_tenant_introspection(
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled,
+                  initiate_login_uri, device_grant_enabled, is_public,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id, "enabled": enabled},
@@ -578,7 +586,7 @@ def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> d
                c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.oidc_enabled, c.available_to_all, c.can_introspect_tenant_tokens,
                c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
-               c.initiate_login_uri, c.device_grant_enabled,
+               c.initiate_login_uri, c.device_grant_enabled, c.is_public,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -612,7 +620,7 @@ def deactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled,
+                  initiate_login_uri, device_grant_enabled, is_public,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},
@@ -642,7 +650,7 @@ def reactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled,
+                  initiate_login_uri, device_grant_enabled, is_public,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},

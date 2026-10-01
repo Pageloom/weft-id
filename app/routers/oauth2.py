@@ -52,7 +52,7 @@ REAUTH_PROMPT_VALUES = frozenset({"login", "select_account"})
 SUPPORTED_RESPONSE_TYPES = frozenset({"code"})
 
 # RFC 8628 section 3.4: the device authorization grant's grant_type value.
-DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
+DEVICE_CODE_GRANT_TYPE = oauth2.DEVICE_CODE_GRANT_TYPE
 
 # Upper bound for ``state``, matching the parameter's max_length.
 _MAX_STATE_LENGTH = 2048
@@ -320,7 +320,11 @@ def _handle_authorize_request(
     # endpoint would later reject the exchange. The error text is identical to
     # the client_type rejection so the page does not disclose whether a client_id
     # exists-but-is-deactivated versus is-the-wrong-type.
-    if client["client_type"] != "normal" or not client.get("is_active", True):
+    if (
+        client["client_type"] != "normal"
+        or client.get("is_public")
+        or not client.get("is_active", True)
+    ):
         return _error_page(
             request, "Unauthorized client", "This client is not authorized for this flow."
         )
@@ -1004,17 +1008,43 @@ def _authenticate_client(
     tenant_id: str,
     form_client_id: str | None,
     form_client_secret: str | None,
+    *,
+    allow_public: bool = False,
 ) -> dict | JSONResponse:
-    """Authenticate the calling client (token, introspection, and revocation
-    endpoints). Returns the active client record, or the ``invalid_client``
-    error response to send."""
+    """Authenticate the calling client (token, device authorization,
+    introspection, and revocation endpoints). Returns the active client
+    record, or the ``invalid_client`` error response to send.
+
+    With ``allow_public``, a public client (``token_endpoint_auth_method``
+    ``none``) identifies itself by the ``client_id`` form field alone: no
+    secret and no Authorization header (RFC 6749 sections 2.1 and 3.2.1). A
+    confidential client must still authenticate, and a public client that
+    presents a secret is refused, so neither can pass for the other.
+    """
+    if (
+        allow_public
+        and form_client_id
+        and not form_client_secret
+        and not request.headers.get("authorization")
+    ):
+        public_client = oauth2_service.get_client_by_client_id(tenant_id, form_client_id)
+        if not public_client or not public_client.get("is_public"):
+            return _token_error("invalid_client", "Client authentication failed")
+        if not public_client.get("is_active", True):
+            return _token_error("invalid_client", "Client is deactivated")
+        return public_client
+
     credentials = _resolve_client_credentials(request, form_client_id, form_client_secret)
     if credentials is None:
         return _token_error("invalid_client", "Client authentication failed")
     client_id, client_secret = credentials
 
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
-    if not client or not oauth2.verify_token_hash(client_secret, client["client_secret_hash"]):
+    if (
+        not client
+        or client.get("is_public")
+        or not oauth2.verify_token_hash(client_secret, client["client_secret_hash"])
+    ):
         return _token_error("invalid_client", "Client authentication failed")
     if not client.get("is_active", True):
         return _token_error("invalid_client", "Client is deactivated")
@@ -1151,7 +1181,9 @@ def token_endpoint(
     Client authentication (RFC 6749 section 2.3.1): either HTTP Basic
     (``client_secret_basic``, the Authorization header) or the ``client_id`` +
     ``client_secret`` form fields (``client_secret_post``). Exactly one method
-    must be used per request.
+    must be used per request. A public client (``none``) sends ``client_id``
+    alone and may use only the device_code and refresh_token grants
+    (``unauthorized_client`` for authorization_code).
 
     Responses carry ``Cache-Control: no-store`` and ``Pragma: no-cache``.
     Errors are RFC 6749 section 5.2 JSON objects with top-level ``error`` and
@@ -1162,15 +1194,17 @@ def token_endpoint(
     Form Data:
         grant_type: "authorization_code", "refresh_token", "client_credentials", or
             "urn:ietf:params:oauth:grant-type:device_code"
-        client_id: OAuth2 client ID (client_secret_post; omit when using Basic)
-        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic)
+        client_id: OAuth2 client ID (client_secret_post or a public client; omit
+            when using Basic)
+        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic
+            and for a public client)
         code: Authorization code (for authorization_code grant)
         redirect_uri: Redirect URI (for authorization_code grant, must match)
         code_verifier: PKCE code verifier (if PKCE was used)
         refresh_token: Refresh token (for refresh_token grant)
         device_code: Device code (for the device_code grant)
     """
-    client = _authenticate_client(request, tenant_id, client_id, client_secret)
+    client = _authenticate_client(request, tenant_id, client_id, client_secret, allow_public=True)
     if isinstance(client, JSONResponse):
         return client
 
@@ -1178,7 +1212,8 @@ def token_endpoint(
     # Grant Type: authorization_code
     # ========================================================================
     if grant_type == "authorization_code":
-        if client["client_type"] != "normal":
+        # A public client uses the device grant only (it has no redirect URIs).
+        if client["client_type"] != "normal" or client.get("is_public"):
             return _token_error(
                 "unauthorized_client", "Client is not authorized for this grant type"
             )
@@ -1386,16 +1421,19 @@ def device_authorization_endpoint(
 
     Requires a normal client with the device grant enabled
     (``unauthorized_client`` otherwise). Client authentication is the same as
-    at the token endpoint: HTTP Basic (``client_secret_basic``) or the
-    ``client_id`` + ``client_secret`` form fields (``client_secret_post``).
+    at the token endpoint: HTTP Basic (``client_secret_basic``), the
+    ``client_id`` + ``client_secret`` form fields (``client_secret_post``), or,
+    for a public client (``none``), ``client_id`` alone.
     Errors are RFC 6749 section 5.2 JSON objects; responses are not cached.
 
     Form Data:
         scope: Space-separated scopes (optional; ``openid`` for an ID token)
-        client_id: OAuth2 client ID (client_secret_post; omit when using Basic)
-        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic)
+        client_id: OAuth2 client ID (client_secret_post or a public client; omit
+            when using Basic)
+        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic
+            and for a public client)
     """
-    client = _authenticate_client(request, tenant_id, client_id, client_secret)
+    client = _authenticate_client(request, tenant_id, client_id, client_secret, allow_public=True)
     if isinstance(client, JSONResponse):
         return client
 
@@ -1440,7 +1478,9 @@ def introspection_endpoint(
     OAuth 2.0 Token Introspection (RFC 7662).
 
     The caller authenticates as a client, the same two ways as at the token
-    endpoint (``client_secret_basic`` or ``client_secret_post``). A client sees
+    endpoint (``client_secret_basic`` or ``client_secret_post``). A public
+    client cannot authenticate, so it cannot introspect (``invalid_client``).
+    A client sees
     the tokens issued to it; a client an admin has allowed to introspect all
     tenant tokens also sees every other token in the tenant. Anything else,
     including an unknown, expired, or revoked token, is ``{"active": false}``.
@@ -1481,8 +1521,9 @@ def revocation_endpoint(
     """
     OAuth 2.0 Token Revocation (RFC 7009).
 
-    The caller authenticates as a client, the same two ways as at the token
-    endpoint. A client revokes only tokens issued to it. Revoking a refresh
+    The caller authenticates as a client, the same ways as at the token
+    endpoint; a public client sends ``client_id`` alone (RFC 7009 section
+    2.1). A client revokes only tokens issued to it. Revoking a refresh
     token also revokes the access tokens issued from it; revoking an access
     token leaves its refresh token valid.
 
@@ -1495,10 +1536,12 @@ def revocation_endpoint(
         token: The access or refresh token to revoke (required)
         token_type_hint: "access_token" or "refresh_token" (optional; accepted
             and ignored, since the token is found either way)
-        client_id: OAuth2 client ID (client_secret_post; omit when using Basic)
-        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic)
+        client_id: OAuth2 client ID (client_secret_post or a public client; omit
+            when using Basic)
+        client_secret: OAuth2 client secret (client_secret_post; omit when using Basic
+            and for a public client)
     """
-    client = _authenticate_client(request, tenant_id, client_id, client_secret)
+    client = _authenticate_client(request, tenant_id, client_id, client_secret, allow_public=True)
     if isinstance(client, JSONResponse):
         return client
 

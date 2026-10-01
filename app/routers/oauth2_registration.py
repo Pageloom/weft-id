@@ -110,15 +110,21 @@ def register_client(
     presented token must still be valid). Rate-limited per client IP.
 
     Request body (JSON client metadata):
-        redirect_uris: Required. Absolute https URIs without a fragment; a
-            ``native`` client may also use http on a loopback address
+        redirect_uris: Required with the authorization_code grant, refused
+            without it. Absolute https URIs without a fragment; a ``native``
+            client may also use http on a loopback address
         client_name: Display name (max 255; defaults to the redirect host)
         application_type: "web" (default) or "native"
-        response_types: ["code"] (the only supported value)
-        grant_types: "authorization_code" (required) and optionally
-            "refresh_token"
-        token_endpoint_auth_method: "client_secret_basic" (default) or
-            "client_secret_post"
+        response_types: ["code"] (the only supported value; empty or omitted
+            for a device-only client)
+        grant_types: "authorization_code" (the default),
+            "urn:ietf:params:oauth:grant-type:device_code" (the device
+            authorization grant), or both (at least one is required), and
+            optionally "refresh_token"
+        token_endpoint_auth_method: "client_secret_basic" (default),
+            "client_secret_post", or "none" for a public client. "none" is
+            accepted only for a device-only client (grant_types without
+            authorization_code) and cannot be changed later
         id_token_signed_response_alg: "RS256" only
         subject_type: "public" only
         logo_uri, client_uri, policy_uri, tos_uri: https URIs. The logo and
@@ -128,13 +134,15 @@ def register_client(
         post_logout_redirect_uris, frontchannel_logout_uri,
         frontchannel_logout_session_required, backchannel_logout_uri,
         backchannel_logout_session_required: As for an admin-created client
+            (a device-only client takes no post-logout redirect URIs,
+            front-channel logout URI, or initiate_login_uri)
         Encryption, userinfo signing, request-object, and pairwise metadata
         are rejected with invalid_client_metadata. Unknown metadata is ignored.
 
     Returns:
         201 with the registered metadata plus ``client_id``,
-        ``client_secret``, ``client_secret_expires_at`` (0),
-        ``client_id_issued_at``, ``registration_access_token``, and
+        ``client_secret`` and ``client_secret_expires_at`` (0) (both absent
+        for a public client), ``client_id_issued_at``, ``registration_access_token``, and
         ``registration_client_uri``. Errors: 400 ``invalid_redirect_uri`` /
         ``invalid_client_metadata``, 401 ``invalid_token``, 404, 429.
     """
@@ -229,7 +237,9 @@ def update_client_configuration(
     A full replacement: metadata left out returns to its default. The body must
     carry ``client_id`` (matching the path); a ``client_secret``, if sent, must
     be the current one. Accepts the same metadata as registration. Credentials,
-    access settings and the registration access token are unchanged.
+    access settings and the registration access token are unchanged, and a
+    ``token_endpoint_auth_method`` switching between "none" and a secret
+    method is refused (invalid_client_metadata).
 
     Path Parameters:
         client_id: The registered client's client_id

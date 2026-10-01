@@ -1,7 +1,7 @@
 """Pydantic schemas for OAuth2 client management and token responses."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -165,6 +165,30 @@ class ClientUpdate(BaseModel):
     )
 
 
+class ClientAuthenticationUpdate(BaseModel):
+    """Request schema for setting how a confidential client authenticates."""
+
+    method: Literal["client_secret", "private_key_jwt"] = Field(
+        ...,
+        description=(
+            "client_secret (client_secret_basic or client_secret_post) or "
+            "private_key_jwt (a client assertion signed with one of the client's keys)."
+        ),
+    )
+    jwks: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "The client's public keys as a JSON Web Key Set (RSA or EC, at most 20 keys, "
+            "no private members). Give this or jwks_uri, not both."
+        ),
+    )
+    jwks_uri: str | None = Field(
+        None,
+        max_length=2048,
+        description="URL of the client's JSON Web Key Set (absolute https, no fragment).",
+    )
+
+
 class ClientRoleUpdate(BaseModel):
     """Request schema for updating a B2B client's service role."""
 
@@ -218,6 +242,19 @@ class ClientResponse(BaseModel):
             "Whether the client is public: no secret, device authorization and "
             "refresh token grants only."
         ),
+    )
+    client_auth_method: str = Field(
+        "client_secret",
+        description=(
+            "How the client authenticates: client_secret or private_key_jwt "
+            "(a public client sends its client_id alone)."
+        ),
+    )
+    jwks: dict[str, Any] | None = Field(None, description="The client's public keys, inline.")
+    jwks_uri: str | None = Field(None, description="URL of the client's public keys.")
+    token_endpoint_auth_signing_alg: str | None = Field(
+        None,
+        description="The one algorithm the client's assertions must use, when it registered one.",
     )
     created_at: datetime
 

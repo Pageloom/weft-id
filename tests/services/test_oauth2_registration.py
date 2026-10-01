@@ -17,6 +17,8 @@ from services.exceptions import (
     ValidationError,
 )
 
+from tests.helpers.client_keys import JWKS
+
 BASE = "https://tenant.example.test"
 
 
@@ -104,7 +106,10 @@ class TestValidateClientMetadata:
         assert accepted["extra"]["grant_types"] == ["authorization_code", "refresh_token"]
         assert accepted["extra"]["token_endpoint_auth_method"] == "client_secret_post"
         assert accepted["extra"]["contacts"] == ["ops@rp.example"]
-        assert accepted["extra"]["jwks_uri"] == "https://rp.example/jwks"
+        # A column (it authenticates the client), not registration_metadata.
+        assert accepted["jwks_uri"] == "https://rp.example/jwks"
+        assert "jwks_uri" not in accepted["extra"]
+        assert accepted["client_auth_method"] == "client_secret"
         assert "unknown_field" not in accepted["extra"]
         assert accepted["frontchannel_logout_session_required"] is False
         assert accepted["backchannel_logout_uri"] == "https://rp.example/bc"
@@ -114,11 +119,11 @@ class TestValidateClientMetadata:
         assert "initiate_login_uri" not in accepted["extra"]
 
     def test_inline_jwks_stored(self):
-        jwks = {"keys": [{"kty": "RSA", "e": "AQAB", "n": "abc"}]}
         accepted = svc.validate_client_metadata(
-            {"redirect_uris": ["https://rp.example/cb"], "jwks": jwks}
+            {"redirect_uris": ["https://rp.example/cb"], "jwks": JWKS}
         )
-        assert accepted["extra"]["jwks"] == jwks
+        assert accepted["jwks"] == JWKS
+        assert "jwks" not in accepted["extra"]
 
     @pytest.mark.parametrize(
         "uris",
@@ -832,3 +837,164 @@ class TestDeviceClientConfiguration:
         )
         row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
         assert row["device_grant_enabled"] is False
+
+
+# =============================================================================
+# private_key_jwt clients
+# =============================================================================
+
+PKJWT = {
+    "redirect_uris": ["https://rp.example/cb"],
+    "token_endpoint_auth_method": "private_key_jwt",
+    "jwks": JWKS,
+}
+
+
+class TestPrivateKeyJwtMetadata:
+    def test_inline_keys(self):
+        accepted = svc.validate_client_metadata(PKJWT)
+        assert accepted["client_auth_method"] == "private_key_jwt"
+        assert accepted["jwks"] == JWKS
+        assert accepted["token_endpoint_auth_signing_alg"] is None
+        assert accepted["extra"]["token_endpoint_auth_method"] == "private_key_jwt"
+
+    def test_jwks_uri_and_signing_alg(self):
+        accepted = svc.validate_client_metadata(
+            {
+                "redirect_uris": ["https://rp.example/cb"],
+                "token_endpoint_auth_method": "private_key_jwt",
+                "jwks_uri": "https://rp.example/jwks",
+                "token_endpoint_auth_signing_alg": "PS256",
+            }
+        )
+        assert accepted["jwks_uri"] == "https://rp.example/jwks"
+        assert accepted["token_endpoint_auth_signing_alg"] == "PS256"
+
+    def test_device_only_private_key_jwt(self):
+        accepted = svc.validate_client_metadata(
+            {"grant_types": [DEVICE], "token_endpoint_auth_method": "private_key_jwt", "jwks": JWKS}
+        )
+        assert accepted["client_auth_method"] == "private_key_jwt"
+        assert accepted["is_public"] is False
+
+    @pytest.mark.parametrize(
+        "metadata",
+        [
+            {**PKJWT, "jwks": None},
+            {**PKJWT, "token_endpoint_auth_signing_alg": "HS256"},
+            {**PKJWT, "token_endpoint_auth_signing_alg": "none"},
+            {
+                "redirect_uris": ["https://rp.example/cb"],
+                "token_endpoint_auth_signing_alg": "RS256",
+            },
+            {**PKJWT, "jwks": {"keys": [{**JWKS["keys"][0], "d": "secret"}]}},
+            {**PKJWT, "jwks": {"keys": []}},
+        ],
+    )
+    def test_invalid(self, metadata):
+        assert _error_code({k: v for k, v in metadata.items() if v is not None}) == (
+            "invalid_client_metadata"
+        )
+
+
+class TestRegisterPrivateKeyJwtClient:
+    def test_gets_no_secret_and_keys_are_stored(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, {**PKJWT, "token_endpoint_auth_signing_alg": "RS256"})
+
+        assert "client_secret" not in body
+        assert "client_secret_expires_at" not in body
+        assert body["token_endpoint_auth_method"] == "private_key_jwt"
+        assert body["token_endpoint_auth_signing_alg"] == "RS256"
+        assert body["jwks"] == JWKS
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["client_auth_method"] == "private_key_jwt"
+        assert row["jwks"] == JWKS
+        assert "jwks" not in row["registration_metadata"]
+        event = _events(test_tenant, "oauth2_client_registered")[0]
+        assert event["metadata"]["client_auth_method"] == "private_key_jwt"
+
+    def test_secret_client_with_jwks_uri_keeps_secret(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(
+            test_tenant,
+            {"redirect_uris": ["https://rp.example/cb"], "jwks_uri": "https://rp.example/jwks"},
+        )
+        assert body["client_secret"]
+        assert body["jwks_uri"] == "https://rp.example/jwks"
+
+
+class TestPrivateKeyJwtConfiguration:
+    def _registered(self, test_tenant, admin, metadata):
+        _set_policy(test_tenant, admin, "open")
+        body = _register(test_tenant, metadata)
+        client = svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )
+        return body, client
+
+    def test_keys_are_replaced_and_cache_cleared(self, test_tenant, test_admin_user, monkeypatch):
+        body, client = self._registered(test_tenant, test_admin_user, PKJWT)
+        cleared = []
+        monkeypatch.setattr(
+            svc.oauth2_client_auth, "clear_jwks_cache", lambda t, c: cleared.append(c)
+        )
+
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {
+                "client_id": body["client_id"],
+                "redirect_uris": ["https://rp.example/cb"],
+                "token_endpoint_auth_method": "private_key_jwt",
+                "jwks_uri": "https://rp.example/rotated",
+            },
+            BASE,
+        )
+        assert updated["jwks_uri"] == "https://rp.example/rotated"
+        assert "jwks" not in updated
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["jwks"] is None
+        assert row["client_auth_method"] == "private_key_jwt"
+        assert cleared == [str(row["id"])]
+
+    @pytest.mark.parametrize("method", ["client_secret_basic", "none"])
+    def test_cannot_leave_private_key_jwt(self, test_tenant, test_admin_user, method):
+        body, client = self._registered(test_tenant, test_admin_user, PKJWT)
+        with pytest.raises(ValidationError) as exc:
+            svc.update_client_configuration(
+                test_tenant["id"],
+                client,
+                {
+                    "client_id": body["client_id"],
+                    "redirect_uris": ["https://rp.example/cb"],
+                    "token_endpoint_auth_method": method,
+                },
+                BASE,
+            )
+        assert exc.value.code == "invalid_client_metadata"
+
+    def test_secret_client_cannot_become_private_key_jwt(self, test_tenant, test_admin_user):
+        body, client = self._registered(
+            test_tenant, test_admin_user, {"redirect_uris": ["https://rp.example/cb"]}
+        )
+        with pytest.raises(ValidationError):
+            svc.update_client_configuration(
+                test_tenant["id"], client, {**PKJWT, "client_id": body["client_id"]}, BASE
+            )
+
+    def test_basic_and_post_are_interchangeable(self, test_tenant, test_admin_user):
+        body, client = self._registered(
+            test_tenant, test_admin_user, {"redirect_uris": ["https://rp.example/cb"]}
+        )
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {
+                "client_id": body["client_id"],
+                "redirect_uris": ["https://rp.example/cb"],
+                "token_endpoint_auth_method": "client_secret_post",
+            },
+            BASE,
+        )
+        assert updated["token_endpoint_auth_method"] == "client_secret_post"

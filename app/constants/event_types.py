@@ -111,6 +111,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oauth2_client_introspection_changed": (
         "OAuth2 client permission to introspect all tenant tokens changed"
     ),
+    "oauth2_client_authentication_changed": (
+        "OAuth2 client authentication method or public keys changed"
+    ),
     "oauth2_token_revoked": "OAuth2 token revoked by its application",
     "oauth2_client_registered": "OAuth2 client registered itself (dynamic client registration)",
     "oauth2_client_registration_updated": "Dynamically registered client updated its registration",
@@ -440,6 +443,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oauth2_device_authorization_denied": "security",
     "oauth2_device_code_redeemed": "security",
     "oauth2_client_introspection_changed": "security",
+    "oauth2_client_authentication_changed": "security",
     "oauth2_token_revoked": "security",
     "oauth2_client_registered": "security",
     "oauth2_client_registration_updated": "admin",

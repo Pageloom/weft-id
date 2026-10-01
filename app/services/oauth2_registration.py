@@ -16,6 +16,8 @@ Two kinds of callers:
 A registered client is always a ``normal`` client with OIDC enabled, never
 B2B. It uses the authorization code grant, the device grant, or both; a
 device-only client may be public (``token_endpoint_auth_method`` ``none``).
+A confidential client authenticates with a secret or, with ``private_key_jwt``,
+with assertions signed by the keys it registers (``jwks`` or ``jwks_uri``).
 It starts available to every user or to no one, per the tenant's
 ``default_access``. Remembered consent applies as for any
 other client; registered clients are never pre-consented.
@@ -24,12 +26,11 @@ Metadata policy: values WeftID cannot honour are rejected
 (``invalid_client_metadata``) rather than silently changed, so a client never
 believes it got something it did not. Metadata WeftID does not understand is
 ignored and not echoed (RFC 7591 section 2). Accepted metadata WeftID does not
-act on yet (``jwks``, ``jwks_uri``, ``contacts``) is stored and echoed.
+act on (``contacts``) is stored and echoed.
 """
 
 import hashlib
 import ipaddress
-import json
 import logging
 import secrets
 import uuid
@@ -46,6 +47,7 @@ from schemas.oauth2 import (
     RegistrationSettingsUpdate,
 )
 from services import oauth2 as oauth2_service
+from services import oauth2_client_auth
 from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import SYSTEM_ACTOR_ID, log_event
@@ -65,7 +67,9 @@ INVALID_CLIENT_METADATA = "invalid_client_metadata"
 SUPPORTED_RESPONSE_TYPES = ("code",)
 SUPPORTED_GRANT_TYPES = ("authorization_code", "refresh_token", oauth2.DEVICE_CODE_GRANT_TYPE)
 # "none" is a public client: device_code (+ refresh_token) only, no secret.
-SUPPORTED_AUTH_METHODS = ("client_secret_basic", "client_secret_post", "none")
+# "private_key_jwt" signs client assertions with the registered keys.
+SUPPORTED_AUTH_METHODS = ("client_secret_basic", "client_secret_post", "private_key_jwt", "none")
+_SECRET_AUTH_METHODS = ("client_secret_basic", "client_secret_post")
 SUPPORTED_APPLICATION_TYPES = ("web", "native")
 SUPPORTED_ID_TOKEN_ALG = "RS256"
 
@@ -81,7 +85,6 @@ _UNSUPPORTED_ALG_FIELDS = (
     "request_object_signing_alg",
     "request_object_encryption_alg",
     "request_object_encryption_enc",
-    "token_endpoint_auth_signing_alg",
 )
 
 # Input bounds (the registration endpoint is unauthenticated when open).
@@ -90,8 +93,6 @@ MAX_URI_LENGTH = 2048
 MAX_NAME_LENGTH = 255
 MAX_CONTACTS = 10
 MAX_CONTACT_LENGTH = 320
-MAX_JWKS_KEYS = 20
-MAX_JWKS_BYTES = 32768
 
 _LOOPBACK_HOSTS = ("localhost",)
 
@@ -455,15 +456,15 @@ def _validate_jwks(metadata: dict) -> tuple[dict | None, str | None]:
         raise _metadata_error("jwks and jwks_uri must not both be present")
     if jwks is None:
         return None, jwks_uri
-    keys = jwks.get("keys") if isinstance(jwks, dict) else None
-    if (
-        not isinstance(keys, list)
-        or len(keys) > MAX_JWKS_KEYS
-        or not all(isinstance(k, dict) for k in keys)
-        or len(json.dumps(jwks)) > MAX_JWKS_BYTES
-    ):
-        raise _metadata_error(f"jwks must be a JSON Web Key Set with at most {MAX_JWKS_KEYS} keys")
-    return jwks, None
+    try:
+        return oauth2_client_auth.validate_jwks(jwks), None
+    except ValueError as exc:
+        raise _metadata_error(str(exc)) from exc
+
+
+def auth_method_family(method: str) -> str:
+    """``none``, ``client_secret`` (basic or post), or ``private_key_jwt``."""
+    return oauth2_client_auth.CLIENT_SECRET if method in _SECRET_AUTH_METHODS else method
 
 
 def validate_client_metadata(metadata: dict) -> dict:
@@ -526,6 +527,19 @@ def validate_client_metadata(metadata: dict) -> dict:
         metadata, "contacts", max_items=MAX_CONTACTS, max_length=MAX_CONTACT_LENGTH
     )
     jwks, jwks_uri = _validate_jwks(metadata)
+    signing_alg = metadata.get("token_endpoint_auth_signing_alg")
+    if auth_method == oauth2_client_auth.PRIVATE_KEY_JWT:
+        if jwks is None and jwks_uri is None:
+            raise _metadata_error("private_key_jwt requires jwks or jwks_uri")
+        if signing_alg is not None and (
+            signing_alg not in oauth2_client_auth.SIGNING_ALG_VALUES_SUPPORTED
+        ):
+            raise _metadata_error(
+                "Unsupported token_endpoint_auth_signing_alg. Supported: "
+                + ", ".join(oauth2_client_auth.SIGNING_ALG_VALUES_SUPPORTED)
+            )
+    elif signing_alg is not None:
+        raise _metadata_error("token_endpoint_auth_signing_alg is only used with private_key_jwt")
 
     session_flags = {}
     for name in ("frontchannel_logout_session_required", "backchannel_logout_session_required"):
@@ -573,6 +587,14 @@ def validate_client_metadata(metadata: dict) -> dict:
         "initiate_login_uri": initiate_login_uri,
         "device_grant_enabled": uses_device,
         "is_public": auth_method == "none",
+        "client_auth_method": (
+            oauth2_client_auth.PRIVATE_KEY_JWT
+            if auth_method == oauth2_client_auth.PRIVATE_KEY_JWT
+            else oauth2_client_auth.CLIENT_SECRET
+        ),
+        "jwks": jwks,
+        "jwks_uri": jwks_uri,
+        "token_endpoint_auth_signing_alg": signing_alg,
         # Stored as JSON and echoed; nothing outside this module reads them.
         "extra": {
             key: value
@@ -582,8 +604,6 @@ def validate_client_metadata(metadata: dict) -> dict:
                 "grant_types": grant_types,
                 "token_endpoint_auth_method": auth_method,
                 "contacts": contacts,
-                "jwks": jwks,
-                "jwks_uri": jwks_uri,
             }.items()
             if value is not None
         },
@@ -623,9 +643,11 @@ def client_configuration(client: dict, base_url: str) -> dict:
     for name in ("logo_uri", "client_uri", "policy_uri", "tos_uri", "initiate_login_uri"):
         if client.get(name):
             body[name] = client[name]
-    for name in ("contacts", "jwks", "jwks_uri"):
-        if extra.get(name) is not None:
-            body[name] = extra[name]
+    if extra.get("contacts") is not None:
+        body["contacts"] = extra["contacts"]
+    for name in ("jwks", "jwks_uri", "token_endpoint_auth_signing_alg"):
+        if client.get(name) is not None:
+            body[name] = client[name]
     if client.get("post_logout_redirect_uris"):
         body["post_logout_redirect_uris"] = list(client["post_logout_redirect_uris"])
     if client.get("frontchannel_logout_uri"):
@@ -688,8 +710,9 @@ def register_client(
         The registration response: the client configuration plus
         ``client_secret``, ``client_secret_expires_at`` (0, never) and the
         ``registration_access_token``. Both secrets exist only in this value.
-        A public client (``token_endpoint_auth_method`` ``none``) gets no
-        ``client_secret`` and no ``client_secret_expires_at``.
+        A public client (``token_endpoint_auth_method`` ``none``) and a
+        ``private_key_jwt`` client get no ``client_secret`` and no
+        ``client_secret_expires_at``.
 
     Raises:
         NotFoundError: registration is off
@@ -722,6 +745,10 @@ def register_client(
         available_to_all=available_to_all,
         device_grant_enabled=accepted["device_grant_enabled"],
         is_public=accepted["is_public"],
+        client_auth_method=accepted["client_auth_method"],
+        jwks=accepted["jwks"],
+        jwks_uri=accepted["jwks_uri"],
+        token_endpoint_auth_signing_alg=accepted["token_endpoint_auth_signing_alg"],
     )
     if token_row is not None:
         database.oauth2.touch_initial_access_token(tenant_id, str(token_row["id"]))
@@ -739,13 +766,14 @@ def register_client(
             "available_to_all": available_to_all,
             "device_grant_enabled": accepted["device_grant_enabled"],
             "is_public": accepted["is_public"],
+            "client_auth_method": accepted["client_auth_method"],
             "initial_access_token_id": str(token_row["id"]) if token_row else None,
             "initial_access_token_name": token_row["name"] if token_row else None,
         },
     )
 
     body = client_configuration(client, base_url)
-    if not accepted["is_public"]:
+    if "client_secret" in client:
         body["client_secret"] = client["client_secret"]
         body["client_secret_expires_at"] = 0
     body["registration_access_token"] = registration_access_token
@@ -799,9 +827,11 @@ def update_client_configuration(
     server-managed fields (``registration_access_token``,
     ``registration_client_uri``, ``client_secret_expires_at``,
     ``client_id_issued_at``) are ignored. Credentials and access settings are
-    unchanged, and so is whether the client is public: a
-    ``token_endpoint_auth_method`` that switches between ``none`` and a secret
-    method is refused.
+    unchanged, and so is how the client authenticates: a
+    ``token_endpoint_auth_method`` that switches between ``none``, a secret
+    method, and ``private_key_jwt`` is refused (``client_secret_basic`` and
+    ``client_secret_post`` are interchangeable). The client's keys are
+    replaced like the rest of its metadata.
 
     Logs: oauth2_client_registration_updated (system actor).
 
@@ -823,9 +853,14 @@ def update_client_configuration(
             raise _metadata_error("client_secret does not match")
 
     accepted = validate_client_metadata(metadata)
-    if accepted["is_public"] != bool(client.get("is_public")):
+    current_method = (client.get("registration_metadata") or {}).get(
+        "token_endpoint_auth_method", "client_secret_basic"
+    )
+    requested_method = accepted["extra"]["token_endpoint_auth_method"]
+    if auth_method_family(requested_method) != auth_method_family(current_method):
         raise _metadata_error(
-            "token_endpoint_auth_method cannot switch between none and a client secret"
+            "token_endpoint_auth_method cannot switch between none, a client secret, "
+            "and private_key_jwt"
         )
     updated = database.oauth2.replace_registered_client(
         tenant_id,
@@ -844,9 +879,14 @@ def update_client_configuration(
         initiate_login_uri=accepted["initiate_login_uri"],
         registration_metadata=accepted["extra"],
         device_grant_enabled=accepted["device_grant_enabled"],
+        jwks=accepted["jwks"],
+        jwks_uri=accepted["jwks_uri"],
+        token_endpoint_auth_signing_alg=accepted["token_endpoint_auth_signing_alg"],
     )
     if updated is None:
         raise UnauthorizedError(message="The registration access token is not valid")
+
+    oauth2_client_auth.clear_jwks_cache(tenant_id, str(updated["id"]))
 
     log_event(
         tenant_id=tenant_id,

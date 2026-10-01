@@ -14,6 +14,7 @@ redirects since it is the closest thing the Applications section has to a
 "home" module.
 """
 
+import json
 import logging
 from typing import Annotated
 
@@ -28,6 +29,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child, has_page_access
 from schemas.oauth2 import InitialAccessTokenCreate, RegistrationSettingsUpdate
 from services import oauth2 as oauth2_service
+from services import oauth2_client_auth as oauth2_client_auth_service
 from services import oauth2_registration as registration_service
 from services import oauth2_tokens as oauth2_tokens_service
 from services.exceptions import ServiceError
@@ -415,6 +417,84 @@ def _set_introspection(
         return safe_redirect(f"{redirect_url}?error=introspection_update_failed")
 
 
+# Error codes from set_client_authentication shown as their own message.
+_CLIENT_AUTH_ERRORS = frozenset({"invalid_client_keys", "client_keys_required"})
+
+
+def _set_authentication(
+    request: Request,
+    tenant_id: str,
+    user: dict,
+    client_id: str,
+    redirect_url: str,
+    *,
+    method: str,
+    key_source: str,
+    jwks: str,
+    jwks_uri: str,
+) -> RedirectResponse:
+    """Apply the Client Authentication form (App and Service Account pages).
+
+    Only the key field matching ``key_source`` is used; both blank clears the
+    keys (allowed for a client that uses a secret).
+    """
+    parsed_jwks = None
+    if key_source == "jwks" and jwks.strip():
+        try:
+            parsed_jwks = json.loads(jwks)
+        except ValueError:
+            return safe_redirect(f"{redirect_url}?error=invalid_client_keys")
+    uri = jwks_uri.strip() if key_source == "jwks_uri" else ""
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    try:
+        client = oauth2_client_auth_service.set_client_authentication(
+            requesting_user, client_id, method=method, jwks=parsed_jwks, jwks_uri=uri or None
+        )
+    except ServiceError as exc:
+        if exc.code in _CLIENT_AUTH_ERRORS:
+            return safe_redirect(f"{redirect_url}?error={exc.code}")
+        logger.warning("Failed to update client authentication: %s", exc)
+        return safe_redirect(f"{redirect_url}?error=authentication_update_failed")
+
+    if client.get("client_secret"):
+        # Switched back to a secret: show the new one once.
+        request.session["pending_credentials"] = {
+            "client_id": client["client_id"],
+            "client_secret": client["client_secret"],
+            "name": client["name"],
+        }
+    return safe_redirect(f"{redirect_url}?success=authentication_updated")
+
+
+@apps_router.post("/{client_id}/authentication", response_class=HTMLResponse)
+def app_set_authentication(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    method: Annotated[str, Form(max_length=50)] = "client_secret",
+    key_source: Annotated[str, Form(max_length=20)] = "jwks",
+    jwks: Annotated[str, Form(max_length=32768)] = "",
+    jwks_uri: Annotated[str, Form(max_length=2048)] = "",
+):
+    """Set how an App authenticates (secret or private_key_jwt) and its keys."""
+    if not has_page_access("/applications/oauth", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    return _set_authentication(
+        request,
+        tenant_id,
+        user,
+        client_id,
+        f"/applications/oauth/{client_id}",
+        method=method,
+        key_source=key_source,
+        jwks=jwks,
+        jwks_uri=jwks_uri,
+    )
+
+
 @apps_router.post("/{client_id}/introspection", response_class=HTMLResponse)
 def app_set_introspection(
     request: Request,
@@ -450,6 +530,8 @@ def app_regenerate_secret(
         return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
     if client.get("is_public"):
         return safe_redirect(f"{redirect_url}?error=public_client_no_secret")
+    if client.get("client_auth_method") == "private_key_jwt":
+        return safe_redirect(f"{redirect_url}?error=private_key_jwt_client_no_secret")
 
     new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id, str(user["id"]))
 
@@ -695,6 +777,34 @@ def b2b_set_introspection(
     )
 
 
+@b2b_router.post("/{client_id}/authentication", response_class=HTMLResponse)
+def b2b_set_authentication(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    method: Annotated[str, Form(max_length=50)] = "client_secret",
+    key_source: Annotated[str, Form(max_length=20)] = "jwks",
+    jwks: Annotated[str, Form(max_length=32768)] = "",
+    jwks_uri: Annotated[str, Form(max_length=2048)] = "",
+):
+    """Set how a B2B client authenticates (secret or private_key_jwt) and its keys."""
+    if not has_page_access("/applications/service-accounts", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    return _set_authentication(
+        request,
+        tenant_id,
+        user,
+        client_id,
+        f"/applications/service-accounts/{client_id}",
+        method=method,
+        key_source=key_source,
+        jwks=jwks,
+        jwks_uri=jwks_uri,
+    )
+
+
 @b2b_router.post("/{client_id}/edit", response_class=HTMLResponse)
 def b2b_edit(
     request: Request,
@@ -787,6 +897,8 @@ def b2b_regenerate_secret(
         return RedirectResponse(
             url="/applications/service-accounts?error=not_found", status_code=303
         )
+    if client.get("client_auth_method") == "private_key_jwt":
+        return safe_redirect(f"{redirect_url}?error=private_key_jwt_client_no_secret")
 
     new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id, str(user["id"]))
 

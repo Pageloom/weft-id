@@ -3,6 +3,7 @@
 import oauth2
 from database._core import TenantArg, execute, fetchall, fetchone
 from database.users import create_user
+from psycopg.types.json import Json
 
 
 def create_normal_client(
@@ -79,7 +80,8 @@ def create_normal_client(
                   redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
                   backchannel_logout_uri, backchannel_logout_session_required,
                   frontchannel_logout_session_required, initiate_login_uri, device_grant_enabled,
-                  is_public,
+                  is_public, client_auth_method, jwks, jwks_uri,
+                  token_endpoint_auth_signing_alg,
                   service_user_id, is_active, created_at
         """,
         {
@@ -205,7 +207,8 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
                frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
                available_to_all, can_introspect_tenant_tokens, dynamically_registered,
                logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
-               is_public,
+               is_public, client_auth_method, jwks, jwks_uri,
+               token_endpoint_auth_signing_alg,
                registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
@@ -237,7 +240,8 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
                frontchannel_logout_session_required, service_user_id, is_active, oidc_enabled,
                available_to_all, can_introspect_tenant_tokens, dynamically_registered,
                logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
-               is_public,
+               is_public, client_auth_method, jwks, jwks_uri,
+               token_endpoint_auth_signing_alg,
                registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
@@ -269,7 +273,8 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                    c.service_user_id, c.is_active, c.oidc_enabled, c.available_to_all,
                    c.can_introspect_tenant_tokens, c.dynamically_registered, c.logo_uri,
                    c.client_uri, c.policy_uri, c.tos_uri, c.initiate_login_uri,
-                   c.device_grant_enabled, c.is_public, c.registration_metadata,
+                   c.device_grant_enabled, c.is_public, c.client_auth_method, c.jwks, c.jwks_uri,
+                   c.token_endpoint_auth_signing_alg, c.registration_metadata,
                    c.registered_with_token_id,
                    c.created_at, u.role as service_role
             from oauth2_clients c
@@ -288,7 +293,8 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.oidc_enabled, c.available_to_all, c.can_introspect_tenant_tokens,
                c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
-               c.initiate_login_uri, c.device_grant_enabled, c.is_public,
+               c.initiate_login_uri, c.device_grant_enabled, c.is_public, c.client_auth_method,
+               c.jwks, c.jwks_uri, c.token_endpoint_auth_signing_alg,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -326,7 +332,8 @@ def regenerate_client_secret(tenant_id: TenantArg, client_id: str) -> str | None
 
     Returns:
         New plain text client_secret (shown only once!), or None when the
-        client is unknown or public (a public client never has a secret)
+        client is unknown, public, or uses private_key_jwt (neither has a
+        secret)
     """
     # Generate new secret
     client_secret = oauth2.generate_client_secret()
@@ -339,6 +346,7 @@ def regenerate_client_secret(tenant_id: TenantArg, client_id: str) -> str | None
         update oauth2_clients
         set client_secret_hash = :client_secret_hash
         where client_id = :client_id and not is_public
+          and client_auth_method = 'client_secret'
         """,
         {"client_secret_hash": client_secret_hash, "client_id": client_id},
     )
@@ -465,7 +473,8 @@ def update_client(
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled, is_public,
+                  initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
+                  jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -513,7 +522,8 @@ def update_client_oidc_settings(
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled, is_public,
+                  initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
+                  jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -545,11 +555,77 @@ def set_client_tenant_introspection(
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled, is_public,
+                  initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
+                  jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id, "enabled": enabled},
     )
+
+
+def set_client_authentication(
+    tenant_id: TenantArg,
+    client_id: str,
+    *,
+    client_auth_method: str,
+    jwks: dict | None,
+    jwks_uri: str | None,
+    token_endpoint_auth_signing_alg: str | None,
+    rotate_secret: bool,
+) -> dict | None:
+    """Set how a confidential client authenticates, and its public keys.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        client_id: Client ID (the TEXT identifier, e.g., "weft-id_client_abc123")
+        client_auth_method: ``client_secret`` or ``private_key_jwt``
+        jwks: Inline JSON Web Key Set, or None
+        jwks_uri: JWKS URL, or None (never both)
+        token_endpoint_auth_signing_alg: The one assertion algorithm, or None
+        rotate_secret: Replace the client secret. With ``client_secret`` the
+            new plaintext secret is returned (shown once); with
+            ``private_key_jwt`` it is a random secret nobody sees, so the old
+            one stops working.
+
+    Returns:
+        Updated client record (plus ``client_secret`` when a usable secret was
+        generated), or None if not found or public
+    """
+    client_secret = oauth2.generate_client_secret()
+    client = fetchone(
+        tenant_id,
+        """
+        update oauth2_clients
+        set client_auth_method = :client_auth_method,
+            jwks = :jwks,
+            jwks_uri = :jwks_uri,
+            token_endpoint_auth_signing_alg = :token_endpoint_auth_signing_alg,
+            client_secret_hash = case when :rotate_secret then :client_secret_hash
+                                      else client_secret_hash end
+        where client_id = :client_id and not is_public
+        returning id, tenant_id, client_id, client_type, name, description,
+                  redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,
+                  backchannel_logout_uri, backchannel_logout_session_required,
+                  frontchannel_logout_session_required, service_user_id, is_active,
+                  oidc_enabled, available_to_all, can_introspect_tenant_tokens,
+                  dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
+                  initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
+                  jwks, jwks_uri, token_endpoint_auth_signing_alg,
+                  registration_metadata, registered_with_token_id, created_at
+        """,
+        {
+            "client_id": client_id,
+            "client_auth_method": client_auth_method,
+            "jwks": Json(jwks) if jwks is not None else None,
+            "jwks_uri": jwks_uri,
+            "token_endpoint_auth_signing_alg": token_endpoint_auth_signing_alg,
+            "rotate_secret": rotate_secret,
+            "client_secret_hash": oauth2.hash_token(client_secret),
+        },
+    )
+    if client and rotate_secret and client_auth_method == "client_secret":
+        client["client_secret"] = client_secret
+    return client
 
 
 def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> dict | None:
@@ -586,7 +662,8 @@ def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> d
                c.frontchannel_logout_uri, c.frontchannel_logout_session_required, c.service_user_id,
                c.is_active, c.oidc_enabled, c.available_to_all, c.can_introspect_tenant_tokens,
                c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
-               c.initiate_login_uri, c.device_grant_enabled, c.is_public,
+               c.initiate_login_uri, c.device_grant_enabled, c.is_public, c.client_auth_method,
+               c.jwks, c.jwks_uri, c.token_endpoint_auth_signing_alg,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -620,7 +697,8 @@ def deactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled, is_public,
+                  initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
+                  jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},
@@ -650,7 +728,8 @@ def reactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   frontchannel_logout_session_required, service_user_id, is_active,
                   oidc_enabled, available_to_all, can_introspect_tenant_tokens,
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
-                  initiate_login_uri, device_grant_enabled, is_public,
+                  initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
+                  jwks, jwks_uri, token_endpoint_auth_signing_alg,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},

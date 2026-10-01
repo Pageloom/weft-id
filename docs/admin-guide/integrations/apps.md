@@ -46,7 +46,8 @@ After creation, WeftID displays the **client ID** and **client secret** in a dia
     The client credentials can be sent either as the `client_id` and
     `client_secret` form fields shown above (`client_secret_post`) or as an
     HTTP Basic `Authorization` header (`client_secret_basic`). Use one method
-    per request, not both.
+    per request, not both. An app set to [private key JWT](private-key-jwt.md)
+    sends a signed `client_assertion` instead of a secret.
 
 5. WeftID returns an access token and refresh token:
 
@@ -132,6 +133,7 @@ Click the app name in the list to open its detail page. From there you can:
 - **Edit** the name, description, and redirect URIs
 - **Enable OIDC** -- Turn the app into an OpenID Connect provider (see [Sign in with WeftID (OIDC)](oidc-provider-setup.md)).
 - **Regenerate the client secret** -- Immediately invalidates the old secret. A new secret is shown once.
+- **Change client authentication** -- Switch between a client secret and [private key JWT](private-key-jwt.md), and set the app's public keys.
 - **Deactivate** -- Disables the client, revokes all active tokens, and forgets every user's consent. The app can be reactivated later.
 - **Reactivate** -- Re-enables a deactivated app. Users will need to re-authorize.
 - **Allow token introspection for all tenant tokens** -- For an app whose backend acts as a resource server. See [Token Introspection and Revocation](token-introspection.md).

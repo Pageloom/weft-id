@@ -35,12 +35,14 @@ An application sends its metadata as JSON. WeftID accepts:
 * `client_name`, shown to users on the consent page. Without it, WeftID names the app after its first redirect URI's host, or "Registered device client" when it has none.
 * `logo_uri`, `policy_uri`, `tos_uri`, and `client_uri` (all `https`). The consent page shows the logo and links to the privacy policy and terms of service.
 * `grant_types`: `authorization_code` (the default), `urn:ietf:params:oauth:grant-type:device_code` for [device sign-in](device-sign-in.md), or both, optionally with `refresh_token`.
-* `token_endpoint_auth_method`: `client_secret_basic` (default), `client_secret_post`, or `none` for a [public client](device-sign-in.md#public-clients). `none` is accepted only for an app that uses device sign-in without `authorization_code`.
-* `contacts`, `jwks`, or `jwks_uri`. WeftID stores these and returns them, but does not use the keys yet.
+* `token_endpoint_auth_method`: `client_secret_basic` (default), `client_secret_post`, `private_key_jwt`, or `none` for a [public client](device-sign-in.md#public-clients). `none` is accepted only for an app that uses device sign-in without `authorization_code`. `private_key_jwt` needs `jwks` or `jwks_uri` (see [Private Key JWT](private-key-jwt.md)); such an app gets no client secret.
+* `jwks` (RSA or EC public keys, at most 20) or `jwks_uri` (`https`), not both. With `private_key_jwt` these are the keys WeftID checks the app's assertions against.
+* `token_endpoint_auth_signing_alg`: `RS256`, `PS256`, or `ES256`, with `private_key_jwt` only. WeftID then accepts assertions signed with that algorithm alone.
+* `contacts`. WeftID stores these and returns them.
 * The logout settings an admin can set on an app: `post_logout_redirect_uris`, `frontchannel_logout_uri`, `backchannel_logout_uri`, and their `_session_required` flags.
 * `initiate_login_uri` (`https`), the app's URL that starts a sign-in with WeftID. Users who can access the app see it in **My Apps** (see [Launching from My Apps](oidc-provider-setup.md#launching-from-my-apps)).
 
-WeftID rejects metadata it cannot honour rather than quietly ignoring it. That includes other response types, the implicit and client credentials grants, `private_key_jwt`, public clients that ask for `authorization_code`, unsigned or encrypted ID tokens, signed userinfo, request objects, and pairwise subjects. A rejected request gets HTTP 400 with `invalid_redirect_uri` or `invalid_client_metadata`. Metadata WeftID does not recognise is ignored.
+WeftID rejects metadata it cannot honour rather than quietly ignoring it. That includes other response types, the implicit and client credentials grants, `client_secret_jwt`, public clients that ask for `authorization_code`, unsigned or encrypted ID tokens, signed userinfo, request objects, and pairwise subjects. A rejected request gets HTTP 400 with `invalid_redirect_uri` or `invalid_client_metadata`. Metadata WeftID does not recognise is ignored.
 
 A registered app is always an ordinary OAuth2 / OIDC app with OIDC turned on. An application cannot register a service account.
 

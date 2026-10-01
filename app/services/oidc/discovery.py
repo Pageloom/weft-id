@@ -21,6 +21,7 @@ to that tuple.
 from __future__ import annotations
 
 from schemas.oidc import OIDCProviderMetadata
+from services import oauth2_client_auth
 from services.oidc import claims as claims_service
 
 # Subject identifier type. WeftID uses the stable user id directly (never a
@@ -49,8 +50,13 @@ GRANT_TYPES_SUPPORTED = [
 # Client authentication methods the introspection endpoint accepts (RFC 6749
 # section 2.3.1). Basic is the spec-mandated method and the discovery default
 # when the token endpoint's field is omitted; post is the form-field variant
-# many SDKs send. Introspection needs an authenticated client, so no "none".
-CONFIDENTIAL_AUTH_METHODS = ["client_secret_basic", "client_secret_post"]
+# many SDKs send; private_key_jwt is a signed client assertion (RFC 7523).
+# Introspection needs an authenticated client, so no "none".
+CONFIDENTIAL_AUTH_METHODS = ["client_secret_basic", "client_secret_post", "private_key_jwt"]
+
+# JWS algorithms accepted for private_key_jwt assertions, at every endpoint
+# that authenticates clients.
+AUTH_SIGNING_ALG_VALUES_SUPPORTED = list(oauth2_client_auth.SIGNING_ALG_VALUES_SUPPORTED)
 
 # The token (and device authorization) and revocation endpoints also accept
 # public clients, which send client_id alone ("none"; RFC 6749 section 2.1,
@@ -125,9 +131,15 @@ def build_discovery_metadata(
         end_session_endpoint=f"{base}/oauth2/logout",
         introspection_endpoint=f"{base}/oauth2/introspect",
         introspection_endpoint_auth_methods_supported=list(CONFIDENTIAL_AUTH_METHODS),
+        introspection_endpoint_auth_signing_alg_values_supported=list(
+            AUTH_SIGNING_ALG_VALUES_SUPPORTED
+        ),
         revocation_endpoint=f"{base}/oauth2/revoke",
         device_authorization_endpoint=f"{base}/oauth2/device_authorization",
         revocation_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
+        revocation_endpoint_auth_signing_alg_values_supported=list(
+            AUTH_SIGNING_ALG_VALUES_SUPPORTED
+        ),
         registration_endpoint=f"{base}/oauth2/register" if registration_enabled else None,
         scopes_supported=list(claims_service.SUPPORTED_SCOPES),
         response_types_supported=list(RESPONSE_TYPES_SUPPORTED),
@@ -136,6 +148,7 @@ def build_discovery_metadata(
         subject_types_supported=list(SUBJECT_TYPES_SUPPORTED),
         id_token_signing_alg_values_supported=list(ID_TOKEN_SIGNING_ALG_VALUES_SUPPORTED),
         token_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
+        token_endpoint_auth_signing_alg_values_supported=list(AUTH_SIGNING_ALG_VALUES_SUPPORTED),
         claims_supported=list(CLAIMS_SUPPORTED),
         request_parameter_supported=REQUEST_PARAMETER_SUPPORTED,
         request_uri_parameter_supported=REQUEST_URI_PARAMETER_SUPPORTED,

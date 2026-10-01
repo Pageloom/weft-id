@@ -24,7 +24,8 @@ _CLIENT_COLUMNS = """
     frontchannel_logout_session_required, service_user_id, is_active,
     oidc_enabled, available_to_all, can_introspect_tenant_tokens, dynamically_registered,
     logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
-    is_public, registration_metadata, registered_with_token_id, created_at
+    is_public, client_auth_method, jwks, jwks_uri, token_endpoint_auth_signing_alg,
+    registration_metadata, registered_with_token_id, created_at
 """
 
 _TOKEN_COLUMNS = """
@@ -221,13 +222,17 @@ def create_registered_client(
     available_to_all: bool,
     device_grant_enabled: bool = False,
     is_public: bool = False,
+    client_auth_method: str = "client_secret",
+    jwks: dict | None = None,
+    jwks_uri: str | None = None,
+    token_endpoint_auth_signing_alg: str | None = None,
 ) -> dict:
     """Insert a dynamically registered client.
 
     Always a ``normal`` client with OIDC enabled and no creating user. Returns
     the row plus the plaintext ``client_secret``, which exists only in this
-    return value. A public client gets no secret (it stores the hash of one
-    nobody ever sees).
+    return value. A public client and a ``private_key_jwt`` client get no
+    secret (each stores the hash of one nobody ever sees).
     """
     client_secret = oauth2.generate_client_secret()
     client = fetchone(
@@ -241,6 +246,7 @@ def create_registered_client(
             oidc_enabled, available_to_all, dynamically_registered,
             logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri,
             device_grant_enabled, is_public,
+            client_auth_method, jwks, jwks_uri, token_endpoint_auth_signing_alg,
             registration_metadata, registration_access_token_hash, registered_with_token_id,
             created_by
         ) values (
@@ -251,6 +257,7 @@ def create_registered_client(
             true, :available_to_all, true,
             :logo_uri, :client_uri, :policy_uri, :tos_uri, :initiate_login_uri,
             :device_grant_enabled, :is_public,
+            :client_auth_method, :jwks, :jwks_uri, :token_endpoint_auth_signing_alg,
             :registration_metadata, :registration_access_token_hash, :registered_with_token_id,
             null
         )
@@ -275,13 +282,17 @@ def create_registered_client(
             "initiate_login_uri": initiate_login_uri,
             "device_grant_enabled": device_grant_enabled,
             "is_public": is_public,
+            "client_auth_method": client_auth_method,
+            "jwks": Json(jwks) if jwks is not None else None,
+            "jwks_uri": jwks_uri,
+            "token_endpoint_auth_signing_alg": token_endpoint_auth_signing_alg,
             "registration_metadata": Json(registration_metadata),
             "registration_access_token_hash": registration_access_token_hash,
             "registered_with_token_id": registered_with_token_id,
         },
     )
     assert client is not None  # INSERT ... RETURNING always returns a row
-    if not is_public:
+    if not is_public and client_auth_method == "client_secret":
         client["client_secret"] = client_secret
     return client
 
@@ -304,11 +315,14 @@ def replace_registered_client(
     initiate_login_uri: str | None,
     registration_metadata: dict,
     device_grant_enabled: bool = False,
+    jwks: dict | None = None,
+    jwks_uri: str | None = None,
+    token_endpoint_auth_signing_alg: str | None = None,
 ) -> dict | None:
     """Replace a dynamically registered client's metadata (RFC 7592 section 2.2).
 
-    Credentials (and whether the client is public), access settings, and the
-    registration bookkeeping are left alone. Only rows marked
+    Credentials (and the authentication method), access settings, and the
+    registration bookkeeping are left alone; the client's keys are replaced. Only rows marked
     ``dynamically_registered`` are touched.
     """
     return fetchone(
@@ -328,6 +342,9 @@ def replace_registered_client(
             tos_uri = :tos_uri,
             initiate_login_uri = :initiate_login_uri,
             device_grant_enabled = :device_grant_enabled,
+            jwks = :jwks,
+            jwks_uri = :jwks_uri,
+            token_endpoint_auth_signing_alg = :token_endpoint_auth_signing_alg,
             registration_metadata = :registration_metadata
         where client_id = :client_id and dynamically_registered
         returning {_CLIENT_COLUMNS}
@@ -347,6 +364,9 @@ def replace_registered_client(
             "tos_uri": tos_uri,
             "initiate_login_uri": initiate_login_uri,
             "device_grant_enabled": device_grant_enabled,
+            "jwks": Json(jwks) if jwks is not None else None,
+            "jwks_uri": jwks_uri,
+            "token_endpoint_auth_signing_alg": token_endpoint_auth_signing_alg,
             "registration_metadata": Json(registration_metadata),
         },
     )

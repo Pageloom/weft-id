@@ -59,12 +59,24 @@ class OIDCProviderMetadata(BaseModel):
     introspection_endpoint_auth_methods_supported: list[str] = Field(
         ..., description="Client authentication methods the introspection endpoint accepts."
     )
+    introspection_endpoint_auth_signing_alg_values_supported: list[str] = Field(
+        ...,
+        description=(
+            "JWS algorithms accepted for private_key_jwt client assertions at this endpoint."
+        ),
+    )
     revocation_endpoint: str = Field(
         ...,
         description="OAuth 2.0 Token Revocation (RFC 7009) endpoint URL.",
     )
     revocation_endpoint_auth_methods_supported: list[str] = Field(
         ..., description="Client authentication methods the revocation endpoint accepts."
+    )
+    revocation_endpoint_auth_signing_alg_values_supported: list[str] = Field(
+        ...,
+        description=(
+            "JWS algorithms accepted for private_key_jwt client assertions at this endpoint."
+        ),
     )
     device_authorization_endpoint: str = Field(
         ...,
@@ -101,7 +113,14 @@ class OIDCProviderMetadata(BaseModel):
         ...,
         description=(
             "Client authentication methods the token endpoint accepts: "
-            "client_secret_basic (HTTP Basic) and client_secret_post (form fields)."
+            "client_secret_basic (HTTP Basic), client_secret_post (form fields), "
+            "private_key_jwt (signed client assertion), and none (public clients)."
+        ),
+    )
+    token_endpoint_auth_signing_alg_values_supported: list[str] = Field(
+        ...,
+        description=(
+            "JWS algorithms accepted for private_key_jwt client assertions at the token endpoint."
         ),
     )
     claims_supported: list[str] = Field(

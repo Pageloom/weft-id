@@ -33,7 +33,7 @@ def _can_manage_emails(requesting_user: RequestingUser, target_user_id: str) -> 
     if requesting_user["role"] in ("admin", "super_admin"):
         return True
     # Users can only manage their own emails
-    return requesting_user["id"] == target_user_id
+    return str(requesting_user["id"]) == str(target_user_id)
 
 
 # =============================================================================
@@ -88,7 +88,7 @@ def list_user_emails(
     track_activity(tenant_id, requesting_user["id"])
 
     # Verify user exists (for admin operations)
-    if requesting_user["id"] != user_id:
+    if str(requesting_user["id"]) != str(user_id):
         user = database.users.get_user_by_id(tenant_id, user_id)
         if not user:
             raise NotFoundError(
@@ -139,7 +139,7 @@ def add_user_email(
         )
 
     # Verify user exists (for admin operations)
-    if requesting_user["id"] != user_id:
+    if str(requesting_user["id"]) != str(user_id):
         user = database.users.get_user_by_id(tenant_id, user_id)
         if not user:
             raise NotFoundError(

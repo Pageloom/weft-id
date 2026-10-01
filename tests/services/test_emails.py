@@ -73,6 +73,15 @@ def test_list_user_emails_as_self(test_tenant, test_user):
     assert any(e.email == test_user["email"] for e in result)
 
 
+def test_list_user_emails_as_self_with_uuid_user_id(test_tenant, test_user):
+    """Test that a member can list their own emails when user_id is a UUID object."""
+    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
+
+    result = emails_service.list_user_emails(requesting_user, test_user["id"])
+
+    assert any(e.email == test_user["email"] for e in result)
+
+
 def test_list_user_emails_as_member_forbidden(test_tenant, test_user, test_admin_user):
     """Test that member cannot list other user's emails."""
     requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")

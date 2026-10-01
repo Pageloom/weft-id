@@ -307,6 +307,17 @@ def test_email_settings_page(test_user, override_auth, mocker):
     mock_list.assert_called_once()
 
 
+def test_email_settings_page_as_member(test_user, override_auth):
+    """Test a member can view their own email settings (regression for 500 on UUID id)."""
+    override_auth(test_user)
+
+    client = TestClient(app)
+    response = client.get("/account/emails")
+
+    assert response.status_code == 200
+    assert test_user["email"] in response.text
+
+
 def test_mfa_settings_page(test_user, override_auth, mocker):
     """Test MFA settings page renders."""
     override_auth(test_user)

@@ -40,7 +40,8 @@ requests = ">=2.33.0"
 webauthn = "^3.0.0"
 idna = ">=3.15"  # CVE-2026-45409, transitive via requests/urllib3
 starlette = ">=1.3.1"
-pyjwt = "^2.10.1"
+pyjwt = "^2.15.1"  # CVE-2026-102268 and 12 more (algorithm confusion, JWKS redirects)
+urllib3 = ">=2.8.0"  # CVE-2026-97687/97688/97689, transitive via requests
 # anyio: held on the 4.14 line for CVE-2026-64847 (fixed in 4.14.2) because
 # starlette 1.x testclient imports the anyio.abc.BlockingPortal alias that
 # 4.15 deprecates (DeprecationWarning at import, fatal under

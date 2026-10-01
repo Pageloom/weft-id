@@ -19,6 +19,7 @@ from urllib.parse import unquote, urlencode, urlparse
 
 import oauth2
 import services.oauth2 as oauth2_service
+import services.oauth2_client_auth as oauth2_client_auth_service
 import services.oauth2_device as oauth2_device_service
 import services.oauth2_tokens as oauth2_tokens_service
 import services.oidc as oidc_service
@@ -32,7 +33,7 @@ from routers.auth.logout import end_oidc_session_quietly, frontchannel_logout_re
 from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
 from schemas.oauth2 import DeviceAuthorizationResponse, TokenErrorResponse, TokenResponse
 from services.event_log import log_event
-from services.exceptions import ForbiddenError
+from services.exceptions import ForbiddenError, UnauthorizedError
 from services.oidc.claims import SCOPE_OPENID, parse_scope
 from utils.csp_nonce import get_csp_nonce
 from utils.redirects import safe_redirect
@@ -918,6 +919,10 @@ def authorize_grant(
 # fields' max_length so both methods enforce the same limit.
 _CLIENT_CREDENTIAL_MAX_LENGTH = 255
 
+# Upper bound for a private_key_jwt client assertion (a compact JWS; a few
+# hundred bytes for RS256, more with an x5c header).
+_CLIENT_ASSERTION_MAX_LENGTH = 8192
+
 
 def _resolve_client_credentials(
     request: Request,
@@ -1003,24 +1008,61 @@ def _token_success(body: TokenResponse) -> JSONResponse:
     return JSONResponse(body.model_dump(exclude_none=True), headers=_TOKEN_RESPONSE_HEADERS)
 
 
+def _assertion_audiences(request: Request) -> list[str]:
+    """The ``aud`` values a client assertion may name at this endpoint: the
+    issuer (RFC 7523bis), the token endpoint (OpenID Connect Core 1.0 section
+    9), or the endpoint actually called."""
+    issuer = tenant_base_url(request).rstrip("/")
+    return list(dict.fromkeys([issuer, f"{issuer}/oauth2/token", f"{issuer}{request.url.path}"]))
+
+
 def _authenticate_client(
     request: Request,
     tenant_id: str,
     form_client_id: str | None,
     form_client_secret: str | None,
     *,
+    client_assertion_type: str | None = None,
+    client_assertion: str | None = None,
     allow_public: bool = False,
 ) -> dict | JSONResponse:
     """Authenticate the calling client (token, device authorization,
     introspection, and revocation endpoints). Returns the active client
     record, or the ``invalid_client`` error response to send.
 
-    With ``allow_public``, a public client (``token_endpoint_auth_method``
-    ``none``) identifies itself by the ``client_id`` form field alone: no
-    secret and no Authorization header (RFC 6749 sections 2.1 and 3.2.1). A
-    confidential client must still authenticate, and a public client that
-    presents a secret is refused, so neither can pass for the other.
+    Exactly one method per request (RFC 6749 section 2.3):
+
+    - ``private_key_jwt``: ``client_assertion_type`` +
+      ``client_assertion`` (RFC 7523), with no secret and no Authorization
+      header; ``client_id`` is optional and must match the assertion.
+    - ``client_secret_basic`` / ``client_secret_post`` for a client that
+      authenticates with a secret.
+    - With ``allow_public``, a public client (``none``) identifies itself by
+      the ``client_id`` form field alone: no secret and no Authorization
+      header (RFC 6749 sections 2.1 and 3.2.1).
+
+    A client can authenticate only with its own method, so a secret never
+    opens a ``private_key_jwt`` client and an assertion never opens a client
+    that uses a secret.
     """
+    if client_assertion_type is not None or client_assertion is not None:
+        if (
+            form_client_secret
+            or request.headers.get("authorization")
+            or client_assertion_type != oauth2_client_auth_service.CLIENT_ASSERTION_TYPE
+            or not client_assertion
+        ):
+            return _token_error("invalid_client", "Client authentication failed")
+        try:
+            return oauth2_client_auth_service.authenticate_client_assertion(
+                tenant_id,
+                assertion=client_assertion,
+                client_id=form_client_id,
+                audiences=_assertion_audiences(request),
+            )
+        except UnauthorizedError:
+            return _token_error("invalid_client", "Client authentication failed")
+
     if (
         allow_public
         and form_client_id
@@ -1043,6 +1085,7 @@ def _authenticate_client(
     if (
         not client
         or client.get("is_public")
+        or client.get("client_auth_method") == oauth2_client_auth_service.PRIVATE_KEY_JWT
         or not oauth2.verify_token_hash(client_secret, client["client_secret_hash"])
     ):
         return _token_error("invalid_client", "Client authentication failed")
@@ -1154,6 +1197,8 @@ def token_endpoint(
     grant_type: Annotated[str, Form(max_length=50)],
     client_id: Annotated[str | None, Form(max_length=255)] = None,
     client_secret: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion_type: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion: Annotated[str | None, Form(max_length=_CLIENT_ASSERTION_MAX_LENGTH)] = None,
     code: Annotated[str | None, Form(max_length=255)] = None,
     redirect_uri: Annotated[str | None, Form(max_length=2048)] = None,
     code_verifier: Annotated[str | None, Form(max_length=255)] = None,
@@ -1178,12 +1223,15 @@ def token_endpoint(
        ``access_denied``, ``expired_token``, or the tokens (once). Requires a
        normal client with the device grant enabled.
 
-    Client authentication (RFC 6749 section 2.3.1): either HTTP Basic
-    (``client_secret_basic``, the Authorization header) or the ``client_id`` +
-    ``client_secret`` form fields (``client_secret_post``). Exactly one method
-    must be used per request. A public client (``none``) sends ``client_id``
-    alone and may use only the device_code and refresh_token grants
-    (``unauthorized_client`` for authorization_code).
+    Client authentication (RFC 6749 section 2.3.1): HTTP Basic
+    (``client_secret_basic``, the Authorization header), the ``client_id`` +
+    ``client_secret`` form fields (``client_secret_post``), or, for a client
+    set to ``private_key_jwt``, a signed JWT in ``client_assertion`` (RFC 7523;
+    ``iss`` and ``sub`` the client_id, ``aud`` the issuer or this endpoint, a
+    unique ``jti``, ``exp`` at most an hour away). Exactly one method must be
+    used per request, and it must be the client's own. A public client
+    (``none``) sends ``client_id`` alone and may use only the device_code and
+    refresh_token grants (``unauthorized_client`` for authorization_code).
 
     Responses carry ``Cache-Control: no-store`` and ``Pragma: no-cache``.
     Errors are RFC 6749 section 5.2 JSON objects with top-level ``error`` and
@@ -1198,13 +1246,24 @@ def token_endpoint(
             when using Basic)
         client_secret: OAuth2 client secret (client_secret_post; omit when using Basic
             and for a public client)
+        client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+            (private_key_jwt only)
+        client_assertion: The signed client assertion JWT (private_key_jwt only)
         code: Authorization code (for authorization_code grant)
         redirect_uri: Redirect URI (for authorization_code grant, must match)
         code_verifier: PKCE code verifier (if PKCE was used)
         refresh_token: Refresh token (for refresh_token grant)
         device_code: Device code (for the device_code grant)
     """
-    client = _authenticate_client(request, tenant_id, client_id, client_secret, allow_public=True)
+    client = _authenticate_client(
+        request,
+        tenant_id,
+        client_id,
+        client_secret,
+        client_assertion_type=client_assertion_type,
+        client_assertion=client_assertion,
+        allow_public=True,
+    )
     if isinstance(client, JSONResponse):
         return client
 
@@ -1408,6 +1467,8 @@ def device_authorization_endpoint(
     scope: Annotated[str | None, Form(max_length=500)] = None,
     client_id: Annotated[str | None, Form(max_length=255)] = None,
     client_secret: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion_type: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion: Annotated[str | None, Form(max_length=_CLIENT_ASSERTION_MAX_LENGTH)] = None,
 ) -> Response:
     """
     OAuth 2.0 Device Authorization endpoint (RFC 8628 section 3.1).
@@ -1422,8 +1483,9 @@ def device_authorization_endpoint(
     Requires a normal client with the device grant enabled
     (``unauthorized_client`` otherwise). Client authentication is the same as
     at the token endpoint: HTTP Basic (``client_secret_basic``), the
-    ``client_id`` + ``client_secret`` form fields (``client_secret_post``), or,
-    for a public client (``none``), ``client_id`` alone.
+    ``client_id`` + ``client_secret`` form fields (``client_secret_post``), a
+    ``client_assertion`` (``private_key_jwt``), or, for a public client
+    (``none``), ``client_id`` alone.
     Errors are RFC 6749 section 5.2 JSON objects; responses are not cached.
 
     Form Data:
@@ -1432,8 +1494,19 @@ def device_authorization_endpoint(
             when using Basic)
         client_secret: OAuth2 client secret (client_secret_post; omit when using Basic
             and for a public client)
+        client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+            (private_key_jwt only)
+        client_assertion: The signed client assertion JWT (private_key_jwt only)
     """
-    client = _authenticate_client(request, tenant_id, client_id, client_secret, allow_public=True)
+    client = _authenticate_client(
+        request,
+        tenant_id,
+        client_id,
+        client_secret,
+        client_assertion_type=client_assertion_type,
+        client_assertion=client_assertion,
+        allow_public=True,
+    )
     if isinstance(client, JSONResponse):
         return client
 
@@ -1473,13 +1546,16 @@ def introspection_endpoint(
     token_type_hint: Annotated[str | None, Form(max_length=50)] = None,
     client_id: Annotated[str | None, Form(max_length=255)] = None,
     client_secret: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion_type: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion: Annotated[str | None, Form(max_length=_CLIENT_ASSERTION_MAX_LENGTH)] = None,
 ) -> Response:
     """
     OAuth 2.0 Token Introspection (RFC 7662).
 
-    The caller authenticates as a client, the same two ways as at the token
-    endpoint (``client_secret_basic`` or ``client_secret_post``). A public
-    client cannot authenticate, so it cannot introspect (``invalid_client``).
+    The caller authenticates as a client, the same ways as at the token
+    endpoint (``client_secret_basic``, ``client_secret_post``, or
+    ``private_key_jwt``). A public client cannot authenticate, so it cannot
+    introspect (``invalid_client``).
     A client sees
     the tokens issued to it; a client an admin has allowed to introspect all
     tenant tokens also sees every other token in the tenant. Anything else,
@@ -1494,12 +1570,22 @@ def introspection_endpoint(
             and ignored, since the token is found either way)
         client_id: OAuth2 client ID (client_secret_post; omit when using Basic)
         client_secret: OAuth2 client secret (client_secret_post; omit when using Basic)
+        client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+            (private_key_jwt only)
+        client_assertion: The signed client assertion JWT (private_key_jwt only)
 
     Returns:
         ``active`` and, for an active token, ``scope``, ``client_id``, ``sub``,
         ``token_type`` (access tokens), ``exp``, ``iat``, and ``iss``.
     """
-    client = _authenticate_client(request, tenant_id, client_id, client_secret)
+    client = _authenticate_client(
+        request,
+        tenant_id,
+        client_id,
+        client_secret,
+        client_assertion_type=client_assertion_type,
+        client_assertion=client_assertion,
+    )
     if isinstance(client, JSONResponse):
         return client
 
@@ -1517,6 +1603,8 @@ def revocation_endpoint(
     token_type_hint: Annotated[str | None, Form(max_length=50)] = None,
     client_id: Annotated[str | None, Form(max_length=255)] = None,
     client_secret: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion_type: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion: Annotated[str | None, Form(max_length=_CLIENT_ASSERTION_MAX_LENGTH)] = None,
 ) -> Response:
     """
     OAuth 2.0 Token Revocation (RFC 7009).
@@ -1540,8 +1628,19 @@ def revocation_endpoint(
             when using Basic)
         client_secret: OAuth2 client secret (client_secret_post; omit when using Basic
             and for a public client)
+        client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+            (private_key_jwt only)
+        client_assertion: The signed client assertion JWT (private_key_jwt only)
     """
-    client = _authenticate_client(request, tenant_id, client_id, client_secret, allow_public=True)
+    client = _authenticate_client(
+        request,
+        tenant_id,
+        client_id,
+        client_secret,
+        client_assertion_type=client_assertion_type,
+        client_assertion=client_assertion,
+        allow_public=True,
+    )
     if isinstance(client, JSONResponse):
         return client
 

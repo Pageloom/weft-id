@@ -1571,6 +1571,27 @@ def test_public_client_has_no_secret_to_regenerate(test_tenant, test_admin_user)
     assert database.event_log.list_events(test_tenant["id"], limit=1)[0]["id"] == before
 
 
+def test_private_key_jwt_client_has_no_secret_to_regenerate(
+    test_tenant, test_admin_user, normal_oauth2_client
+):
+    database.oauth2.set_client_authentication(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        client_auth_method="private_key_jwt",
+        jwks=None,
+        jwks_uri="https://keys.example.com/jwks.json",
+        token_endpoint_auth_signing_alg=None,
+        rotate_secret=True,
+    )
+    before = len(database.event_log.list_events(test_tenant["id"], limit=50))
+    with pytest.raises(ValidationError) as exc:
+        oauth2_service.regenerate_client_secret(
+            test_tenant["id"], normal_oauth2_client["client_id"], str(test_admin_user["id"])
+        )
+    assert exc.value.code == "private_key_jwt_client_no_secret"
+    assert len(database.event_log.list_events(test_tenant["id"], limit=50)) == before
+
+
 def test_regenerate_secret_of_unknown_client(test_tenant, test_admin_user):
     with pytest.raises(NotFoundError):
         oauth2_service.regenerate_client_secret(

@@ -1,0 +1,107 @@
+{# Client Authentication section, shared by the App and Service Account detail pages.
+   Expects `client` and `client_auth_action` (the form's POST URL). #}
+{% set uses_jwt = client.client_auth_method == 'private_key_jwt' %}
+<div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+    <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">
+        Client Authentication
+        {% if uses_jwt %}
+        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">Private key JWT</span>
+        {% else %}
+        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Client secret</span>
+        {% endif %}
+    </h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        How this client proves who it is when it calls the token, device authorization, introspection, and revocation endpoints.
+    </p>
+
+    <form id="client-auth-form" method="post" action="{{ client_auth_action }}" class="space-y-4"
+          data-current-method="{{ client.client_auth_method or 'client_secret' }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <fieldset class="space-y-3">
+            <legend class="sr-only">Authentication method</legend>
+            <label class="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer">
+                <input type="radio" name="method" value="client_secret" class="client-auth-method mt-1" {% if not uses_jwt %}checked{% endif %}>
+                <span>
+                    <span class="block text-sm font-medium text-gray-900 dark:text-gray-100">Client secret</span>
+                    <span class="block text-xs text-gray-500 dark:text-gray-400 mt-1">The client sends its secret with HTTP Basic or in the form fields. {% if uses_jwt %}Switching back generates a new secret, shown once.{% endif %}</span>
+                </span>
+            </label>
+            <label class="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer">
+                <input type="radio" name="method" value="private_key_jwt" class="client-auth-method mt-1" {% if uses_jwt %}checked{% endif %}>
+                <span>
+                    <span class="block text-sm font-medium text-gray-900 dark:text-gray-100">Private key JWT</span>
+                    <span class="block text-xs text-gray-500 dark:text-gray-400 mt-1">The client signs a short-lived JWT with its private key (RS256, PS256, or ES256). WeftID stores only the public keys. {% if not uses_jwt %}Switching stops the current client secret from working.{% endif %}</span>
+                </span>
+            </label>
+        </fieldset>
+
+        <div id="client-auth-keys" class="space-y-3 {% if not uses_jwt %}hidden{% endif %}">
+            <div class="flex gap-6 text-sm text-gray-700 dark:text-gray-300">
+                <label class="flex items-center gap-2">
+                    <input type="radio" name="key_source" value="jwks" class="client-auth-key-source" {% if not client.jwks_uri %}checked{% endif %}>
+                    Paste public keys (JWKS)
+                </label>
+                <label class="flex items-center gap-2">
+                    <input type="radio" name="key_source" value="jwks_uri" class="client-auth-key-source" {% if client.jwks_uri %}checked{% endif %}>
+                    Fetch from a URL
+                </label>
+            </div>
+            <div id="client-auth-jwks" class="{% if client.jwks_uri %}hidden{% endif %}">
+                <label for="client-auth-jwks-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Public keys (JWKS)</label>
+                <textarea id="client-auth-jwks-input" name="jwks" rows="6" maxlength="32768" spellcheck="false"
+                          placeholder='{"keys": [{"kty": "RSA", "kid": "...", "n": "...", "e": "AQAB"}]}'
+                          class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-xs font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ client.jwks | tojson(indent=2) if client.jwks else '' }}</textarea>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">A JSON Web Key Set of RSA or EC public keys, at most 20. Never paste a private key.</p>
+            </div>
+            <div id="client-auth-jwks-uri" class="{% if not client.jwks_uri %}hidden{% endif %}">
+                <label for="client-auth-jwks-uri-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">JWKS URL</label>
+                <input type="url" id="client-auth-jwks-uri-input" name="jwks_uri" maxlength="2048" value="{{ client.jwks_uri or '' }}"
+                       placeholder="https://app.example.com/.well-known/jwks.json"
+                       class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">WeftID fetches the keys from this https URL, caches them for an hour, and fetches again when the client signs with a key it hasn't seen.</p>
+            </div>
+            {% if client.token_endpoint_auth_signing_alg %}
+            <p class="text-xs text-gray-500 dark:text-gray-400">This client registered {{ client.token_endpoint_auth_signing_alg }}; assertions signed with any other algorithm are refused.</p>
+            {% endif %}
+        </div>
+
+        <div>
+            <button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">Save authentication</button>
+        </div>
+    </form>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(() => {
+    const form = document.getElementById('client-auth-form');
+    if (!form) return;
+    const keys = document.getElementById('client-auth-keys');
+    const jwksBlock = document.getElementById('client-auth-jwks');
+    const uriBlock = document.getElementById('client-auth-jwks-uri');
+    const selected = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value;
+
+    const refresh = () => {
+        keys.classList.toggle('hidden', selected('method') !== 'private_key_jwt');
+        const useUri = selected('key_source') === 'jwks_uri';
+        jwksBlock.classList.toggle('hidden', useUri);
+        uriBlock.classList.toggle('hidden', !useUri);
+    };
+    form.querySelectorAll('.client-auth-method, .client-auth-key-source').forEach((input) => {
+        input.addEventListener('change', refresh);
+    });
+
+    form.addEventListener('submit', (e) => {
+        const method = selected('method');
+        if (method === form.dataset.currentMethod || form.dataset.confirmed === 'true') return;
+        e.preventDefault();
+        const message = method === 'private_key_jwt'
+            ? 'Switch to private key JWT? The current client secret stops working immediately.'
+            : 'Switch to a client secret? A new secret is generated and shown once. Signed client assertions stop working.';
+        WeftUtils.confirm(message, () => {
+            form.dataset.confirmed = 'true';
+            form.submit();
+        }, { destructive: true });
+    });
+})();
+</script>

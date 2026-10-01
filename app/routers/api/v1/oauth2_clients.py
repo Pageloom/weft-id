@@ -3,12 +3,14 @@
 from typing import Annotated
 
 import services.oauth2 as oauth2_service
+import services.oauth2_client_auth as oauth2_client_auth_service
 import services.oauth2_tokens as oauth2_tokens_service
 from api_dependencies import require_admin_api, require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from schemas.oauth2 import (
     B2BClientCreate,
+    ClientAuthenticationUpdate,
     ClientResponse,
     ClientRoleUpdate,
     ClientUpdate,
@@ -69,6 +71,10 @@ def _client_to_response(
         "initiate_login_uri": client.get("initiate_login_uri"),
         "device_grant_enabled": bool(client.get("device_grant_enabled")),
         "is_public": bool(client.get("is_public")),
+        "client_auth_method": client.get("client_auth_method") or "client_secret",
+        "jwks": client.get("jwks"),
+        "jwks_uri": client.get("jwks_uri"),
+        "token_endpoint_auth_signing_alg": client.get("token_endpoint_auth_signing_alg"),
         "created_at": client["created_at"],
     }
     if include_secret:
@@ -252,8 +258,8 @@ def regenerate_client_secret(
     """
     Regenerate the client secret for an OAuth2 client.
 
-    The old secret is immediately invalidated. A public client has no secret
-    (400).
+    The old secret is immediately invalidated. A public client and a
+    private_key_jwt client have no secret (400).
 
     Requires admin role.
 
@@ -281,6 +287,57 @@ def regenerate_client_secret(
 
     # Return client with new secret
     client["client_secret"] = new_secret
+    return _client_to_response(client, include_secret=True)
+
+
+@router.put("/{client_id}/authentication", response_model=ClientWithSecret)
+def set_client_authentication(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    data: ClientAuthenticationUpdate,
+):
+    """
+    Set how a confidential client authenticates, and its public keys.
+
+    Requires admin role (super_admin for a B2B client). A public client's
+    authentication cannot be changed (400).
+
+    Path Parameters:
+        client_id: The client_id (e.g., "weft-id_client_abc123")
+
+    Request Body:
+        method: "client_secret" (client_secret_basic or client_secret_post) or
+            "private_key_jwt" (RFC 7523 client assertions signed with the
+            client's key)
+        jwks: The client's public keys as a JSON Web Key Set (optional; RSA or
+            EC keys, at most 20, no private members)
+        jwks_uri: URL of the client's JSON Web Key Set (optional; absolute
+            https). Give jwks or jwks_uri, not both; private_key_jwt needs one.
+
+    Switching to private_key_jwt invalidates the client secret at once.
+    Switching back to client_secret generates a new secret, returned once in
+    ``client_secret`` (null otherwise).
+
+    Returns:
+        Client details, with ``client_secret`` after switching to client_secret
+    """
+    existing = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Client not found")
+    _require_super_admin_for_b2b(existing, user)
+
+    try:
+        client = oauth2_client_auth_service.set_client_authentication(
+            build_requesting_user(user, tenant_id, request),
+            client_id,
+            method=data.method,
+            jwks=data.jwks,
+            jwks_uri=data.jwks_uri,
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
     return _client_to_response(client, include_secret=True)
 
 

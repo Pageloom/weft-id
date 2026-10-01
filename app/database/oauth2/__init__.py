@@ -2,6 +2,7 @@
 
 This module provides all OAuth2-related database operations including:
 - Client management (normal and B2B clients)
+- Client assertion replay protection (private_key_jwt)
 - Authorization code flow
 - Device authorization grant (RFC 8628)
 - Token operations (access/refresh tokens)
@@ -11,6 +12,7 @@ This module provides all OAuth2-related database operations including:
 - Dynamic client registration (settings, initial access tokens, registered clients)
 """
 
+from database.oauth2.assertions import record_client_assertion_jti
 from database.oauth2.authorization import (
     cleanup_expired_codes,
     create_authorization_code,
@@ -38,6 +40,7 @@ from database.oauth2.clients import (
     get_client_by_id,
     reactivate_client,
     regenerate_client_secret,
+    set_client_authentication,
     set_client_tenant_introspection,
     update_b2b_client_role,
     update_client,
@@ -108,9 +111,12 @@ __all__ = [
     "update_client",
     "update_client_oidc_settings",
     "set_client_tenant_introspection",
+    "set_client_authentication",
     "update_b2b_client_role",
     "deactivate_client",
     "reactivate_client",
+    # client assertions
+    "record_client_assertion_jti",
     # authorization
     "create_authorization_code",
     "validate_and_consume_code",

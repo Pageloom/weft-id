@@ -59,14 +59,32 @@ class TestDiscoveryDocument:
             "client_credentials",
             "urn:ietf:params:oauth:grant-type:device_code",
         }
-        # Both confidential-client methods the token endpoint implements.
+        # The confidential-client methods the token endpoint implements.
         # Basic is the RFC 6749 mandated method (and the discovery default).
+        # private_key_jwt is a signed client assertion (RFC 7523).
         # "none" is a public (device-only) client.
         assert body["token_endpoint_auth_methods_supported"] == [
             "client_secret_basic",
             "client_secret_post",
+            "private_key_jwt",
             "none",
         ]
+        assert body["introspection_endpoint_auth_methods_supported"] == [
+            "client_secret_basic",
+            "client_secret_post",
+            "private_key_jwt",
+        ]
+        assert (
+            body["revocation_endpoint_auth_methods_supported"]
+            == (body["token_endpoint_auth_methods_supported"])
+        )
+        # Asymmetric algorithms only: never none, never HMAC.
+        for endpoint in ("token", "introspection", "revocation"):
+            assert body[f"{endpoint}_endpoint_auth_signing_alg_values_supported"] == [
+                "RS256",
+                "PS256",
+                "ES256",
+            ]
 
     def test_scopes_supported_reflects_implemented_scopes(self, client, test_tenant_host):
         """Advertises openid/profile/email/groups (all implemented scopes)."""
@@ -116,7 +134,7 @@ class TestDiscoveryDocument:
         issuer = body["issuer"]
         assert body["introspection_endpoint"] == f"{issuer}/oauth2/introspect"
         assert body["revocation_endpoint"] == f"{issuer}/oauth2/revoke"
-        methods = ["client_secret_basic", "client_secret_post"]
+        methods = ["client_secret_basic", "client_secret_post", "private_key_jwt"]
         # A public client cannot introspect, but may revoke (RFC 7009 2.1).
         assert body["introspection_endpoint_auth_methods_supported"] == methods
         assert body["revocation_endpoint_auth_methods_supported"] == [*methods, "none"]

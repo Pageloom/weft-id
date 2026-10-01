@@ -158,7 +158,7 @@ Admin or super admin role required to manage OIDC settings and group assignments
 
 ## What is not supported
 
-WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [client registration](client-registration.md), [third-party-initiated login](#launching-from-my-apps), [device sign-in](device-sign-in.md), and group-based access control. Pairwise subject identifiers are not available yet.
+WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [private key JWT](private-key-jwt.md) client authentication, [client registration](client-registration.md), [third-party-initiated login](#launching-from-my-apps), [device sign-in](device-sign-in.md), and group-based access control. Pairwise subject identifiers are not available yet.
 
 These parts of the specification are not supported, and discovery says so:
 
@@ -166,3 +166,4 @@ These parts of the specification are not supported, and discovery says so:
 * **The `claims` request parameter** is ignored (`claims_parameter_supported` is `false`). Claims are released by scope only.
 * **No `acr` claim.** WeftID defines no authentication context classes, so `acr_values` is accepted but has no effect.
 * **Response types other than `code`** (implicit and hybrid flows).
+* **Mutual TLS and `client_secret_jwt` client authentication.** Clients authenticate with a secret or with [private key JWT](private-key-jwt.md).

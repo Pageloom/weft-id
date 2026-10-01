@@ -707,12 +707,18 @@ def regenerate_client_secret(tenant_id: str, client_id: str, actor_user_id: str)
         New plaintext client secret
 
     Raises:
-        ValidationError: the client is public (it has no secret)
+        ValidationError: the client is public or uses private_key_jwt (it has
+            no secret)
     """
     # Get client info for logging
     client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
     if client and client.get("is_public"):
         raise ValidationError("A public client has no secret", code="public_client_no_secret")
+    if client and client.get("client_auth_method") == "private_key_jwt":
+        raise ValidationError(
+            "A client that authenticates with private_key_jwt has no secret",
+            code="private_key_jwt_client_no_secret",
+        )
 
     new_secret = database.oauth2.regenerate_client_secret(tenant_id, client_id)
     if new_secret is None:

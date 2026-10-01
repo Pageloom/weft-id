@@ -70,7 +70,7 @@ The runner compares every run against two files checked into the repository: [`e
 * **Implicit OP** and **Hybrid OP**: WeftID issues authorization codes only (`response_type=code`). The implicit and hybrid flows return tokens through the browser, and current OAuth security guidance advises against them.
 * **Session OP** (OpenID Connect Session Management): the `check_session_iframe` mechanism relies on third-party cookies, which browsers now block.
 
-Dynamic OP is planned. Dynamic client registration itself is implemented (the 3rd Party-Init OP plan registers its clients with it), but the Dynamic OP plan also requires `private_key_jwt` client authentication, request objects, and signed userinfo responses. It will be added to the table once those are implemented and it passes.
+Dynamic OP is planned. Dynamic client registration itself is implemented (the 3rd Party-Init OP plan registers its clients with it), and so is `private_key_jwt` client authentication, but the Dynamic OP plan also requires request objects and signed userinfo responses. It will be added to the table once those are implemented and it passes.
 
 ## Deviations
 

@@ -700,6 +700,8 @@ def check_api_first_violations(report: ComplianceReport) -> None:
         "webauthn": "account_passkeys",
         # The per-client introspection permission is a field on PATCH /api/v1/oauth2/clients
         "oauth2_tokens": "oauth2_clients",
+        # Client authentication is PUT /api/v1/oauth2/clients/{client_id}/authentication
+        "oauth2_client_auth": "oauth2_clients",
     }
 
     # Collect service functions

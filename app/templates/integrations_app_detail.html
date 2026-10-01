@@ -97,6 +97,10 @@
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">Token introspection setting updated.</p>
         </div>
+        {% elif success == 'authentication_updated' %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">Client authentication updated.</p>
+        </div>
         {% endif %}
 
         {% if error %}
@@ -130,6 +134,14 @@
                 A public client has no client secret.
                 {% elif error == 'introspection_update_failed' %}
                 Failed to update the token introspection setting. Try again.
+                {% elif error == 'invalid_client_keys' %}
+                The public keys aren't valid. Paste a JSON Web Key Set of RSA or EC public keys (no private keys), or give an https URL.
+                {% elif error == 'client_keys_required' %}
+                Private key JWT needs the client's public keys. Paste a JSON Web Key Set or give its URL.
+                {% elif error == 'authentication_update_failed' %}
+                Failed to update the client authentication. Try again.
+                {% elif error == 'private_key_jwt_client_no_secret' %}
+                This client authenticates with private key JWT and has no client secret.
                 {% else %}
                 An error occurred. Try again.
                 {% endif %}
@@ -469,6 +481,12 @@
         </div>
         {% endif %}
 
+        <!-- Client Authentication (a public client sends its client ID alone) -->
+        {% if not client.is_public %}
+        {% set client_auth_action = "/applications/oauth/" ~ client.client_id ~ "/authentication" %}
+        {% include "integrations_client_authentication.html" %}
+        {% endif %}
+
         <!-- Token Introspection (a public client cannot authenticate there) -->
         {% if not client.is_public %}
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
@@ -511,8 +529,8 @@
             <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Actions</h2>
 
             <div class="space-y-4">
-                <!-- Regenerate Secret (a public client has none) -->
-                {% if not client.is_public %}
+                <!-- Regenerate Secret (a public or private key JWT client has none) -->
+                {% if not client.is_public and client.client_auth_method != 'private_key_jwt' %}
                 <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div>
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Regenerate Client Secret</h3>

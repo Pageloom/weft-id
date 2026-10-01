@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Private key JWT client authentication.** An app or service account can
+  prove who it is with a short-lived JWT signed by its own private key
+  (`private_key_jwt`, RFC 7523) instead of a client secret, at the token,
+  device authorization, introspection, and revocation endpoints. Choose
+  **Private key JWT** under **Client Authentication** on the app or service
+  account page and paste its public keys or give a JWKS URL, or use
+  `PUT /api/v1/oauth2/clients/{client_id}/authentication`. Assertions are
+  checked for signature (RS256, PS256, ES256), issuer, audience, expiry, and
+  a single-use `jti`. Keys at a URL are fetched through the SSRF guard,
+  cached, and refetched when the client rotates. Dynamic client registration
+  accepts `private_key_jwt` with `jwks` or `jwks_uri` and
+  `token_endpoint_auth_signing_alg`, and discovery lists the method and its
+  algorithms. See [Private Key JWT](docs/admin-guide/integrations/private-key-jwt.md).
 - **Device sign-in (OAuth 2.0 device authorization grant).** Apps on
   devices without a convenient browser, such as command-line tools and TVs,
   can sign users in with a short code (RFC 8628). Turn on **Allow device

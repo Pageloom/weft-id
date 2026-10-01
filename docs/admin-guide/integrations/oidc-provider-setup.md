@@ -163,13 +163,25 @@ The request object must be signed with `RS256`, `PS256`, or `ES256` by one of th
 
 An app registered with `userinfo_signed_response_alg` set to `RS256` gets UserInfo responses as a JWT (`application/jwt`), signed with the tenant's OIDC signing key and carrying `iss` and `aud`.
 
+## Pushed authorization requests
+
+With pushed authorization requests (PAR, RFC 9126), an app sends its authorization request to WeftID server to server before it sends the user's browser anywhere. The parameters never pass through the browser, so they can't be read or changed there.
+
+1. The app posts the authorization parameters (`redirect_uri`, `response_type`, `scope`, `state`, `nonce`, PKCE, and so on, or a signed `request` object) to `POST /oauth2/par`, authenticating the same way as at the token endpoint: client secret (Basic or form) or [private key JWT](private-key-jwt.md).
+2. WeftID checks the parameters as the authorization endpoint would and answers `201` with a `request_uri` (`urn:ietf:params:oauth:request_uri:...`) and `expires_in` (60 seconds). A bad parameter gets a JSON error (`400`) right away, instead of a redirect later.
+3. The app sends the browser to `/oauth2/authorize?client_id=...&request_uri=...`. Any other parameter on that URL is ignored.
+
+A `request_uri` works once, only for the app that pushed it, and only until it expires. If the user has to sign in first, the request waits for them, still without its parameters in the URL. Only confidential apps can push requests, and only apps that use the authorization code flow.
+
+To make an app use PAR for every sign-in, turn on **Require pushed authorization requests** on the app's edit form, set `require_pushed_authorization_requests` with `PATCH /api/v1/oauth2/clients/{client_id}`, or register the app with it (see [client registration](client-registration.md)). WeftID then refuses that app's authorization requests unless they come with a pushed `request_uri`. Discovery publishes the endpoint as `pushed_authorization_request_endpoint`.
+
 ## Access requirements
 
 Admin or super admin role required to manage OIDC settings and group assignments. Signing-key rotation and cleanup require the super admin role.
 
 ## What is not supported
 
-WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [private key JWT](private-key-jwt.md) client authentication, [client registration](client-registration.md), [third-party-initiated login](#launching-from-my-apps), [device sign-in](device-sign-in.md), and group-based access control. Pairwise subject identifiers are not available yet.
+WeftID implements the functional OpenID Provider surface: discovery, JWKS, RS256 ID tokens, UserInfo, scope-gated claims, nonce binding, `prompt`, `max_age`, `login_hint`, `id_token_hint`, the `query` and `form_post` response modes, RP-initiated, front-channel and back-channel logout, token introspection and revocation, [private key JWT](private-key-jwt.md) client authentication, [client registration](client-registration.md), [third-party-initiated login](#launching-from-my-apps), [device sign-in](device-sign-in.md), [request objects](#request-objects-and-signed-userinfo), [pushed authorization requests](#pushed-authorization-requests), and group-based access control. Pairwise subject identifiers are not available yet.
 
 These parts of the specification are not supported, and discovery says so:
 

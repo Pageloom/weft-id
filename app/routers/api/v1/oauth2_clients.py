@@ -75,6 +75,9 @@ def _client_to_response(
         "jwks": client.get("jwks"),
         "jwks_uri": client.get("jwks_uri"),
         "token_endpoint_auth_signing_alg": client.get("token_endpoint_auth_signing_alg"),
+        "require_pushed_authorization_requests": bool(
+            client.get("require_pushed_authorization_requests")
+        ),
         "created_at": client["created_at"],
     }
     if include_secret:
@@ -377,7 +380,8 @@ def update_client(
 ):
     """
     Update an OAuth2 client's name, description, redirect URIs, logout settings,
-    login initiation URL, device grant switch, and token introspection permission.
+    login initiation URL, device grant switch, PAR requirement, and token
+    introspection permission.
 
     Requires admin role.
 
@@ -403,6 +407,9 @@ def update_client(
             (optional; absolute https, no fragment; "" clears it)
         device_grant_enabled: Whether the client may use the OAuth 2.0 device
             authorization grant (optional, normal clients only)
+        require_pushed_authorization_requests: Whether the client may only
+            start an authorization through the pushed authorization request
+            endpoint, /oauth2/par (optional, normal confidential clients only)
         can_introspect_tenant_tokens: Whether the client may introspect every
             token in the tenant, not just its own (optional, any client type
             except a public client)
@@ -435,6 +442,9 @@ def update_client(
             backchannel_logout_session_required=client_data.backchannel_logout_session_required,
             initiate_login_uri=client_data.initiate_login_uri,
             device_grant_enabled=client_data.device_grant_enabled,
+            require_pushed_authorization_requests=(
+                client_data.require_pushed_authorization_requests
+            ),
         )
 
         if not client:

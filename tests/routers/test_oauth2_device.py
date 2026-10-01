@@ -104,6 +104,12 @@ def _assert_error(response, error, status=400):
 
 
 class TestDeviceAuthorizationEndpoint:
+    def test_no_csrf_token_needed(self, client, test_tenant_host, device_client):
+        """A device is not a browser: it can never send a CSRF token."""
+        with client.without_csrf():
+            response = _start(client, test_tenant_host, device_client)
+        assert response.status_code == 200
+
     def test_returns_codes_and_verification_uris(self, client, test_tenant_host, device_client):
         response = _start(client, test_tenant_host, device_client)
         assert response.status_code == 200

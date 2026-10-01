@@ -1436,6 +1436,64 @@ def test_update_b2b_client_rejects_device_grant(test_tenant, b2b_oauth2_client, 
 
 
 # =============================================================================
+# Pushed authorization requests required (require_pushed_authorization_requests)
+# =============================================================================
+
+
+def test_update_client_requires_par_and_logs(test_tenant, normal_oauth2_client, test_admin_user):
+    on = _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        require_pushed_authorization_requests=True,
+    )
+    assert on["require_pushed_authorization_requests"] is True
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "oauth2_client_updated"
+    assert events[0]["metadata"]["changed_fields"] == ["require_pushed_authorization_requests"]
+
+    # Unchanged value: no event; other updates keep it.
+    _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        require_pushed_authorization_requests=True,
+    )
+    assert database.event_log.list_events(test_tenant["id"], limit=1)[0]["id"] == events[0]["id"]
+    kept = _update(test_tenant, normal_oauth2_client, test_admin_user, name="Renamed")
+    assert kept["require_pushed_authorization_requests"] is True
+
+    off = _update(
+        test_tenant,
+        normal_oauth2_client,
+        test_admin_user,
+        require_pushed_authorization_requests=False,
+    )
+    assert off["require_pushed_authorization_requests"] is False
+
+
+def test_update_b2b_client_rejects_require_par(test_tenant, b2b_oauth2_client, test_admin_user):
+    with pytest.raises(ValidationError) as exc:
+        _update(
+            test_tenant,
+            b2b_oauth2_client,
+            test_admin_user,
+            require_pushed_authorization_requests=True,
+        )
+    assert exc.value.code == "par_not_allowed"
+    assert _update(
+        test_tenant, b2b_oauth2_client, test_admin_user, require_pushed_authorization_requests=False
+    )
+
+
+def test_update_public_client_rejects_require_par(test_tenant, test_admin_user):
+    public = _create_public(test_tenant, test_admin_user)
+    with pytest.raises(ValidationError) as exc:
+        _update(test_tenant, public, test_admin_user, require_pushed_authorization_requests=True)
+    assert exc.value.code == "par_not_allowed"
+
+
+# =============================================================================
 # Public clients (device grant only, no secret)
 # =============================================================================
 

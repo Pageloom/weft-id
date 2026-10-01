@@ -82,6 +82,17 @@ class OIDCProviderMetadata(BaseModel):
         ...,
         description="OAuth 2.0 Device Authorization Grant (RFC 8628) endpoint URL.",
     )
+    pushed_authorization_request_endpoint: str = Field(
+        ...,
+        description="Pushed Authorization Request (RFC 9126) endpoint URL.",
+    )
+    require_pushed_authorization_requests: bool = Field(
+        False,
+        description=(
+            "Whether every client must use pushed authorization requests. False: a "
+            "client can be set to require them individually."
+        ),
+    )
     registration_endpoint: str | None = Field(
         None,
         description=(
@@ -246,6 +257,9 @@ class OIDCClientDiscoveryInfo(BaseModel):
     revocation_endpoint: str = Field(..., description="Token revocation endpoint URL.")
     device_authorization_endpoint: str = Field(
         ..., description="Device authorization endpoint URL (device sign-in)."
+    )
+    pushed_authorization_request_endpoint: str = Field(
+        ..., description="Pushed authorization request (PAR) endpoint URL."
     )
 
 

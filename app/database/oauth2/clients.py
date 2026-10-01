@@ -81,7 +81,7 @@ def create_normal_client(
                   backchannel_logout_uri, backchannel_logout_session_required,
                   frontchannel_logout_session_required, initiate_login_uri, device_grant_enabled,
                   is_public, client_auth_method, jwks, jwks_uri,
-                  token_endpoint_auth_signing_alg,
+                  token_endpoint_auth_signing_alg, require_pushed_authorization_requests,
                   service_user_id, is_active, created_at
         """,
         {
@@ -208,7 +208,7 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
                available_to_all, can_introspect_tenant_tokens, dynamically_registered,
                logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
                is_public, client_auth_method, jwks, jwks_uri,
-               token_endpoint_auth_signing_alg,
+               token_endpoint_auth_signing_alg, require_pushed_authorization_requests,
                registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
@@ -241,7 +241,7 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
                available_to_all, can_introspect_tenant_tokens, dynamically_registered,
                logo_uri, client_uri, policy_uri, tos_uri, initiate_login_uri, device_grant_enabled,
                is_public, client_auth_method, jwks, jwks_uri,
-               token_endpoint_auth_signing_alg,
+               token_endpoint_auth_signing_alg, require_pushed_authorization_requests,
                registration_metadata,
                registered_with_token_id, created_at
         from oauth2_clients
@@ -274,7 +274,8 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                    c.can_introspect_tenant_tokens, c.dynamically_registered, c.logo_uri,
                    c.client_uri, c.policy_uri, c.tos_uri, c.initiate_login_uri,
                    c.device_grant_enabled, c.is_public, c.client_auth_method, c.jwks, c.jwks_uri,
-                   c.token_endpoint_auth_signing_alg, c.registration_metadata,
+                   c.token_endpoint_auth_signing_alg, c.require_pushed_authorization_requests,
+                   c.registration_metadata,
                    c.registered_with_token_id,
                    c.created_at, u.role as service_role
             from oauth2_clients c
@@ -295,6 +296,7 @@ def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> lis
                c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
                c.initiate_login_uri, c.device_grant_enabled, c.is_public, c.client_auth_method,
                c.jwks, c.jwks_uri, c.token_endpoint_auth_signing_alg,
+               c.require_pushed_authorization_requests,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -387,6 +389,7 @@ def update_client(
     backchannel_logout_session_required: bool | None = None,
     initiate_login_uri: str | None = None,
     device_grant_enabled: bool | None = None,
+    require_pushed_authorization_requests: bool | None = None,
 ) -> dict | None:
     """
     Update an OAuth2 client's name, description, redirect URIs, and logout settings.
@@ -409,6 +412,8 @@ def update_client(
             empty string clears it)
         device_grant_enabled: Whether the device authorization grant is
             allowed (optional)
+        require_pushed_authorization_requests: Whether the client may only
+            start an authorization through the PAR endpoint (optional)
 
     Returns:
         Updated client record, or None if not found
@@ -459,6 +464,12 @@ def update_client(
         updates.append("device_grant_enabled = :device_grant_enabled")
         params["device_grant_enabled"] = device_grant_enabled
 
+    if require_pushed_authorization_requests is not None:
+        updates.append(
+            "require_pushed_authorization_requests = :require_pushed_authorization_requests"
+        )
+        params["require_pushed_authorization_requests"] = require_pushed_authorization_requests
+
     if not updates:
         # No fields to update, just return current record
         return get_client_by_client_id(tenant_id, client_id)
@@ -475,6 +486,7 @@ def update_client(
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
+                  require_pushed_authorization_requests,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -524,6 +536,7 @@ def update_client_oidc_settings(
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
+                  require_pushed_authorization_requests,
                   registration_metadata, registered_with_token_id, created_at
     """
 
@@ -557,6 +570,7 @@ def set_client_tenant_introspection(
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
+                  require_pushed_authorization_requests,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id, "enabled": enabled},
@@ -611,6 +625,7 @@ def set_client_authentication(
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
+                  require_pushed_authorization_requests,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {
@@ -664,6 +679,7 @@ def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> d
                c.dynamically_registered, c.logo_uri, c.client_uri, c.policy_uri, c.tos_uri,
                c.initiate_login_uri, c.device_grant_enabled, c.is_public, c.client_auth_method,
                c.jwks, c.jwks_uri, c.token_endpoint_auth_signing_alg,
+               c.require_pushed_authorization_requests,
                c.registration_metadata, c.registered_with_token_id, c.created_at,
                u.role as service_role
         from oauth2_clients c
@@ -699,6 +715,7 @@ def deactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
+                  require_pushed_authorization_requests,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},
@@ -730,6 +747,7 @@ def reactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
                   dynamically_registered, logo_uri, client_uri, policy_uri, tos_uri,
                   initiate_login_uri, device_grant_enabled, is_public, client_auth_method,
                   jwks, jwks_uri, token_endpoint_auth_signing_alg,
+                  require_pushed_authorization_requests,
                   registration_metadata, registered_with_token_id, created_at
         """,
         {"client_id": client_id},

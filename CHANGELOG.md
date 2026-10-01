@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Pushed authorization requests (PAR, RFC 9126).** A confidential app can
+  post its authorization request to `POST /oauth2/par` (authenticated like
+  the token endpoint) and send the browser to the authorization endpoint with
+  only the returned `request_uri`, which works once, for 60 seconds, and only
+  for that app. Parameter errors come back as JSON straight away. Admins can
+  require PAR for an app (**Require pushed authorization requests** on its
+  edit form, `require_pushed_authorization_requests` in the API and at
+  client registration). Discovery advertises
+  `pushed_authorization_request_endpoint`. See
+  [Pushed authorization requests](docs/admin-guide/integrations/oidc-provider-setup.md#pushed-authorization-requests).
 - **Request objects and signed UserInfo.** Apps can send their authorization
   request inside a signed JWT (OpenID Connect Core section 6), by value
   (`request`) or by reference (`request_uri`, an `https` URL the app

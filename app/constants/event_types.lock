@@ -51,6 +51,7 @@ mfa_email_enabled
 mfa_reset_by_admin
 mfa_totp_enabled
 oauth2_authorization_code_reused
+oauth2_authorization_request_pushed
 oauth2_client_authentication_changed
 oauth2_client_created
 oauth2_client_deactivated

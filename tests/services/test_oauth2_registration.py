@@ -1080,3 +1080,65 @@ class TestRequestObjectAndUserinfoMetadata:
         assert updated["request_uris"] == ["https://rp.example/v2.jwt"]
         assert "request_object_signing_alg" not in updated
         assert "userinfo_signed_response_alg" not in updated
+
+
+class TestRequirePushedAuthorizationRequestsMetadata:
+    def test_defaults_off_and_not_echoed(self, test_tenant, test_admin_user):
+        accepted = svc.validate_client_metadata({"redirect_uris": ["https://rp.example/cb"]})
+        assert accepted["require_pushed_authorization_requests"] is False
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant)
+        assert "require_pushed_authorization_requests" not in body
+
+    def test_registered_stored_and_echoed(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(
+            test_tenant,
+            {
+                "redirect_uris": ["https://rp.example/cb"],
+                "require_pushed_authorization_requests": True,
+            },
+        )
+        assert body["require_pushed_authorization_requests"] is True
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["require_pushed_authorization_requests"] is True
+
+    def test_update_can_switch_it_off(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(
+            test_tenant,
+            {
+                "redirect_uris": ["https://rp.example/cb"],
+                "require_pushed_authorization_requests": True,
+            },
+        )
+        client = svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {"client_id": body["client_id"], "redirect_uris": ["https://rp.example/cb"]},
+            BASE,
+        )
+        assert "require_pushed_authorization_requests" not in updated
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["require_pushed_authorization_requests"] is False
+
+    @pytest.mark.parametrize(
+        "metadata",
+        [
+            {
+                "redirect_uris": ["https://rp.example/cb"],
+                "require_pushed_authorization_requests": "yes",
+            },
+            {"grant_types": [DEVICE], "require_pushed_authorization_requests": True},
+            {
+                "grant_types": [DEVICE],
+                "token_endpoint_auth_method": "none",
+                "require_pushed_authorization_requests": True,
+            },
+        ],
+    )
+    def test_invalid(self, metadata):
+        assert _error_code(metadata) == "invalid_client_metadata"

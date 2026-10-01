@@ -140,6 +140,8 @@ def build_discovery_metadata(
         ),
         revocation_endpoint=f"{base}/oauth2/revoke",
         device_authorization_endpoint=f"{base}/oauth2/device_authorization",
+        pushed_authorization_request_endpoint=f"{base}/oauth2/par",
+        require_pushed_authorization_requests=False,
         revocation_endpoint_auth_methods_supported=list(TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED),
         revocation_endpoint_auth_signing_alg_values_supported=list(
             AUTH_SIGNING_ALG_VALUES_SUPPORTED

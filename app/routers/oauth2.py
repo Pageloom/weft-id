@@ -12,7 +12,7 @@ import binascii
 import json
 import secrets
 import time
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, fields, replace
 from datetime import UTC, datetime
 from typing import Annotated
 from urllib.parse import unquote, urlencode, urlparse
@@ -21,6 +21,7 @@ import oauth2
 import services.oauth2 as oauth2_service
 import services.oauth2_client_auth as oauth2_client_auth_service
 import services.oauth2_device as oauth2_device_service
+import services.oauth2_par as oauth2_par_service
 import services.oauth2_request_objects as oauth2_request_objects_service
 import services.oauth2_tokens as oauth2_tokens_service
 import services.oidc as oidc_service
@@ -32,7 +33,12 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from middleware.csrf import make_csrf_token_func
 from routers.auth.logout import end_oidc_session_quietly, frontchannel_logout_response
 from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
-from schemas.oauth2 import DeviceAuthorizationResponse, TokenErrorResponse, TokenResponse
+from schemas.oauth2 import (
+    DeviceAuthorizationResponse,
+    PushedAuthorizationResponse,
+    TokenErrorResponse,
+    TokenResponse,
+)
 from services.event_log import log_event
 from services.exceptions import ForbiddenError, UnauthorizedError, ValidationError
 from services.oidc.claims import SCOPE_OPENID, parse_scope
@@ -125,6 +131,14 @@ class AuthorizeParams:
                         continue
             pairs.append((key, value))
         return pairs
+
+
+# The fields a pushed request carries (everything but the client_id, which
+# comes from the front-channel request, and the request object references,
+# which are resolved before the request is stored).
+_PUSHED_FIELDS = frozenset(
+    {f.name for f in fields(AuthorizeParams)} - {"client_id", "request_object", "request_uri"}
+)
 
 
 @router.get("/authorize", response_class=HTMLResponse)
@@ -293,10 +307,12 @@ def _handle_authorize_request(
        renders the error page and never redirects, because there is no
        trustworthy place to redirect to. This happens before any session
        check so an unauthenticated request with a bad client is not bounced
-       through login. A request object (``request`` / ``request_uri``) is
-       verified between the two, because it may carry the ``redirect_uri``;
-       from then on the request is its merged parameters, so the login stash
-       and everything below never see the object itself.
+       through login. A pushed request (a PAR ``request_uri``, RFC 9126) or a
+       request object (``request`` / ``request_uri``) is resolved between the
+       two, because it may carry the ``redirect_uri``; from then on the
+       request is its pushed or merged parameters, so the login stash and
+       everything below never see the object itself. A client that requires
+       PAR is refused anything else.
     2. Every other parameter error is reported to the RP at the (now
        verified) ``redirect_uri`` with ``error`` and ``state``, delivered per
        ``response_mode`` (a redirect with a query, or an auto-submitting form
@@ -338,7 +354,37 @@ def _handle_authorize_request(
             request, "Unauthorized client", "This client is not authorized for this flow."
         )
 
-    if params.request_object is not None or params.request_uri is not None:
+    pushed = oauth2_par_service.is_pushed_request_uri(params.request_uri)
+    if pushed:
+        try:
+            if params.request_object is not None:
+                raise ValidationError(
+                    message="Send either request or request_uri, not both.",
+                    code="invalid_request",
+                )
+            carried = oauth2_par_service.redeem_pushed_request(
+                tenant_id, client, params.request_uri or ""
+            )
+        except ValidationError as exc:
+            return _request_object_refused(request, client, params, exc, title="Invalid request")
+        # RFC 9126 section 4: only the pushed parameters count; anything else
+        # in the front-channel request is ignored.
+        params = AuthorizeParams(
+            **{k: v for k, v in carried.items() if k in _PUSHED_FIELDS},
+            client_id=params.client_id,
+        )
+    elif client.get("require_pushed_authorization_requests"):
+        return _request_object_refused(
+            request,
+            client,
+            params,
+            ValidationError(
+                message="This client must use pushed authorization requests.",
+                code="invalid_request",
+            ),
+            title="Invalid request",
+        )
+    elif params.request_object is not None or params.request_uri is not None:
         try:
             carried = oauth2_request_objects_service.resolve_request_object(
                 tenant_id,
@@ -375,23 +421,13 @@ def _handle_authorize_request(
         )
     rp = _RpResponse(request, redirect_uri, state, response_mode)
 
-    if not params.response_type:
-        return rp.error("invalid_request", "The response_type parameter is required.")
-    if params.response_type not in SUPPORTED_RESPONSE_TYPES:
-        return rp.error("unsupported_response_type", "Only response_type=code is supported.")
-    if params.code_challenge and params.code_challenge_method not in ("S256", "plain"):
-        return rp.error("invalid_request", "Invalid code_challenge_method. Must be S256 or plain.")
+    parameter_error = _parameter_error(params)
+    if parameter_error is not None:
+        return rp.error(*parameter_error)
 
     prompts = set(params.prompt.split()) if params.prompt else set()
-    if "none" in prompts and len(prompts) > 1:
-        return rp.error(
-            "invalid_request", "prompt=none cannot be combined with other prompt values."
-        )
     prompt_none = "none" in prompts
-
     max_age = _parse_max_age(params.max_age)
-    if params.max_age is not None and max_age is None:
-        return rp.error("invalid_request", "max_age must be a non-negative integer.")
 
     hint_claims: dict | None = None
     if params.id_token_hint is not None:
@@ -416,7 +452,9 @@ def _handle_authorize_request(
         # path, and login completion carries the key across session
         # regeneration. Without this, an RP-initiated login ends on the
         # dashboard and the authorization request is lost.
-        request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = _pending_authorize_path(params)
+        request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = _pending_authorize_path(
+            tenant_id, client, params, pushed=pushed
+        )
         return _login_redirect(params.login_hint)
 
     if user.get("force_profile_completion"):
@@ -438,7 +476,9 @@ def _handle_authorize_request(
     if reauth_reason is not None:
         if prompt_none:
             return rp.error("login_required", "The user must authenticate again.")
-        return _reauthenticate(request, tenant_id, user, client, params, reauth_reason)
+        return _reauthenticate(
+            request, tenant_id, user, client, params, reauth_reason, pushed=pushed
+        )
 
     # -- 4. Access control ----------------------------------------------------
     # Group-based access control for OIDC-enabled clients ONLY. Plain OAuth2
@@ -627,15 +667,20 @@ def _form_post_response(
 
 
 def _request_object_refused(
-    request: Request, client: dict, params: AuthorizeParams, exc: ValidationError
+    request: Request,
+    client: dict,
+    params: AuthorizeParams,
+    exc: ValidationError,
+    *,
+    title: str = "Invalid request object",
 ) -> Response:
-    """Answer a request object that could not be used.
+    """Answer a request object, or a pushed request, that could not be used.
 
     The error goes to the query ``redirect_uri`` when it is registered (the
     one in the object cannot be trusted); otherwise the error page renders.
     """
     if not params.redirect_uri or params.redirect_uri not in (client["redirect_uris"] or []):
-        return _error_page(request, "Invalid request object", exc.message)
+        return _error_page(request, title, exc.message)
     hints = _request_object_hints(params.request_object) if params.request_object else {}
     response_mode = params.response_mode or hints.get("response_mode", DEFAULT_RESPONSE_MODE)
     if response_mode not in SUPPORTED_RESPONSE_MODES:
@@ -675,6 +720,24 @@ def _request_object_hints(request_object: str) -> dict[str, str]:
     if isinstance(state, str) and 0 < len(state) <= _MAX_STATE_LENGTH:
         hints["state"] = state
     return hints
+
+
+def _parameter_error(params: AuthorizeParams) -> tuple[str, str] | None:
+    """The first problem with the parameters checked after ``redirect_uri``
+    and ``response_mode``, as ``(error, error_description)``; ``None`` when
+    there is none. Shared by the authorization and PAR endpoints."""
+    if not params.response_type:
+        return "invalid_request", "The response_type parameter is required."
+    if params.response_type not in SUPPORTED_RESPONSE_TYPES:
+        return "unsupported_response_type", "Only response_type=code is supported."
+    if params.code_challenge and params.code_challenge_method not in ("S256", "plain"):
+        return "invalid_request", "Invalid code_challenge_method. Must be S256 or plain."
+    prompts = set(params.prompt.split()) if params.prompt else set()
+    if "none" in prompts and len(prompts) > 1:
+        return "invalid_request", "prompt=none cannot be combined with other prompt values."
+    if params.max_age is not None and _parse_max_age(params.max_age) is None:
+        return "invalid_request", "max_age must be a non-negative integer."
+    return None
 
 
 def _parse_max_age(raw: str | None) -> int | None:
@@ -725,6 +788,8 @@ def _reauthenticate(
     client: dict,
     params: AuthorizeParams,
     reason: str,
+    *,
+    pushed: bool,
 ) -> Response:
     """Force a fresh local login for an authenticated user.
 
@@ -760,7 +825,7 @@ def _reauthenticate(
     )
     request.session.clear()
     request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = _pending_authorize_path(
-        params, strip_reauth=True
+        tenant_id, client, params, pushed=pushed, strip_reauth=True
     )
     if frontchannel_logout_urls:
         return frontchannel_logout_response(
@@ -802,7 +867,14 @@ def _issue_code(
     return rp.deliver([("code", code)])
 
 
-def _pending_authorize_path(params: AuthorizeParams, *, strip_reauth: bool = False) -> str:
+def _pending_authorize_path(
+    tenant_id: str,
+    client: dict,
+    params: AuthorizeParams,
+    *,
+    pushed: bool,
+    strip_reauth: bool = False,
+) -> str:
     """Rebuild this authorize request as a same-origin path for the login stash.
 
     The parameters are re-encoded rather than copied from the URL: the request
@@ -811,8 +883,19 @@ def _pending_authorize_path(params: AuthorizeParams, *, strip_reauth: bool = Fal
     (rightly) rejected by the redirect validator as a scheme. Percent-encoding
     the values keeps the parameters byte-for-byte identical once the resumed
     request decodes them again.
+
+    A request that arrived as a pushed authorization request (RFC 9126) is
+    stored again for the length of the login window and resumed by its new
+    ``request_uri``, so its parameters stay out of the URL and a client that
+    requires PAR is not refused on the way back.
     """
-    query = urlencode(params.as_query(strip_reauth=strip_reauth))
+    pairs = params.as_query(strip_reauth=strip_reauth)
+    if pushed:
+        request_uri = oauth2_par_service.store_for_resume(
+            tenant_id, client, dict(pairs), AUTH_REQUEST_MAX_AGE_SECONDS
+        )
+        pairs = [("client_id", client["client_id"]), ("request_uri", request_uri)]
+    query = urlencode(pairs)
     return f"/oauth2/authorize?{query}" if query else "/oauth2/authorize"
 
 
@@ -1123,7 +1206,13 @@ def _authenticate_client(
 
 # Endpoints whose form validation failures are reported as RFC 6749 errors.
 _CLIENT_AUTHENTICATED_PATHS = frozenset(
-    {"/oauth2/token", "/oauth2/introspect", "/oauth2/revoke", "/oauth2/device_authorization"}
+    {
+        "/oauth2/token",
+        "/oauth2/introspect",
+        "/oauth2/revoke",
+        "/oauth2/device_authorization",
+        "/oauth2/par",
+    }
 )
 
 
@@ -1131,7 +1220,7 @@ async def token_request_validation_handler(
     request: Request, exc: RequestValidationError
 ) -> Response:
     """Report form validation failures at the token, introspection,
-    revocation, and device authorization endpoints as RFC 6749
+    revocation, device authorization, and PAR endpoints as RFC 6749
     ``invalid_request`` (a missing required parameter, an over-long one)
     instead of FastAPI's 422. Every other path keeps the default handler."""
     if request.url.path in _CLIENT_AUTHENTICATED_PATHS:
@@ -1556,6 +1645,170 @@ def device_authorization_endpoint(
             expires_in=started.expires_in,
             interval=started.interval,
         ).model_dump(),
+        headers=_TOKEN_RESPONSE_HEADERS,
+    )
+
+
+# ============================================================================
+# Pushed Authorization Requests (POST /oauth2/par, RFC 9126)
+# ============================================================================
+
+
+@router.post(
+    "/par",
+    status_code=201,
+    response_model=PushedAuthorizationResponse,
+    responses={400: {"model": TokenErrorResponse}},
+)
+def pushed_authorization_request_endpoint(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    client_id: Annotated[str | None, Form(max_length=255)] = None,
+    client_secret: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion_type: Annotated[str | None, Form(max_length=255)] = None,
+    client_assertion: Annotated[str | None, Form(max_length=_CLIENT_ASSERTION_MAX_LENGTH)] = None,
+    redirect_uri: Annotated[str | None, Form(max_length=2048)] = None,
+    response_type: Annotated[str | None, Form(max_length=50)] = None,
+    state: Annotated[str | None, Form(max_length=2048)] = None,
+    scope: Annotated[str | None, Form(max_length=500)] = None,
+    nonce: Annotated[str | None, Form(max_length=512)] = None,
+    code_challenge: Annotated[str | None, Form(max_length=255)] = None,
+    code_challenge_method: Annotated[str | None, Form(max_length=50)] = None,
+    prompt: Annotated[str | None, Form(max_length=50)] = None,
+    max_age: Annotated[str | None, Form(max_length=20)] = None,
+    login_hint: Annotated[str | None, Form(max_length=320)] = None,
+    id_token_hint: Annotated[str | None, Form(max_length=8192)] = None,
+    request_object: Annotated[str | None, Form(alias="request", max_length=8192)] = None,
+    request_uri: Annotated[str | None, Form(max_length=2048)] = None,
+    response_mode: Annotated[str | None, Form(max_length=50)] = None,
+    display: Annotated[str | None, Form(max_length=50)] = None,
+    ui_locales: Annotated[str | None, Form(max_length=255)] = None,
+    claims_locales: Annotated[str | None, Form(max_length=255)] = None,
+    acr_values: Annotated[str | None, Form(max_length=255)] = None,
+) -> Response:
+    """
+    Pushed Authorization Request endpoint (RFC 9126).
+
+    A confidential client sends its authorization request parameters here
+    instead of through the browser, and gets back a ``request_uri``. It then
+    sends the browser to ``/oauth2/authorize`` with only ``client_id`` and that
+    ``request_uri``; any other parameter in that request is ignored. The
+    ``request_uri`` works once, for ``expires_in`` seconds, and only with the
+    client that pushed it.
+
+    Client authentication is the same as at the token endpoint: HTTP Basic
+    (``client_secret_basic``), the ``client_id`` + ``client_secret`` form
+    fields (``client_secret_post``), or a ``client_assertion``
+    (``private_key_jwt``). Public clients and B2B clients cannot push
+    (``invalid_client`` / ``unauthorized_client``).
+
+    The parameters are checked as the authorization endpoint would check them
+    and refused with an RFC 6749 section 5.2 JSON error (400): a missing or
+    unregistered ``redirect_uri``, a missing or unsupported ``response_type``,
+    an unsupported ``response_mode`` or ``code_challenge_method``, ``prompt=none``
+    combined with another value, a malformed ``max_age``, or a ``request_uri``
+    (``invalid_request``); a request object that cannot be verified
+    (``invalid_request_object``). Responses are not cached.
+
+    Form Data:
+        client_id: OAuth2 client ID (client_secret_post; optional with Basic or
+            private_key_jwt, and must then name the authenticating client)
+        client_secret: OAuth2 client secret (client_secret_post only)
+        client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+            (private_key_jwt only)
+        client_assertion: The signed client assertion JWT (private_key_jwt only)
+        redirect_uri: Registered redirect URI (required, exact match)
+        response_type: Must be "code"
+        state: Opaque value echoed back to the RP
+        scope: Space-delimited scopes (e.g. "openid profile email")
+        nonce: OIDC nonce, bound to the resulting ID token
+        code_challenge: PKCE code challenge
+        code_challenge_method: PKCE method (S256 or plain)
+        prompt: none | login | consent | select_account (space-separated)
+        max_age: Maximum authentication age in seconds
+        login_hint: Pre-fills the email step of the login page
+        id_token_hint: A WeftID-issued ID token identifying the expected user
+        request: A signed request object carrying any of these parameters
+            (as at the authorization endpoint; its values win)
+        response_mode: query (default) or form_post
+        display, ui_locales, claims_locales, acr_values: Accepted and ignored
+
+    Returns:
+        201 with ``request_uri`` (``urn:ietf:params:oauth:request_uri:...``)
+        and ``expires_in`` (seconds)
+    """
+    client = _authenticate_client(
+        request,
+        tenant_id,
+        client_id,
+        client_secret,
+        client_assertion_type=client_assertion_type,
+        client_assertion=client_assertion,
+    )
+    if isinstance(client, JSONResponse):
+        return client
+    if client["client_type"] != "normal":
+        return _token_error(
+            "unauthorized_client", "Client is not authorized for the authorization code flow"
+        )
+    if request_uri is not None:
+        return _token_error(
+            "invalid_request", "The request_uri parameter cannot be pushed (RFC 9126 section 2.1)."
+        )
+
+    params = AuthorizeParams(
+        client_id=client["client_id"],
+        redirect_uri=redirect_uri,
+        response_type=response_type,
+        state=state,
+        scope=scope,
+        nonce=nonce,
+        code_challenge=code_challenge,
+        code_challenge_method=code_challenge_method,
+        prompt=prompt,
+        max_age=max_age,
+        login_hint=login_hint,
+        id_token_hint=id_token_hint,
+        request_object=request_object,
+        response_mode=response_mode,
+        display=display,
+        ui_locales=ui_locales,
+        claims_locales=claims_locales,
+        acr_values=acr_values,
+    )
+    if request_object is not None:
+        try:
+            carried = oauth2_request_objects_service.resolve_request_object(
+                tenant_id,
+                client,
+                request_object=request_object,
+                request_uri=None,
+                issuer=tenant_base_url(request),
+                query_client_id=client["client_id"],
+                query_response_type=response_type,
+            )
+        except ValidationError as exc:
+            return _token_error(exc.code or "invalid_request_object", exc.message)
+        params = replace(params, **carried, request_object=None)
+
+    if not params.redirect_uri or params.redirect_uri not in (client["redirect_uris"] or []):
+        return _token_error(
+            "invalid_request", "The redirect_uri is missing or does not match registered URIs."
+        )
+    if (params.response_mode or DEFAULT_RESPONSE_MODE) not in SUPPORTED_RESPONSE_MODES:
+        return _token_error("invalid_request", "Unsupported response_mode. Use query or form_post.")
+    parameter_error = _parameter_error(params)
+    if parameter_error is not None:
+        return _token_error(*parameter_error)
+
+    pushed = oauth2_par_service.push_authorization_request(
+        tenant_id, client, {k: v for k, v in params.as_query() if k != "client_id"}
+    )
+    return JSONResponse(
+        PushedAuthorizationResponse(
+            request_uri=pushed.request_uri, expires_in=pushed.expires_in
+        ).model_dump(),
+        status_code=201,
         headers=_TOKEN_RESPONSE_HEADERS,
     )
 

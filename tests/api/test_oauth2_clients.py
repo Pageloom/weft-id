@@ -2048,3 +2048,52 @@ def test_public_client_cannot_be_allowed_to_introspect(
         json={"can_introspect_tenant_tokens": True},
     )
     assert response.status_code == 400
+
+
+# =============================================================================
+# Pushed authorization requests required
+# =============================================================================
+
+
+def test_update_client_require_par_set_read_and_keep(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    url = f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}"
+    headers = {"Host": test_tenant_host, **oauth2_admin_authorization_header}
+    assert client.get(url, headers=headers).json()["require_pushed_authorization_requests"] is False
+
+    response = client.patch(
+        url, headers=headers, json={"require_pushed_authorization_requests": True}
+    )
+    assert response.status_code == 200
+    assert response.json()["require_pushed_authorization_requests"] is True
+
+    client.patch(url, headers=headers, json={"name": "Renamed"})
+    assert client.get(url, headers=headers).json()["require_pushed_authorization_requests"] is True
+
+    response = client.patch(
+        url, headers=headers, json={"require_pushed_authorization_requests": False}
+    )
+    assert response.json()["require_pushed_authorization_requests"] is False
+
+
+def test_update_b2b_client_require_par_is_400(
+    client, test_tenant_host, oauth2_super_admin_authorization_header, b2b_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_authorization_header},
+        json={"require_pushed_authorization_requests": True},
+    )
+    assert response.status_code == 400
+
+
+def test_update_client_require_par_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"require_pushed_authorization_requests": True},
+    )
+    assert response.status_code == 403

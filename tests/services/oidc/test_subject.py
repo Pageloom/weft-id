@@ -171,6 +171,20 @@ class TestValidateSubjectSettings:
         )
         assert calls == [SECTOR_URI]
 
+    def test_failed_sector_fetch_is_not_retried_at_once(self, monkeypatch):
+        calls = _mock_http(monkeypatch, _serve([], status=500))
+        for _ in range(2):
+            with pytest.raises(ValidationError, match="HTTP 500"):
+                svc.validate_subject_settings("pairwise", SECTOR_URI, ["https://rp.example/cb"])
+        assert calls == [SECTOR_URI]
+
+    def test_concurrent_sector_fetch_fails_fast(self, monkeypatch):
+        calls = _mock_http(monkeypatch, _serve(["https://rp.example/cb"]))
+        monkeypatch.setattr(svc, "_sector_fetch_guard", svc.FetchGuard(max_in_flight=0))
+        with pytest.raises(ValidationError, match="already being retrieved"):
+            svc.validate_subject_settings("pairwise", SECTOR_URI, ["https://rp.example/cb"])
+        assert calls == []
+
     def test_device_client_with_sector_document(self, monkeypatch):
         _mock_http(monkeypatch, _serve([]))
         assert svc.validate_subject_settings("pairwise", SECTOR_URI, []) == (

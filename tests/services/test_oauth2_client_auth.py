@@ -156,6 +156,27 @@ class TestClientJwks:
         assert calls == [URI, other]
         svc.clear_jwks_cache("t1", "c2")
 
+    def test_failed_fetch_is_not_retried_at_once(self, monkeypatch):
+        calls = _mock_http(monkeypatch, lambda _: httpx.Response(503))
+        client = {"id": "c3", "jwks": None, "jwks_uri": URI}
+        for _ in range(2):
+            with pytest.raises(svc._AssertionRejectedError, match="HTTP 503"):
+                svc._client_jwks("t1", client, refresh=False)
+        assert calls == [URI]
+
+        # Changing the client's keys drops the cached failure.
+        svc.clear_jwks_cache("t1", "c3")
+        with pytest.raises(svc._AssertionRejectedError):
+            svc._client_jwks("t1", client, refresh=False)
+        assert calls == [URI, URI]
+
+    def test_concurrent_fetch_fails_fast(self, monkeypatch):
+        calls = _mock_http(monkeypatch, lambda _: httpx.Response(200, json=JWKS))
+        monkeypatch.setattr(svc, "_jwks_fetch_guard", svc.FetchGuard(max_in_flight=0))
+        with pytest.raises(svc._AssertionRejectedError, match="in progress"):
+            svc._client_jwks("t1", {"id": "c4", "jwks": None, "jwks_uri": URI}, refresh=False)
+        assert calls == []
+
 
 class TestCandidateKeys:
     def test_filters_keys_that_cannot_verify(self):

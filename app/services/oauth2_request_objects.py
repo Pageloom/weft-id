@@ -29,6 +29,7 @@ import logging
 
 from services import oauth2_client_auth
 from services.exceptions import ValidationError
+from utils.fetch_guard import FetchGuard
 from utils.safe_http import build_safe_client
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,11 @@ _FETCH_TIMEOUT_SECONDS = 5.0
 # The OIDC conformance suite serves request objects from a docker service on
 # the dev network with a self-signed certificate. Dev only, as for jwks_uri.
 _DEV_HOSTNAME_ALLOWLIST = frozenset({"localhost.emobix.co.uk"})
+
+# Per client: a failing request_uri is not refetched for 30s, and at most two
+# fetches run at once (each request has its own request_uri, so allow a
+# little concurrency).
+_fetch_guard = FetchGuard(max_in_flight=2)
 
 
 class _RefusedError(Exception):
@@ -169,7 +175,15 @@ def _resolve(
         registered = {_without_fragment(u) for u in registered_request_uris(client)}
         if _without_fragment(request_uri) not in registered:
             raise _RefusedError(INVALID_REQUEST_URI, "request_uri is not registered")
-        request_object = _fetch(request_uri)
+        owner = (str(tenant_id), str(client["id"]))
+        request_object = _fetch_guard.run(
+            owner,
+            _without_fragment(request_uri),
+            lambda: _fetch(request_uri),
+            busy=lambda: _RefusedError(
+                INVALID_REQUEST_URI, "too many request_uri fetches in progress for this client"
+            ),
+        )
     if not request_object:
         raise _RefusedError(INVALID_REQUEST_OBJECT, "empty request object")
 

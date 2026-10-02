@@ -3,7 +3,7 @@
 from datetime import datetime
 
 import oauth2
-from database._core import TenantArg, execute, fetchone, session
+from database._core import UNSCOPED, TenantArg, execute, fetchall, fetchone, session
 
 
 def create_access_token(
@@ -463,18 +463,17 @@ def revoke_all_client_tokens(tenant_id: TenantArg, client_id: str) -> int:
     )
 
 
-def cleanup_expired_tokens(tenant_id: TenantArg) -> int:
-    """
-    Delete expired tokens.
+def purge_expired_tokens(*, older_than_days: int) -> int:
+    """Delete tokens that expired more than ``older_than_days`` ago.
 
-    Returns:
-        Number of tokens deleted
+    Cross-tenant (SECURITY DEFINER function); returns the number deleted.
     """
-    return execute(
-        tenant_id,
-        "delete from oauth2_tokens where expires_at <= now()",
-        {},
+    rows = fetchall(
+        UNSCOPED,
+        "select purge_expired_oauth2_tokens(make_interval(days => :days)) as n",
+        {"days": older_than_days},
     )
+    return int(rows[0]["n"]) if rows else 0
 
 
 def revoke_all_user_tokens(tenant_id: TenantArg, user_id: str) -> int:

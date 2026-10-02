@@ -85,11 +85,11 @@ from database.oauth2.sessions import (
     upsert_session_client,
 )
 from database.oauth2.tokens import (
-    cleanup_expired_tokens,
     create_access_token,
     create_refresh_token,
     delete_token,
     find_token,
+    purge_expired_tokens,
     revoke_all_client_tokens,
     revoke_all_user_tokens,
     revoke_grant_tokens,
@@ -144,7 +144,7 @@ __all__ = [
     "delete_token",
     "revoke_token",
     "revoke_all_client_tokens",
-    "cleanup_expired_tokens",
+    "purge_expired_tokens",
     "revoke_all_user_tokens",
     "revoke_grant_tokens",
     "revoke_session_refresh_tokens",

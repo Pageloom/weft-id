@@ -851,11 +851,45 @@ def test_revoke_all_client_tokens(test_tenant, normal_oauth2_client, test_user):
     )
 
 
-def test_cleanup_expired_tokens(test_tenant):
-    """Test cleanup of expired tokens."""
-    # Note: Can't easily test expiration without waiting or mocking time
-    deleted_count = database.oauth2.cleanup_expired_tokens(test_tenant["id"])
-    assert deleted_count >= 0
+def _token_count(tenant_id, token_ids):
+    rows = database.fetchall(
+        tenant_id,
+        "select id from oauth2_tokens where id = any(:ids)",
+        {"ids": [str(t) for t in token_ids]},
+    )
+    return len(rows)
+
+
+def test_purge_expired_tokens_keeps_live_and_recently_expired(
+    test_tenant, normal_oauth2_client, test_user
+):
+    """Only tokens past expiry plus the grace period are deleted, in every tenant."""
+    tid = test_tenant["id"]
+    ids = {}
+    for name, offset in (("old", "2 days"), ("recent", "1 hour"), ("live", None)):
+        database.oauth2.create_access_token(
+            tenant_id=tid,
+            tenant_id_value=str(tid),
+            client_id=str(normal_oauth2_client["id"]),
+            user_id=str(test_user["id"]),
+        )
+        token = database.fetchone(
+            tid,
+            "select id from oauth2_tokens where client_id = :c and not (id = any(:seen))",
+            {"c": str(normal_oauth2_client["id"]), "seen": [str(i) for i in ids.values()]},
+        )
+        ids[name] = token["id"]
+        if offset:
+            database.execute(
+                tid,
+                f"update oauth2_tokens set expires_at = now() - interval '{offset}' where id = :id",
+                {"id": str(token["id"])},
+            )
+
+    assert database.oauth2.purge_expired_tokens(older_than_days=1) >= 1
+
+    assert _token_count(tid, [ids["old"]]) == 0
+    assert _token_count(tid, [ids["recent"], ids["live"]]) == 2
 
 
 # =============================================================================

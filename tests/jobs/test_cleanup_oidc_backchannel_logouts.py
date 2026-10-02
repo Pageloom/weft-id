@@ -16,6 +16,7 @@ _SESSION_STATE = {
     "upstream_sessions_swept": 1,
     "logout_token_jtis_purged": 5,
 }
+_TOKENS = {"expired_tokens_purged": 7}
 
 
 class TestCleanupOidcBackchannelLogouts:
@@ -24,10 +25,16 @@ class TestCleanupOidcBackchannelLogouts:
         with (
             patch(f"{MODULE}.cleanup_backchannel_logout_state", return_value=backchannel) as bc,
             patch(f"{MODULE}.cleanup_session_state", return_value=_SESSION_STATE) as sessions,
+            patch(f"{MODULE}.cleanup_expired_tokens", return_value=_TOKENS) as tokens,
         ):
-            assert cleanup_oidc_backchannel_logouts() == {**backchannel, **_SESSION_STATE}
+            assert cleanup_oidc_backchannel_logouts() == {
+                **backchannel,
+                **_SESSION_STATE,
+                **_TOKENS,
+            }
         bc.assert_called_once()
         sessions.assert_called_once()
+        tokens.assert_called_once()
 
     def test_runs_inside_system_context(self):
         ctx = MagicMock()
@@ -38,6 +45,7 @@ class TestCleanupOidcBackchannelLogouts:
                 return_value={"deliveries_purged": 0, "session_records_swept": 0},
             ),
             patch(f"{MODULE}.cleanup_session_state", return_value=_SESSION_STATE),
+            patch(f"{MODULE}.cleanup_expired_tokens", return_value=_TOKENS),
         ):
             cleanup_oidc_backchannel_logouts()
         ctx.__enter__.assert_called_once()

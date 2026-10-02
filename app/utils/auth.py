@@ -3,7 +3,7 @@
 import database
 from fastapi import Request
 from utils.password import verify_password
-from utils.session import SESSION_ID_KEY
+from utils.session import SESSION_ID_KEY, ensure_session_id
 
 
 def verify_login(tenant_id: str, email: str, password: str) -> dict | None:
@@ -102,13 +102,14 @@ def get_current_user(request: Request, tenant_id: str) -> dict | None:
     # Revoked server-side (a logout elsewhere, or an upstream IdP's
     # back-channel logout): the cookie still verifies, the session is over.
     sid = request.session.get(SESSION_ID_KEY)
-    if (
-        isinstance(sid, str)
-        and sid
-        and database.revoked_sessions.is_session_revoked(tenant_id, sid)
-    ):
-        request.session.clear()
-        return None
+    if isinstance(sid, str) and sid:
+        if database.revoked_sessions.is_session_revoked(tenant_id, sid):
+            request.session.clear()
+            return None
+    else:
+        # A session from before sids existed gets one now, so a later logout
+        # can revoke it (a copied cookie then dies with the logout).
+        ensure_session_id(request.session)
 
     user = database.users.get_user_by_id(tenant_id, user_id)
 

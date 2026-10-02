@@ -94,5 +94,13 @@
         },
         "configuration-filename": "*dynamic-config.json",
         "comment": "Only signed request objects are accepted; request_object_signing_alg_values_supported does not list none, so the suite skips the unsigned request_uri module."
+    },
+    {
+        "test-name": "oidcc-client-test-idtoken-sig-none",
+        "variant": {
+            "response_type": "code"
+        },
+        "configuration-filename": "*rp-config.json",
+        "comment": "RP plans (Basic and Config): the upstream connector accepts RS256-signed ID tokens only, so it refuses the unsigned (alg none) one and never calls userinfo. The suite records that as SKIPPED: RPs are not required to accept alg none."
     }
 ]

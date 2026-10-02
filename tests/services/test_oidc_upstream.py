@@ -362,6 +362,178 @@ class TestManualEndpoints:
         assert updated.jwks_uri == "https://idp.example.com/keys-v2"
         assert updated.token_endpoint == self.ENDPOINTS["token_endpoint"]
 
+    def _mark_discovered(self, tenant_id, connection_id):
+        import database
+
+        database.execute(
+            tenant_id,
+            "update oidc_idp_connections set discovery_fetched_at = now() where id = :id",
+            {"id": connection_id},
+        )
+
+    def test_manual_endpoint_edit_leaves_discovery_management(
+        self, test_tenant, test_super_admin_user
+    ):
+        """Hand-set endpoints must not be overwritten by the sign-in refresh,
+        which only refetches connections with a discovery timestamp."""
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+        self._mark_discovered(test_tenant["id"], created.id)
+
+        updated = svc.update_connection(
+            ru,
+            created.id,
+            OIDCConnectionUpdate(jwks_uri="https://idp.example.com/keys-v2"),
+            BASE_URL,
+        )
+        assert updated.discovery_fetched_at is None
+
+    def test_other_edit_keeps_discovery_management(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+        self._mark_discovered(test_tenant["id"], created.id)
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(name="Renamed"), BASE_URL
+        )
+        assert updated.discovery_fetched_at is not None
+
+
+class _FakeResponse:
+    def __init__(self, status_code, body=None):
+        self.status_code = status_code
+        self._body = body
+
+    def json(self):
+        if self._body is None:
+            raise ValueError("no json")
+        return self._body
+
+
+class _FakeClient:
+    def __init__(self, response):
+        self._response = response
+        self.urls: list[str] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def get(self, url, **kwargs):
+        self.urls.append(url)
+        return self._response
+
+
+class TestTestConnection:
+    """Test Connection: discovery now, then the advertised key set."""
+
+    def _run(self, ru, connection_id, discovery_status=200, jwks_status=200):
+        from services import oidc_upstream as svc
+        from services.oidc_upstream import jwks as jwks_service
+
+        from tests.fixtures.oidc import load_fixture
+
+        jwks_service.clear_jwks_cache(ru["tenant_id"], connection_id)
+        jwks_client = _FakeClient(
+            _FakeResponse(jwks_status, load_fixture("jwks") if jwks_status == 200 else None)
+        )
+        with (
+            patch(
+                "services.oidc_upstream.discovery.build_safe_client",
+                return_value=_FakeClient(
+                    _FakeResponse(
+                        discovery_status,
+                        load_fixture("discovery") if discovery_status == 200 else None,
+                    )
+                ),
+            ),
+            patch("services.oidc_upstream.jwks.build_safe_client", return_value=jwks_client),
+        ):
+            try:
+                return svc.test_connection(ru, connection_id, BASE_URL), jwks_client
+            except Exception as exc:  # noqa: BLE001 - returned for the assertions
+                return exc, jwks_client
+
+    def _last_event(self, tenant_id, connection_id):
+        import database
+
+        events = database.event_log.list_events(tenant_id, limit=20)
+        return next(
+            e
+            for e in events
+            if e["event_type"] == "oidc_idp_connection_tested"
+            and str(e["artifact_id"]) == str(connection_id)
+        )
+
+    def test_success_stores_endpoints_fetches_keys_and_logs(
+        self, test_tenant, test_super_admin_user
+    ):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+
+        result, jwks_client = self._run(ru, created.id)
+
+        assert result.token_endpoint == "https://idp.example.com/token"
+        assert result.discovery_fetched_at is not None
+        assert jwks_client.urls == ["https://idp.example.com/jwks"]
+        event = self._last_event(test_tenant["id"], created.id)
+        assert event["metadata"]["result"] == "success"
+
+    def test_jwks_failure_is_reported(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+
+        result, _ = self._run(ru, created.id, jwks_status=500)
+
+        assert isinstance(result, ValidationError)
+        assert result.code == "oidc_connection_test_failed"
+        assert result.message.startswith("Key set (JWKS) failed:")
+        event = self._last_event(test_tenant["id"], created.id)
+        assert event["metadata"]["result"] == "failed"
+        assert event["metadata"]["detail"] == result.message
+
+    def test_discovery_failure_skips_keys(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+
+        result, jwks_client = self._run(ru, created.id, discovery_status=404)
+
+        assert isinstance(result, ValidationError)
+        assert result.message.startswith("Discovery failed:")
+        assert jwks_client.urls == []
+
+    def test_member_forbidden(self, test_tenant, test_super_admin_user, test_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+
+        with pytest.raises(ForbiddenError):
+            svc.test_connection(
+                _make_requesting_user(test_user, test_tenant["id"]), created.id, BASE_URL
+            )
+
+    def test_unknown_connection(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        with pytest.raises(NotFoundError):
+            svc.test_connection(ru, str(uuid4()), BASE_URL)
+
 
 class TestDelete:
     def test_delete_disabled_connection(self, test_tenant, test_super_admin_user):

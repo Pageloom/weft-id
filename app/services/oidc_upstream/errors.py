@@ -20,6 +20,14 @@ class DiscoveryError(OIDCUpstreamError):
     """Discovery document could not be fetched or parsed."""
 
 
+class DiscoveryUnavailableError(DiscoveryError):
+    """The discovery document could not be retrieved (network error or non-200).
+
+    Unlike the other discovery errors this says nothing about the document's
+    contents, so sign-in may fall back to the last good endpoints.
+    """
+
+
 class DiscoveryIssuerMismatchError(DiscoveryError):
     """The discovery document's ``issuer`` does not match the configured issuer."""
 

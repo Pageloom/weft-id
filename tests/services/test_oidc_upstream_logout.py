@@ -153,11 +153,17 @@ class TestValidateLogoutToken:
             _validate("not-a-jwt")
         assert exc.value.reason == "malformed"
 
-    def test_missing_kid(self):
-        token = jwt.encode(_payload(), PRIVATE_KEY_PEM, algorithm="RS256")
+    def test_missing_kid_with_foreign_key_rejected(self):
+        """Without a kid the JWKS's only key is used; a token signed by any
+        other key still fails (the kid-less path is not a bypass)."""
+        token = jwt.encode(_payload(), _other_key_pem(), algorithm="RS256")
         with pytest.raises(LogoutTokenError) as exc:
             _validate(token)
         assert exc.value.reason == "signature"
+
+    def test_missing_kid_single_key_accepted(self):
+        token = jwt.encode(_payload(), PRIVATE_KEY_PEM, algorithm="RS256")
+        _validate(token)
 
     def test_hs256_rejected(self):
         token = jwt.encode(_payload(), "s" * 32, algorithm="HS256", headers={"kid": KID})

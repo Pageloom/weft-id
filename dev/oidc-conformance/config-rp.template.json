@@ -1,0 +1,10 @@
+{
+    "description": "WeftID upstream OIDC connector as the relying party (suite plays the OP)",
+    "alias": "{RP_ALIAS}",
+    "client": {
+        "client_id": "{RP_CLIENT_ID}",
+        "client_secret": "{RP_CLIENT_SECRET}",
+        "redirect_uri": "{RP_REDIRECT_URI}"
+    },
+    "waitTimeoutSeconds": 5
+}

@@ -335,3 +335,98 @@ def test_group_claim_name_key_length_bounded(
         json={"group_claim_name_key": "k" * 101},
     )
     assert response.status_code == 422
+
+
+# =============================================================================
+# Test connection (discovery + key set)
+# =============================================================================
+
+
+class _FakeResponse:
+    def __init__(self, status_code, body=None):
+        self.status_code = status_code
+        self._body = body
+
+    def json(self):
+        if self._body is None:
+            raise ValueError("no json")
+        return self._body
+
+
+class _FakeClient:
+    def __init__(self, response):
+        self._response = response
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def get(self, url, **kwargs):
+        return self._response
+
+
+def _patch_idp(discovery, jwks):
+    from unittest.mock import patch
+
+    from tests.fixtures.oidc import load_fixture
+
+    discovery_body = load_fixture("discovery") if discovery == 200 else None
+    jwks_body = load_fixture("jwks") if jwks == 200 else None
+    return (
+        patch(
+            "services.oidc_upstream.discovery.build_safe_client",
+            return_value=_FakeClient(_FakeResponse(discovery, discovery_body)),
+        ),
+        patch(
+            "services.oidc_upstream.jwks.build_safe_client",
+            return_value=_FakeClient(_FakeResponse(jwks, jwks_body)),
+        ),
+    )
+
+
+def test_test_connection_success(
+    client, test_tenant_host, oauth2_super_admin_header, created_connection
+):
+    discovery, jwks = _patch_idp(200, 200)
+    with discovery, jwks:
+        response = client.post(
+            f"/api/v1/oidc-upstream/connections/{created_connection['id']}/test",
+            headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["token_endpoint"] == "https://idp.example.com/token"
+    assert body["discovery_error"] is None
+
+
+def test_test_connection_jwks_failure(
+    client, test_tenant_host, oauth2_super_admin_header, created_connection
+):
+    discovery, jwks = _patch_idp(200, 500)
+    with discovery, jwks:
+        response = client.post(
+            f"/api/v1/oidc-upstream/connections/{created_connection['id']}/test",
+            headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        )
+    assert response.status_code == 400
+    assert "Key set (JWKS) failed" in str(response.json())
+
+
+def test_test_connection_not_found(client, test_tenant_host, oauth2_super_admin_header):
+    response = client.post(
+        f"/api/v1/oidc-upstream/connections/{uuid.uuid4()}/test",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+    assert response.status_code == 404
+
+
+def test_test_connection_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header, created_connection
+):
+    response = client.post(
+        f"/api/v1/oidc-upstream/connections/{created_connection['id']}/test",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 403

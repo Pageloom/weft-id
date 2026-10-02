@@ -426,6 +426,12 @@ def update_connection(
             value = _blank_to_none(value)
         update_kwargs[field] = value
 
+    # Hand-set endpoints take the connection out of discovery management, so
+    # the sign-in refresh (``discovery.refresh_for_login``) does not overwrite
+    # them. A later successful Test Connection puts it back under discovery.
+    if any(field in update_kwargs for field in _MANUAL_ENDPOINT_FIELDS):
+        update_kwargs["discovery_fetched_at"] = None
+
     # The client secret is handled separately: it is write-only and encrypted.
     if data.client_secret is not None:
         update_kwargs["client_secret_enc"] = _encrypt_secret(data.client_secret)
@@ -595,6 +601,70 @@ def set_connection_enabled(
         metadata={"name": existing["name"]},
     )
 
+    return _row_to_config(row, base_url)
+
+
+def test_connection(
+    requesting_user: RequestingUser,
+    connection_id: str,
+    base_url: str,
+) -> OIDCConnectionConfig:
+    """Fetch the IdP's discovery document and the key set it advertises.
+
+    Discovery runs regardless of the TTL and, on success, replaces the stored
+    endpoints (see ``discovery.run_discovery``). The JWKS is then fetched
+    from the discovered ``jwks_uri``, so a key set that is unreachable or
+    unusable is reported here rather than at the first sign-in.
+
+    Authorization: Requires super_admin role.
+    Logs: oidc_idp_connection_tested event (``result`` success or failed;
+    discovery writes the endpoints or the error either way).
+
+    Raises:
+        NotFoundError: unknown connection.
+        ValidationError: discovery or the JWKS fetch failed; the message is
+            the reason, safe to show to the admin.
+    """
+    from services.oidc_upstream import jwks as jwks_service
+    from services.oidc_upstream.discovery import run_discovery
+    from services.oidc_upstream.errors import DiscoveryError, JwksError
+
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.oidc_upstream.get_connection(tenant_id, connection_id)
+    if existing is None:
+        raise NotFoundError(
+            message="OIDC connection not found",
+            code="oidc_connection_not_found",
+        )
+
+    detail: str | None = None
+    row: dict | None = None
+    try:
+        row = run_discovery(tenant_id, connection_id, force=True)
+        jwks_service.refresh_jwks(tenant_id, connection_id, str(row["jwks_uri"]))
+    except DiscoveryError as exc:
+        detail = f"Discovery failed: {exc}"
+    except JwksError as exc:
+        detail = f"Key set (JWKS) failed: {exc}"
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="oidc_idp_connection",
+        artifact_id=connection_id,
+        event_type="oidc_idp_connection_tested",
+        metadata={
+            "name": existing["name"],
+            "result": "failed" if detail else "success",
+            "detail": detail,
+        },
+    )
+
+    if detail is not None or row is None:
+        raise ValidationError(message=detail or "Test failed", code="oidc_connection_test_failed")
     return _row_to_config(row, base_url)
 
 

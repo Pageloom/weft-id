@@ -23,7 +23,10 @@ persisted. On a fetch/parse failure the prior endpoint values are left
 intact and only ``discovery_error`` is written.
 
 Refetch is TTL-gated per connection (not per request): a successful fetch
-within the TTL is a no-op.
+within the TTL is a no-op. Sign-in calls :func:`refresh_for_login`, which
+refetches a discovery-managed connection once the TTL has passed, so an
+IdP's moved ``jwks_uri`` (or a document that turned bad) is picked up
+without an admin pressing Test Connection.
 """
 
 from __future__ import annotations
@@ -34,11 +37,13 @@ from urllib.parse import urlparse
 
 import database
 import settings
+from services.oidc_upstream._http import DEV_HOSTNAME_ALLOWLIST
 from services.oidc_upstream.errors import (
     DiscoveryError,
     DiscoveryInsecureEndpointError,
     DiscoveryIssuerMismatchError,
     DiscoveryRedirectError,
+    DiscoveryUnavailableError,
 )
 from utils.safe_http import build_safe_client
 
@@ -130,17 +135,21 @@ def _fetch_discovery_document(discovery_url: str) -> dict:
     """
     # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
     # IdP (the loopback E2E); it is inert outside IS_DEV.
-    with build_safe_client(timeout=10.0, dev_base_domain_rewrite=True) as client:
+    with build_safe_client(
+        timeout=10.0,
+        dev_base_domain_rewrite=True,
+        dev_hostname_allowlist=DEV_HOSTNAME_ALLOWLIST,
+    ) as client:
         try:
             response = client.get(discovery_url)
         except Exception as exc:  # noqa: BLE001 - surface as DiscoveryError
-            raise DiscoveryError(f"Failed to fetch discovery document: {exc}") from exc
+            raise DiscoveryUnavailableError(f"Failed to fetch discovery document: {exc}") from exc
 
     if 300 <= response.status_code < 400:
         raise DiscoveryRedirectError(discovery_url, response.status_code)
 
     if response.status_code != 200:
-        raise DiscoveryError(f"Discovery fetch returned HTTP {response.status_code}")
+        raise DiscoveryUnavailableError(f"Discovery fetch returned HTTP {response.status_code}")
 
     try:
         doc = response.json()
@@ -233,3 +242,43 @@ def run_discovery(tenant_id: str, connection_id: str, *, force: bool = False) ->
         raise DiscoveryError("Failed to persist discovery result")
 
     return row
+
+
+def refresh_for_login(tenant_id: str, connection: dict) -> dict:
+    """Return the connection row with endpoints fit to sign in with.
+
+    - A discovery-managed connection (``discovery_fetched_at`` set) is
+      refetched once the TTL has passed.
+    - A connection that was never discovered and lacks a required endpoint
+      is discovered now (sign-in cannot work otherwise).
+    - Hand-set endpoints (never discovered, or cleared by a manual edit) are
+      used as they are.
+
+    A document that cannot be retrieved (:class:`DiscoveryUnavailableError`)
+    falls back to the stored endpoints when there are any. Any other
+    discovery error means the IdP now publishes something WeftID refuses
+    (another issuer, an insecure endpoint, a malformed document); it is
+    raised and the caller must stop the sign-in rather than carry on with
+    the old endpoints.
+
+    Raises:
+        DiscoveryError (and subclasses) as described above.
+    """
+    has_endpoints = all(connection.get(field) for field in _REQUIRED_ENDPOINT_FIELDS)
+    if connection.get("discovery_fetched_at") is not None:
+        if _is_fresh(connection):
+            return connection
+    elif has_endpoints:
+        return connection
+
+    try:
+        return run_discovery(tenant_id, str(connection["id"]), force=True)
+    except DiscoveryUnavailableError as exc:
+        if not has_endpoints:
+            raise
+        logger.warning(
+            "Discovery refresh for OIDC connection %s failed, using stored endpoints: %s",
+            connection["id"],
+            exc,
+        )
+        return connection

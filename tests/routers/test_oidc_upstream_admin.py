@@ -424,7 +424,7 @@ def test_delete_enabled_connection_conflict(
 # =============================================================================
 
 
-@patch("routers.oidc_upstream.admin.oidc_service.run_discovery")
+@patch("routers.oidc_upstream.admin.oidc_service.test_connection")
 def test_test_connection_success(
     mock_discovery,
     super_admin_session,
@@ -444,25 +444,44 @@ def test_test_connection_success(
     mock_discovery.assert_called_once()
 
 
-@patch("routers.oidc_upstream.admin.oidc_service.run_discovery")
-def test_test_connection_failure(
-    mock_discovery,
+def test_test_connection_failure_shows_reason(
     super_admin_session,
     test_tenant_host,
     test_tenant,
     test_super_admin_user,
 ):
+    """Real service, failing discovery: the reason reaches the details tab."""
     from services.oidc_upstream.errors import DiscoveryError
 
     conn = _make_connection(test_tenant, test_super_admin_user)
-    mock_discovery.side_effect = DiscoveryError("boom")
+    with patch(
+        "services.oidc_upstream.discovery.run_discovery",
+        side_effect=DiscoveryError("boom & bust"),
+    ):
+        response = super_admin_session.post(
+            f"/identity-providers/oidc/{conn['id']}/test-connection",
+            headers={"Host": test_tenant_host},
+            follow_redirects=False,
+        )
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert "test=error" in location
+    assert "test_detail=Discovery%20failed%3A%20boom%20%26%20bust" in location
+
+    page = super_admin_session.get(location, headers={"Host": test_tenant_host})
+    assert "Discovery failed: boom &amp; bust" in page.text
+
+
+def test_test_connection_unknown_connection(super_admin_session, test_tenant_host):
+    from uuid import uuid4
+
     response = super_admin_session.post(
-        f"/identity-providers/oidc/{conn['id']}/test-connection",
+        f"/identity-providers/oidc/{uuid4()}/test-connection",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "test=error" in response.headers["location"]
+    assert "error=not_found" in response.headers["location"]
 
 
 # =============================================================================

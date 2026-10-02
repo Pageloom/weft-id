@@ -1,15 +1,15 @@
 # OpenID Connect Conformance
 
-WeftID's OpenID Provider is tested with the [OpenID Foundation conformance suite](https://gitlab.com/openid/conformance-suite), the open-source test suite the OpenID Foundation uses for its own certification program. WeftID runs the suite itself, in CI, and publishes the results on this page.
+WeftID's OpenID Provider is tested with the [OpenID Foundation conformance suite](https://gitlab.com/openid/conformance-suite), the open-source test suite the OpenID Foundation uses for its own certification program. So is the other direction: WeftID signing users in through an upstream OpenID Connect identity provider, where the suite plays the provider (see [Relying party profiles](#relying-party-profiles)). WeftID runs the suite itself, in CI, and publishes the results on this page.
 
-WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP, Back-Channel OP, and 3rd Party-Init OP profiles, and for the Dynamic OP profile apart from one accepted deviation (see [Deviations](#deviations)). The same tests also run with clients that authenticate with `private_key_jwt`. It is **not** "OpenID Certified": that is the OpenID Foundation's certification mark, which requires a formal submission WeftID has chosen not to make. The evidence here is the suite's own output, and anyone can rerun it (see [Rerunning the suite](#rerunning-the-suite)).
+WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP, Back-Channel OP, and 3rd Party-Init OP profiles, and for the Dynamic OP profile apart from one accepted deviation (see [Deviations](#deviations)). The same tests also run with clients that authenticate with `private_key_jwt`. As a relying party, WeftID passes the Basic RP and Config RP profiles. It is **not** "OpenID Certified": that is the OpenID Foundation's certification mark, which requires a formal submission WeftID has chosen not to make. The evidence here is the suite's own output, and anyone can rerun it (see [Rerunning the suite](#rerunning-the-suite)).
 
 ## Results
 
 <!-- conformance-results:start -->
 
 * **Suite version:** 5.2.4
-* **WeftID version:** 1.12.0 (`6831d822`)
+* **WeftID version:** 1.12.0 (`8638129e`)
 * **Run date:** 2026-10-01
 
 | Profile | Test plan | Outcome | Passed | Warning | Review | Skipped | Failed |
@@ -23,6 +23,8 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 | private_key_jwt clients | `oidcc-test-plan` | Green | 25 | 3 | 4 | 5 | 0 |
 | Dynamic OP | `oidcc-dynamic-certification-test-plan` | Green (1 accepted failure) | 13 | 0 | 6 | 3 | 1 |
 | 3rd Party-Init OP | `oidcc-3rdparty-init-login-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
+| Basic RP | `oidcc-client-basic-certification-test-plan` | Green | 13 | 0 | 0 | 1 | 0 |
+| Config RP | `oidcc-client-config-certification-test-plan` | Green | 3 | 0 | 0 | 1 | 0 |
 
 **Accepted failures** (each is a deviation listed below):
 
@@ -43,6 +45,7 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 * `oidcc-ensure-request-object-with-redirect-uri` (Basic OP, Form Post OP, private_key_jwt clients, Dynamic OP): The module sends an unsigned request object; request_object_signing_alg_values_supported does not list none (only signed request objects are accepted), so the suite skips it.
 * `oidcc-idtoken-unsigned` (Dynamic OP): ID tokens are always signed; id_token_signing_alg_values_supported does not list none, so the suite skips the unsigned ID token module.
 * `oidcc-request-uri-unsigned` (Dynamic OP): Only signed request objects are accepted; request_object_signing_alg_values_supported does not list none, so the suite skips the unsigned request_uri module.
+* `oidcc-client-test-idtoken-sig-none` (Basic RP, Config RP): RP plans (Basic and Config): the upstream connector accepts RS256-signed ID tokens only, so it refuses the unsigned (alg none) one and never calls userinfo. The suite records that as SKIPPED: RPs are not required to accept alg none.
 
 **Review** means the suite captured a screenshot (an error page, a second login page, or the consent page) for a person to judge, because it cannot judge page content itself:
 
@@ -79,12 +82,24 @@ A single **Failed** or unfinished module makes the profile red, unless it is an 
 
 The **private_key_jwt clients** row is not a certification profile. The certification plans fix how the test clients authenticate (client secrets), so WeftID also runs the suite's general OpenID Connect test plan with static clients that authenticate with `private_key_jwt`.
 
+## Relying party profiles
+
+In the **Basic RP** and **Config RP** rows the roles are reversed. The suite acts as an OpenID Provider, and WeftID's upstream OpenID Connect connector is the client being tested. The test tenant has one upstream connection pointing at the suite. For each module, the runner starts a WeftID sign-in through that connection. WeftID redirects to the suite, takes the code back, validates the ID token, calls userinfo, and either signs the user in or refuses. Each module checks what WeftID did. For example, a module that sends an ID token with the wrong issuer fails if WeftID goes on to call the userinfo endpoint.
+
+Two details of how the run works:
+
+* **Discovery is refreshed per module.** The connector refreshes the provider's discovery document at sign-in once the last fetch is older than an hour. Each suite module publishes new keys and, in one module, a new `jwks_uri`, so before each module the runner marks the last fetch as older than an hour. This stands in for the hour passing.
+* **Two Config RP modules use Test connection.** `oidcc-client-test-discovery-openid-config` and `oidcc-client-test-discovery-jwks-uri-keys` finish as soon as the client has fetched the discovery document (and, for the second, the key set it names). A full sign-in would go on to call a module that has already finished, which the suite counts as a failure. For these two modules the runner uses the admin **Test connection** action instead, which fetches exactly those two documents. The third discovery module, which serves a document with the wrong issuer, runs a real sign-in. WeftID refuses it before sending the user to the provider.
+
 The runner compares every run against two files checked into the repository: [`expected-failures.json`](https://github.com/Pageloom/weft-id/blob/main/dev/oidc-conformance/expected-failures.json) (the accepted warnings and failures) and [`expected-skips.json`](https://github.com/Pageloom/weft-id/blob/main/dev/oidc-conformance/expected-skips.json). A run fails on anything these files do not list, and also on an entry that no longer happens, so the files cannot quietly go stale.
 
 ## Profiles not tested
 
 * **Implicit OP** and **Hybrid OP**: WeftID issues authorization codes only (`response_type=code`). The implicit and hybrid flows return tokens through the browser, and current OAuth security guidance advises against them.
 * **Session OP** (OpenID Connect Session Management): the `check_session_iframe` mechanism relies on third-party cookies, which browsers now block.
+* **Implicit RP**, **Hybrid RP** and the **Form Post RP** profiles: the upstream connector uses the authorization code flow with the code returned in the query string.
+* **Dynamic RP**: upstream connections are set up by an administrator with a client registered at the provider. The connector does not register itself dynamically.
+* **RP logout profiles**: not run yet.
 
 ## Deviations
 
@@ -95,6 +110,7 @@ These are the places where WeftID knowingly differs from what the suite checks f
 * **Partial `profile` claim set.** The `profile` scope releases the claims WeftID holds data for: `name`, `given_name`, `family_name`, `locale`, `zoneinfo`, and `updated_at`. Claims without data (`nickname`, `picture`, `website`, `gender`, `birthdate`, `middle_name`, `preferred_username`, `profile`) are omitted, never sent as `null`, as OpenID Connect Core section 5.1 allows. The suite warns.
 * **Signed request objects only.** Request objects must be signed (`RS256`, `PS256`, or `ES256`). Discovery does not list `none` in `request_object_signing_alg_values_supported`, so the suite skips its unsigned request object modules (by value and by reference).
 * **Dynamic OP discovery check.** A Dynamic OP must list the implicit grant and the `id_token` and `id_token token` response types in its discovery document (OpenID Connect Core section 15.2). WeftID issues authorization codes only, so `oidcc-discovery-endpoint-verification` fails in the Dynamic OP plan. Every other Dynamic OP module passes or is skipped.
+* **Unsigned ID tokens are refused from upstream providers.** The upstream connector accepts `RS256`-signed ID tokens only. Given an unsigned one, it stops the sign-in, and the suite records `oidcc-client-test-idtoken-sig-none` as skipped (relying parties are not required to accept `alg: none`).
 * **Unsigned ID tokens are never issued.** Discovery does not list `none` in `id_token_signing_alg_values_supported`, so the suite skips its unsigned ID token module.
 * **No mutual-TLS client authentication.** Confidential clients authenticate with a client secret or `private_key_jwt`; mTLS client authentication (RFC 8705) is not supported.
 * **No `address` or `phone` scopes.** WeftID has no attributes to fill them, so they are not advertised and the suite skips their modules.

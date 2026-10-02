@@ -34,10 +34,11 @@ from services.oidc_upstream.connections import (
     oidc_connection_requires_platform_mfa,
     set_connection_default,
     set_connection_enabled,
+    test_connection,
     update_claim_mapping,
     update_connection,
 )
-from services.oidc_upstream.discovery import run_discovery
+from services.oidc_upstream.discovery import refresh_for_login, run_discovery
 from services.oidc_upstream.domains import (
     bind_domain_to_connection,
     get_unbound_domains,
@@ -50,6 +51,7 @@ from services.oidc_upstream.errors import (
     DiscoveryInsecureEndpointError,
     DiscoveryIssuerMismatchError,
     DiscoveryRedirectError,
+    DiscoveryUnavailableError,
     IDTokenAudienceError,
     IDTokenExpiredError,
     IDTokenIssuerError,
@@ -97,6 +99,7 @@ from services.oidc_upstream.provisioning import (
 from services.oidc_upstream.token_exchange import (
     TokenExchangeError,
     UserinfoError,
+    UserinfoSubjectMismatchError,
     exchange_code,
     fetch_userinfo,
 )
@@ -112,6 +115,7 @@ __all__ = [
     "delete_connection",
     "set_connection_enabled",
     "set_connection_default",
+    "test_connection",
     "oidc_connection_requires_platform_mfa",
     "decrypt_client_secret",
     "generate_pkce_pair",
@@ -133,6 +137,7 @@ __all__ = [
     "rebind_domain_to_connection",
     "get_unbound_domains",
     "run_discovery",
+    "refresh_for_login",
     "validate_id_token",
     "validate_logout_token",
     "handle_backchannel_logout",
@@ -152,11 +157,13 @@ __all__ = [
     "fetch_userinfo",
     "TokenExchangeError",
     "UserinfoError",
+    "UserinfoSubjectMismatchError",
     "OIDCUpstreamError",
     "DiscoveryError",
     "DiscoveryIssuerMismatchError",
     "DiscoveryInsecureEndpointError",
     "DiscoveryRedirectError",
+    "DiscoveryUnavailableError",
     "JwksError",
     "IDTokenValidationError",
     "IDTokenSignatureError",

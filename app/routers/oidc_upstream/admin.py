@@ -11,6 +11,7 @@ rendered back into any template.
 
 import logging
 from typing import Annotated
+from urllib.parse import quote
 
 from dependencies import (
     build_requesting_user,
@@ -704,28 +705,25 @@ def test_connection(
     user: Annotated[dict, Depends(get_current_user)],
     connection_id: str,
 ):
-    """Run real discovery against the connection and report the result.
+    """Run real discovery and fetch the key set, then report the result.
 
     This is not a placeholder: it fetches the IdP's discovery document through
-    the SSRF guard, validates the issuer, and persists the discovered
-    endpoints. On success the details tab shows the discovered endpoints; on
-    failure the error is surfaced.
+    the SSRF guard, validates the issuer, persists the discovered endpoints,
+    and fetches the JWKS they advertise. On success the details tab shows the
+    discovered endpoints; on failure the reason is surfaced.
     """
     requesting_user = build_requesting_user(user, tenant_id, request)
 
-    # Verify the connection exists before running discovery.
     try:
-        oidc_service.get_connection(requesting_user, connection_id, tenant_base_url(request))
+        oidc_service.test_connection(requesting_user, connection_id, tenant_base_url(request))
     except NotFoundError:
         return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ValidationError as e:
+        return safe_redirect(
+            f"{CONNECTION_LIST_URL}/{connection_id}/details?test=error"
+            f"&test_detail={quote(e.message)}"
+        )
     except ServiceError as e:
         return safe_redirect(f"{CONNECTION_LIST_URL}?error={str(e)}")
-
-    try:
-        oidc_service.run_discovery(tenant_id, connection_id, force=True)
-    except oidc_service.DiscoveryError as e:
-        return safe_redirect(
-            f"{CONNECTION_LIST_URL}/{connection_id}/details?test=error&test_detail={str(e)}"
-        )
 
     return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?test=success")

@@ -244,13 +244,10 @@ def classify(run: PlanRun, failures: list[dict], skips: list[dict]) -> ProfileRe
 # ---------------------------------------------------------------------------
 
 
-def weftid_version(project_root: Path = PROJECT_ROOT) -> str:
-    """``<pyproject version> (<short commit>)``, the commit omitted outside git."""
-    data = tomllib.loads((project_root / "pyproject.toml").read_text())
-    version = data["tool"]["poetry"]["version"]
+def _git(project_root: Path, *args: str) -> str | None:
     try:
-        sha = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+        return subprocess.run(
+            ["git", *args],
             cwd=project_root,
             capture_output=True,
             text=True,
@@ -258,8 +255,26 @@ def weftid_version(project_root: Path = PROJECT_ROOT) -> str:
             timeout=10,
         ).stdout.strip()
     except OSError, subprocess.SubprocessError:
+        return None
+
+
+def weftid_version(project_root: Path = PROJECT_ROOT) -> str:
+    """The WeftID build the results are for.
+
+    ``<version> (<short commit>)`` when the commit carries the release tag
+    ``v<version>``; otherwise ``<version>+<short commit> (untagged)``, since the
+    pyproject version then names the last release, not this build. Just the
+    version outside git.
+    """
+    data = tomllib.loads((project_root / "pyproject.toml").read_text())
+    version = data["tool"]["poetry"]["version"]
+    sha = _git(project_root, "rev-parse", "--short", "HEAD")
+    if not sha:
         return version
-    return f"{version} (`{sha}`)" if sha else version
+    tags = (_git(project_root, "tag", "--points-at", "HEAD") or "").split()
+    if f"v{version}" in tags:
+        return f"{version} (`{sha}`)"
+    return f"{version}+{sha} (untagged)"
 
 
 def _bullets(reports: list[ProfileReport], attr: str) -> list[str]:

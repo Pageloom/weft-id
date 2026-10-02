@@ -191,14 +191,19 @@ Because these require Authentik running, they must be **opt-in**: skipped by def
 
 ---
 
-## Docs: capture SCIM admin guide screenshots
+## Docs: capture admin guide screenshots (SCIM and OIDC)
 
 **Status:** Backlog
 
-**Summary:** `docs/admin-guide/service-providers/scim.md` ships with `TODO: screenshot - ...` placeholders at six locations (amber plaintext token box, credential list mid-rotation, sync activity panel mixed states, Slack provisioning page, GitHub Enterprise SCIM page, Atlassian directory provisioning, GitLab SAML SSO page). Capture the WeftID screenshots first (amber box, credential list, sync panel) since they can be staged against the dev testbed. Vendor screenshots require live tenants and can land later as access becomes available. Remove the `TODO:` lines once each image lands.
+**Summary:** The docs site has no screenshots yet. Two sets are wanted:
+
+* **SCIM:** `docs/admin-guide/service-providers/scim.md` ships with `TODO: screenshot - ...` placeholders at six locations (amber plaintext token box, credential list mid-rotation, sync activity panel mixed states, Slack provisioning page, GitHub Enterprise SCIM page, Atlassian directory provisioning, GitLab SAML SSO page). Capture the WeftID screenshots first (amber box, credential list, sync panel) since they can be staged against the dev testbed. Vendor screenshots require live tenants and can land later as access becomes available. Remove the `TODO:` lines once each image lands.
+* **OIDC provider** (from the oidc-conformance final review): the consent screen with "Already allowed", the device code entry and confirm pages, the Client Registration page, the app detail "Subject Identifiers" and "Back-Channel Logout Deliveries" sections, and the "Sign in again?" confirmation. All can be staged against the dev stack (seed data plus a registered client).
+
+Settle the image conventions once (location under `docs/assets/`, width, light theme, Meridian Health seed data) and use them for both sets.
 
 **Effort:** S
-**Value:** Medium (lifts the docs above placeholder quality for outbound SCIM)
+**Value:** Medium (lifts the docs above placeholder quality for outbound SCIM and the OIDC provider)
 
 ---
 

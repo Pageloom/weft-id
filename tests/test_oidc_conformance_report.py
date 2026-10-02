@@ -464,14 +464,23 @@ class TestReplaceSection:
 
 
 class TestWeftidVersion:
-    def test_pyproject_version_and_commit(self, report, tmp_path, monkeypatch):
+    @staticmethod
+    def _fake_git(report, monkeypatch, *, tags):
+        def run(cmd, *a, **k):
+            out = "abc1234\n" if cmd[1] == "rev-parse" else tags
+            return subprocess.CompletedProcess(cmd, 0, stdout=out)
+
+        monkeypatch.setattr(report.subprocess, "run", run)
+
+    def test_tagged_release(self, report, tmp_path, monkeypatch):
         tmp_path.joinpath("pyproject.toml").write_text('[tool.poetry]\nversion = "9.8.7"\n')
-        monkeypatch.setattr(
-            report.subprocess,
-            "run",
-            lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="abc1234\n"),
-        )
+        self._fake_git(report, monkeypatch, tags="latest\nv9.8.7\n")
         assert report.weftid_version(tmp_path) == "9.8.7 (`abc1234`)"
+
+    def test_untagged_build(self, report, tmp_path, monkeypatch):
+        tmp_path.joinpath("pyproject.toml").write_text('[tool.poetry]\nversion = "9.8.7"\n')
+        self._fake_git(report, monkeypatch, tags="v9.8.6\n")
+        assert report.weftid_version(tmp_path) == "9.8.7+abc1234 (untagged)"
 
     def test_without_git(self, report, tmp_path, monkeypatch):
         tmp_path.joinpath("pyproject.toml").write_text('[tool.poetry]\nversion = "9.8.7"\n')
@@ -484,7 +493,7 @@ class TestWeftidVersion:
 
     def test_real_checkout(self, report):
         data = (PROJECT_ROOT / "pyproject.toml").read_text()
-        assert report.weftid_version().split(" ")[0] in data
+        assert report.weftid_version().split(" ")[0].split("+")[0] in data
 
 
 class TestCli:

@@ -303,3 +303,14 @@ class TestSetTenantIntrospection:
         assert _events(test_tenant, "oauth2_client_introspection_changed") == []
         # Switching it off stays a harmless no-op.
         assert svc.set_tenant_introspection(admin, public["client_id"], False)
+
+
+def test_cleanup_expired_tokens_uses_retention_constant():
+    from unittest.mock import patch
+
+    import database
+    from services import oauth2_tokens
+
+    with patch.object(database.oauth2, "purge_expired_tokens", return_value=4) as purge:
+        assert oauth2_tokens.cleanup_expired_tokens() == {"expired_tokens_purged": 4}
+    purge.assert_called_once_with(older_than_days=1)

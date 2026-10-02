@@ -180,3 +180,22 @@ def set_tenant_introspection(
         )
 
     return updated
+
+
+# Expired tokens are kept a day past expiry, then deleted. Validation already
+# ignores them. The margin outlives any access token (<= 1 h) minted from an
+# expiring refresh token, since deleting a parent cascades to its children.
+EXPIRED_TOKEN_RETENTION_DAYS = 1
+
+
+def cleanup_expired_tokens() -> dict[str, int]:
+    """Delete access and refresh tokens past their retention.
+
+    Authorization: none -- worker entry point. No audit: retention
+    bookkeeping of rows that can no longer be used.
+    """
+    return {
+        "expired_tokens_purged": database.oauth2.purge_expired_tokens(
+            older_than_days=EXPIRED_TOKEN_RETENTION_DAYS
+        )
+    }

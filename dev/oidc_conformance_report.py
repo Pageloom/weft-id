@@ -54,6 +54,10 @@ PROFILES = (
     ("private_key_jwt clients", "oidcc-test-plan"),
     ("Dynamic OP", "oidcc-dynamic-certification-test-plan"),
     ("3rd Party-Init OP", "oidcc-3rdparty-init-login-certification-test-plan"),
+    # Relying-party profiles: the suite plays the OP, WeftID's upstream
+    # connector is the client.
+    ("Basic RP", "oidcc-client-basic-certification-test-plan"),
+    ("Config RP", "oidcc-client-config-certification-test-plan"),
 )
 
 GREEN_RESULTS = {"PASSED", "WARNING", "REVIEW", "SKIPPED"}

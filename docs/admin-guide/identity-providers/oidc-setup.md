@@ -51,11 +51,30 @@ The client secret is encrypted at rest and is never displayed again after you sa
 
 ## Step 4: Test and enable
 
-Click **Test connection**. WeftID fetches the discovery document, checks that its issuer matches the issuer you configured, and stores the discovered endpoints. Failures are reported with the reason and the connection is left unchanged.
+Click **Test connection**. WeftID fetches the discovery document, checks that its issuer matches the issuer you configured, stores the discovered endpoints, and fetches the signing keys from the document's `jwks_uri`. Failures are reported with the reason. A failed discovery leaves the stored endpoints unchanged. The same test is available through the API:
+
+```
+POST /api/v1/oidc-upstream/connections/{connection_id}/test
+```
 
 A discovery document is rejected when its `issuer` does not match the configured issuer, or when any of its endpoints is not `https`. Both are signs that something is misconfigured or being intercepted.
 
 Once the test passes, enable the connection.
+
+### Keeping endpoints current
+
+Providers move their endpoints and rotate their signing keys. WeftID refreshes the discovery document at sign-in once the last successful fetch is more than an hour old. Nobody has to click **Test connection** again.
+
+* If the document cannot be retrieved (the provider is unreachable or returns an error), sign-in carries on with the last known endpoints.
+* If the document is retrieved but refused (wrong issuer, an endpoint that is not `https`, a redirect, or not a valid document), sign-in stops with a configuration error. It keeps stopping until the provider or the connection is fixed. Each attempt is audited as `oidc_login_failed` with reason `discovery`.
+
+Signing keys are fetched again when an ID token names a key WeftID has not seen, so a key rotation at the provider does not break sign-in.
+
+### What WeftID checks at sign-in
+
+* The ID token must be signed with `RS256` by a key from the provider's key set. A token without a `kid` header is accepted when the key set holds exactly one signing key.
+* Its `iss` must equal the configured issuer, its `aud` must include the client ID, and its `nonce` must match the one WeftID sent. `exp`, `iat` and `sub` must be present, and the token must not be expired or issued in the future.
+* When the provider has a userinfo endpoint, its response must carry the same `sub` as the ID token, or the sign-in fails (audited as `oidc_login_failed` with reason `userinfo_sub_mismatch`). A userinfo endpoint that is unreachable is tolerated, and the ID token's claims are used.
 
 ## Sign-out from the provider
 
@@ -104,7 +123,7 @@ PATCH /api/v1/oidc-upstream/connections/{connection_id}
 
 Send any of `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, `jwks_uri`, and `end_session_endpoint`.
 
-Manual values are not protected from discovery. If you later click **Test connection** and the fetch succeeds, the endpoints are replaced with the discovered values. For a provider with no discovery document the test fails and your manual values are left as they are.
+Entering endpoints by hand stops the hourly refresh at sign-in, so your values stay as entered. They are not protected from **Test connection**, though. If you later click it and the fetch succeeds, the endpoints are replaced with the discovered values and the hourly refresh starts again. For a provider with no discovery document the test fails and your manual values are left as they are.
 
 ## Connection settings
 

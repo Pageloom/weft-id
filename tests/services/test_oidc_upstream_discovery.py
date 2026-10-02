@@ -15,6 +15,7 @@ from services.oidc_upstream.errors import (
     DiscoveryInsecureEndpointError,
     DiscoveryIssuerMismatchError,
     DiscoveryRedirectError,
+    DiscoveryUnavailableError,
 )
 
 from tests.fixtures.oidc import load_fixture
@@ -170,7 +171,7 @@ class TestRunDiscovery:
     def test_http_error_recorded(self, test_tenant):
         conn = _make_connection(test_tenant)
         with _patch_client(_FakeResponse(500)):
-            with pytest.raises(DiscoveryError):
+            with pytest.raises(DiscoveryUnavailableError):
                 discovery_service.run_discovery(test_tenant["id"], str(conn["id"]))
 
         import database
@@ -226,3 +227,117 @@ class TestDevBaseDomainRewrite:
         with _patch_client(_FakeResponse(200, {"issuer": "x"})) as mock_client:
             discovery_service._fetch_discovery_document("https://idp.example.com/.well-known")
         assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
+        assert "localhost.emobix.co.uk" in mock_client.call_args.kwargs["dev_hostname_allowlist"]
+
+
+class _RaisingClient(_FakeClient):
+    def get(self, url):
+        raise OSError("connection refused")
+
+
+def _age_discovery(tenant, conn_id, hours=2):
+    import database
+
+    database.execute(
+        tenant["id"],
+        "update oidc_idp_connections set discovery_fetched_at = now() - make_interval(hours => :h)"
+        " where id = :id",
+        {"h": hours, "id": conn_id},
+    )
+    return database.oidc_upstream.get_connection(tenant["id"], conn_id)
+
+
+def _discovered(tenant):
+    conn = _make_connection(tenant)
+    with _patch_client(_FakeResponse(200, DISCOVERY_DOC)):
+        return discovery_service.run_discovery(tenant["id"], str(conn["id"]))
+
+
+class TestRefreshForLogin:
+    def test_fresh_connection_not_refetched(self, test_tenant):
+        conn = _discovered(test_tenant)
+        with _patch_client(_FakeResponse(500)) as mock:
+            row = discovery_service.refresh_for_login(test_tenant["id"], conn)
+            assert mock.call_count == 0
+        assert row is conn
+
+    def test_stale_connection_refetched(self, test_tenant):
+        conn = _age_discovery(test_tenant, str(_discovered(test_tenant)["id"]))
+        moved = dict(DISCOVERY_DOC, jwks_uri="https://idp.example.com/jwks-rotated")
+        with _patch_client(_FakeResponse(200, moved)) as mock:
+            row = discovery_service.refresh_for_login(test_tenant["id"], conn)
+            assert mock.call_count == 1
+        assert row["jwks_uri"] == "https://idp.example.com/jwks-rotated"
+        assert row["discovery_fetched_at"] > conn["discovery_fetched_at"]
+
+    def test_never_discovered_without_endpoints_is_discovered(self, test_tenant):
+        conn = _make_connection(test_tenant)
+        with _patch_client(_FakeResponse(200, DISCOVERY_DOC)):
+            row = discovery_service.refresh_for_login(test_tenant["id"], conn)
+        assert row["token_endpoint"] == "https://idp.example.com/token"
+
+    def test_hand_set_endpoints_not_refetched(self, test_tenant):
+        conn = _make_connection(
+            test_tenant,
+            authorization_endpoint="https://idp.example.com/authorize",
+            token_endpoint="https://idp.example.com/token",
+            jwks_uri="https://idp.example.com/jwks",
+        )
+        with _patch_client(_FakeResponse(500)) as mock:
+            row = discovery_service.refresh_for_login(test_tenant["id"], conn)
+            assert mock.call_count == 0
+        assert row is conn
+
+    @pytest.mark.parametrize(
+        "client",
+        [_FakeClient(_FakeResponse(503)), _RaisingClient(None)],
+        ids=["http-503", "transport"],
+    )
+    def test_unavailable_falls_back_to_stored_endpoints(self, test_tenant, client):
+        conn = _age_discovery(test_tenant, str(_discovered(test_tenant)["id"]))
+        with patch("services.oidc_upstream.discovery.build_safe_client", return_value=client):
+            row = discovery_service.refresh_for_login(test_tenant["id"], conn)
+        assert row["token_endpoint"] == "https://idp.example.com/token"
+
+    def test_unavailable_without_endpoints_raises(self, test_tenant):
+        conn = _make_connection(test_tenant)
+        with _patch_client(_FakeResponse(503)):
+            with pytest.raises(DiscoveryUnavailableError):
+                discovery_service.refresh_for_login(test_tenant["id"], conn)
+
+    @pytest.mark.parametrize(
+        ("response", "error"),
+        [
+            (
+                _FakeResponse(200, dict(DISCOVERY_DOC, issuer="https://evil.example.com")),
+                DiscoveryIssuerMismatchError,
+            ),
+            (
+                _FakeResponse(200, dict(DISCOVERY_DOC, token_endpoint="http://idp.example.com/t")),
+                DiscoveryInsecureEndpointError,
+            ),
+            (_FakeResponse(302), DiscoveryRedirectError),
+            (_FakeResponse(200, None), DiscoveryError),
+        ],
+        ids=["issuer-mismatch", "insecure", "redirect", "not-json"],
+    )
+    def test_refused_document_raises_and_keeps_old_endpoints(
+        self, test_tenant, response, error, monkeypatch
+    ):
+        """A document WeftID refuses stops the sign-in (no fallback), and the
+        stored endpoints are left for the admin to inspect."""
+        import database
+        import settings
+
+        monkeypatch.setattr(settings, "IS_DEV", False)
+        conn = _age_discovery(test_tenant, str(_discovered(test_tenant)["id"]))
+        with _patch_client(response):
+            with pytest.raises(error) as exc:
+                discovery_service.refresh_for_login(test_tenant["id"], conn)
+        assert not isinstance(exc.value, DiscoveryUnavailableError)
+
+        row = database.oidc_upstream.get_connection(test_tenant["id"], str(conn["id"]))
+        assert row["token_endpoint"] == "https://idp.example.com/token"
+        assert row["discovery_error"] is not None
+        # Still stale, so the next sign-in tries again rather than trusting it.
+        assert row["discovery_fetched_at"] == conn["discovery_fetched_at"]

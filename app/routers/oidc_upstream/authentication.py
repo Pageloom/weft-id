@@ -97,6 +97,15 @@ def oidc_login(
     if not connection.get("is_enabled"):
         return _error_response("idp_disabled")
 
+    # Pick up endpoint changes the IdP published since the last discovery
+    # (TTL-gated). A document WeftID now refuses stops the sign-in here,
+    # before the user is sent anywhere.
+    try:
+        connection = oidc_service.refresh_for_login(tenant_id, connection)
+    except oidc_service.DiscoveryError as exc:
+        _log_failure(tenant_id, connection_id, connection, "discovery", str(exc))
+        return _error_response("configuration_error")
+
     authorization_endpoint = connection.get("authorization_endpoint")
     client_id = connection.get("client_id")
     if not authorization_endpoint or not client_id:
@@ -255,12 +264,19 @@ def oidc_callback(
     if userinfo_endpoint and access_token:
         try:
             userinfo = oidc_service.fetch_userinfo(
-                userinfo_endpoint=userinfo_endpoint, access_token=access_token
+                userinfo_endpoint=userinfo_endpoint,
+                access_token=access_token,
+                expected_sub=claims["sub"],
             )
             claims = {**userinfo, **claims}
         except oidc_service.UserinfoError:
             # Userinfo is optional; a failure here must not break login.
             pass
+        except oidc_service.UserinfoSubjectMismatchError as exc:
+            # A response about another subject is not optional data to skip:
+            # the IdP (or something in between) is confused or lying.
+            _log_failure(tenant_id, connection_id, connection, "userinfo_sub_mismatch", str(exc))
+            return _error_response("auth_failed")
 
     correlation_claim = connection.get("correlation_claim") or "sub"
     sub = claims.get(correlation_claim)

@@ -18,6 +18,7 @@ import threading
 from datetime import UTC, datetime, timedelta
 
 import jwt
+from services.oidc_upstream._http import DEV_HOSTNAME_ALLOWLIST
 from services.oidc_upstream.errors import JwksError
 from utils.safe_http import build_safe_client
 
@@ -30,10 +31,11 @@ _JWKS_TTL = timedelta(hours=1)
 # the read-check-write in get_jwks).
 _cache_lock = threading.Lock()
 
-# Module-level cache: (tenant_id, connection_id) -> (fetched_at, jwks_dict).
-# Stale entries are evicted on read (see ``_cached``) so the cache does not
-# accumulate unboundedly.
-_jwks_cache: dict[tuple[str, str], tuple[datetime, dict]] = {}
+# Module-level cache: (tenant_id, connection_id) -> (fetched_at, jwks_uri,
+# jwks_dict). Stale entries are evicted on read (see ``_cached``) so the cache
+# does not accumulate unboundedly. The URI is kept so a ``jwks_uri`` changed by
+# discovery is never answered from the old document.
+_jwks_cache: dict[tuple[str, str], tuple[datetime, str, dict]] = {}
 
 
 def _cache_key(tenant_id: str, connection_id: str) -> tuple[str, str]:
@@ -48,7 +50,11 @@ def _fetch_jwks(jwks_uri: str) -> dict:
     """
     # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
     # IdP (the loopback E2E); it is inert outside IS_DEV.
-    with build_safe_client(timeout=10.0, dev_base_domain_rewrite=True) as client:
+    with build_safe_client(
+        timeout=10.0,
+        dev_base_domain_rewrite=True,
+        dev_hostname_allowlist=DEV_HOSTNAME_ALLOWLIST,
+    ) as client:
         try:
             response = client.get(jwks_uri)
         except Exception as exc:  # noqa: BLE001
@@ -68,27 +74,27 @@ def _fetch_jwks(jwks_uri: str) -> dict:
     return doc
 
 
-def _cached(tenant_id: str, connection_id: str) -> dict | None:
-    """Return a cached JWKS dict if present and fresh, else None.
+def _cached(tenant_id: str, connection_id: str, jwks_uri: str) -> dict | None:
+    """Return a cached JWKS dict if present, fresh and from ``jwks_uri``, else None.
 
-    Stale entries are evicted (popped) so the cache does not accumulate
-    unboundedly.
+    Stale entries (and entries fetched from another URI) are evicted (popped)
+    so the cache does not accumulate unboundedly.
     """
     key = _cache_key(tenant_id, connection_id)
     with _cache_lock:
         entry = _jwks_cache.get(key)
         if entry is None:
             return None
-        fetched_at, doc = entry
-        if datetime.now(UTC) - fetched_at >= _JWKS_TTL:
+        fetched_at, cached_uri, doc = entry
+        if cached_uri != jwks_uri or datetime.now(UTC) - fetched_at >= _JWKS_TTL:
             _jwks_cache.pop(key, None)
             return None
         return doc
 
 
-def _store(tenant_id: str, connection_id: str, doc: dict) -> None:
+def _store(tenant_id: str, connection_id: str, jwks_uri: str, doc: dict) -> None:
     with _cache_lock:
-        _jwks_cache[_cache_key(tenant_id, connection_id)] = (datetime.now(UTC), doc)
+        _jwks_cache[_cache_key(tenant_id, connection_id)] = (datetime.now(UTC), jwks_uri, doc)
 
 
 def _invalidate(tenant_id: str, connection_id: str) -> None:
@@ -110,10 +116,10 @@ def get_jwks(tenant_id: str, connection_id: str, jwks_uri: str) -> jwt.PyJWKSet:
     Raises:
         JwksError: if the JWKS cannot be fetched or parsed.
     """
-    doc = _cached(tenant_id, connection_id)
+    doc = _cached(tenant_id, connection_id, jwks_uri)
     if doc is None:
         doc = _fetch_jwks(jwks_uri)
-        _store(tenant_id, connection_id, doc)
+        _store(tenant_id, connection_id, jwks_uri, doc)
 
     try:
         return jwt.PyJWKSet.from_dict(doc)

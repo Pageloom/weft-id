@@ -112,6 +112,7 @@ class TestSsrFGuard:
             te.fetch_userinfo(
                 userinfo_endpoint="http://127.0.0.1/userinfo",
                 access_token="at",
+                expected_sub="subject-123",
             )
 
 
@@ -122,6 +123,7 @@ class TestFetchUserinfo:
             result = te.fetch_userinfo(
                 userinfo_endpoint="https://idp.example.com/userinfo",
                 access_token="at",
+                expected_sub="subject-123",
             )
         assert result["email"] == "a@example.com"
 
@@ -131,7 +133,30 @@ class TestFetchUserinfo:
                 te.fetch_userinfo(
                     userinfo_endpoint="https://idp.example.com/userinfo",
                     access_token="at",
+                    expected_sub="subject-123",
                 )
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {"sub": "someone-else", "email": "a@example.com"},
+            {"email": "a@example.com"},
+            {"sub": 123},
+        ],
+        ids=["different", "missing", "not-a-string"],
+    )
+    def test_sub_mismatch_refused(self, body):
+        """OIDC Core 5.3.2: a response whose sub differs must not be used.
+
+        The error is not a UserinfoError, which callers tolerate."""
+        with _patch_client(_FakeResponse(200, body)):
+            with pytest.raises(te.UserinfoSubjectMismatchError) as exc:
+                te.fetch_userinfo(
+                    userinfo_endpoint="https://idp.example.com/userinfo",
+                    access_token="at",
+                    expected_sub="subject-123",
+                )
+        assert not isinstance(exc.value, te.UserinfoError)
 
 
 class TestDevBaseDomainRewrite:
@@ -151,8 +176,12 @@ class TestDevBaseDomainRewrite:
                 code_verifier="verifier",
             )
         assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
+        assert "localhost.emobix.co.uk" in mock_client.call_args.kwargs["dev_hostname_allowlist"]
 
     def test_fetch_userinfo_passes_flag(self):
         with _patch_client(_FakeResponse(200, {"sub": "s"})) as mock_client:
-            te.fetch_userinfo(userinfo_endpoint="https://idp.example.com/ui", access_token="at")
+            te.fetch_userinfo(
+                userinfo_endpoint="https://idp.example.com/ui", access_token="at", expected_sub="s"
+            )
         assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
+        assert "localhost.emobix.co.uk" in mock_client.call_args.kwargs["dev_hostname_allowlist"]

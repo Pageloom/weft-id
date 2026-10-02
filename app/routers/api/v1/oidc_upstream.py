@@ -1,9 +1,10 @@
 """OIDC upstream (relying-party) connection API endpoints.
 
 Mirrors the SAML IdP API shape in ``routers.api.v1.saml`` for the consuming
-direction of OIDC: list, create, get, patch, delete, enable, disable, and
-set-default. The client secret is write-only -- it is accepted on create and
-update but never returned; responses expose a ``client_secret_set`` boolean.
+direction of OIDC: list, create, get, patch, delete, enable, disable,
+set-default, and test (discovery and key set fetch). The client secret is
+write-only -- it is accepted on create and update but never returned;
+responses expose a ``client_secret_set`` boolean.
 """
 
 from typing import Annotated
@@ -252,6 +253,38 @@ def disable_connection(
     try:
         return oidc_upstream_service.set_connection_enabled(
             requesting_user, connection_id, enabled=False, base_url=base_url
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/connections/{connection_id}/test", response_model=OIDCConnectionConfig)
+def test_connection(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+):
+    """
+    Test an OIDC upstream connection: run discovery and fetch the signing keys.
+
+    Fetches the IdP's discovery document (ignoring the refresh interval),
+    checks its issuer and endpoints, stores the discovered endpoints, and
+    fetches the JWKS from the discovered ``jwks_uri``.
+
+    Requires super_admin role.
+
+    Path parameters:
+    - connection_id: UUID of the connection
+
+    Returns the updated connection. Fails with 400 (``oidc_connection_test_failed``)
+    and the reason when discovery or the key set fetch fails; with 404 for an
+    unknown connection.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return oidc_upstream_service.test_connection(
+            requesting_user, connection_id, _get_base_url(request)
         )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

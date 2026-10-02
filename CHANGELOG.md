@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Relying-party conformance for upstream OIDC.** WeftID's upstream OpenID
+  Connect connector now runs the OpenID Foundation suite's Basic RP and
+  Config RP profiles (the suite plays the identity provider) and passes
+  both; results are on the
+  [conformance page](docs/conformance/oidc.md#relying-party-profiles).
+- **Upstream OIDC discovery stays current.** A connection whose endpoints
+  came from discovery refetches the provider's discovery document at sign-in
+  once the last fetch is more than an hour old. If the document cannot be
+  reached, sign-in uses the last known endpoints; if it is refused (wrong
+  issuer, non-`https` endpoint), sign-in stops with a configuration error.
+  Hand-entered endpoints are not refreshed. **Test connection** now also
+  fetches the provider's signing keys, is available as
+  `POST /api/v1/oidc-upstream/connections/{connection_id}/test`, and is
+  audited (`oidc_idp_connection_tested`).
+
 - **Pairwise subject identifiers.** An app can receive a pairwise `sub`
   (OpenID Connect Core section 8) instead of the user's WeftID ID, so apps in
   different sectors can't match users by `sub`. It is an opt-in per app:
@@ -230,6 +245,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   page. Migration 0070.
 
 ### Fixed
+
+- The upstream OIDC connector refused an ID token without a `kid` header
+  even when the provider publishes a single signing key (allowed by OpenID
+  Connect Core section 10.1). It now uses that key; with several keys the
+  token is still refused.
+- The upstream OIDC connector merged a userinfo response without checking
+  that its `sub` matches the ID token's (OpenID Connect Core section 5.3.2).
+  A mismatch now fails the sign-in.
 
 - Deleting a user who created an OAuth2 client failed, because the
   client's creator reference could not be cleared. It is now cleared and

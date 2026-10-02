@@ -122,6 +122,22 @@ class TestLoadLatestRuns:
         runs = report.load_latest_runs(tmp_path)
         assert [r.profile for r in runs] == ["Form Post OP"]
 
+    def test_rp_plans_map_to_rp_profiles(self, report, tmp_path):
+        """RP plan names share words with OP plans; each must land on its own row."""
+        write_export(
+            tmp_path,
+            "oidcc-client-basic-certification-test-plan-plain_http_request-static_client-A-1.zip",
+            [_module_log("oidcc-client-test", "PASSED")],
+        )
+        write_export(
+            tmp_path,
+            "oidcc-client-config-certification-test-plan-x-B-1.zip",
+            [_module_log("oidcc-client-test-discovery-openid-config", "PASSED")],
+        )
+        write_export(tmp_path, f"{BASIC}-x-C-1.zip", [_module_log("oidcc-server", "PASSED")])
+        runs = report.load_latest_runs(tmp_path)
+        assert [r.profile for r in runs] == ["Basic OP", "Basic RP", "Config RP"]
+
     def test_missing_directory(self, report, tmp_path):
         with pytest.raises(report.ReportError, match="no export directory"):
             report.load_latest_runs(tmp_path / "absent")
@@ -495,7 +511,12 @@ class TestCheckedInFiles:
 
     def test_profiles_match_runner_plans(self, report):
         runner = _load("oidc_conformance_for_report_test", "oidc_conformance.py")
-        plans = (*runner.PLANS, *runner.PRIVATE_KEY_JWT_PLANS, *runner.DYNAMIC_PLANS)
+        plans = (
+            *runner.PLANS,
+            *runner.PRIVATE_KEY_JWT_PLANS,
+            *runner.DYNAMIC_PLANS,
+            *runner.RP_PLANS,
+        )
         plan_names = [plan.split("[")[0] for plan in plans]
         assert plan_names == [plan for _, plan in report.PROFILES]
 

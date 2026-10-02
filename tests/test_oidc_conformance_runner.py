@@ -46,6 +46,13 @@ def testbed() -> dict:
         "client6": {"client_id": "id6", "jwks": {"keys": [{"kty": "RSA", "kid": "k6", "d": "x"}]}},
         "client7": {"client_id": "id7", "jwks": {"keys": [{"kty": "RSA", "kid": "k7", "d": "y"}]}},
         "initial_access_token": "weft-id_iat_abc",
+        "rp": {
+            "alias": "weftid-rp",
+            "client_id": "weftid-rp-conformance",
+            "client_secret": 'rp-s"ecret',
+            "redirect_uri": "https://oidc-conformance.weftid.localhost/auth/oidc/c1/callback",
+            "login_url": "https://oidc-conformance.weftid.localhost/auth/oidc/c1/login",
+        },
     }
 
 
@@ -426,7 +433,50 @@ class TestRunPlans:
         assert (tmp_path / "export").is_dir()
 
 
+class TestRpConfig:
+    def test_rp_template_renders_the_static_client(self, runner, testbed):
+        cfg = json.loads(runner.render_config(runner.RP_TEMPLATE_PATH.read_text(), testbed))
+        assert cfg["alias"] == "weftid-rp"
+        assert cfg["client"] == {
+            "client_id": "weftid-rp-conformance",
+            "client_secret": 'rp-s"ecret',
+            "redirect_uri": "https://oidc-conformance.weftid.localhost/auth/oidc/c1/callback",
+        }
+        # Negative modules end this long after the RP stops calling.
+        assert cfg["waitTimeoutSeconds"] == 5
+
+    def test_rp_plans_cover_basic_and_config_rp(self, runner):
+        names = [plan.split("[", 1)[0] for plan in runner.RP_PLANS]
+        assert names == [
+            "oidcc-client-basic-certification-test-plan",
+            "oidcc-client-config-certification-test-plan",
+        ]
+        assert all("[client_registration=static_client]" in plan for plan in runner.RP_PLANS)
+
+    def test_missing_rp_section_is_an_error(self, runner, testbed):
+        del testbed["rp"]
+        with pytest.raises(runner.ConformanceError, match="rp.alias"):
+            runner.render_config(runner.RP_TEMPLATE_PATH.read_text(), testbed)
+
+    def test_rp_config_matches_the_expected_files_glob(self, runner, tmp_path):
+        import fnmatch
+
+        path = runner.write_config(tmp_path, "{}", name="rp-config.json")
+        skips = json.loads(runner.EXPECTED_SKIPS_PATH.read_text())
+        rp_entries = [e for e in skips if e["test-name"].startswith("oidcc-client-test")]
+        assert rp_entries
+        for entry in rp_entries:
+            assert fnmatch.fnmatch(str(path), entry["configuration-filename"])
+            # ...and not the OP plans' configs.
+            assert not fnmatch.fnmatch("/x/config.json", entry["configuration-filename"])
+
+
 class TestRunnerEnvironment:
+    def test_rp_login_url_is_passed_to_the_hooks(self, runner):
+        env = runner.runner_environment({}, "https://t.example/auth/oidc/c/login")
+        assert env["WEFTID_RP_LOGIN_URL"] == "https://t.example/auth/oidc/c/login"
+        assert "WEFTID_RP_LOGIN_URL" not in runner.runner_environment({})
+
     def test_dev_mode_and_ssl_bypass_for_local_suite(self, runner):
         env = runner.runner_environment({"PATH": "/bin"})
         assert env["PATH"] == "/bin"

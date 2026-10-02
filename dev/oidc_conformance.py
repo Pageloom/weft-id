@@ -11,12 +11,15 @@ Host-side runner behind ``make oidc-conformance``. It expects the dev stack
 3. renders ``dev/oidc-conformance/config.template.json`` (static-client
    plans), ``config-private-key-jwt.template.json`` (static clients that
    authenticate with ``private_key_jwt``) and ``config-dynamic.template.json``
-   (plans that register their own clients) with the testbed's values into the
+   (plans that register their own clients) and ``config-rp.template.json``
+   (the RP plans, where the suite plays the upstream OP for WeftID's
+   connector) with the testbed's values into the
    runtime directory (never into the repo: they hold secrets). The last two
    inherit the static config's browser automation (see ``inherit_static``),
 4. runs the plans through the suite's ``run-test-plan.py``, wrapped by
    ``dev/oidc_conformance_hooks.py`` for the steps that need an operator
-   (rotating the OP signing key), with the checked-in expected-failures and
+   (rotating the OP signing key, starting the sign-in for an RP module), with
+   the checked-in expected-failures and
    expected-skips files, and exports the results to
    ``dev/oidc-conformance/export/``.
 
@@ -50,6 +53,7 @@ CONFIG_DIR = PROJECT_ROOT / "dev" / "oidc-conformance"
 TEMPLATE_PATH = CONFIG_DIR / "config.template.json"
 DYNAMIC_TEMPLATE_PATH = CONFIG_DIR / "config-dynamic.template.json"
 PRIVATE_KEY_JWT_TEMPLATE_PATH = CONFIG_DIR / "config-private-key-jwt.template.json"
+RP_TEMPLATE_PATH = CONFIG_DIR / "config-rp.template.json"
 HOOKS_SCRIPT = PROJECT_ROOT / "dev" / "oidc_conformance_hooks.py"
 EXPECTED_FAILURES_PATH = CONFIG_DIR / "expected-failures.json"
 EXPECTED_SKIPS_PATH = CONFIG_DIR / "expected-skips.json"
@@ -126,6 +130,18 @@ DYNAMIC_PLANS = (
     "oidcc-3rdparty-init-login-certification-test-plan[response_type=code]",
 )
 
+# Relying-party plans: the suite plays the OpenID Provider and WeftID's upstream
+# OIDC connector is the client under test (static client, plain authorization
+# requests). They run with the RP config; the hooks wrapper starts a WeftID
+# sign-in through the connector for every module.
+RP_PLANS = (
+    "oidcc-client-basic-certification-test-plan"
+    "[client_registration=static_client][request_type=plain_http_request]",
+    "oidcc-client-config-certification-test-plan"
+    "[client_auth_type=client_secret_basic][client_registration=static_client]"
+    "[request_type=plain_http_request][response_mode=default]",
+)
+
 # Top-level config keys the private_key_jwt and dynamic configs take from the
 # static one when they do not set them: the HtmlUnit options and the browser
 # automation for login, consent and logout.
@@ -160,6 +176,10 @@ PLACEHOLDERS = {
     "{CLIENT7_ID}": ("client7", "client_id"),
     "{CLIENT7_JWKS}": ("client7", "jwks"),
     "{INITIAL_ACCESS_TOKEN}": ("initial_access_token",),
+    "{RP_ALIAS}": ("rp", "alias"),
+    "{RP_CLIENT_ID}": ("rp", "client_id"),
+    "{RP_CLIENT_SECRET}": ("rp", "client_secret"),
+    "{RP_REDIRECT_URI}": ("rp", "redirect_uri"),
 }
 
 
@@ -306,9 +326,15 @@ def plan_arguments(plans: tuple[str, ...], config_path: Path) -> list[str]:
     return args
 
 
-def runner_environment(base_env: dict[str, str]) -> dict[str, str]:
-    """Environment for run-test-plan.py against the local dev-mode suite."""
+def runner_environment(base_env: dict[str, str], rp_login_url: str = "") -> dict[str, str]:
+    """Environment for run-test-plan.py against the local dev-mode suite.
+
+    ``rp_login_url`` is where the hooks wrapper starts a WeftID sign-in
+    through the upstream connector for each RP module.
+    """
     env = dict(base_env)
+    if rp_login_url:
+        env["WEFTID_RP_LOGIN_URL"] = rp_login_url
     env["CONFORMANCE_SERVER"] = SUITE_BASE_URL
     # The suite runs with SPRING_PROFILES_ACTIVE=dev: no API token, and the
     # runner skips TLS verification of the suite's self-signed nginx cert.
@@ -439,6 +465,7 @@ def run_plans(
     plan_configs: list[tuple[tuple[str, ...], Path]],
     export_dir: Path,
     passthrough: list[str],
+    rp_login_url: str = "",
 ) -> int:
     export_dir.mkdir(parents=True, exist_ok=True)
     plan_args = [arg for plans, path in plan_configs for arg in plan_arguments(plans, path)]
@@ -463,7 +490,9 @@ def run_plans(
     # cwd matters: the runner resolves ./certs-keys relative to itself but
     # some helper paths relative to the working directory.
     with RateLimitReset() as reset:
-        completed = subprocess.run(cmd, cwd=scripts_dir, env=runner_environment(dict(os.environ)))
+        completed = subprocess.run(
+            cmd, cwd=scripts_dir, env=runner_environment(dict(os.environ), rp_login_url)
+        )
     print(f"(reset WeftID rate limits {reset.flushes} times during the run)")
     return completed.returncode
 
@@ -536,6 +565,11 @@ def main(argv: list[str] | None = None) -> int:
         render_derived_config(DYNAMIC_TEMPLATE_PATH.read_text(), static_rendered, testbed),
         name="dynamic-config.json",
     )
+    rp_config_path = write_config(
+        runtime_dir,
+        render_config(RP_TEMPLATE_PATH.read_text(), testbed),
+        name="rp-config.json",
+    )
     print(f"Rendered plan configs to {runtime_dir} (issuer {testbed['issuer']})")
     return run_plans(
         scripts_dir,
@@ -543,9 +577,11 @@ def main(argv: list[str] | None = None) -> int:
             (PLANS, config_path),
             (PRIVATE_KEY_JWT_PLANS, private_key_jwt_config_path),
             (DYNAMIC_PLANS, dynamic_config_path),
+            (RP_PLANS, rp_config_path),
         ],
         args.export_dir,
         passthrough,
+        rp_login_url=testbed["rp"]["login_url"],
     )
 
 

@@ -100,3 +100,21 @@ class TestDevBaseDomainRewrite:
         with _patch_client(_FakeResponse(200, JWKS_DOC)) as mock_client:
             jwks_service._fetch_jwks("https://idp.example.com/jwks")
         assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
+        assert "localhost.emobix.co.uk" in mock_client.call_args.kwargs["dev_hostname_allowlist"]
+
+
+class TestCacheFollowsJwksUri:
+    def test_changed_jwks_uri_is_fetched(self):
+        """Discovery can move the jwks_uri; the cached document from the old
+        URI must not answer for the new one (OIDC RP discovery-jwks-uri-keys)."""
+        jwks_service.clear_jwks_cache("t1", "c1")
+        with _patch_client(_FakeResponse(200, JWKS_DOC)):
+            jwks_service.get_jwks("t1", "c1", "https://idp.example.com/jwks-old")
+
+        with _patch_client(_FakeResponse(200, JWKS_DOC)) as mock:
+            jwks_service.get_jwks("t1", "c1", "https://idp.example.com/jwks-new")
+            assert mock.call_count == 1
+        # ...and the new URI is what is cached now.
+        with _patch_client(_FakeResponse(500)) as mock:
+            jwks_service.get_jwks("t1", "c1", "https://idp.example.com/jwks-new")
+            assert mock.call_count == 0

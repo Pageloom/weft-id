@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 
+from services.oidc_upstream._http import DEV_HOSTNAME_ALLOWLIST
 from services.oidc_upstream.errors import OIDCUpstreamError
 from utils.safe_http import build_safe_client
 
@@ -26,6 +27,14 @@ class TokenExchangeError(OIDCUpstreamError):
 
 class UserinfoError(OIDCUpstreamError):
     """The userinfo endpoint could not be reached or returned an error."""
+
+
+class UserinfoSubjectMismatchError(OIDCUpstreamError):
+    """The userinfo ``sub`` differs from the ID token's (OIDC Core 5.3.2).
+
+    Deliberately not a :class:`UserinfoError`: an unreachable userinfo
+    endpoint is tolerated, a response about another subject is not.
+    """
 
 
 def exchange_code(
@@ -65,7 +74,11 @@ def exchange_code(
 
     # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
     # IdP (the loopback E2E); it is inert outside IS_DEV.
-    with build_safe_client(timeout=10.0, dev_base_domain_rewrite=True) as client:
+    with build_safe_client(
+        timeout=10.0,
+        dev_base_domain_rewrite=True,
+        dev_hostname_allowlist=DEV_HOSTNAME_ALLOWLIST,
+    ) as client:
         try:
             response = client.post(
                 token_endpoint,
@@ -92,24 +105,32 @@ def exchange_code(
     return payload
 
 
-def fetch_userinfo(*, userinfo_endpoint: str, access_token: str) -> dict:
+def fetch_userinfo(*, userinfo_endpoint: str, access_token: str, expected_sub: str) -> dict:
     """Fetch the user's claims from the IdP's userinfo endpoint.
 
     Args:
         userinfo_endpoint: The IdP userinfo endpoint URL.
         access_token: The access token from the token exchange.
+        expected_sub: The verified ID token's ``sub``; the response must carry
+            the same value (OIDC Core 5.3.2) or it must not be used.
 
     Returns:
         The parsed userinfo claims dict.
 
     Raises:
         UserinfoError: on any non-2xx response or parse failure.
+        UserinfoSubjectMismatchError: if the response's ``sub`` is missing or
+            differs from ``expected_sub``.
     """
     headers = {"Authorization": f"Bearer {access_token}"}
 
     # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
     # IdP (the loopback E2E); it is inert outside IS_DEV.
-    with build_safe_client(timeout=10.0, dev_base_domain_rewrite=True) as client:
+    with build_safe_client(
+        timeout=10.0,
+        dev_base_domain_rewrite=True,
+        dev_hostname_allowlist=DEV_HOSTNAME_ALLOWLIST,
+    ) as client:
         try:
             response = client.get(userinfo_endpoint, headers=headers)
         except Exception as exc:  # noqa: BLE001
@@ -125,5 +146,8 @@ def fetch_userinfo(*, userinfo_endpoint: str, access_token: str) -> dict:
 
     if not isinstance(payload, dict):
         raise UserinfoError("Userinfo response is not a JSON object")
+
+    if payload.get("sub") != expected_sub:
+        raise UserinfoSubjectMismatchError("Userinfo sub does not match the ID token sub")
 
     return payload

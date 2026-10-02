@@ -35,6 +35,16 @@ The host-side runner (``dev/oidc_conformance.py``) calls this inside the app
 container with ``--json-output`` and renders the suite's plan config from the
 result, so the client secrets are never written into the repository.
 
+For the RP plans (the suite plays the upstream OpenID Provider and WeftID's
+upstream connector is the client under test) it also keeps one upstream OIDC
+connection pointing at the suite's per-alias issuer
+(``<suite>/test/a/<rp alias>/``): discovery-managed, JIT on, platform MFA
+off, with a fresh client secret every run. The suite's static-client config
+takes the same client id, secret and the connection's callback URL.
+``--expire-rp-discovery-flag`` ages that connection's discovery timestamp past
+the TTL, so the next sign-in refetches discovery (each RP module publishes
+its own keys and ``jwks_uri``).
+
 It also rotates the tenant's OIDC signing key on demand
 (``--rotate-signing-key-flag``): ``oidcc-server-rotate-keys`` pauses until the
 operator has rotated the OP's keys, and the runner's hook calls this then.
@@ -42,6 +52,8 @@ operator has rotated the OP's keys, and the runner's hook calls this then.
 Usage:
     python ./dev/oidc_conformance_testbed.py --json-output
     python ./dev/oidc_conformance_testbed.py --rotate-signing-key-flag
+    python ./dev/oidc_conformance_testbed.py --expire-rp-discovery-flag
+    python ./dev/oidc_conformance_testbed.py --test-rp-connection-flag
     python ./dev/oidc_conformance_testbed.py --teardown-flag
 
 Idempotent: safe to re-run. The clients are recreated on every run so the
@@ -54,6 +66,7 @@ import logging
 import os
 import secrets
 import sys
+from typing import Any
 
 import argh
 import database
@@ -77,6 +90,14 @@ ADMIN_EMAIL = "conformance-admin@oidc-conformance.test"
 # ``<suite base>/test/a/<alias>/callback``.
 DEFAULT_SUITE_BASE_URL = "https://localhost.emobix.co.uk:8443"
 DEFAULT_ALIAS = "weftid"
+# Alias of the RP plans' test instance: the suite's issuer for them is
+# ``<suite base>/test/a/<rp alias>/``.
+DEFAULT_RP_ALIAS = "weftid-rp"
+
+# The upstream connection the RP plans sign in through, and the client id the
+# suite's static-client config registers for it.
+RP_CONNECTION_NAME = "Conformance suite OP"
+RP_CLIENT_ID = "weftid-rp-conformance"
 
 # (result key, client display name). Order matters: the runner maps these to
 # the suite's ``client``, ``client2`` and ``client_secret_post`` sections.
@@ -216,7 +237,136 @@ def _enable_registration(tid: str, created_by: str) -> str:
     return token
 
 
-def setup(suite_base_url: str, alias: str) -> dict:
+def _super_admin(tid: str):
+    """The testbed's super admin as a RequestingUser (created on first use)."""
+    from services.types import RequestingUser
+    from services.users import get_user_id_by_email
+
+    add_user(SUBDOMAIN, ADMIN_EMAIL, DEV_PASSWORD, role="super_admin")
+    admin_id = get_user_id_by_email(tid, ADMIN_EMAIL)
+    assert admin_id is not None, "admin not created"
+    return RequestingUser(id=str(admin_id), tenant_id=tid, role="super_admin")
+
+
+def _rp_connection_row(tid: str) -> dict | None:
+    import database.oidc_upstream
+
+    for row in database.oidc_upstream.list_connections(tid):
+        if row["name"] == RP_CONNECTION_NAME:
+            return row
+    return None
+
+
+def _ensure_rp_connection(tid: str, suite_base_url: str, rp_alias: str) -> dict:
+    """Create or refresh the upstream connection to the suite's OP.
+
+    Kept across runs (its id is in the callback URL, and JIT-provisioned
+    users stay linked to it); the client secret is replaced every run so the
+    plaintext is available for the suite config. Endpoints are left for
+    sign-in to discover: the suite only serves the issuer while an RP module
+    runs.
+    """
+    import services.oidc_upstream as oidc_service
+    from schemas.oidc_upstream import OIDCConnectionCreate, OIDCConnectionUpdate
+    from utils.request_context import system_context
+
+    admin = _super_admin(tid)
+    base_url = f"https://{SUBDOMAIN}.{BASE_DOMAIN}"
+    issuer = f"{suite_base_url.rstrip('/')}/test/a/{rp_alias}/"
+    secret = secrets.token_urlsafe(32)
+    settings: dict[str, Any] = {
+        "issuer": issuer,
+        "discovery_url": f"{issuer}.well-known/openid-configuration",
+        "client_id": RP_CLIENT_ID,
+        "client_secret": secret,
+        "scopes": "openid profile email",
+        "jit_provisioning": True,
+        "allow_email_linking": True,
+        "require_platform_mfa": False,
+    }
+
+    existing = _rp_connection_row(tid)
+    with system_context():
+        if existing is None:
+            conn = oidc_service.create_connection(
+                admin,
+                OIDCConnectionCreate(
+                    name=RP_CONNECTION_NAME, provider_type="generic", is_enabled=True, **settings
+                ),
+                base_url=base_url,
+            )
+            connection_id = conn.id
+            log.info("Created upstream connection %s", connection_id)
+        else:
+            connection_id = str(existing["id"])
+            oidc_service.update_connection(
+                admin, connection_id, OIDCConnectionUpdate(**settings), base_url=base_url
+            )
+            if not existing.get("is_enabled"):
+                oidc_service.set_connection_enabled(admin, connection_id, True, base_url=base_url)
+            log.info("Refreshed upstream connection %s", connection_id)
+
+    return {
+        "connection_id": connection_id,
+        "alias": rp_alias,
+        "issuer": issuer,
+        "client_id": RP_CLIENT_ID,
+        "client_secret": secret,
+        "redirect_uri": f"{base_url}/auth/oidc/{connection_id}/callback",
+        "login_url": f"{base_url}/auth/oidc/{connection_id}/login",
+    }
+
+
+def expire_rp_discovery() -> dict:
+    """Age the RP connection's discovery result past the TTL.
+
+    Stands in for the hour passing between two RP modules: each module
+    serves its own discovery document and keys, and a real RP would only
+    refetch after its cache expired. A connection that was never discovered
+    is left alone (sign-in discovers it anyway).
+    """
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    tid = _tenant_id(SUBDOMAIN)
+    row = _rp_connection_row(tid)
+    if row is None:
+        raise RuntimeError("RP connection not provisioned; run the testbed first")
+    database.execute(
+        tid,
+        "update oidc_idp_connections set discovery_fetched_at = now() - interval '1 day'"
+        " where id = :id and discovery_fetched_at is not null",
+        {"id": row["id"]},
+    )
+    return {"connection_id": str(row["id"])}
+
+
+def test_rp_connection() -> dict:
+    """Run the admin Test Connection action on the RP connection.
+
+    Fetches the suite's discovery document and the JWKS it advertises, which
+    is all the RP Config plan's discovery modules wait for (they end there;
+    a full sign-in would call a module that has already finished). Failures
+    are reported in the result, not raised: the module judges them.
+    """
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    import services.oidc_upstream as oidc_service
+    from services.exceptions import ServiceError
+    from utils.request_context import system_context
+
+    tid = _tenant_id(SUBDOMAIN)
+    row = _rp_connection_row(tid)
+    if row is None:
+        raise RuntimeError("RP connection not provisioned; run the testbed first")
+    with system_context():
+        try:
+            oidc_service.test_connection(
+                _super_admin(tid), str(row["id"]), f"https://{SUBDOMAIN}.{BASE_DOMAIN}"
+            )
+        except ServiceError as exc:
+            return {"connection_id": str(row["id"]), "result": "failed", "detail": exc.message}
+    return {"connection_id": str(row["id"]), "result": "success"}
+
+
+def setup(suite_base_url: str, alias: str, rp_alias: str = DEFAULT_RP_ALIAS) -> dict:
     """Provision the testbed and return its config as a dict."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -278,6 +428,7 @@ def setup(suite_base_url: str, alias: str) -> dict:
         )
 
     initial_access_token = _enable_registration(tid, created_by=str(uid))
+    rp = _ensure_rp_connection(tid, suite_base_url, rp_alias)
 
     return {
         "tenant_id": tid,
@@ -291,6 +442,7 @@ def setup(suite_base_url: str, alias: str) -> dict:
         "backchannel_logout_uri": backchannel_logout_uri,
         "alias": alias,
         "initial_access_token": initial_access_token,
+        "rp": rp,
         **clients,
     }
 
@@ -306,14 +458,10 @@ def rotate_signing_key() -> dict:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     from services.oidc.keys import cleanup_previous_signing_key
     from services.oidc.keys import rotate_signing_key as rotate
-    from services.types import RequestingUser
-    from services.users import get_user_id_by_email
     from utils.request_context import system_context
 
     tid = _tenant_id(SUBDOMAIN)
-    add_user(SUBDOMAIN, ADMIN_EMAIL, DEV_PASSWORD, role="super_admin")
-    admin_id = get_user_id_by_email(tid, ADMIN_EMAIL)
-    assert admin_id is not None, "admin not created"
+    admin = _super_admin(tid)
 
     database.execute(
         tid,
@@ -322,8 +470,8 @@ def rotate_signing_key() -> dict:
         {},
     )
     with system_context():
-        cleanup_previous_signing_key(tid, actor_user_id=str(admin_id))
-        result = rotate(RequestingUser(id=str(admin_id), tenant_id=tid, role="super_admin"))
+        cleanup_previous_signing_key(tid, actor_user_id=admin["id"])
+        result = rotate(admin)
     log.info("Rotated signing key: %s -> %s", result.previous_kid, result.kid)
     return {"kid": result.kid, "previous_kid": result.previous_kid}
 
@@ -343,8 +491,11 @@ def main(
     json_output: bool = False,
     teardown_flag: bool = False,
     rotate_signing_key_flag: bool = False,
+    expire_rp_discovery_flag: bool = False,
+    test_rp_connection_flag: bool = False,
     suite_base_url: str = DEFAULT_SUITE_BASE_URL,
     alias: str = DEFAULT_ALIAS,
+    rp_alias: str = DEFAULT_RP_ALIAS,
 ):
     """Entry point.
 
@@ -352,8 +503,11 @@ def main(
         json_output: print the config as JSON (for the host-side runner).
         teardown_flag: delete the testbed tenant and exit.
         rotate_signing_key_flag: rotate the tenant's OIDC signing key and exit.
+        expire_rp_discovery_flag: age the RP connection's discovery past the TTL and exit.
+        test_rp_connection_flag: run Test Connection on the RP connection and exit.
         suite_base_url: the conformance suite's base URL (redirect URI host).
         alias: the suite test-instance alias used in the callback URL.
+        rp_alias: the suite test-instance alias of the RP plans (issuer path).
     """
     if teardown_flag:
         teardown()
@@ -361,7 +515,13 @@ def main(
     if rotate_signing_key_flag:
         print(json.dumps(rotate_signing_key()))
         return
-    config = setup(suite_base_url, alias)
+    if expire_rp_discovery_flag:
+        print(json.dumps(expire_rp_discovery()))
+        return
+    if test_rp_connection_flag:
+        print(json.dumps(test_rp_connection()))
+        return
+    config = setup(suite_base_url, alias, rp_alias)
     if json_output:
         print(json.dumps(config))
     else:
@@ -371,5 +531,12 @@ def main(
 
 if __name__ == "__main__":
     # argh maps --json-output / --teardown-flag / --rotate-signing-key-flag /
-    # --suite-base-url / --alias.
-    argh.dispatch_command(main)
+    # --expire-rp-discovery-flag / --test-rp-connection-flag / --suite-base-url /
+    # --alias / --rp-alias.
+    try:
+        argh.dispatch_command(main)
+    finally:
+        # Close the pool before interpreter shutdown, or psycopg_pool's
+        # finalizer tries to join its worker threads too late and prints a
+        # PythonFinalizationError traceback on every call.
+        database.close_pool()

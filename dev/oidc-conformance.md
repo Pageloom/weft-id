@@ -60,18 +60,24 @@ warning).
    dynamic client registration for the tenant (open, new clients available
    to all users: the suite sends the initial access token with a module's
    first registration only), mints a fresh initial access token, and deletes
-   the clients and tokens earlier runs left behind,
+   the clients and tokens earlier runs left behind, and keeps one upstream
+   OIDC connection (`Conformance suite OP`) pointing at the suite's RP issuer
+   `https://localhost.emobix.co.uk:8443/test/a/weftid-rp/` with a fresh
+   client secret (JIT on, platform MFA off),
 3. renders `dev/oidc-conformance/config.template.json` (static-client
    plans), `config-private-key-jwt.template.json` (the `private_key_jwt`
    clients) and `config-dynamic.template.json` (plans that register their
    own clients, with the initial access token) into the runtime directory.
-   The last two inherit the static config's browser automation (see below),
+   Those two inherit the static config's browser automation (see below).
+   `config-rp.template.json` (the RP plans' static client: the connection's
+   client id, secret and callback URL) is rendered alongside,
 4. runs the Basic OP, Config OP, Form Post OP, RP-Initiated OP,
    Front-Channel OP, Back-Channel OP, Dynamic OP, and 3rd Party-Init OP
    certification plans, plus the general `oidcc-test-plan` with the
    `private_key_jwt` clients (the certification plans fix client
-   authentication to client secrets), one module at a time, and exports
-   the results.
+   authentication to client secrets), and the Basic RP and Config RP plans
+   (see [Relying-party plans](#relying-party-plans)), one module at a time,
+   and exports the results.
 
 The run exits non-zero unless every module finished and the outcome
 matches `dev/oidc-conformance/expected-failures.json` and
@@ -207,6 +213,39 @@ conformance tenant host. WeftID's containers reach the suite the same way
 via the `localhost.emobix.co.uk` alias on the suite's nginx. TLS needs no
 extra trust setup: the suite deliberately does not validate the certificate
 of the server under test.
+
+## Relying-party plans
+
+In `oidcc-client-basic-certification-test-plan` and
+`oidcc-client-config-certification-test-plan` the suite is the OpenID
+Provider and WeftID's upstream connector is the client. A client module sits
+in WAITING until a client signs in, and the suite's runner only knows how to
+launch the suite's own sample clients. The hooks wrapper therefore also
+patches `wait_for_state`. When the runner starts waiting for an
+`oidcc-client-test*` module to finish, the hook:
+
+1. ages the connection's discovery timestamp past the one-hour TTL
+   (`--expire-rp-discovery-flag`), because each module serves its own keys
+   and the connector refreshes discovery at sign-in only once the TTL has
+   passed,
+2. walks a sign-in with plain `httpx` (no browser): the connection's
+   `/auth/oidc/<id>/login`, the suite's authorize endpoint (which redirects
+   straight back), then WeftID's callback, where WeftID exchanges the code
+   and calls userinfo. It prints the hops, ending on `/dashboard` or
+   `/login?error=...`.
+
+The suite module judges what WeftID did. The negative modules end about five
+seconds (`waitTimeoutSeconds`) after the last request.
+
+`oidcc-client-test-discovery-openid-config` and `-discovery-jwks-uri-keys`
+end the moment the client has fetched discovery (and the JWKS), and any later
+request fails them ("Illegal test state change"). The suite's own sample
+client stops early for these modules. Here the hook runs the admin
+**Test connection** action instead (`--test-rp-connection-flag`), which
+fetches exactly those two documents.
+
+`oidcc-client-test-idtoken-sig-none` is an expected skip in both RP plans:
+the connector refuses unsigned ID tokens.
 
 ## Rate limits during a run
 

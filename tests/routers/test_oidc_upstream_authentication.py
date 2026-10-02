@@ -270,3 +270,196 @@ class TestMfaGate:
 
         assert response.status_code == 303
         assert response.headers["location"] == "/mfa/verify"
+
+
+def _signed_id_token(**overrides):
+    from datetime import UTC, datetime, timedelta
+
+    import jwt
+
+    from tests.fixtures.oidc import load_fixture_text
+
+    now = datetime.now(UTC)
+    claims = {
+        "iss": "https://idp.example.com",
+        "aud": "client-123",
+        "sub": "subject-123",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(hours=1)).timestamp()),
+        "nonce": "n-1",
+        "email": "oidc-user@example.com",
+        "email_verified": True,
+    }
+    claims.update(overrides)
+    return jwt.encode(
+        claims,
+        load_fixture_text("private_key.pem"),
+        algorithm="RS256",
+        headers={"kid": "oidc-upstream-fixture-key"},
+    )
+
+
+class _FakeResponse:
+    def __init__(self, status_code, body=None):
+        self.status_code = status_code
+        self._body = body
+
+    def json(self):
+        if self._body is None:
+            raise ValueError("no json")
+        return self._body
+
+
+class _FakeClient:
+    def __init__(self, response):
+        self._response = response
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def get(self, url, **kwargs):
+        return self._response
+
+
+def _last_login_failure(tenant_id, connection_id):
+    import database
+
+    events = database.event_log.list_events(tenant_id, limit=20)
+    return next(
+        e
+        for e in events
+        if e["event_type"] == "oidc_login_failed" and str(e["artifact_id"]) == str(connection_id)
+    )
+
+
+class TestLoginDiscoveryRefresh:
+    """Sign-in refreshes a discovery-managed connection past the TTL."""
+
+    def _stale(self, test_tenant, conn):
+        import database
+
+        database.execute(
+            test_tenant["id"],
+            "update oidc_idp_connections set discovery_fetched_at = now() - interval '2 hours'"
+            " where id = :id",
+            {"id": conn["id"]},
+        )
+
+    def test_refreshed_endpoints_are_used(self, tenant_client, test_tenant, test_user):
+        from tests.fixtures.oidc import load_fixture
+
+        conn = _make_connection(test_tenant, test_user)
+        self._stale(test_tenant, conn)
+        doc = dict(
+            load_fixture("discovery"), authorization_endpoint="https://idp.example.com/authorize2"
+        )
+        with patch(
+            "services.oidc_upstream.discovery.build_safe_client",
+            return_value=_FakeClient(_FakeResponse(200, doc)),
+        ):
+            response = tenant_client.get(f"/auth/oidc/{conn['id']}/login", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"].startswith("https://idp.example.com/authorize2?")
+
+    def test_refused_document_stops_login(self, tenant_client, test_tenant, test_user):
+        from tests.fixtures.oidc import load_fixture
+
+        conn = _make_connection(test_tenant, test_user)
+        self._stale(test_tenant, conn)
+        doc = dict(load_fixture("discovery"), issuer="https://other.example.com")
+        with patch(
+            "services.oidc_upstream.discovery.build_safe_client",
+            return_value=_FakeClient(_FakeResponse(200, doc)),
+        ):
+            response = tenant_client.get(f"/auth/oidc/{conn['id']}/login", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"].endswith("/login?error=configuration_error")
+        event = _last_login_failure(test_tenant["id"], conn["id"])
+        assert event["metadata"]["reason"] == "discovery"
+        assert "issuer mismatch" in event["metadata"]["detail"]
+
+
+class TestUserinfoSubject:
+    """OIDC Core 5.3.2: the userinfo sub must equal the ID token sub."""
+
+    def _callback(self, tenant_client, conn, userinfo_response):
+        from tests.fixtures.oidc import load_fixture
+
+        session = {
+            f"oidc_auth:{conn['id']}:state": "state-1",
+            f"oidc_auth:{conn['id']}:nonce": "n-1",
+            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
+        }
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: session),
+            ),
+            patch(
+                "services.oidc_upstream.exchange_code",
+                return_value={"access_token": "at", "id_token": _signed_id_token()},
+            ),
+            patch("services.oidc_upstream.jwks._fetch_jwks", return_value=load_fixture("jwks")),
+            patch(
+                "services.oidc_upstream.token_exchange.build_safe_client",
+                return_value=_FakeClient(userinfo_response),
+            ),
+        ):
+            return tenant_client.get(
+                f"/auth/oidc/{conn['id']}/callback?state=state-1&code=code-1",
+                follow_redirects=False,
+            )
+
+    def test_mismatched_sub_fails_login(self, tenant_client, test_tenant, test_user):
+        import database
+
+        conn = _make_connection(
+            test_tenant,
+            test_user,
+            jit_provisioning=True,
+            userinfo_endpoint="https://idp.example.com/userinfo",
+        )
+        response = self._callback(
+            tenant_client, conn, _FakeResponse(200, {"sub": "someone-else", "email": "x@y.z"})
+        )
+        assert response.headers["location"].endswith("/login?error=auth_failed")
+        assert (
+            database.oidc_upstream.get_user_id_by_sub(
+                test_tenant["id"], str(conn["id"]), "subject-123"
+            )
+            is None
+        )
+        event = _last_login_failure(test_tenant["id"], conn["id"])
+        assert event["metadata"]["reason"] == "userinfo_sub_mismatch"
+
+    def test_matching_sub_signs_in(self, tenant_client, test_tenant, test_user):
+        import database
+
+        conn = _make_connection(
+            test_tenant,
+            test_user,
+            jit_provisioning=True,
+            userinfo_endpoint="https://idp.example.com/userinfo",
+        )
+        response = self._callback(
+            tenant_client, conn, _FakeResponse(200, {"sub": "subject-123", "name": "Oidc User"})
+        )
+        assert response.status_code == 303
+        assert "error=" not in response.headers["location"]
+        assert database.oidc_upstream.get_user_id_by_sub(
+            test_tenant["id"], str(conn["id"]), "subject-123"
+        )
+
+    def test_unreachable_userinfo_still_signs_in(self, tenant_client, test_tenant, test_user):
+        """Unchanged: userinfo is optional when the endpoint fails."""
+        conn = _make_connection(
+            test_tenant,
+            test_user,
+            jit_provisioning=True,
+            userinfo_endpoint="https://idp.example.com/userinfo",
+        )
+        response = self._callback(tenant_client, conn, _FakeResponse(503))
+        assert "error=" not in response.headers["location"]

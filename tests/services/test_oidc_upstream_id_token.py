@@ -196,3 +196,79 @@ class TestKeyRotation:
         # First fetch (cache miss) + no refetch needed on success.
         assert mock.call_count == 1
         assert claims["sub"] == "subject-123"
+
+
+def _second_key():
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from jwt.algorithms import RSAAlgorithm
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode()
+    public = {**RSAAlgorithm.to_jwk(key.public_key(), as_dict=True), "use": "sig"}
+    return pem, public
+
+
+def _strip_kid(doc):
+    return {"keys": [{k: v for k, v in key.items() if k != "kid"} for key in doc["keys"]]}
+
+
+class TestKidAbsent:
+    """OIDC Core 10.1: kid may be omitted when the JWKS holds a single key."""
+
+    def test_single_key_jwks_verifies(self):
+        jwks_service.clear_jwks_cache("t1", "c1")
+        token = jwt.encode(_base_payload(), PRIVATE_KEY_PEM, algorithm="RS256")
+        with patch("services.oidc_upstream.jwks._fetch_jwks", return_value=_strip_kid(JWKS_DOC)):
+            claims = _validate(token)
+        assert claims["sub"] == "subject-123"
+
+    def test_single_key_with_kid_in_jwks_verifies(self):
+        """The token omits kid, the published key carries one: still one key."""
+        jwks_service.clear_jwks_cache("t1", "c1")
+        token = jwt.encode(_base_payload(), PRIVATE_KEY_PEM, algorithm="RS256")
+        with _patch_jwks():
+            assert _validate(token)["sub"] == "subject-123"
+
+    def test_wrong_single_key_rejected(self):
+        jwks_service.clear_jwks_cache("t1", "c1")
+        other_pem, _ = _second_key()
+        token = jwt.encode(_base_payload(), other_pem, algorithm="RS256")
+        with _patch_jwks():
+            with pytest.raises(IDTokenSignatureError):
+                _validate(token)
+
+    def test_multiple_keys_rejected(self):
+        """No kid and two candidate keys: nothing to choose by, so reject."""
+        jwks_service.clear_jwks_cache("t1", "c1")
+        _, other_public = _second_key()
+        doc = {"keys": [*_strip_kid(JWKS_DOC)["keys"], other_public]}
+        token = jwt.encode(_base_payload(), PRIVATE_KEY_PEM, algorithm="RS256")
+        with patch("services.oidc_upstream.jwks._fetch_jwks", return_value=doc):
+            with pytest.raises(IDTokenSignatureError, match="exactly one"):
+                _validate(token)
+
+    def test_encryption_key_is_not_a_candidate(self):
+        """A key published for encryption does not count as the signing key."""
+        jwks_service.clear_jwks_cache("t1", "c1")
+        _, enc_public = _second_key()
+        doc = {"keys": [*_strip_kid(JWKS_DOC)["keys"], {**enc_public, "use": "enc"}]}
+        token = jwt.encode(_base_payload(), PRIVATE_KEY_PEM, algorithm="RS256")
+        with patch("services.oidc_upstream.jwks._fetch_jwks", return_value=doc):
+            assert _validate(token)["sub"] == "subject-123"
+
+    def test_stale_single_key_is_refetched(self):
+        """A cached single key from before a rotation fails, the refetch wins."""
+        jwks_service.clear_jwks_cache("t1", "c1")
+        _, stale_public = _second_key()
+        token = jwt.encode(_base_payload(), PRIVATE_KEY_PEM, algorithm="RS256")
+        with patch(
+            "services.oidc_upstream.jwks._fetch_jwks",
+            side_effect=[{"keys": [stale_public]}, _strip_kid(JWKS_DOC)],
+        ) as fetch:
+            assert _validate(token)["sub"] == "subject-123"
+        assert fetch.call_count == 2

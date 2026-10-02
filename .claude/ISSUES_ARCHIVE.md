@@ -4,6 +4,28 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST] OIDC branch coverage gaps left after the final review
+
+**Fixed:** 2026-10-02 (`02cde334`, `870bc4e6`). Role gate: `tests/routers/test_integrations_role_gate.py` posts as a plain user to every Applications POST route with the router-level admin dependency bypassed and asserts a /dashboard redirect with no service called. Key refetch: `test_rotated_keys_are_refetched_once`. Activity tracking: `TestReadsTrackActivity`. E2E: `tests/e2e/test_oidc_provider_flows_e2e.py` (device grant, remembered consent across two sign-ins, form_post under CSP) and `TestUpstreamOidcBackchannelLogout` in `tests/e2e/test_oidc_upstream_loopback_e2e.py` (a real logout token over HTTP ending the live RP session).
+
+**Discovered:** 2026-10-02 (oidc-conformance final review, test reviewer)
+**Severity:** Low
+
+- Integrations role gate: no test that a `user` posting to the new App routes
+  (authentication, subject, consent revoke) or the b2b routes in
+  `app/routers/integrations.py` is redirected to `/dashboard` with the service never called.
+  Services enforce admin and are tested; this is defense in depth only.
+- `app/services/oauth2_client_auth.py`: no test for a `private_key_jwt` client whose keys
+  fail to load first and load after the refetch (branch 282->290).
+- `app/services/oauth2_registration.py`: no test asserts `get_registration_settings` and
+  `list_initial_access_tokens` call `track_activity`.
+- E2E: device verification (`/device` anonymous, login, stashed code, approve), remembered
+  consent across two sign-ins, the form_post auto-submit under CSP, and upstream back-channel
+  logout ending a live browser session are covered only by the conformance suite and unit
+  tests, not by `make e2e`.
+
+---
+
 ## [BUG] Composite `created_by` foreign keys null `tenant_id` on user delete
 
 **Fixed:** 2026-10-02 (`c04a2911`). The user-delete service did not block the case: deleting a user who created a SAML IdP, SP, domain binding, etc. failed with a not-null violation. Migration 0077 drops NOT NULL on the eight creator columns that had it and re-creates all nine keys as `ON DELETE SET NULL (created_by)` (`updated_by` for `tenant_security_settings`), `NOT VALID` then `VALIDATE`. Tests: `tests/database/test_creator_foreign_keys.py` (a catalog check that no composite SET NULL key to `users` nulls `tenant_id`, plus a delete regression).

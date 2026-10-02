@@ -11,10 +11,10 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Medium | 1 | File Structure (pre-existing) |
-| Low | 2 | Upload-auth temp-file leak (warning-ignored, tracked); OIDC test gaps (E2E) |
+| Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
 
-Note: seven of the eight oidc-conformance follow-up issues (creator FKs, expired token sweep,
-RFC 7592 update, outbound fetch guard, pre-sid sessions, test DB isolation, glossary) were
+Note: the eight oidc-conformance follow-up issues (creator FKs, expired token sweep, RFC 7592
+update, outbound fetch guard, pre-sid sessions, test DB isolation, glossary, test gaps) were
 resolved on 2026-10-02 (oidc-conformance-followups branch); see ISSUES_ARCHIVE.md.
 
 Note: the HIGH CSRF-never-enforced finding (middleware ordering, discovered 2026-09-14 on
@@ -103,25 +103,5 @@ this needs a coordinated change. When fixed, remove the `filterwarnings` ignore.
 routes share the latent pattern), `app/middleware/csrf.py`, `pyproject.toml`
 
 ---
-
----
-
-## [TEST] OIDC branch coverage gaps left after the final review
-
-**Discovered:** 2026-10-02 (oidc-conformance final review, test reviewer)
-**Severity:** Low
-
-- Integrations role gate: no test that a `user` posting to the new App routes
-  (authentication, subject, consent revoke) or the b2b routes in
-  `app/routers/integrations.py` is redirected to `/dashboard` with the service never called.
-  Services enforce admin and are tested; this is defense in depth only.
-- `app/services/oauth2_client_auth.py`: no test for a `private_key_jwt` client whose keys
-  fail to load first and load after the refetch (branch 282->290).
-- `app/services/oauth2_registration.py`: no test asserts `get_registration_settings` and
-  `list_initial_access_tokens` call `track_activity`.
-- E2E: device verification (`/device` anonymous, login, stashed code, approve), remembered
-  consent across two sign-ins, the form_post auto-submit under CSP, and upstream back-channel
-  logout ending a live browser session are covered only by the conformance suite and unit
-  tests, not by `make e2e`.
 
 ---

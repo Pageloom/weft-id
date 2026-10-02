@@ -23,10 +23,12 @@ The browser flow per sign-in:
 
 Test ordering is load-bearing: the first sign-in JIT-provisions the RP user
 and the `(connection, sub)` link; the second sign-in must correlate on that
-link (no duplicate user, no second link). The last test signs out on the RP
-with "sign out at the provider" on and follows the round trip through the
-OP's end_session endpoint. Pytest preserves definition order
-within a module, and E2E runs sequentially (`-n 0`).
+link (no duplicate user, no second link). The sign-out test signs out on the
+RP with "sign out at the provider" on and follows the round trip through the
+OP's end_session endpoint. The back-channel test (order-independent) signs
+out on the OP and checks the OP's logout token ends the live RP session.
+Pytest preserves definition order within a module, and E2E runs sequentially
+(`-n 0`).
 
 All assertions are SQL via `psql`, matching `test_scim_loopback_e2e.py`.
 """
@@ -34,6 +36,7 @@ All assertions are SQL via `psql`, matching `test_scim_loopback_e2e.py`.
 import json
 import re
 import subprocess
+import time
 
 import pytest
 
@@ -403,3 +406,97 @@ def _last_signed_out_metadata(tenant_id: str, key: str) -> str:
         f"WHERE e.tenant_id = '{tenant_id}' AND e.event_type = 'user_signed_out' "
         "ORDER BY e.created_at DESC LIMIT 1;"
     )
+
+
+# ---------------------------------------------------------------------------
+# Back-channel logout from the provider: the OP ends the RP's live session
+# ---------------------------------------------------------------------------
+
+
+def _wait_for(predicate, *, timeout: float = 60.0, interval: float = 1.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(interval)
+    return predicate()
+
+
+class TestUpstreamOidcBackchannelLogout:
+    """Signing out at the OP ends the user's live RP browser session.
+
+    Nothing is shortcut: the OP client is registered with the RP connection's
+    back-channel logout URL, the browser signs in to the RP through the OP
+    (the RP records the upstream ``sub``/``sid`` link), and the user then signs
+    out on the OP. The OP queues a delivery, the worker mints a logout token
+    signed with the OP's key (published in the JWKS the RP connection trusts)
+    and POSTs it to the RP receiver over HTTP (through the SSRF guard's dev
+    base-domain rewrite). The RP revokes the session server-side, so the
+    browser's next RP request lands on the login page.
+    """
+
+    def test_op_sign_out_ends_the_rp_session(self, page, login, loopback_config):
+        cfg = loopback_config
+        op, rp = cfg["op"], cfg["rp"]
+        receiver = f"{rp['base_url']}/auth/oidc/{rp['connection_id']}/backchannel-logout"
+
+        # Registered on the OP client before the sign-in; read when the OP
+        # session ends.
+        _run_sql(
+            f"UPDATE oauth2_clients SET backchannel_logout_uri = '{receiver}', "
+            "backchannel_logout_session_required = true "
+            f"WHERE tenant_id = '{op['tenant_id']}' AND client_id = '{op['client_id']}';"
+        )
+
+        _sign_in_via_upstream_oidc(page, login, cfg)
+
+        # The RP session is linked to the upstream sign-in, with the OP's sid.
+        rp_sid = _run_sql(
+            "SELECT sid || '|' || coalesce(upstream_sid, '') FROM oidc_idp_sessions "
+            f"WHERE tenant_id = '{rp['tenant_id']}' AND idp_id = '{rp['connection_id']}' "
+            "ORDER BY created_at DESC LIMIT 1;"
+        )
+        sid, upstream_sid = rp_sid.split("|", 1)
+        assert sid and upstream_sid, f"RP session not linked to an upstream sid: {rp_sid!r}"
+
+        # Live RP session: the dashboard renders.
+        page.goto(f"{rp['base_url']}/dashboard")
+        page.wait_for_url(f"{rp['base_url']}/dashboard**", timeout=10000)
+
+        rp_signed_out_before = _event_count(rp["tenant_id"], "user_signed_out")
+        rejected_before = _event_count(rp["tenant_id"], "oidc_idp_logout_rejected")
+
+        # Sign out on the OP, in the same browser (its own host-only cookie).
+        page.goto(f"{op['base_url']}/dashboard")
+        page.wait_for_url(f"{op['base_url']}/dashboard**", timeout=10000)
+        page.locator("form[action='/logout']").first.evaluate("form => form.submit()")
+        page.wait_for_url(f"{op['base_url']}/login**", timeout=20000)
+
+        # The worker delivers the logout token (it runs every few seconds).
+        def _delivered() -> bool:
+            return _run_sql(
+                "SELECT status FROM oidc_backchannel_logout_deliveries "
+                f"WHERE tenant_id = '{op['tenant_id']}' AND sid = '{upstream_sid}' "
+                "ORDER BY created_at DESC LIMIT 1;"
+            ) in ("delivered", "failed")
+
+        assert _wait_for(_delivered), "back-channel delivery never ran (is the worker up?)"
+        delivery = _run_sql(
+            "SELECT status || '|' || coalesce(last_http_status::text, '') || '|' || "
+            "coalesce(last_error, '') FROM oidc_backchannel_logout_deliveries "
+            f"WHERE tenant_id = '{op['tenant_id']}' AND sid = '{upstream_sid}' "
+            "ORDER BY created_at DESC LIMIT 1;"
+        )
+        assert delivery.startswith("delivered|200|"), delivery
+
+        # The RP accepted the token and ended the session it names.
+        assert _event_count(rp["tenant_id"], "oidc_idp_logout_rejected") == rejected_before
+        assert _event_count(rp["tenant_id"], "user_signed_out") == rp_signed_out_before + 1
+        assert _last_signed_out_metadata(rp["tenant_id"], "reason") == (
+            "upstream_backchannel_logout"
+        )
+        assert _last_signed_out_metadata(rp["tenant_id"], "matched_by") == "sid"
+
+        # The browser still holds the RP cookie, but its next request is refused.
+        page.goto(f"{rp['base_url']}/dashboard")
+        page.wait_for_url(f"{rp['base_url']}/login**", timeout=10000)

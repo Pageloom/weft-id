@@ -135,8 +135,30 @@ class TestLoadLatestRuns:
             [_module_log("oidcc-client-test-discovery-openid-config", "PASSED")],
         )
         write_export(tmp_path, f"{BASIC}-x-C-1.zip", [_module_log("oidcc-server", "PASSED")])
+        write_export(
+            tmp_path,
+            "oidcc-client-rp-initiated-logout-rp-basic-client_secret_basic-x-D-1.zip",
+            [_module_log("oidcc-client-test-rp-init-logout", "PASSED")],
+        )
+        write_export(
+            tmp_path,
+            "oidcc-client-back-channel-logout-rp-basic-client_secret_basic-x-E-1.zip",
+            [_module_log("oidcc-client-test-rp-backchannel-rpinitlogout", "PASSED")],
+        )
+        write_export(
+            tmp_path,
+            "oidcc-rp-initiated-logout-certification-test-plan-x-F-1.zip",
+            [_module_log("oidcc-rp-initiated-logout", "PASSED")],
+        )
         runs = report.load_latest_runs(tmp_path)
-        assert [r.profile for r in runs] == ["Basic OP", "Basic RP", "Config RP"]
+        assert [r.profile for r in runs] == [
+            "Basic OP",
+            "RP-Initiated OP",
+            "Basic RP",
+            "Config RP",
+            "RP-Initiated RP",
+            "Back-Channel RP",
+        ]
 
     def test_missing_directory(self, report, tmp_path):
         with pytest.raises(report.ReportError, match="no export directory"):

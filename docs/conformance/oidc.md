@@ -2,15 +2,15 @@
 
 WeftID's OpenID Provider is tested with the [OpenID Foundation conformance suite](https://gitlab.com/openid/conformance-suite), the open-source test suite the OpenID Foundation uses for its own certification program. So is the other direction: WeftID signing users in through an upstream OpenID Connect identity provider, where the suite plays the provider (see [Relying party profiles](#relying-party-profiles)). WeftID runs the suite itself, in CI, and publishes the results on this page.
 
-WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP, Back-Channel OP, and 3rd Party-Init OP profiles, and for the Dynamic OP profile apart from one accepted deviation (see [Deviations](#deviations)). The same tests also run with clients that authenticate with `private_key_jwt`. As a relying party, WeftID passes the Basic RP and Config RP profiles. It is **not** "OpenID Certified": that is the OpenID Foundation's certification mark, which requires a formal submission WeftID has chosen not to make. The evidence here is the suite's own output, and anyone can rerun it (see [Rerunning the suite](#rerunning-the-suite)).
+WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP, Back-Channel OP, and 3rd Party-Init OP profiles, and for the Dynamic OP profile apart from one accepted deviation (see [Deviations](#deviations)). The same tests also run with clients that authenticate with `private_key_jwt`. As a relying party, WeftID passes the Basic RP, Config RP, RP-Initiated RP, and Back-Channel RP profiles. It is **not** "OpenID Certified": that is the OpenID Foundation's certification mark, which requires a formal submission WeftID has chosen not to make. The evidence here is the suite's own output, and anyone can rerun it (see [Rerunning the suite](#rerunning-the-suite)).
 
 ## Results
 
 <!-- conformance-results:start -->
 
 * **Suite version:** 5.2.4
-* **WeftID version:** 1.12.0 (`8638129e`)
-* **Run date:** 2026-10-01
+* **WeftID version:** 1.12.0 (`446d4263`)
+* **Run date:** 2026-10-02
 
 | Profile | Test plan | Outcome | Passed | Warning | Review | Skipped | Failed |
 |---|---|---|---|---|---|---|---|
@@ -25,6 +25,8 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 | 3rd Party-Init OP | `oidcc-3rdparty-init-login-certification-test-plan` | Green | 2 | 0 | 0 | 0 | 0 |
 | Basic RP | `oidcc-client-basic-certification-test-plan` | Green | 13 | 0 | 0 | 1 | 0 |
 | Config RP | `oidcc-client-config-certification-test-plan` | Green | 3 | 0 | 0 | 1 | 0 |
+| RP-Initiated RP | `oidcc-client-rp-initiated-logout-rp-basic` | Green | 3 | 0 | 0 | 0 | 0 |
+| Back-Channel RP | `oidcc-client-back-channel-logout-rp-basic` | Green | 8 | 0 | 0 | 0 | 0 |
 
 **Accepted failures** (each is a deviation listed below):
 
@@ -84,12 +86,15 @@ The **private_key_jwt clients** row is not a certification profile. The certific
 
 ## Relying party profiles
 
-In the **Basic RP** and **Config RP** rows the roles are reversed. The suite acts as an OpenID Provider, and WeftID's upstream OpenID Connect connector is the client being tested. The test tenant has one upstream connection pointing at the suite. For each module, the runner starts a WeftID sign-in through that connection. WeftID redirects to the suite, takes the code back, validates the ID token, calls userinfo, and either signs the user in or refuses. Each module checks what WeftID did. For example, a module that sends an ID token with the wrong issuer fails if WeftID goes on to call the userinfo endpoint.
+In the **RP** rows the roles are reversed. The suite acts as an OpenID Provider, and WeftID's upstream OpenID Connect connector is the client being tested. The test tenant has one upstream connection pointing at the suite. For each module, the runner starts a WeftID sign-in through that connection. WeftID redirects to the suite, takes the code back, validates the ID token, calls userinfo, and either signs the user in or refuses. Each module checks what WeftID did. For example, a module that sends an ID token with the wrong issuer fails if WeftID goes on to call the userinfo endpoint.
 
-Two details of how the run works:
+In the **RP-Initiated RP** and **Back-Channel RP** rows, the runner signs the user out of WeftID after the sign-in. The connection has **Sign Out at the Provider** on, so WeftID sends the browser to the suite's end session endpoint with the upstream ID token as `id_token_hint`, its post-logout address, and a `state`. The suite then posts a logout token to the connection's back-channel logout address. That token is valid in one module and broken in the others: unsigned, signed with the wrong algorithm, wrong issuer, wrong audience, missing or wrong `events` claim, or carrying a `nonce`. WeftID must answer 200 to the valid token and 400 to every broken one. Two modules send the browser back with a different `state`, or none. In both cases WeftID drops any onward address the sign-out had and finishes on its login page.
+
+Three details of how the run works:
 
 * **Discovery is refreshed per module.** The connector refreshes the provider's discovery document at sign-in once the last fetch is older than an hour. Each suite module publishes new keys and, in one module, a new `jwks_uri`, so before each module the runner marks the last fetch as older than an hour. This stands in for the hour passing.
 * **Two Config RP modules use Test connection.** `oidcc-client-test-discovery-openid-config` and `oidcc-client-test-discovery-jwks-uri-keys` finish as soon as the client has fetched the discovery document (and, for the second, the key set it names). A full sign-in would go on to call a module that has already finished, which the suite counts as a failure. For these two modules the runner uses the admin **Test connection** action instead, which fetches exactly those two documents. The third discovery module, which serves a document with the wrong issuer, runs a real sign-in. WeftID refuses it before sending the user to the provider.
+* **No browser is needed.** The runner walks each sign-in and sign-out with a plain HTTP client that keeps cookies. At sign-out, WeftID answers the sign-out form with a short page that loads relying-party logout frames and then moves on to the provider. The runner follows that page's **Continue** link.
 
 The runner compares every run against two files checked into the repository: [`expected-failures.json`](https://github.com/Pageloom/weft-id/blob/main/dev/oidc-conformance/expected-failures.json) (the accepted warnings and failures) and [`expected-skips.json`](https://github.com/Pageloom/weft-id/blob/main/dev/oidc-conformance/expected-skips.json). A run fails on anything these files do not list, and also on an entry that no longer happens, so the files cannot quietly go stale.
 
@@ -99,7 +104,8 @@ The runner compares every run against two files checked into the repository: [`e
 * **Session OP** (OpenID Connect Session Management): the `check_session_iframe` mechanism relies on third-party cookies, which browsers now block.
 * **Implicit RP**, **Hybrid RP** and the **Form Post RP** profiles: the upstream connector uses the authorization code flow with the code returned in the query string.
 * **Dynamic RP**: upstream connections are set up by an administrator with a client registered at the provider. The connector does not register itself dynamically.
-* **RP logout profiles**: not run yet.
+* **Front-Channel RP**: the upstream connector has no front-channel logout address. Providers can end WeftID sessions through back-channel logout instead.
+* **Session RP** (OpenID Connect Session Management): not supported, for the same third-party cookie reason as Session OP.
 
 ## Deviations
 

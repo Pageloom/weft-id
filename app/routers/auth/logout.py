@@ -6,7 +6,9 @@ OpenID Connect RP-Initiated Logout (when the connection has "sign out at the
 provider" on). A logout an RP started through end_session keeps its return
 address across that round trip in the (new, signed-out) session; the IdP
 sends the browser back to ``/logout/complete`` (OIDC) or ``/saml/slo``
-(SAML), which finish at it.
+(SAML), which finish at it. The OIDC hop carries a ``state`` kept in the same
+session; ``/logout/complete`` honours the stashed address only when the
+provider echoes it back.
 
 Architectural Note: This module contains direct log_event() calls for the user_signed_out
 event. This is an accepted exception to the "event logging in services" pattern because
@@ -16,13 +18,14 @@ business logic mutation.
 
 import logging
 import re
+import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Annotated
 from urllib.parse import urlsplit
 
 from dependencies import get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse, Response
 from services import oidc as oidc_service
 from services import oidc_upstream as oidc_upstream_service
@@ -52,6 +55,12 @@ _CSP_ORIGIN = re.compile(r"^https?://[A-Za-z0-9.\-]+(:[0-9]{1,5})?$")
 PENDING_LOGOUT_RETURN_KEY = "pending_logout_return"
 PENDING_LOGOUT_RETURN_MAX_AGE = 10 * 60
 
+# The ``state`` sent with an upstream OIDC end_session request (RP-Initiated
+# Logout 1.0, section 2), kept in the signed-out session. The provider echoes
+# it to ``/logout/complete``; a missing or different value means the return
+# is not the one this browser started, so the stashed address is dropped.
+UPSTREAM_LOGOUT_STATE_KEY = "upstream_logout_state"
+
 
 @dataclass(frozen=True)
 class TerminatedSession:
@@ -70,15 +79,17 @@ class TerminatedSession:
         upstream_oidc_logout_url: The upstream OIDC provider's end_session
             URL, when the session began at a connection with "sign out at the
             provider" on (read before the session's upstream link is removed).
+        upstream_oidc_logout_state: The ``state`` that URL carries.
     """
 
     upstream: dict = field(default_factory=dict)
     frontchannel_logout_urls: list[str] = field(default_factory=list)
     backchannel_logout_count: int = 0
     upstream_oidc_logout_url: str | None = None
+    upstream_oidc_logout_state: str | None = None
 
 
-def _upstream_oidc_logout_url(request: Request, tenant_id: str) -> str | None:
+def _upstream_oidc_logout_url(request: Request, tenant_id: str, state: str) -> str | None:
     """The upstream OIDC end_session URL for the current session; never raises."""
     sid = request.session.get(SESSION_ID_KEY)
     if not isinstance(sid, str) or not sid:
@@ -90,6 +101,7 @@ def _upstream_oidc_logout_url(request: Request, tenant_id: str) -> str | None:
             post_logout_redirect_uri=(
                 f"{tenant_base_url(request)}{oidc_upstream_service.POST_LOGOUT_PATH}"
             ),
+            state=state,
         )
     except Exception:
         logger.warning("Upstream OIDC logout URL could not be built", exc_info=True)
@@ -189,7 +201,12 @@ def terminate_session(
     active_sps = request.session.get("sso_active_sps", [])
 
     # Before end_oidc_session forgets the session's upstream link.
-    upstream_oidc_logout_url = _upstream_oidc_logout_url(request, tenant_id) if user_id else None
+    upstream_oidc_logout_state = secrets.token_urlsafe(24)
+    upstream_oidc_logout_url = (
+        _upstream_oidc_logout_url(request, tenant_id, upstream_oidc_logout_state)
+        if user_id
+        else None
+    )
 
     oidc_end = end_oidc_session_quietly(request, tenant_id) if user_id else OidcSessionEnd()
 
@@ -234,6 +251,7 @@ def terminate_session(
         frontchannel_logout_urls=oidc_end.frontchannel_logout_urls,
         backchannel_logout_count=oidc_end.backchannel_logout_count,
         upstream_oidc_logout_url=upstream_oidc_logout_url,
+        upstream_oidc_logout_state=upstream_oidc_logout_state if upstream_oidc_logout_url else None,
     )
 
 
@@ -291,6 +309,8 @@ def upstream_logout_response(
         return None
     if return_to:
         request.session[PENDING_LOGOUT_RETURN_KEY] = {"url": return_to, "at": int(time.time())}
+    if saml_url is None and terminated.upstream_oidc_logout_state:
+        request.session[UPSTREAM_LOGOUT_STATE_KEY] = terminated.upstream_oidc_logout_state
     if terminated.frontchannel_logout_urls or saml_url is None:
         return frontchannel_logout_response(request, terminated.frontchannel_logout_urls, target)
     # redirect-ok: external IdP SLO endpoint
@@ -353,15 +373,33 @@ def logout(
     return RedirectResponse(url="/login", status_code=303)
 
 
+def _state_matches(expected: object, received: str | None) -> bool:
+    if not isinstance(expected, str) or not expected or not received:
+        return False
+    return secrets.compare_digest(expected.encode(), received.encode())
+
+
 @router.get(oidc_upstream_service.POST_LOGOUT_PATH)
-def logout_complete(request: Request):
+def logout_complete(
+    request: Request,
+    state: Annotated[str | None, Query(max_length=2048)] = None,
+):
     """Where an upstream OIDC provider returns the browser after logout.
 
     The post_logout_redirect_uri WeftID registers at upstream providers.
-    Finishes at the destination an RP-started logout stashed, else the
-    login page.
+    Finishes at the destination an RP-started logout stashed when ``state``
+    matches the one sent with the logout request, else the login page (a
+    stash that came back without its state is dropped).
+
+    Query parameters:
+        state: The value WeftID sent with the end_session request, echoed by
+            the provider.
     """
-    finish = pending_logout_return_response(request)
-    if finish is not None:
-        return finish
+    expected = request.session.pop(UPSTREAM_LOGOUT_STATE_KEY, None)
+    if _state_matches(expected, state):
+        finish = pending_logout_return_response(request)
+        if finish is not None:
+            return finish
+    elif request.session.pop(PENDING_LOGOUT_RETURN_KEY, None) is not None:
+        logger.info("Upstream logout returned without the expected state; return dropped")
     return RedirectResponse(url="/login", status_code=303)

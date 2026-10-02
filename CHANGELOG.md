@@ -10,10 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - **Relying-party conformance for upstream OIDC.** WeftID's upstream OpenID
-  Connect connector now runs the OpenID Foundation suite's Basic RP and
-  Config RP profiles (the suite plays the identity provider) and passes
-  both; results are on the
+  Connect connector now runs the OpenID Foundation suite's Basic RP,
+  Config RP, RP-Initiated RP and Back-Channel RP profiles (the suite plays
+  the identity provider) and passes all four; results are on the
   [conformance page](docs/conformance/oidc.md#relying-party-profiles).
+- **Sign-out at the provider sends `state`.** With **Sign Out at the
+  Provider** on, WeftID's end session request to the upstream provider now
+  carries a random `state`. An app's post-logout redirect is honoured on
+  the way back only when the provider returns that same value; otherwise
+  the browser lands on the sign-in page.
 - **Upstream OIDC discovery stays current.** A connection whose endpoints
   came from discovery refetches the provider's discovery document at sign-in
   once the last fetch is more than an hour old. If the document cannot be

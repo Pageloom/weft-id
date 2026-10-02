@@ -133,13 +133,21 @@ DYNAMIC_PLANS = (
 # Relying-party plans: the suite plays the OpenID Provider and WeftID's upstream
 # OIDC connector is the client under test (static client, plain authorization
 # requests). They run with the RP config; the hooks wrapper starts a WeftID
-# sign-in through the connector for every module.
+# sign-in through the connector for every module, and for the logout plans
+# then signs out of WeftID (RP-initiated logout at the suite, which also sends
+# a logout token to WeftID's back-channel receiver).
+_RP_LOGOUT_VARIANTS = (
+    "[client_auth_type=client_secret_basic][client_registration=static_client]"
+    "[request_type=plain_http_request][response_mode=default]"
+)
 RP_PLANS = (
     "oidcc-client-basic-certification-test-plan"
     "[client_registration=static_client][request_type=plain_http_request]",
     "oidcc-client-config-certification-test-plan"
     "[client_auth_type=client_secret_basic][client_registration=static_client]"
     "[request_type=plain_http_request][response_mode=default]",
+    f"oidcc-client-rp-initiated-logout-rp-basic{_RP_LOGOUT_VARIANTS}",
+    f"oidcc-client-back-channel-logout-rp-basic{_RP_LOGOUT_VARIANTS}",
 )
 
 # Top-level config keys the private_key_jwt and dynamic configs take from the
@@ -180,6 +188,8 @@ PLACEHOLDERS = {
     "{RP_CLIENT_ID}": ("rp", "client_id"),
     "{RP_CLIENT_SECRET}": ("rp", "client_secret"),
     "{RP_REDIRECT_URI}": ("rp", "redirect_uri"),
+    "{RP_POST_LOGOUT_REDIRECT_URI}": ("rp", "post_logout_redirect_uri"),
+    "{RP_BACKCHANNEL_LOGOUT_URI}": ("rp", "backchannel_logout_uri"),
 }
 
 

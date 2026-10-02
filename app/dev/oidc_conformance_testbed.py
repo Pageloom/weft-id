@@ -39,8 +39,10 @@ For the RP plans (the suite plays the upstream OpenID Provider and WeftID's
 upstream connector is the client under test) it also keeps one upstream OIDC
 connection pointing at the suite's per-alias issuer
 (``<suite>/test/a/<rp alias>/``): discovery-managed, JIT on, platform MFA
-off, with a fresh client secret every run. The suite's static-client config
-takes the same client id, secret and the connection's callback URL.
+off, "sign out at the provider" on, with a fresh client secret every run.
+The suite's static-client config takes the same client id, secret, the
+connection's callback URL, WeftID's post-logout landing and the connection's
+back-channel logout receiver.
 ``--expire-rp-discovery-flag`` ages that connection's discovery timestamp past
 the TTL, so the next sign-in refetches discovery (each RP module publishes
 its own keys and ``jwks_uri``).
@@ -283,6 +285,8 @@ def _ensure_rp_connection(tid: str, suite_base_url: str, rp_alias: str) -> dict:
         "jit_provisioning": True,
         "allow_email_linking": True,
         "require_platform_mfa": False,
+        # The RP logout plans: sign-out continues to the suite's end_session.
+        "sign_out_at_idp": True,
     }
 
     existing = _rp_connection_row(tid)
@@ -314,6 +318,8 @@ def _ensure_rp_connection(tid: str, suite_base_url: str, rp_alias: str) -> dict:
         "client_secret": secret,
         "redirect_uri": f"{base_url}/auth/oidc/{connection_id}/callback",
         "login_url": f"{base_url}/auth/oidc/{connection_id}/login",
+        "post_logout_redirect_uri": f"{base_url}{oidc_service.POST_LOGOUT_PATH}",
+        "backchannel_logout_uri": f"{base_url}/auth/oidc/{connection_id}/backchannel-logout",
     }
 
 

@@ -4,7 +4,9 @@
     "client": {
         "client_id": "{RP_CLIENT_ID}",
         "client_secret": "{RP_CLIENT_SECRET}",
-        "redirect_uri": "{RP_REDIRECT_URI}"
+        "redirect_uri": "{RP_REDIRECT_URI}",
+        "post_logout_redirect_uri": "{RP_POST_LOGOUT_REDIRECT_URI}",
+        "backchannel_logout_uri": "{RP_BACKCHANNEL_LOGOUT_URI}"
     },
     "waitTimeoutSeconds": 5
 }

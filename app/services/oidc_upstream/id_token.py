@@ -48,7 +48,7 @@ _REQUIRED_CLAIMS = ("iss", "aud", "exp", "iat", "sub")
 
 
 def select_signing_key(token: str, key_set: jwt.PyJWKSet) -> jwt.PyJWK:
-    """Select the verification key by the token's ``kid`` header.
+    """Select the verification key by the token's ``kid`` header (ID or logout token).
 
     A token without ``kid`` is verified with the JWKS's only RSA signing key
     (OIDC Core 10.1 lets the OP omit ``kid`` when the set holds a single
@@ -60,7 +60,7 @@ def select_signing_key(token: str, key_set: jwt.PyJWKSet) -> jwt.PyJWK:
     try:
         header = jwt.get_unverified_header(token)
     except jwt.InvalidTokenError as exc:
-        raise IDTokenSignatureError(f"ID token header is invalid: {exc}") from exc
+        raise IDTokenSignatureError(f"Token header is invalid: {exc}") from exc
 
     kid = header.get("kid")
     if not kid:
@@ -71,7 +71,7 @@ def select_signing_key(token: str, key_set: jwt.PyJWKSet) -> jwt.PyJWK:
         ]
         if len(candidates) != 1:
             raise IDTokenSignatureError(
-                "ID token header is missing 'kid' and the JWKS does not hold exactly "
+                "Token header is missing 'kid' and the JWKS does not hold exactly "
                 "one RSA signing key"
             )
         return candidates[0]

@@ -102,9 +102,9 @@ To set it up:
 
 2. Turn on **Sign Out at the Provider** and save.
 
-The provider's end session endpoint comes from its discovery document and is shown on the **Details** tab. If the provider publishes none, the setting has no effect and the tab says so. For a provider without discovery, enter the endpoint by hand (see below). WeftID sends the ID token from the user's sign-in as `id_token_hint`, along with `client_id` and the post-logout redirect URI.
+The provider's end session endpoint comes from its discovery document and is shown on the **Details** tab. If the provider publishes none, the setting has no effect and the tab says so. For a provider without discovery, enter the endpoint by hand (see below). WeftID sends the ID token from the user's sign-in as `id_token_hint`, along with `client_id`, the post-logout redirect URI, and a random `state` that the provider sends back.
 
-The same applies when an app signs a user out through WeftID's own end session endpoint. The browser goes to the provider first and then on to the app's post-logout redirect URI, so the app still gets the user back.
+The same applies when an app signs a user out through WeftID's own end session endpoint. The browser goes to the provider first and then on to the app's post-logout redirect URI, so the app still gets the user back. If the provider returns without the `state` WeftID sent, or with a different one, WeftID does not forward the browser to the app. It shows its sign-in page instead.
 
 ## Providers without discovery
 

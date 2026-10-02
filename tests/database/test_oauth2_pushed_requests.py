@@ -118,7 +118,11 @@ class TestRequirePushedColumn:
         )
         assert created["require_pushed_authorization_requests"] is True
         replaced = database.oauth2.replace_registered_client(
-            test_tenant["id"], created["client_id"], **common
+            test_tenant["id"],
+            created["client_id"],
+            previous_token_hash="x",
+            registration_access_token_hash="y",
+            **common,
         )
         assert replaced["require_pushed_authorization_requests"] is False
 

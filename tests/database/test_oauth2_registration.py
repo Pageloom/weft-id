@@ -262,6 +262,8 @@ class TestRegisteredClients:
             tos_uri=None,
             initiate_login_uri="https://rp.example/login",
             registration_metadata={},
+            previous_token_hash="argon-hash",
+            registration_access_token_hash="rotated-hash",
         )
 
         assert replaced["initiate_login_uri"] == "https://rp.example/login"
@@ -271,7 +273,58 @@ class TestRegisteredClients:
         assert replaced["client_uri"] == "https://rp.example"
         assert replaced["registration_metadata"] == {}
         full = database.oauth2.get_client_by_client_id(test_tenant["id"], client["client_id"])
+        assert full["registration_access_token_hash"] == "rotated-hash"
+
+    def test_replace_with_a_stale_token_hash_changes_nothing(self, test_tenant):
+        client = _registered(test_tenant)
+        fields = {
+            "name": "Renamed",
+            "redirect_uris": ["https://rp.example/new"],
+            "post_logout_redirect_uris": [],
+            "frontchannel_logout_uri": None,
+            "frontchannel_logout_session_required": True,
+            "backchannel_logout_uri": None,
+            "backchannel_logout_session_required": True,
+            "logo_uri": None,
+            "client_uri": None,
+            "policy_uri": None,
+            "tos_uri": None,
+            "initiate_login_uri": None,
+            "registration_metadata": {},
+        }
+
+        result = database.oauth2.replace_registered_client(
+            test_tenant["id"],
+            client["client_id"],
+            previous_token_hash="not-current",
+            registration_access_token_hash="rotated-hash",
+            **fields,
+        )
+
+        assert result is None
+        full = database.oauth2.get_client_by_client_id(test_tenant["id"], client["client_id"])
+        assert full["name"] != "Renamed"
         assert full["registration_access_token_hash"] == "argon-hash"
+
+    def test_set_registration_access_token(self, test_tenant, normal_oauth2_client):
+        client = _registered(test_tenant)
+
+        row = database.oauth2.set_registration_access_token(
+            test_tenant["id"], client["client_id"], registration_access_token_hash="reset-hash"
+        )
+
+        assert row["client_id"] == client["client_id"]
+        full = database.oauth2.get_client_by_client_id(test_tenant["id"], client["client_id"])
+        assert full["registration_access_token_hash"] == "reset-hash"
+        # An admin-created client has no registration to reset.
+        assert (
+            database.oauth2.set_registration_access_token(
+                test_tenant["id"],
+                normal_oauth2_client["client_id"],
+                registration_access_token_hash="reset-hash",
+            )
+            is None
+        )
 
     def test_replace_ignores_admin_created_client(self, test_tenant, normal_oauth2_client):
         result = database.oauth2.replace_registered_client(
@@ -290,6 +343,8 @@ class TestRegisteredClients:
             tos_uri=None,
             initiate_login_uri=None,
             registration_metadata={},
+            previous_token_hash="argon-hash",
+            registration_access_token_hash="rotated-hash",
         )
 
         assert result is None

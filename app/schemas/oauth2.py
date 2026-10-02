@@ -315,6 +315,20 @@ class ClientWithSecret(ClientResponse):
 # ============================================================================
 
 REGISTRATION_POLICIES = ("off", "token_required", "open")
+
+
+class RegistrationAccessTokenReset(BaseModel):
+    """A dynamically registered client's new registration access token."""
+
+    client_id: str = Field(..., description="The registered client's client_id")
+    registration_access_token: str = Field(
+        ...,
+        description=(
+            "The new registration access token, shown only once. The previous one no longer works."
+        ),
+    )
+
+
 REGISTRATION_DEFAULT_ACCESS = ("none", "all")
 
 

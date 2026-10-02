@@ -15,6 +15,7 @@ from schemas.oauth2 import (
     InitialAccessTokenCreate,
     InitialAccessTokenCreated,
     InitialAccessTokenResponse,
+    RegistrationAccessTokenReset,
     RegistrationSettings,
     RegistrationSettingsUpdate,
 )
@@ -162,3 +163,36 @@ def revoke_initial_access_token(
         )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
+
+
+@router.post(
+    "/clients/{client_id}/reset-registration-token",
+    response_model=RegistrationAccessTokenReset,
+)
+def reset_registration_access_token(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: Annotated[str, Path(max_length=255)],
+):
+    """
+    Issue a new registration access token for a dynamically registered client.
+    The old token stops working at once, so whoever held it can no longer
+    read, change or delete the registration.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The registered client's client_id
+
+    Returns:
+        ``client_id`` and the new ``registration_access_token`` (shown only
+        once). 404 when no dynamically registered client has this client_id.
+    """
+    try:
+        token = registration_service.reset_registration_access_token(
+            build_requesting_user(user, tenant_id, request), client_id
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+    return RegistrationAccessTokenReset(client_id=client_id, registration_access_token=token)

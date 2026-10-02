@@ -55,9 +55,9 @@ An app that uses device sign-in without `authorization_code` has no browser redi
 
 ## After registration
 
-The response contains the client ID and secret (a public client gets no secret), plus a **registration access token** and a `registration_client_uri`. With that token, the application can read (`GET`), replace (`PUT`), or delete (`DELETE`) its own registration at that address. A `PUT` replaces everything: anything left out returns to its default. It can't switch `token_endpoint_auth_method` between `none` and a secret method. These calls keep working if you later turn registration off.
+The response contains the client ID and secret (a public client gets no secret), plus a **registration access token** and a `registration_client_uri`. With that token, the application can read (`GET`), replace (`PUT`), or delete (`DELETE`) its own registration at that address. A `PUT` replaces everything: anything left out returns to its default. It can't switch `token_endpoint_auth_method` between `none`, a secret method, and `private_key_jwt`. It also can't add the device code grant, or drop pushed authorization requests (PAR) that you required. Each `PUT` returns a new registration access token, and the old one stops working. These calls keep working if you later turn registration off.
 
-Registered apps appear on **Applications > OAuth2 / OIDC** with a **Registered** badge. You manage them like any other app: grant access, edit, deactivate, regenerate the secret, or delete. A deactivated app can no longer use its registration access token.
+Registered apps appear on **Applications > OAuth2 / OIDC** with a **Registered** badge. You manage them like any other app: grant access, edit, deactivate, regenerate the secret, or delete. A deactivated app can no longer use its registration access token. If the token may have leaked, or you want to take over the registration, choose **Reset** under **Reset Registration Access Token** on the app's page. The old token stops working at once, and the new one is shown only once.
 
 ## Audit events
 

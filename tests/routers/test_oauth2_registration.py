@@ -314,6 +314,12 @@ class TestClientConfigurationEndpoint:
         stored = database.oauth2.get_client_by_client_id(test_tenant["id"], registered["client_id"])
         assert stored["redirect_uris"] == ["https://rp.example/two"]
         assert stored["logo_uri"] is None
+        # The token rotates: the new one reads the configuration, the old one is refused.
+        new_token = response.json()["registration_access_token"]
+        url = f"/oauth2/register/{registered['client_id']}"
+        assert client.get(url, headers=_bearer(test_tenant_host, new_token)).status_code == 200
+        old = _bearer(test_tenant_host, registered["registration_access_token"])
+        assert client.get(url, headers=old).status_code == 401
 
     def test_update_invalid(self, client, test_tenant_host, registered):
         url = f"/oauth2/register/{registered['client_id']}"

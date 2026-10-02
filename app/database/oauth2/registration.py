@@ -330,12 +330,16 @@ def replace_registered_client(
     require_pushed_authorization_requests: bool = False,
     subject_type: str = "public",
     sector_identifier_uri: str | None = None,
+    previous_token_hash: str,
+    registration_access_token_hash: str,
 ) -> dict | None:
     """Replace a dynamically registered client's metadata (RFC 7592 section 2.2).
 
     Credentials (and the authentication method), access settings, and the
     registration bookkeeping are left alone; the client's keys are replaced. Only rows marked
-    ``dynamically_registered`` are touched.
+    ``dynamically_registered`` are touched. The registration access token is
+    rotated in the same statement, and only while ``previous_token_hash`` is
+    still current, so of two updates racing on one token only the first wins.
     """
     return fetchone(
         tenant_id,
@@ -360,8 +364,10 @@ def replace_registered_client(
             require_pushed_authorization_requests = :require_pushed_authorization_requests,
             subject_type = :subject_type,
             sector_identifier_uri = :sector_identifier_uri,
-            registration_metadata = :registration_metadata
+            registration_metadata = :registration_metadata,
+            registration_access_token_hash = :registration_access_token_hash
         where client_id = :client_id and dynamically_registered
+          and registration_access_token_hash = :previous_token_hash
         returning {_CLIENT_COLUMNS}
         """,
         {
@@ -386,5 +392,26 @@ def replace_registered_client(
             "subject_type": subject_type,
             "sector_identifier_uri": sector_identifier_uri,
             "registration_metadata": Json(registration_metadata),
+            "previous_token_hash": previous_token_hash,
+            "registration_access_token_hash": registration_access_token_hash,
         },
+    )
+
+
+def set_registration_access_token(
+    tenant_id: TenantArg, client_id: str, *, registration_access_token_hash: str
+) -> dict | None:
+    """Replace a dynamically registered client's registration access token.
+
+    Returns the client, or None when no dynamically registered client has this
+    client_id.
+    """
+    return fetchone(
+        tenant_id,
+        f"""
+        update oauth2_clients set registration_access_token_hash = :token_hash
+        where client_id = :client_id and dynamically_registered
+        returning {_CLIENT_COLUMNS}
+        """,
+        {"client_id": client_id, "token_hash": registration_access_token_hash},
     )

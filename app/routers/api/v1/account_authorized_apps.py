@@ -9,7 +9,7 @@ from typing import Annotated
 
 from api_dependencies import get_current_user_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Path, Request, status
 from schemas.oidc import ConsentGrantResponse
 from services.exceptions import ServiceError
 from services.oidc import consent as consent_service
@@ -46,7 +46,7 @@ def revoke_authorized_app(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user_api)],
-    grant_id: str,
+    grant_id: Annotated[str, Path(max_length=50)],
 ):
     """
     Revoke one of the current user's consent grants.

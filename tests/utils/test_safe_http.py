@@ -218,3 +218,76 @@ def test_build_safe_client_verifies_tls_by_default():
     ):
         build_safe_client().close()
     assert spy.call_args.kwargs["verify"] is True
+
+
+# ---------------------------------------------------------------------------
+# total_timeout (slow-drip responses)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def drip_server():
+    """A local HTTP server that sends its headers, then one body byte every
+    0.1s for up to 5s: each read is well inside any per-read timeout."""
+    import threading
+    import time
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    stop = threading.Event()
+
+    def serve():
+        conn, _ = listener.accept()
+        with conn:
+            conn.recv(4096)
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n")
+            for _ in range(50):
+                if stop.is_set():
+                    return
+                try:
+                    conn.sendall(b"x")
+                except OSError:
+                    return
+                time.sleep(0.1)
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{listener.getsockname()[1]}/"
+    stop.set()
+    listener.close()
+    thread.join(timeout=2)
+
+
+def _dev_client(**kw) -> httpx.Client:
+    with patch.object(safe_http.settings, "IS_DEV", True):
+        return build_safe_client(dev_hostname_allowlist=frozenset({"127.0.0.1"}), **kw)
+
+
+def test_total_timeout_cuts_off_a_dripping_response(drip_server):
+    import time
+
+    client = _dev_client(timeout=1.0, total_timeout=0.5)
+    started = time.monotonic()
+    with patch.object(safe_http.settings, "IS_DEV", True), client:
+        with pytest.raises(httpx.ReadTimeout):
+            with client.stream("GET", drip_server) as response:
+                for _ in response.iter_bytes():
+                    pass
+    assert time.monotonic() - started < 1.5
+
+
+def test_total_timeout_is_a_budget_not_a_per_read_limit():
+    backend = safe_http._DeadlineBackend(10.0)
+    assert backend.clip(5.0, httpx.ReadTimeout) == 5.0
+    assert 9.0 < backend.clip(None, httpx.ReadTimeout) <= 10.0
+    backend._deadline -= 10.0
+    with pytest.raises(httpx.ReadTimeout):
+        backend.clip(5.0, httpx.ReadTimeout)
+
+
+def test_no_total_timeout_keeps_the_default_pool():
+    plain = PinnedResolveTransport()
+    bounded = PinnedResolveTransport(total_timeout=1.0)
+    assert not isinstance(plain._pool._network_backend, safe_http._DeadlineBackend)
+    assert isinstance(bounded._pool._network_backend, safe_http._DeadlineBackend)

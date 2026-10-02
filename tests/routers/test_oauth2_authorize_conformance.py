@@ -12,9 +12,11 @@ from urllib.parse import parse_qs, urlsplit
 
 import database
 import pytest
-from routers.oauth2 import AuthorizeParams
+from routers.oauth2 import PENDING_REAUTH_KEY, AuthorizeParams
 from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY, get_post_auth_redirect
 from services import oidc as oidc_service
+
+from tests.helpers.reauth import confirm_reauth
 
 REDIRECT_URI = "http://localhost:3000/callback"
 
@@ -531,10 +533,17 @@ class TestReauthentication:
         self, authed, normal_oauth2_client, session_data, test_user, mocker, prompt
     ):
         log_event = mocker.patch("routers.oauth2.log_event")
-        response = authed.get(
+        page = authed.get(
             "/oauth2/authorize",
             params=_base_params(normal_oauth2_client, prompt=prompt, scope="openid"),
         )
+        # The GET only asks: the session is untouched until the user confirms.
+        assert page.status_code == 200
+        assert 'action="/oauth2/authorize/reauthenticate"' in page.text
+        assert session_data["user_id"] == str(test_user["id"])
+        log_event.assert_not_called()
+
+        response = confirm_reauth(authed, session_data)
         assert response.status_code == 303
         location = response.headers["location"]
         assert location.startswith("/login?prefill_email=")
@@ -565,9 +574,8 @@ class TestReauthentication:
     ):
         log_event = mocker.patch("routers.oauth2.log_event")
         session_data["session_start"] = int(time.time()) - 120
-        response = authed.get(
-            "/oauth2/authorize", params=_base_params(normal_oauth2_client, max_age="60")
-        )
+        authed.get("/oauth2/authorize", params=_base_params(normal_oauth2_client, max_age="60"))
+        response = confirm_reauth(authed, session_data)
         assert response.status_code == 303
         assert response.headers["location"].startswith("/login")
         assert "user_id" not in session_data
@@ -576,9 +584,8 @@ class TestReauthentication:
         assert log_event.call_args.kwargs["metadata"]["trigger"] == "max_age"
 
     def test_max_age_zero_forces_fresh_login(self, authed, normal_oauth2_client, session_data):
-        response = authed.get(
-            "/oauth2/authorize", params=_base_params(normal_oauth2_client, max_age="0")
-        )
+        authed.get("/oauth2/authorize", params=_base_params(normal_oauth2_client, max_age="0"))
+        response = confirm_reauth(authed, session_data)
         assert response.headers["location"].startswith("/login")
         assert "user_id" not in session_data
 
@@ -598,13 +605,12 @@ class TestReauthentication:
         response = authed.get(
             "/oauth2/authorize", params=_base_params(normal_oauth2_client, max_age="10000")
         )
-        assert response.headers["location"].startswith("/login")
+        assert 'id="reauth-confirm"' in response.text
 
     def test_reauth_stash_resumes_without_looping(self, authed, normal_oauth2_client, session_data):
         """Replaying the stashed request on a fresh session shows consent."""
-        first = authed.get(
-            "/oauth2/authorize", params=_base_params(normal_oauth2_client, prompt="login")
-        )
+        authed.get("/oauth2/authorize", params=_base_params(normal_oauth2_client, prompt="login"))
+        first = confirm_reauth(authed, session_data)
         assert first.status_code == 303
         stashed = session_data.pop(PENDING_OAUTH2_AUTHORIZE_KEY)
         # Simulate login completion: a fresh authenticated session.
@@ -627,6 +633,102 @@ class TestReauthentication:
         grant(normal_oauth2_client, [])
         authed.get("/oauth2/authorize", params=_base_params(normal_oauth2_client, prompt="none"))
         assert int(create_code.call_args.kwargs["auth_time"].timestamp()) == now
+
+
+class TestReauthenticationConfirmation:
+    """A cross-site authorize GET never ends the session by itself."""
+
+    @pytest.fixture
+    def asked(self, authed, normal_oauth2_client, session_data):
+        """A pending prompt=login request, its confirmation page rendered."""
+        page = authed.get(
+            "/oauth2/authorize", params=_base_params(normal_oauth2_client, prompt="login")
+        )
+        assert page.status_code == 200
+        return page
+
+    def test_page_names_the_client_and_keeps_the_session(
+        self, asked, session_data, normal_oauth2_client, mocker
+    ):
+        assert 'id="reauth-confirm"' in asked.text
+        assert normal_oauth2_client["name"] in asked.text
+        assert 'name="csrf_token"' in asked.text
+        assert session_data[PENDING_REAUTH_KEY]["id"] in asked.text
+        assert "user_id" in session_data
+        assert PENDING_OAUTH2_AUTHORIZE_KEY not in session_data
+        # Cancel delivers to the registered redirect_uri: CSP must allow it.
+        assert (
+            "form-action 'self' http://localhost:3000" in asked.headers["content-security-policy"]
+        )
+
+    def test_cancel_returns_access_denied_and_keeps_the_session(
+        self, asked, authed, session_data, mocker
+    ):
+        log_event = mocker.patch("routers.oauth2.log_event")
+        response = confirm_reauth(authed, session_data, action="cancel")
+        query = _location_query(response)
+        assert query["error"] == ["access_denied"]
+        assert query["state"] == ["st-1"]
+        assert "user_id" in session_data
+        assert PENDING_REAUTH_KEY not in session_data
+        log_event.assert_not_called()
+
+    def test_cancel_honours_form_post(self, authed, normal_oauth2_client, session_data):
+        authed.get(
+            "/oauth2/authorize",
+            params=_base_params(normal_oauth2_client, prompt="login", response_mode="form_post"),
+        )
+        response = confirm_reauth(authed, session_data, action="cancel")
+        assert response.status_code == 200
+        assert f'action="{REDIRECT_URI}"' in response.text
+        assert 'value="access_denied"' in response.text
+
+    def test_unknown_action_is_invalid_request(self, asked, authed, session_data):
+        response = confirm_reauth(authed, session_data, action="maybe")
+        assert _location_query(response)["error"] == ["invalid_request"]
+        assert "user_id" in session_data
+
+    @pytest.mark.parametrize("problem", ["wrong_id", "missing", "expired"])
+    def test_stale_or_forged_request_ends_nothing(
+        self, asked, authed, session_data, mocker, problem
+    ):
+        log_event = mocker.patch("routers.oauth2.log_event")
+        request_id = session_data[PENDING_REAUTH_KEY]["id"]
+        if problem == "wrong_id":
+            request_id = "forged"
+        elif problem == "missing":
+            del session_data[PENDING_REAUTH_KEY]
+        else:
+            session_data[PENDING_REAUTH_KEY]["created_at"] -= 601
+        response = authed.post(
+            "/oauth2/authorize/reauthenticate",
+            data={"reauth_request_id": request_id, "action": "continue"},
+        )
+        assert response.status_code == 200
+        assert "Request expired" in response.text
+        assert "user_id" in session_data
+        assert PENDING_REAUTH_KEY not in session_data
+        log_event.assert_not_called()
+
+    def test_client_gone_since_the_page_ends_nothing(self, asked, authed, session_data, mocker):
+        mocker.patch("routers.oauth2.oauth2_service.get_client_by_client_id", return_value=None)
+        response = confirm_reauth(authed, session_data)
+        assert "Unauthorized client" in response.text
+        assert "user_id" in session_data
+
+    def test_confirmation_requires_csrf(self, asked, client, authed, session_data):
+        with client.without_csrf():
+            response = confirm_reauth(authed, session_data)
+        assert response.status_code == 403
+        assert "user_id" in session_data
+
+    def test_confirmation_requires_a_session(self, anon, normal_oauth2_client, session_data):
+        response = anon.post(
+            "/oauth2/authorize/reauthenticate",
+            data={"reauth_request_id": "x", "action": "continue"},
+        )
+        assert response.status_code in (302, 303)
+        assert "/login" in response.headers["location"]
 
 
 # ============================================================================
@@ -732,9 +834,10 @@ class TestIdTokenHint:
         hint = _mint_hint(
             test_tenant, test_tenant_host, normal_oauth2_client, str(test_admin_user["id"])
         )
-        response = authed.get(
+        authed.get(
             "/oauth2/authorize", params=_base_params(normal_oauth2_client, id_token_hint=hint)
         )
+        response = confirm_reauth(authed, session_data)
         assert response.headers["location"].startswith("/login")
         assert "user_id" not in session_data
         assert log_event.call_args.kwargs["metadata"]["trigger"] == "id_token_hint"
@@ -780,7 +883,7 @@ class TestIdTokenHint:
         response = authed.get(
             "/oauth2/authorize", params=_base_params(normal_oauth2_client, id_token_hint=hint)
         )
-        assert response.headers["location"].startswith("/login")
+        assert 'id="reauth-confirm"' in response.text
 
     def test_garbage_hint_is_invalid_request(self, authed, normal_oauth2_client):
         response = authed.get(

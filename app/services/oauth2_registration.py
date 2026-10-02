@@ -631,6 +631,14 @@ def validate_client_metadata(metadata: dict) -> dict:
         )
     except ValidationError as exc:
         raise _metadata_error(exc.message) from exc
+    # Without a fetched sector document, a pairwise client's sector is the
+    # host of its redirect URIs, which a registrant can name freely. With the
+    # device grant, tokens never travel through those URIs, so the registrant
+    # would receive the pairwise subjects of an app it does not control.
+    if subject_type == subject_service.PAIRWISE and uses_device and not sector_identifier_uri:
+        raise _metadata_error(
+            "A pairwise client with the device_code grant needs a sector_identifier_uri"
+        )
 
     return {
         "client_name": client_name or _fallback_name(redirect_uris),

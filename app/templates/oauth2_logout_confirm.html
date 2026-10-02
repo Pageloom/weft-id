@@ -14,7 +14,7 @@
                     {% if problem == 'invalid_id_token_hint' %}
                     An application asked to sign you out, but its request could not be verified.
                     {% elif problem == 'unregistered_post_logout_redirect_uri' %}
-                    An application asked to sign you out and return to an address it has not registered (post_logout_redirect_uri not registered).
+                    An application asked to sign you out and return to an address it has not registered.
                     {% elif problem == 'id_token_hint_required' %}
                     An application asked to sign you out and return to it, but did not identify the session it signed in with.
                     {% elif problem == 'unknown_client' %}

@@ -14,7 +14,7 @@ import database
 import pytest
 from schemas.oauth2 import InitialAccessTokenCreate, RegistrationSettingsUpdate
 from services import oauth2_registration as registration_service
-from services.exceptions import RateLimitError
+from services.exceptions import RateLimitError, UnauthorizedError
 
 METADATA = {
     "redirect_uris": ["https://rp.example/cb"],
@@ -207,6 +207,44 @@ def registered(client, test_tenant_host, set_policy):
 
 
 class TestClientConfigurationEndpoint:
+    @pytest.mark.parametrize("method", ["get", "put", "delete"])
+    def test_rate_limited_before_the_token_is_checked(
+        self, client, test_tenant_host, registered, mocker, method
+    ):
+        mocker.patch(
+            "routers.oauth2_registration.ratelimit.prevent",
+            side_effect=RateLimitError(message="Too many", retry_after=30),
+        )
+        authenticate = mocker.patch(
+            "routers.oauth2_registration.registration_service.authenticate_registration"
+        )
+        response = getattr(client, method)(
+            f"/oauth2/register/{registered['client_id']}",
+            headers=_bearer(test_tenant_host, registered["registration_access_token"]),
+        )
+        assert response.status_code == 429
+        assert response.headers["retry-after"] == "30"
+        authenticate.assert_not_called()
+
+    def test_client_gone_during_update_is_invalid_token(
+        self, client, test_tenant_host, registered, mocker
+    ):
+        """The client was deleted between the token check and the update."""
+        mocker.patch(
+            "routers.oauth2_registration.registration_service.update_client_configuration",
+            side_effect=UnauthorizedError(message="The registration access token is not valid"),
+        )
+        response = client.put(
+            f"/oauth2/register/{registered['client_id']}",
+            headers={
+                **_bearer(test_tenant_host, registered["registration_access_token"]),
+                "Content-Type": "application/json",
+            },
+            content=json.dumps({**METADATA, "client_id": registered["client_id"]}).encode(),
+        )
+        assert response.status_code == 401
+        assert response.json()["error"] == "invalid_token"
+
     def test_initiate_login_uri_registered_and_read_back(
         self, client, test_tenant_host, set_policy
     ):

@@ -26,7 +26,7 @@ from services.exceptions import (
     UnauthorizedError,
     ValidationError,
 )
-from utils.ratelimit import HOUR, ratelimit
+from utils.ratelimit import HOUR, MINUTE, ratelimit
 from utils.request_metadata import extract_remote_address
 from utils.urls import tenant_base_url
 
@@ -40,6 +40,11 @@ MAX_BODY_BYTES = 65536
 # Registrations per client IP per hour. Generous enough for the conformance
 # suite (one registration per test module) and any real onboarding flow.
 REGISTRATION_RATE_LIMIT = 100
+
+# Client configuration requests (read, update, delete) per client IP per
+# minute. Each one verifies the registration access token with Argon2, so an
+# unthrottled stream of guesses is a CPU and memory sink.
+CONFIGURATION_RATE_LIMIT = 60
 
 _NO_STORE = {"Cache-Control": "no-store", "Pragma": "no-cache"}
 
@@ -189,6 +194,18 @@ def register_client(
 
 
 def _authenticated_client(request: Request, tenant_id: str, client_id: str) -> dict | Response:
+    try:
+        ratelimit.prevent(
+            "oauth2_register_config:tenant:{tenant_id}:ip:{ip}",
+            limit=CONFIGURATION_RATE_LIMIT,
+            timespan=MINUTE,
+            tenant_id=tenant_id,
+            ip=extract_remote_address(request) or "unknown",
+        )
+    except RateLimitError as exc:
+        response = _error("too_many_requests", exc.message, status_code=429)
+        response.headers["Retry-After"] = str(exc.retry_after)
+        return response
     try:
         return registration_service.authenticate_registration(
             tenant_id, client_id, _bearer_token(request)

@@ -1,10 +1,11 @@
 """OAuth2 authorization and token endpoints.
 
 Architectural Note: this module contains a direct ``log_event()`` call for the
-``user_signed_out`` event raised when a relying party forces re-authentication
-(``prompt=login``, an exceeded ``max_age``, or an ``id_token_hint`` for another
-user). Like ``routers/auth/logout.py``, this is session termination at the HTTP
-boundary, an accepted exception to the "event logging in services" pattern.
+``user_signed_out`` event raised when the user confirms a relying party's
+demand for re-authentication (``prompt=login``, an exceeded ``max_age``, or an
+``id_token_hint`` for another user). Like ``routers/auth/logout.py``, this is
+session termination at the HTTP boundary, an accepted exception to the "event
+logging in services" pattern.
 """
 
 import base64
@@ -40,17 +41,22 @@ from schemas.oauth2 import (
     TokenResponse,
 )
 from services.event_log import log_event
-from services.exceptions import ForbiddenError, UnauthorizedError, ValidationError
+from services.exceptions import ForbiddenError, RateLimitError, UnauthorizedError, ValidationError
 from services.oidc.claims import SCOPE_OPENID, parse_scope
 from utils.csp_nonce import get_csp_nonce
+from utils.ratelimit import MINUTE, ratelimit
 from utils.redirects import safe_redirect
-from utils.request_metadata import extract_request_metadata
+from utils.request_metadata import extract_remote_address, extract_request_metadata
 from utils.session import ensure_session_id
 from utils.templates import templates
 from utils.urls import tenant_base_url
 
 # Maximum age for authorization requests (10 minutes)
 AUTH_REQUEST_MAX_AGE_SECONDS = 600
+
+# Session key for an authorization request waiting on the user to confirm a
+# forced re-authentication (``/oauth2/authorize/reauthenticate``).
+PENDING_REAUTH_KEY = "oauth2_pending_reauth"
 
 # ``prompt`` values (OpenID Connect Core 1.0, section 3.1.2.1). Values that
 # demand a fresh authentication even when a session exists.
@@ -61,6 +67,11 @@ SUPPORTED_RESPONSE_TYPES = frozenset({"code"})
 
 # RFC 8628 section 3.4: the device authorization grant's grant_type value.
 DEVICE_CODE_GRANT_TYPE = oauth2.DEVICE_CODE_GRANT_TYPE
+
+# Device authorization requests per client IP per minute. The endpoint is
+# public for public clients (client_id alone) and each request stores a row
+# and an audit event.
+DEVICE_AUTHORIZATION_RATE_LIMIT = 30
 
 # Upper bound for ``state``, matching the parameter's max_length.
 _MAX_STATE_LENGTH = 2048
@@ -478,8 +489,8 @@ def _handle_authorize_request(
     if reauth_reason is not None:
         if prompt_none:
             return rp.error("login_required", "The user must authenticate again.")
-        return _reauthenticate(
-            request, tenant_id, user, client, params, reauth_reason, pushed=pushed
+        return _reauthenticate_page(
+            request, tenant_id, user, client, params, rp, reauth_reason, pushed=pushed
         )
 
     # -- 4. Access control ----------------------------------------------------
@@ -783,23 +794,120 @@ def _login_redirect(login_hint: str | None) -> RedirectResponse:
     return RedirectResponse(url="/login", status_code=303)
 
 
-def _reauthenticate(
+def _reauthenticate_page(
     request: Request,
     tenant_id: str,
     user: dict,
     client: dict,
     params: AuthorizeParams,
+    rp: _RpResponse,
     reason: str,
     *,
     pushed: bool,
 ) -> Response:
-    """Force a fresh local login for an authenticated user.
+    """Ask the user to confirm a forced re-authentication.
 
-    The current session is terminated (audited as ``user_signed_out`` with
-    reason ``reauthentication``) and the request is stashed with its re-auth
-    demands stripped, so the request resumed after login does not demand yet
-    another login. The full local flow (password, then MFA per tenant policy)
-    applies; forced re-authentication is not propagated to upstream IdPs.
+    The authorization request arrives cross-site (a plain GET from any page),
+    so it must not end the session by itself: that would let any website sign
+    a user out of WeftID and every downstream app with one link. The request
+    is stashed (re-auth demands stripped) and the user confirms on a page
+    whose CSRF-protected form posts to ``/oauth2/authorize/reauthenticate``,
+    which ends the session. Cancelling answers the RP with ``access_denied``.
+    """
+    request_id = secrets.token_urlsafe(32)
+    request.session[PENDING_REAUTH_KEY] = {
+        "id": request_id,
+        "client_id": client["client_id"],
+        "redirect_uri": rp.redirect_uri,
+        "state": rp.state,
+        "response_mode": rp.response_mode,
+        "trigger": reason,
+        "resume_path": _pending_authorize_path(
+            tenant_id, client, params, pushed=pushed, strip_reauth=True
+        ),
+        "created_at": time.time(),
+    }
+    # Cancelling redirects (or form-posts) to the registered redirect_uri.
+    request.state.csp_form_action_url = _form_action_origin(rp.redirect_uri)
+    return templates.TemplateResponse(
+        request,
+        "oauth2_reauthenticate.html",
+        {
+            "client": client,
+            "user": user,
+            "reauth_request_id": request_id,
+            "nav": {},
+            "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
+        },
+    )
+
+
+@router.post("/authorize/reauthenticate")
+def authorize_reauthenticate(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_current_user)],
+    reauth_request_id: Annotated[str, Form(max_length=50)],
+    action: Annotated[str, Form(max_length=20)],
+):
+    """
+    Confirm or cancel a forced re-authentication (same-origin, CSRF-protected).
+
+    Form Data:
+        reauth_request_id: Server-generated ID of the stashed request
+        action: "continue" (end the session and sign in again) or "cancel"
+            (return ``access_denied`` to the application)
+    """
+    stored = request.session.pop(PENDING_REAUTH_KEY, None)
+    if (
+        not isinstance(stored, dict)
+        or not secrets.compare_digest(
+            str(stored.get("id", "")).encode(), reauth_request_id.encode()
+        )
+        or time.time() - stored.get("created_at", 0) > AUTH_REQUEST_MAX_AGE_SECONDS
+    ):
+        return _error_page(
+            request, "Request expired", "This sign-in request has expired. Please start over."
+        )
+
+    client = oauth2_service.get_client_by_client_id(tenant_id, stored["client_id"])
+    if (
+        not client
+        or client["client_type"] != "normal"
+        or not client.get("is_active", True)
+        or stored["redirect_uri"] not in (client["redirect_uris"] or [])
+    ):
+        return _error_page(
+            request, "Unauthorized client", "This client is not authorized for this flow."
+        )
+    rp = _RpResponse(request, stored["redirect_uri"], stored["state"], stored["response_mode"])
+
+    if action == "cancel":
+        return rp.error("access_denied", "The user declined to sign in again.")
+    if action != "continue":
+        return rp.error("invalid_request", "The action must be continue or cancel.")
+    return _reauthenticate(
+        request, tenant_id, user, client, stored["resume_path"], stored["trigger"]
+    )
+
+
+def _reauthenticate(
+    request: Request,
+    tenant_id: str,
+    user: dict,
+    client: dict,
+    resume_path: str,
+    reason: str,
+) -> Response:
+    """End the session so the user signs in again, then resume the request.
+
+    Only reached from the confirmation form. The current session is terminated
+    (audited as ``user_signed_out`` with reason ``reauthentication``) and the
+    request is stashed with its re-auth demands stripped, so the request
+    resumed after login does not demand yet another login. The full local
+    flow (password, then MFA per tenant policy) applies; forced
+    re-authentication is not propagated to upstream IdPs.
 
     Other relying parties that received ID tokens in the ended session are
     told by front channel (an intermediate page loads their logout iframes on
@@ -826,9 +934,7 @@ def _reauthenticate(
         request_metadata=extract_request_metadata(request),
     )
     request.session.clear()
-    request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = _pending_authorize_path(
-        tenant_id, client, params, pushed=pushed, strip_reauth=True
-    )
+    request.session[PENDING_OAUTH2_AUTHORIZE_KEY] = resume_path
     if frontchannel_logout_urls:
         return frontchannel_logout_response(
             request, frontchannel_logout_urls, _login_path(user.get("email"))
@@ -1617,6 +1723,19 @@ def device_authorization_endpoint(
             (private_key_jwt only)
         client_assertion: The signed client assertion JWT (private_key_jwt only)
     """
+    try:
+        ratelimit.prevent(
+            "oauth2_device_authorization:tenant:{tenant_id}:ip:{ip}",
+            limit=DEVICE_AUTHORIZATION_RATE_LIMIT,
+            timespan=MINUTE,
+            tenant_id=tenant_id,
+            ip=extract_remote_address(request) or "unknown",
+        )
+    except RateLimitError as exc:
+        response = _token_error("too_many_requests", exc.message, status_code=429)
+        response.headers["Retry-After"] = str(exc.retry_after)
+        return response
+
     client = _authenticate_client(
         request,
         tenant_id,

@@ -242,6 +242,81 @@ class TestVerifyIdTokenHint:
         )
         assert claims is not None and claims["sub"] == str(test_user["id"])
 
+    def test_hint_from_another_tenant_rejected(self, test_tenant, test_user):
+        """Same issuer string and client_id, but signed with another tenant's
+        key: the hint verifies only against the receiving tenant's keys."""
+        from uuid import uuid4
+
+        import database
+
+        other = database.fetchone(
+            database.UNSCOPED,
+            "INSERT INTO tenants (subdomain, name) VALUES (:s, :n) RETURNING id",
+            {"s": f"hint-other-{uuid4().hex[:8]}", "n": "Other hint tenant"},
+        )
+        try:
+            self._mint(test_tenant, test_user)  # the receiving tenant has keys too
+            token = self._mint(other, test_user)
+            assert (
+                tokens_service.verify_id_token_hint(
+                    tenant_id=str(test_tenant["id"]),
+                    issuer=self.ISSUER,
+                    client_id="rp-1",
+                    id_token=token,
+                )
+                is None
+            )
+        finally:
+            database.execute(
+                database.UNSCOPED, "DELETE FROM tenants WHERE id = :id", {"id": other["id"]}
+            )
+
+    def test_logout_token_is_not_a_hint(self, test_tenant, test_user):
+        """Same keys, same audience, names the user: still not an ID token."""
+        from services.oidc import backchannel
+
+        token = backchannel.build_logout_token(
+            tenant_id=str(test_tenant["id"]),
+            issuer=self.ISSUER,
+            client_id="rp-1",
+            sub=str(test_user["id"]),
+            sid="s-1",
+        )
+        assert (
+            tokens_service.verify_id_token_hint(
+                tenant_id=str(test_tenant["id"]),
+                issuer=self.ISSUER,
+                client_id="rp-1",
+                id_token=token,
+            )
+            is None
+        )
+
+    def test_events_claim_without_logout_typ_is_not_a_hint(self, test_tenant, test_user):
+        from services.oidc.keys import get_active_signing_key
+
+        key = get_active_signing_key(str(test_tenant["id"]))
+        token = jwt.encode(
+            {
+                "iss": self.ISSUER,
+                "aud": "rp-1",
+                "sub": str(test_user["id"]),
+                "events": {"http://schemas.openid.net/event/backchannel-logout": {}},
+            },
+            key.private_key_pem,
+            algorithm=key.algorithm,
+            headers={"kid": key.kid},
+        )
+        assert (
+            tokens_service.verify_id_token_hint(
+                tenant_id=str(test_tenant["id"]),
+                issuer=self.ISSUER,
+                client_id="rp-1",
+                id_token=token,
+            )
+            is None
+        )
+
     def test_wrong_audience_rejected(self, test_tenant, test_user):
         token = self._mint(test_tenant, test_user, client_id="rp-1")
         assert (

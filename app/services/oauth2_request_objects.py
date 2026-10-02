@@ -100,6 +100,7 @@ def _fetch(request_uri: str) -> str:
     """Fetch a request object by reference through the SSRF guard."""
     http = build_safe_client(
         timeout=_FETCH_TIMEOUT_SECONDS,
+        total_timeout=_FETCH_TIMEOUT_SECONDS * 2,
         dev_hostname_allowlist=_DEV_HOSTNAME_ALLOWLIST,
         dev_skip_tls_verify=True,
         dev_base_domain_rewrite=True,

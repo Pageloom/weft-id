@@ -20,6 +20,8 @@ lifecycle paths), which call the database layer directly next to their
 token revocation; client deletion cascades at the database.
 """
 
+import uuid
+
 import database
 from schemas.oidc import ClientConsentGrantResponse, ConsentGrantResponse
 from services.activity import track_activity
@@ -126,6 +128,12 @@ def revoke_my_grant(requesting_user: RequestingUser, grant_id: str) -> None:
     Logs: ``oauth2_consent_revoked`` with ``revoked_by = user``.
     """
     tenant_id = requesting_user["tenant_id"]
+    try:
+        uuid.UUID(grant_id)
+    except ValueError:
+        raise NotFoundError(
+            message="Consent grant not found", code="consent_grant_not_found"
+        ) from None
     grant = database.oauth2.get_consent_grant_by_id(tenant_id, grant_id)
     if grant is None or str(grant["user_id"]) != str(requesting_user["id"]):
         raise NotFoundError(message="Consent grant not found", code="consent_grant_not_found")

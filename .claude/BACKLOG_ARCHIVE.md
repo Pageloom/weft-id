@@ -4,6 +4,91 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## OIDC Hardening & Conformance
+
+**Status:** Complete (2026-10-02, `oidc-conformance` branch, unreleased)
+
+**What shipped:** the OpenID Foundation conformance suite runs locally and in CI
+(`make oidc-conformance`, `.github/workflows/oidc-conformance.yml`) with results published
+in `docs/conformance/oidc.md`: Basic, Config, Form Post, RP-Initiated, Front-Channel,
+Back-Channel, 3rd Party-Init OP green, Dynamic OP green apart from one accepted deviation,
+`private_key_jwt` variants green, and Basic, Config, RP-Initiated, Back-Channel RP green for
+the upstream connector. Along the way: prompt/max_age/hints (forced re-auth confirmed on a
+CSRF-protected page), remembered consent, form_post, RP-initiated/front-channel/back-channel
+logout, server-side session revocation, upstream back-channel logout and sign-out with state,
+introspection and revocation, dynamic client registration (RFC 7591/7592), 3rd-party-initiated
+login, the device grant (confidential and public clients), `private_key_jwt`, signed request
+objects, PAR, signed userinfo, and pairwise subjects. Deviations (Implicit/Hybrid, Session OP,
+mTLS, upstream forced re-auth, unsigned request objects, `claims` parameter) are listed on the
+results page. Iteration history: `.claude/ITERATION_oidc_conformance.md` (gitignored).
+
+**User Story:**
+As the WeftID product owner positioning WeftID as a best-in-class authentication middleware,
+I want WeftID's OIDC surface to go beyond functional and reach spec-completeness, proven by the OpenID Foundation conformance suite and published as reproducible evidence,
+So that integrators can verify WeftID's OIDC is correct rather than self-asserted, and so the protocol surface is genuinely on par with WorkOS / Auth0 / authentik before any embedder go-to-market.
+
+**Context:**
+
+The **OIDC Provider (Downstream)** (1.11.0) and **OIDC Upstream IdP Support** (1.12.0) items got WeftID to *functional* OIDC: discovery, ID tokens, userinfo, JWKS, authorization-code + PKCE, JIT, presets. That is table stakes. The gap between "has an OIDC endpoint" and "an OIDC implementation you'd bet a product on" is a set of protocol-completeness features plus an objective, externally-defined quality bar.
+
+Per the product-owner sequencing decision (2026-06), the **Embedder Enablement** theme is gated behind this item; it defines what "OIDC complete" means.
+
+**Quality bar: pass the OpenID Foundation conformance suite, without formal certification (product owner, 2026-09-13).** The conformance suite is open source and runs locally in Docker for free; formal OIDF certification (membership + fee + hosted-suite submission) is deliberately **not** pursued. WeftID publishes the conformance results itself, with the suite version, the WeftID version, and a CI job anyone can rerun. Wording rule for docs and marketing: WeftID "passes the OpenID Foundation conformance suite for profiles X, Y, Z"; never "OpenID Certified", which is OIDF's certification mark and requires the formal program. Revisit formal certification only if a customer requires the listing.
+
+**Why the conformance run comes first, not last:** the suite is the cheapest, most objective punch list available. Running it against the current provider turns "hardening" from a list of RFCs into a list of failing test IDs, and it catches correctness gaps that shipped silently. Known gaps in 1.12.0 that the Basic OP profile will fail on before any new feature is built: the authorize endpoint does not handle `prompt` (`none` must return `login_required` with no session; `login` must force re-authentication), `max_age` (must be honored with a fresh `auth_time`), `login_hint`, or `id_token_hint`; `claims` parameter handling and `request` / `request_uri` rejection behavior are unverified.
+
+**Profile scope (deliberate):**
+- *In scope:* Basic OP, Config OP, Form Post OP, RP-Initiated OP, Front-Channel OP, Back-Channel OP, Dynamic OP (once dynamic registration exists), 3rd Party-Init OP (small).
+- *Out of scope, intentionally, and documented as deviations:* Implicit OP and Hybrid OP (WeftID issues `code` only; implicit is deprecated by current OAuth security guidance), Session OP (`check_session_iframe` depends on third-party cookies that browsers block).
+- *Stretch:* the RP profiles for the upstream connector (the suite acts as the OP; WeftID's generic connector with manual endpoints points at it). No fee now, so the only cost is harness work. Decide after the OP profiles are green.
+
+**Acceptance Criteria:**
+
+**Conformance harness (first):**
+- [ ] The OpenID conformance suite runs locally in Docker against the dev stack via a `make` target (e.g. `make oidc-conformance`), with a checked-in test-plan config (static clients, test users, browser-automation steps for login) so a run needs no clicks
+- [ ] A CI job runs the in-scope OP profiles headlessly using the suite's test-plan runner; a FAILED or INTERRUPTED result fails the job; SKIPPED results are allowed only with a recorded reason
+- [ ] Basic OP, Config OP, and Form Post OP are fully green (PASSED / WARNING / REVIEW / SKIPPED-with-reason) on the current provider before any new endpoint is built
+- [ ] Conformance results (suite version, WeftID version, per-profile outcome, exported logs) are published on the docs site and refreshed per release; wording follows the rule above; intentional deviations (Implicit, Hybrid, Session OP) are listed
+
+**Downstream provider completeness:**
+- [ ] OIDC logout: RP-initiated logout (`end_session_endpoint`), front-channel logout, and back-channel logout, the OIDC parallel to the existing SAML SLO; advertised in discovery; green on the three logout OP profiles
+- [ ] Token introspection endpoint (RFC 7662) for resource servers
+- [ ] Token revocation endpoint (RFC 7009)
+- [ ] Device Authorization Grant (RFC 8628) for CLIs / TVs / input-constrained devices
+- [ ] Dynamic Client Registration (RFC 7591) + management (RFC 7592), gated by policy/credential; green on Dynamic OP
+- [ ] Stronger client authentication: `private_key_jwt` and (where feasible) mTLS client auth, in addition to client-secret
+- [ ] Pairwise subject identifiers (`pairwise` `subject_type`) for cross-client privacy, as a per-client opt-in (never a default change, since it alters the `sub` an existing RP sees)
+- [ ] Pushed Authorization Requests (PAR, RFC 9126) and signed request objects for higher-assurance flows
+- [ ] Consent/scope-grant persistence and management (remembered consent, revocable grants)
+
+**Upstream consumer completeness:**
+- [ ] Back-channel logout receiver: honor logout initiated by an upstream OIDC IdP and terminate the corresponding WeftID session(s)
+- [ ] RP-initiated logout to the upstream IdP on WeftID logout where the IdP supports it
+
+**Cross-cutting:**
+- [ ] Discovery document advertises every newly supported endpoint/capability accurately (it currently advertises only what is implemented; keep that invariant)
+- [ ] Audit events for logout, introspection, revocation, device-grant issuance, and dynamic registration
+- [ ] Each feature independently unit-tested in addition to the conformance run
+- [ ] Docs updated: logout integration, introspection/revocation for resource servers, device-grant flow, dynamic registration, client-auth options, and the conformance results page
+
+**Effort:** XL (broad protocol surface; naturally splits into several iterations by profile/RFC)
+**Value:** High (this is what makes WeftID's auth middleware credible and versatile; explicit prerequisite for the embedder repositioning per the 2026-06 sequencing decision)
+**Version impact:** Minor (additive endpoints, grant types, and discovery metadata; no breaking change to the functional OIDC surface). The `prompt` / `max_age` fixes change authorize-endpoint behavior only for requests that send those parameters, which are ignored today.
+
+**Dependencies:**
+- Builds on **OIDC Provider (Downstream IdP for Apps)** (the functional OP, 1.11.0) and **OIDC Upstream IdP Support** (the functional RP, 1.12.0). Both have shipped; this item is unblocked.
+- Gating prerequisite for the **Embedder Enablement** theme (per 2026-06 sequencing).
+
+**Suggested implementation order** (when broken into iterations by `/lead`):
+1. Conformance harness + Basic/Config/Form Post OP green: local Docker suite, `make` target, checked-in plan config, fix the authorize-endpoint gaps (`prompt`, `max_age`, `login_hint`, `id_token_hint`, `claims`, `request` rejection) and whatever else the run surfaces, CI job, first published results page
+2. OIDC logout (RP-initiated + front/back-channel, plus the upstream receiver), green on the three logout profiles
+3. Token introspection + revocation
+4. Device grant + dynamic client registration, green on Dynamic OP
+5. Stronger client auth (`private_key_jwt`/mTLS) + pairwise subjects + PAR + consent persistence
+6. Stretch: RP profiles for the upstream connector
+
+---
+
 ## OIDC Upstream Group Claim Handling
 
 **Status:** Complete (2026-09-13, on main, unreleased)

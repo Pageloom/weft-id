@@ -147,8 +147,10 @@ the suite skips (for example a scope WeftID does not advertise).
 ## How the browser automation works
 
 The plan config's `browser` section scripts the interactive steps in the
-suite's built-in headless browser (HtmlUnit): the login email step, the
-password step, the MFA code, and the consent page. Every step is optional
+suite's built-in headless browser (HtmlUnit): the "Sign in again?"
+confirmation (`prompt=login`, an expired `max_age`, or an `id_token_hint`
+for another user), the login email step, the password step, the MFA code,
+and the consent page. Every step is optional
 because an existing session or remembered consent skips it. The final step
 waits for the suite's own callback page. Per-module `override` entries
 handle tests that expect an error page instead of a redirect (for example

@@ -4,6 +4,42 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] SSRF blocklist misses `::`, NAT64 and 6to4 embedded addresses
+
+**Fixed:** 2026-10-02 (oidc-conformance final review, M2). `_is_ip_blocked` now refuses
+anything not globally routable (`is_global`) or multicast, refuses the transition prefixes
+(NAT64 `64:ff9b::/96` and `64:ff9b:1::/48`, 6to4 `2002::/16`, Teredo `2001::/32`) outright,
+and lists `::/128`, `198.18.0.0/15` and `ff00::/8` explicitly. Tests:
+`tests/utils/test_url_safety.py::TestIsIpBlocked::test_blocked_transition_and_non_global`.
+**Discovered:** 2026-09-27 (oidc-conformance Iteration 7a review of the back-channel logout URI)
+**Severity:** Medium (pre-existing; affects every outbound call behind the shared guard)
+**Found in:** `app/utils/url_safety.py` (`_BLOCKED_NETWORKS`, `_is_ip_blocked`), used by
+`app/utils/safe_http.py` (`PinnedResolveTransport`) and the SAML metadata fetchers
+
+The blocklist is a hand-written network list. It misses:
+
+- `::` (IPv6 unspecified): on Linux a connect to `::` reaches the local host, so a public
+  hostname with an AAAA record of `::` passes validation and hits localhost.
+- `64:ff9b::/96` (NAT64) and `2002::/16` (6to4): IPv4 addresses embedded in IPv6. Only
+  IPv4-mapped (`::ffff:`) is unwrapped, so e.g. `64:ff9b::a00:1` (10.0.0.1) passes on a
+  NAT64 network. Teredo (`2001::/32`) likewise.
+- Lower risk: `198.18.0.0/15`, documentation ranges, `::/128`, `100::/64`.
+
+Callers exposed: outbound SCIM pushes, SAML metadata fetches, SAML SLO back-channel, and
+OIDC back-channel logout delivery (tenant admins choose all these targets).
+
+**Suggested fix:** Replace the list with `ipaddress` predicates (`is_private`, `is_loopback`,
+`is_unspecified`, `is_link_local`, `is_multicast`, `is_reserved`, `is_site_local`) plus explicit
+CGNAT `100.64.0.0/10` and the metadata range; unwrap `ipv4_mapped`, `sixtofour`, `teredo`
+and NAT64 (`64:ff9b::/96`, last 32 bits) before checking the inner IPv4. Tests for `::`,
+`64:ff9b::a00:1`, `2002:7f00:1::`, and a Teredo address wrapping 127.0.0.1.
+
+**Files Affected:** `app/utils/url_safety.py`, `tests/utils/test_url_safety.py`
+
+---
+
+---
+
 ## [SECURITY] CSRF middleware never enforced: it ran outside the session middleware
 
 **Fixed:** 2026-09-14

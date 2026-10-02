@@ -16,6 +16,14 @@
                     "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                     "tasks": [
                         {
+                            "task": "Confirm sign-in again (prompt=login, max_age, other-user id_token_hint)",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                            "commands": [
+                                ["click", "css", "#reauth-confirm button[value='continue']", "optional"]
+                            ]
+                        },
+                        {
                             "task": "Login: email step",
                             "optional": true,
                             "match": "{WEFTID_ISSUER}/login*",
@@ -62,6 +70,14 @@
                     "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                     "tasks": [
                         {
+                            "task": "Confirm sign-in again (prompt=login, max_age, other-user id_token_hint)",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                            "commands": [
+                                ["click", "css", "#reauth-confirm button[value='continue']", "optional"]
+                            ]
+                        },
+                        {
                             "task": "Login: email step",
                             "optional": true,
                             "match": "{WEFTID_ISSUER}/login*",
@@ -107,6 +123,14 @@
                     "comment": "REVIEW module: the consent page must show the registered terms of service link. A freshly registered client always gets the consent page; its snapshot fills the placeholder, which ends the module. Do not consent: the module does not need the callback, and a callback racing the end of the module interrupts it inside the suite.",
                     "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                     "tasks": [
+                        {
+                            "task": "Confirm sign-in again (prompt=login, max_age, other-user id_token_hint)",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                            "commands": [
+                                ["click", "css", "#reauth-confirm button[value='continue']", "optional"]
+                            ]
+                        },
                         {
                             "task": "Login: email step",
                             "optional": true,

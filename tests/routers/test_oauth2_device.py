@@ -104,6 +104,31 @@ def _assert_error(response, error, status=400):
 
 
 class TestDeviceAuthorizationEndpoint:
+    def test_rate_limited_before_client_authentication(
+        self, client, test_tenant_host, device_client, mocker
+    ):
+        mocker.patch(
+            "routers.oauth2.ratelimit.prevent",
+            side_effect=RateLimitError(message="Too many", retry_after=60),
+        )
+        authenticate = mocker.patch("routers.oauth2._authenticate_client")
+        response = _start(client, test_tenant_host, device_client)
+        assert response.status_code == 429
+        assert response.headers["retry-after"] == "60"
+        assert response.json()["error"] == "too_many_requests"
+        authenticate.assert_not_called()
+
+    def test_rate_limit_keyed_by_tenant_and_ip(
+        self, client, test_tenant, test_tenant_host, device_client, mocker
+    ):
+        prevent = mocker.patch("routers.oauth2.ratelimit.prevent")
+        _start(client, test_tenant_host, device_client)
+        assert prevent.call_args.args[0].startswith("oauth2_device_authorization:")
+        kwargs = prevent.call_args.kwargs
+        assert str(kwargs["tenant_id"]) == str(test_tenant["id"])
+        assert kwargs["limit"] == 30
+        assert kwargs["ip"]
+
     def test_no_csrf_token_needed(self, client, test_tenant_host, device_client):
         """A device is not a browser: it can never send a CSRF token."""
         with client.without_csrf():
@@ -181,6 +206,16 @@ class TestDeviceCodeGrant:
             },
         )
         _assert_error(response, "invalid_request")
+
+    def test_redeemed_by_a_racing_poll(
+        self, client, test_tenant, test_tenant_host, device_client, test_user, mocker
+    ):
+        """Two polls read 'approved'; the conditional redeem lets one through."""
+        started = _start(client, test_tenant_host, device_client).json()
+        _decide(test_tenant, test_user, started["user_code"])
+        mocker.patch("routers.oauth2.oauth2_device_service.redeem", return_value=None)
+        response = _poll(client, test_tenant_host, device_client, started["device_code"])
+        _assert_error(response, "invalid_grant")
 
     def test_approved_issues_tokens_once(
         self, client, test_tenant, test_tenant_host, device_client, test_user
@@ -468,3 +503,26 @@ class TestDevicePageDecision:
         response = authed.post("/device/decision", data={"action": "allow"})
         assert response.status_code == 403
         assert 'data-outcome="no_access"' in response.text
+
+    def test_plain_oauth2_client_is_not_group_gated(
+        self, authed, test_tenant, test_tenant_host, test_admin_user, client, mocker
+    ):
+        """Policy pin: as at the authorization endpoint, group access applies
+        to OIDC-enabled clients only. A plain OAuth2 device client is approved
+        by any signed-in user, with no access check at all."""
+        plain = _make_client(test_tenant, test_admin_user, oidc=False, available_to_all=False)
+        access = mocker.patch("routers.device.oidc_service.user_can_access_client")
+        started = _start(client, test_tenant_host, plain).json()
+        self._confirm(authed, started)
+        response = authed.post("/device/decision", data={"action": "allow"})
+        assert 'data-outcome="approved"' in response.text
+        access.assert_not_called()
+
+    @pytest.mark.parametrize("action", ["allow", "deny"])
+    def test_decided_between_read_and_write(self, authed, started, mocker, action):
+        """The conditional update lost the race (another tab, or expiry)."""
+        self._confirm(authed, started)
+        mocker.patch("routers.device.oauth2_device_service.decide_request", return_value=None)
+        response = authed.post("/device/decision", data={"action": action})
+        assert response.status_code == 400
+        assert 'data-outcome="expired"' in response.text

@@ -806,26 +806,26 @@ def update_client(
     # Validate: redirect_uris only allowed for normal clients
     if redirect_uris is not None and old_client["client_type"] != "normal":
         raise ValidationError(
-            "Redirect URIs can only be set for normal clients",
+            "Redirect URIs can only be set for Apps, not service accounts",
             code="redirect_uris_not_allowed",
         )
     if post_logout_redirect_uris is not None:
         if old_client["client_type"] != "normal":
             raise ValidationError(
-                "Post-logout redirect URIs can only be set for normal clients",
+                "Post-logout redirect URIs can only be set for Apps, not service accounts",
                 code="redirect_uris_not_allowed",
             )
         post_logout_redirect_uris = validate_post_logout_redirect_uris(post_logout_redirect_uris)
     if frontchannel_logout_uri is not None or frontchannel_logout_session_required is not None:
         if old_client["client_type"] != "normal":
             raise ValidationError(
-                "Front-channel logout can only be set for normal clients",
+                "Front-channel logout can only be set for Apps, not service accounts",
                 code="redirect_uris_not_allowed",
             )
     if backchannel_logout_uri is not None or backchannel_logout_session_required is not None:
         if old_client["client_type"] != "normal":
             raise ValidationError(
-                "Back-channel logout can only be set for normal clients",
+                "Back-channel logout can only be set for Apps, not service accounts",
                 code="redirect_uris_not_allowed",
             )
         if backchannel_logout_uri is not None:
@@ -833,13 +833,13 @@ def update_client(
     if initiate_login_uri is not None:
         if old_client["client_type"] != "normal":
             raise ValidationError(
-                "A login initiation URI can only be set for normal clients",
+                "A login initiation URI can only be set for Apps, not service accounts",
                 code="redirect_uris_not_allowed",
             )
         initiate_login_uri = validate_initiate_login_uri(initiate_login_uri) or ""
     if device_grant_enabled and old_client["client_type"] != "normal":
         raise ValidationError(
-            "The device authorization grant can only be enabled for normal clients",
+            "The device authorization grant can only be enabled for Apps, not service accounts",
             code="device_grant_not_allowed",
         )
     if require_pushed_authorization_requests and (

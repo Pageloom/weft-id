@@ -227,7 +227,9 @@ class TestDevBaseDomainRewrite:
         with _patch_client(_FakeResponse(200, {"issuer": "x"})) as mock_client:
             discovery_service._fetch_discovery_document("https://idp.example.com/.well-known")
         assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
-        assert "localhost.emobix.co.uk" in mock_client.call_args.kwargs["dev_hostname_allowlist"]
+        assert mock_client.call_args.kwargs["dev_hostname_allowlist"] == frozenset(
+            {"localhost.emobix.co.uk"}
+        )
 
 
 class _RaisingClient(_FakeClient):

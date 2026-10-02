@@ -100,7 +100,9 @@ class TestDevBaseDomainRewrite:
         with _patch_client(_FakeResponse(200, JWKS_DOC)) as mock_client:
             jwks_service._fetch_jwks("https://idp.example.com/jwks")
         assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
-        assert "localhost.emobix.co.uk" in mock_client.call_args.kwargs["dev_hostname_allowlist"]
+        assert mock_client.call_args.kwargs["dev_hostname_allowlist"] == frozenset(
+            {"localhost.emobix.co.uk"}
+        )
 
 
 class TestCacheFollowsJwksUri:

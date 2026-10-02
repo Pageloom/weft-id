@@ -4,6 +4,165 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [BUG] Composite `created_by` foreign keys null `tenant_id` on user delete
+
+**Fixed:** 2026-10-02 (`c04a2911`). The user-delete service did not block the case: deleting a user who created a SAML IdP, SP, domain binding, etc. failed with a not-null violation. Migration 0077 drops NOT NULL on the eight creator columns that had it and re-creates all nine keys as `ON DELETE SET NULL (created_by)` (`updated_by` for `tenant_security_settings`), `NOT VALID` then `VALIDATE`. Tests: `tests/database/test_creator_foreign_keys.py` (a catalog check that no composite SET NULL key to `users` nulls `tenant_id`, plus a delete regression).
+
+**Discovered:** 2026-09-27 (oidc-conformance Iteration 8a, while testing cascades)
+**Severity:** Medium (deleting a user who created one of these rows fails)
+**Found in:** ten foreign keys of the form
+`FOREIGN KEY (created_by, tenant_id) REFERENCES users(id, tenant_id) ON DELETE SET NULL`
+
+Without a column list, `ON DELETE SET NULL` nulls **both** referencing columns,
+including the row's `tenant_id` (NOT NULL). Deleting the referenced user then
+fails with a not-null violation instead of clearing `created_by`. Observed on
+`oidc_idp_connections` (deleting the connection's creator); the same shape is
+on `tenant_privileged_domains`, `tenant_security_settings` (`updated_by`),
+`saml_identity_providers`, `saml_idp_domain_bindings`, `saml_sp_certificates`,
+`oauth2_clients`, `service_providers`, `domain_group_links`, and
+`oidc_idp_domain_bindings`. Not verified whether the user-delete service
+blocks the case first (e.g. by refusing to delete admins).
+
+**Suggested fix:** Postgres 15+ supports `ON DELETE SET NULL (created_by)`.
+Re-create each constraint with the column list (add the new one `NOT VALID`,
+validate, drop the old one). Where `created_by` is itself NOT NULL
+(`oidc_idp_connections`), decide between making it nullable and blocking the
+delete with a clear error.
+**Files Affected:** a new migration; possibly `app/services/users/crud.py`
+
+---
+
+## [BUG] Expired OAuth2 access and refresh tokens are never deleted
+
+**Fixed:** 2026-10-02 (`899b9cf3`). Migration 0078 adds the SECURITY DEFINER `purge_expired_oauth2_tokens(interval)`; `services.oauth2_tokens.cleanup_expired_tokens` runs it from the daily OIDC cleanup job, deleting tokens a day past expiry (the margin outlives any access token minted from an expiring refresh token, since `parent_token_id` cascades). The unused per-tenant `cleanup_expired_tokens` DB function was replaced.
+
+**Discovered:** 2026-09-26 (oidc-conformance Iteration 4)
+**Severity:** Low (storage growth only; expired rows are never accepted)
+**Found in:** `app/database/oauth2/tokens.py` (`cleanup_expired_tokens`)
+
+`cleanup_expired_tokens` exists but nothing calls it, so every access token
+(1 h) and refresh token (30 d) row stays in `oauth2_tokens` forever. Validation
+filters on `expires_at > now()`, so nothing expired is ever honoured; the cost is
+unbounded table and index growth. Authorization codes had the same gap; since
+Iteration 4 keeps redeemed codes (marked `consumed_at`) for reuse detection,
+`create_authorization_code` now sweeps the tenant's expired codes inline.
+
+**Suggested fix:** A periodic worker sweep. `oauth2_tokens` has the strict
+(non-NULLIF) RLS policy, so a cross-tenant sweep needs a SECURITY DEFINER
+function (see THOUGHT_ERRORS "Cross-Tenant Queries"), or an inline per-tenant
+sweep on the token-issuance path like the one codes use.
+**Files Affected:** `app/database/oauth2/tokens.py`, a new job in `app/jobs/`
+
+---
+
+## [SECURITY] RFC 7592 client update can undo admin decisions; registration token never rotates
+
+**Fixed:** 2026-10-02 (`8c709fb9`). A PUT is refused (`invalid_client_metadata`) when it adds the device grant the client lacks, and keeps PAR an admin required (the client's own PAR request is now recorded in `registration_metadata`, so it may still drop PAR it asked for). `oauth2_client_registration_updated` logs every changed field (`changed: {field: {from, to}}`, key sets as `changed: true`). The registration access token rotates on each PUT inside the update statement, conditioned on the old hash, so of two racing updates only the first wins. Admins can reset the token from the app page or `POST /api/v1/oauth2/registration/clients/{client_id}/reset-registration-token` (event `oauth2_client_registration_token_reset`). Re-review on redirect URI change was not added; the changed-field log covers the audit need.
+
+**Discovered:** 2026-10-02 (oidc-conformance final review, security L2)
+**Severity:** Low
+**Found in:** `app/services/oauth2_registration.py` (`update_client_configuration`),
+`app/database/oauth2/registration.py` (`replace_registered_client`)
+
+After an admin narrows a dynamically registered client (group access, device grant off,
+redirect URIs trimmed), the holder of its registration access token can PUT the metadata
+back: re-add the device grant, add redirect URIs, change name and logo. The
+`oauth2_client_registration_updated` event logs only name, redirect URIs and subject type.
+The token never expires and an admin cannot reset it short of deleting the client.
+
+**Fix direction:** treat admin-set flags (device grant, PAR) as a ceiling a PUT cannot
+raise; log every changed field; rotate the registration access token on each update
+(RFC 7592 allows returning a new one) and give admins a reset; consider flagging the client
+for re-review when its redirect URIs change.
+
+---
+
+## [SECURITY] Hardening: outbound fetch failures are not cached, no per-client in-flight cap
+
+**Fixed:** 2026-10-02 (`4de1b9ea`). New `utils.fetch_guard.FetchGuard` (per process): a failed fetch is cached 30s per (owner, URL) and re-raised; fetches beyond a per-owner cap fail fast. Applied to `request_uri` (per client, cap 2, since each request has its own URI), `jwks_uri` (per client, cap 1; `clear_jwks_cache` also drops the client's cached failures) and the sector document (per URI, cap 1). Tests: `tests/utils/test_fetch_guard.py` plus one negative-cache and one busy test per call site.
+
+**Discovered:** 2026-10-02 (oidc-conformance final review, security M3 remainder)
+**Severity:** Low
+**Found in:** `app/services/oauth2_request_objects.py` (`_fetch`),
+`app/services/oauth2_client_auth.py` (`_fetch_jwks`), `app/services/oidc/subject.py`
+
+The slow-drip half of M3 is fixed (`build_safe_client(total_timeout=)` bounds every fetch
+to 10s overall). Left open: a client whose `request_uri` or `jwks_uri` is slow or failing is
+fetched again on every authorize/token request (no negative cache), and nothing limits
+concurrent fetches per client, so a registered client can still keep a handful of threads
+busy for up to 10s each.
+
+**Fix direction:** cache a failed fetch for ~30s per (tenant, client, URI); allow one
+in-flight fetch per client (others fail fast or wait on it).
+
+---
+
+## [SECURITY] Sessions from before `sid` existed cannot be revoked server-side
+
+**Fixed:** 2026-10-02 (`46c7785e`). `utils.auth.get_current_user` calls `ensure_session_id` for an authenticated session without a `sid`, so every live session becomes revocable on its next request. Tests in `tests/utils/test_auth.py`.
+
+**Discovered:** 2026-10-02 (oidc-conformance final review, security hardening note)
+**Severity:** Low (same as `main`)
+**Found in:** `app/routers/auth/logout.py` (`terminate_session`), `utils.session.ensure_session_id`
+
+A session cookie minted before the `sid` work has no session id until something calls
+`ensure_session_id` (issuing an OIDC code does). Signing out of such a session clears the
+cookie but records no revocation, so a copied cookie stays valid until it expires.
+
+**Fix direction:** mint a `sid` on the first authenticated request that lacks one (in the
+auth dependency), so every live session becomes revocable.
+
+---
+
+## [TEST] Back-channel delivery claim tests race the running dev worker
+
+**Fixed:** 2026-10-02 (`07f825e4`). `make test` (and `watch-tests`, `coverage`) now run against `appdb_test`, which `make test-db` (`dev/test_db.py`) creates and migrates; the dev worker only connects to `appdb`. A bare `pytest` still defaults to `appdb`, and CI is unchanged (no worker there). This isolates every worker-swept table, not only back-channel deliveries.
+
+**Discovered:** 2026-10-01 (oidc-conformance Iteration 11b, `make quality-all`)
+**Severity:** Low (flaky test, no production impact)
+**Found in:** `tests/database/test_oauth2_backchannel.py` (`test_claim_respects_limit`, and in
+principle every test that queues a delivery and then calls `claim_due_deliveries`)
+
+Unit tests run against the dev database (`appdb`, see `tests/conftest.py`). The dev worker
+container runs `deliver_oidc_backchannel_logouts` every few seconds, and
+`list_tenants_with_due_backchannel_logouts()` returns every tenant with a due delivery, test
+tenants included. When the worker leases a row between the test queueing it and the test's own
+claim, the test sees fewer rows (`assert 1 == 2`). Seen once in a full parallel run; passes in
+isolation (3/3).
+
+**Suggested fix:** Isolate tests from the worker rather than patch the test. Options: run unit
+tests against a separate database (`appdb_test`) the worker never connects to; or stop the
+worker for the test run (`make test` could `docker compose stop worker` and restart it after).
+A test-only filter in the SQL function is not acceptable (production code must not know about
+test tenants). Check other worker-swept tables (session sweeps, token cleanup) for the same race
+once the isolation exists.
+
+**Files Affected:** `tests/conftest.py`, `Makefile` (or the dev compose), possibly
+`tests/database/test_oauth2_backchannel.py`
+
+---
+
+## [DOCS] Glossary entries and screenshots for the OIDC hardening features
+
+**Fixed:** 2026-10-02 (`d9960c67`). Added 14 glossary entries (device authorization grant, PAR, request object, pairwise subject identifier, sector identifier, front-/back-channel logout, logout token, private key JWT, token introspection, token revocation, initial and registration access tokens). Screenshots moved to the backlog item "Docs: capture admin guide screenshots (SCIM and OIDC)". The conformance report now labels a build whose commit lacks the `v<version>` tag as `<version>+<sha> (untagged)`.
+
+**Discovered:** 2026-10-02 (oidc-conformance final review, tech-writer)
+**Severity:** Low
+
+- `docs/glossary.md` has no entries for: pairwise subject identifier / sector identifier,
+  pushed authorization request (PAR), request object, back-channel / front-channel logout and
+  logout token, device authorization grant, initial access token, token introspection /
+  revocation, private key JWT. Short entries linking to the integration pages.
+- Screenshots would help: consent screen with "Already allowed", the device code entry and
+  confirm pages, the Client Registration page, the app detail "Subject Identifiers" and
+  "Back-Channel Logout Deliveries" sections, the "Sign in again?" confirmation.
+- Release step (not a defect): `docs/conformance/oidc.md` labels the last run "1.12.0
+  (`446d4263`)" because that is the version in `pyproject.toml`. Regenerate it with
+  `make oidc-conformance-report ARGS="--write-docs"` after the version bump, per
+  `docs/VERSIONING.md`, or teach the report to label untagged builds.
+
+---
+
 ## [SECURITY] SSRF blocklist misses `::`, NAT64 and 6to4 embedded addresses
 
 **Fixed:** 2026-10-02 (oidc-conformance final review, M2). `_is_ip_blocked` now refuses

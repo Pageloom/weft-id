@@ -1389,3 +1389,22 @@ class TestResetRegistrationAccessToken:
             svc.reset_registration_access_token(
                 _user(test_tenant, test_admin_user), normal_oauth2_client["client_id"]
             )
+
+
+class TestReadsTrackActivity:
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda user: svc.get_registration_settings(user, BASE),
+            lambda user: svc.list_initial_access_tokens(user),
+        ],
+        ids=["get_registration_settings", "list_initial_access_tokens"],
+    )
+    def test_tracks_activity(self, monkeypatch, test_tenant, test_admin_user, call):
+        calls = []
+        monkeypatch.setattr(svc, "track_activity", lambda *args: calls.append(args))
+        user = _user(test_tenant, test_admin_user)
+
+        call(user)
+
+        assert calls == [(user["tenant_id"], user["id"])]

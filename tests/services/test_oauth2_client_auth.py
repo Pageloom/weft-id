@@ -232,6 +232,28 @@ class TestAuthenticateClientAssertion:
         )
         assert client["client_id"] == normal_oauth2_client["client_id"]
 
+    def test_rotated_keys_are_refetched_once(
+        self, test_tenant, test_admin_user, normal_oauth2_client, monkeypatch
+    ):
+        """The cached set lacks the signing key: one refetch finds it."""
+        served = [{"keys": [public_jwk(RSA_KEY, "rsa-1")]}, JWKS]
+        calls = _mock_http(monkeypatch, lambda _: httpx.Response(200, json=served[len(calls) - 1]))
+        client_id = normal_oauth2_client["client_id"]
+        svc.set_client_authentication(
+            _user(test_tenant, test_admin_user, "admin"),
+            client_id,
+            method="private_key_jwt",
+            jwks_uri=URI,
+        )
+        assertion = make_assertion(client_id, ISSUER, key=EC_KEY, alg="ES256", kid="ec-1")
+
+        client = svc.authenticate_client_assertion(
+            test_tenant["id"], assertion=assertion, client_id=client_id, audiences=[ISSUER]
+        )
+
+        assert client["client_id"] == client_id
+        assert calls == [URI, URI]
+
     def test_jti_kept_through_the_leeway_window(
         self, test_tenant, test_admin_user, normal_oauth2_client
     ):

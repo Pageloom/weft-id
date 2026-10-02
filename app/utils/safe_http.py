@@ -22,6 +22,11 @@ request:
 Redirect following is disabled: a 3xx to a private IP would otherwise be
 followed without re-validation.
 
+httpx timeouts apply to each socket operation, so a server that sends one
+byte just inside the read timeout can hold a worker thread for hours. With
+`total_timeout`, every connect, read and write is clipped to what is left of
+one overall budget for the client's lifetime (build one client per fetch).
+
 Three dev-only escape hatches keep local development working; all are inert
 in production (`IS_DEV` is false):
 
@@ -40,7 +45,11 @@ in production (`IS_DEV` is false):
 from __future__ import annotations
 
 import socket
+import ssl
+import time
+import typing
 
+import httpcore
 import httpx
 import settings
 from utils import url_safety
@@ -96,6 +105,80 @@ def _resolve_and_validate(host: str, port: int | None) -> str:
     return addresses[0]
 
 
+class _DeadlineStream(httpcore.NetworkStream):
+    """A network stream whose every operation is clipped to the deadline."""
+
+    def __init__(self, inner: httpcore.NetworkStream, backend: _DeadlineBackend) -> None:
+        self._inner = inner
+        self._backend = backend
+
+    def read(self, max_bytes: int, timeout: float | None = None) -> bytes:
+        return self._inner.read(max_bytes, self._backend.clip(timeout, httpcore.ReadTimeout))
+
+    def write(self, buffer: bytes, timeout: float | None = None) -> None:
+        self._inner.write(buffer, self._backend.clip(timeout, httpcore.WriteTimeout))
+
+    def close(self) -> None:
+        self._inner.close()
+
+    def start_tls(
+        self,
+        ssl_context: ssl.SSLContext,
+        server_hostname: str | None = None,
+        timeout: float | None = None,
+    ) -> httpcore.NetworkStream:
+        inner = self._inner.start_tls(
+            ssl_context, server_hostname, self._backend.clip(timeout, httpcore.ConnectTimeout)
+        )
+        return _DeadlineStream(inner, self._backend)
+
+    def get_extra_info(self, info: str) -> typing.Any:
+        return self._inner.get_extra_info(info)
+
+
+class _DeadlineBackend(httpcore.NetworkBackend):
+    """Sync network backend that enforces one total time budget."""
+
+    def __init__(self, total_timeout: float) -> None:
+        self._inner = httpcore.SyncBackend()
+        self._deadline = time.monotonic() + total_timeout
+
+    def clip(self, timeout: float | None, error: type[Exception]) -> float:
+        """The smaller of ``timeout`` and the time left; raises when none is left."""
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise error("total timeout exceeded")
+        return remaining if timeout is None else min(timeout, remaining)
+
+    def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: typing.Iterable[httpcore.SOCKET_OPTION] | None = None,
+    ) -> httpcore.NetworkStream:
+        stream = self._inner.connect_tcp(
+            host,
+            port,
+            self.clip(timeout, httpcore.ConnectTimeout),
+            local_address=local_address,
+            socket_options=socket_options,
+        )
+        return _DeadlineStream(stream, self)
+
+    def connect_unix_socket(
+        self,
+        path: str,
+        timeout: float | None = None,
+        socket_options: typing.Iterable[httpcore.SOCKET_OPTION] | None = None,
+    ) -> httpcore.NetworkStream:  # pragma: no cover - never used for outbound fetches
+        raise httpcore.ConnectError("unix sockets are not supported")
+
+    def sleep(self, seconds: float) -> None:  # pragma: no cover - only used by retries
+        self._inner.sleep(seconds)
+
+
 class PinnedResolveTransport(httpx.HTTPTransport):
     """httpx transport that validates and IP-pins each outbound request."""
 
@@ -105,8 +188,16 @@ class PinnedResolveTransport(httpx.HTTPTransport):
         dev_hostname_allowlist: frozenset[str] = frozenset(),
         dev_base_domain_rewrite: bool = False,
         verify: bool = True,
+        total_timeout: float | None = None,
     ) -> None:
         super().__init__(verify=verify)
+        if total_timeout is not None:
+            # Same pool httpx builds for a plain transport, with every socket
+            # operation clipped to the overall budget.
+            self._pool = httpcore.ConnectionPool(
+                ssl_context=httpx.create_ssl_context(verify=verify),
+                network_backend=_DeadlineBackend(total_timeout),
+            )
         self._dev_hostname_allowlist = dev_hostname_allowlist
         self._dev_base_domain_rewrite = dev_base_domain_rewrite
 
@@ -153,6 +244,7 @@ def build_safe_client(
     dev_hostname_allowlist: frozenset[str] = frozenset(),
     dev_base_domain_rewrite: bool = False,
     dev_skip_tls_verify: bool = False,
+    total_timeout: float | None = None,
 ) -> httpx.Client:
     """Build an `httpx.Client` hardened against SSRF.
 
@@ -166,6 +258,9 @@ def build_safe_client(
         dev_skip_tls_verify: Dev-only; turn TLS verification off for this
             client, for allowlisted dev services with self-signed certificates
             (the OIDC conformance suite). Inert in production.
+        total_timeout: Overall budget in seconds for everything the client
+            does (connect, TLS, request, response body), measured from now.
+            Bounds a server that drips its response just inside `timeout`.
     """
     # The dev reverse-proxy serves tenant subdomains with a local cert, so TLS
     # verification must be skipped when that rewrite is active. This only ever
@@ -175,6 +270,7 @@ def build_safe_client(
         dev_hostname_allowlist=dev_hostname_allowlist,
         dev_base_domain_rewrite=dev_base_domain_rewrite,
         verify=verify,
+        total_timeout=total_timeout,
     )
     return httpx.Client(  # ssrf-ok: this IS the guard (validates per request)
         timeout=timeout,

@@ -111,13 +111,51 @@ class TestIsIpBlocked:
         [
             "8.8.8.8",
             "1.1.1.1",
-            "203.0.113.1",
+            "93.184.216.34",
             "2607:f8b0:4004:800::200e",
+            "::ffff:8.8.8.8",
         ],
-        ids=["google-dns", "cloudflare-dns", "public-doc", "google-ipv6"],
+        ids=["google-dns", "cloudflare-dns", "public", "google-ipv6", "mapped-public"],
     )
     def test_allowed_public_ip(self, ip: str):
         assert _is_ip_blocked(ip) is False
+
+    @pytest.mark.parametrize(
+        "ip",
+        [
+            "::",
+            "64:ff9b::a9fe:a9fe",
+            "64:ff9b::808:808",
+            "64:ff9b:1::1",
+            "2002:7f00:1::",
+            "2002:0808:0808::",
+            "2001:0:4136:e378:8000:63bf:80ff:fffe",
+            "ff02::1",
+            "198.18.0.1",
+            "198.19.255.254",
+            "203.0.113.1",
+            "192.0.2.1",
+        ],
+        ids=[
+            "unspecified-v6",
+            "nat64-cloud-meta",
+            "nat64-public",
+            "nat64-local-use",
+            "6to4-loopback",
+            "6to4-public",
+            "teredo",
+            "v6-multicast",
+            "benchmark",
+            "benchmark-max",
+            "test-net-3",
+            "test-net-1",
+        ],
+    )
+    def test_blocked_transition_and_non_global(self, ip: str):
+        """Transition addresses are refused outright (they can reach an IPv4
+        target the inner-address check never sees), as is anything that is
+        not globally routable."""
+        assert _is_ip_blocked(ip) is True
 
 
 # =============================================================================

@@ -473,10 +473,10 @@
         </div>
 
         {% if client.backchannel_logout_uri or backchannel_deliveries.total %}
-        <!-- Back-channel Logout Deliveries Section -->
+        <!-- Back-Channel Logout Deliveries Section -->
         {% set bc = backchannel_deliveries.counts %}
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700" id="backchannel-deliveries">
-            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Back-channel Logout Deliveries</h2>
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Back-Channel Logout Deliveries</h2>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Logout tokens sent to this app when a user's session ended, including when the user was deactivated or deleted. Kept for 30 days. {{ bc.delivered }} delivered, {{ bc.pending }} pending, {{ bc.failed }} failed.</p>
 
             {% if backchannel_deliveries.items %}

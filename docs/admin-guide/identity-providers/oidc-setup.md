@@ -43,9 +43,9 @@ Your provider will then give you a client ID and a client secret.
 
 Back in WeftID, edit the connection and supply:
 
-* **Issuer** — the provider's issuer URL, for example `https://auth.example.com/realms/staff`
-* **Discovery URL** — usually the issuer plus `/.well-known/openid-configuration`
-* **Client ID** and **Client secret** — from your provider
+* **Issuer**: the provider's issuer URL, for example `https://auth.example.com/realms/staff`
+* **Discovery URL**: usually the issuer plus `/.well-known/openid-configuration`
+* **Client ID** and **Client secret**: from your provider
 
 The client secret is encrypted at rest and is never displayed again after you save it. The connection shows only whether a secret is set. To change it, enter a new one.
 
@@ -127,13 +127,13 @@ Entering endpoints by hand stops the hourly refresh at sign-in, so your values s
 
 ## Connection settings
 
-* **Enabled** — whether users can sign in through this connection. A disabled connection blocks its linked users from authenticating.
-* **Default connection** — new users with no other route are sent here. One connection per tenant can be the default.
-* **JIT provisioning** — create a WeftID account on first successful sign-in. Without it, only users who already exist and are already linked can sign in.
-* **Require two-step verification** — after the provider authenticates the user, WeftID additionally requires its own two-step verification before the session is established. Use this when you do not want to rely solely on the upstream provider's authentication.
-* **Allow email linking** — see below.
-* **Sign out at the provider** — see [Sign-out at the provider](#sign-out-at-the-provider).
-* **Scopes** — space-separated. `openid` is always requested.
+* **Enabled**: whether users can sign in through this connection. A disabled connection blocks its linked users from authenticating.
+* **Default connection**: new users with no other route are sent here. One connection per tenant can be the default.
+* **JIT provisioning**: create a WeftID account on first successful sign-in. Without it, only users who already exist and are already linked can sign in.
+* **Require two-step verification**: after the provider authenticates the user, WeftID additionally requires its own two-step verification before the session is established. Use this when you do not want to rely solely on the upstream provider's authentication.
+* **Allow email linking**: see below.
+* **Sign out at the provider**: see [Sign-out at the provider](#sign-out-at-the-provider).
+* **Scopes**: space-separated. `openid` is always requested.
 
 ### Allow email linking
 

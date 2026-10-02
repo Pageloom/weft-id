@@ -13,7 +13,10 @@ import settings
 # 5 MB limit for metadata responses
 MAX_METADATA_BYTES = 5 * 1024 * 1024
 
-# IP networks that must never be contacted by metadata fetches
+# IP networks that must never be contacted by metadata fetches. Anything that
+# is not globally routable is refused as well (see ``_is_ip_blocked``); this
+# list names the ranges explicitly so the intent survives a change in what the
+# standard library considers global.
 _BLOCKED_NETWORKS = [
     # IPv4
     ipaddress.ip_network("0.0.0.0/8"),
@@ -24,27 +27,55 @@ _BLOCKED_NETWORKS = [
     ipaddress.ip_network("172.16.0.0/12"),
     ipaddress.ip_network("192.0.0.0/24"),
     ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("198.18.0.0/15"),
     ipaddress.ip_network("224.0.0.0/4"),
     ipaddress.ip_network("240.0.0.0/4"),
     # IPv6
+    ipaddress.ip_network("::/128"),
     ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("64:ff9b::/96"),  # NAT64 (well-known prefix)
+    ipaddress.ip_network("64:ff9b:1::/48"),  # NAT64 (local-use prefix)
+    ipaddress.ip_network("2001::/32"),  # Teredo
+    ipaddress.ip_network("2002::/16"),  # 6to4
     ipaddress.ip_network("fc00::/7"),
     ipaddress.ip_network("fe80::/10"),
+    ipaddress.ip_network("ff00::/8"),
 ]
+
+_NAT64_PREFIX = ipaddress.ip_network("64:ff9b::/96")
+
+
+def _embedded_ipv4(addr: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
+    """The IPv4 address an IPv6 transition address reaches, if any."""
+    if addr.ipv4_mapped:
+        return addr.ipv4_mapped
+    if addr.sixtofour:
+        return addr.sixtofour
+    if addr.teredo:
+        return addr.teredo[1]
+    if addr in _NAT64_PREFIX:
+        return ipaddress.IPv4Address(int(addr) & 0xFFFFFFFF)
+    return None
 
 
 def _is_ip_blocked(ip_str: str) -> bool:
-    """Check whether an IP address falls in a blocked network."""
-    addr = ipaddress.ip_address(ip_str)
+    """Check whether an IP address is private, reserved, or otherwise not
+    globally routable, including an IPv4 address carried inside an IPv6
+    transition address (IPv4-mapped, 6to4, Teredo, NAT64)."""
+    addr: ipaddress.IPv4Address | ipaddress.IPv6Address = ipaddress.ip_address(ip_str)
 
-    # IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1): check the inner IPv4 address
-    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
-        addr = addr.ipv4_mapped
+    if isinstance(addr, ipaddress.IPv6Address):
+        inner = _embedded_ipv4(addr)
+        if inner is not None:
+            # The transition prefixes are blocked outright; the inner address
+            # is checked too so a mapped address reports for the right reason.
+            if addr.ipv4_mapped is None:
+                return True
+            addr = inner
 
-    for net in _BLOCKED_NETWORKS:
-        if addr in net:
-            return True
-    return False
+    if not addr.is_global or addr.is_multicast:
+        return True
+    return any(addr in net for net in _BLOCKED_NETWORKS)
 
 
 def is_blocked_ip(ip_str: str) -> bool:

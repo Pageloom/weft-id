@@ -334,7 +334,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     before anything else, accepts `POST`, requires `response_type`, and
     honours `prompt` (`none`, `login`, `consent`, `select_account`),
     `max_age`, `login_hint`, and `id_token_hint`. `prompt=login` and an
-    expired `max_age` require a full local sign-in. The `claims` parameter
+    expired `max_age` require a full local sign-in, which the user first
+    confirms on a "Sign in again?" page (cancelling returns `access_denied`),
+    so a link on another site cannot sign anyone out. The `claims` parameter
     is not supported, and discovery says `claims_parameter_supported: false`.
 - **Anonymizing a user revokes their OAuth2 tokens and remembered consents**,
   as deactivation already did. Anonymization deactivates the user, but their
@@ -346,6 +348,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **Outbound fetches are harder to abuse.** The SSRF guard now refuses any
+  address that is not globally routable, including IPv6 `::` and IPv4 targets
+  reached through NAT64, 6to4 or Teredo addresses. Fetches of request objects,
+  client JWKS and sector identifier documents have a 10-second overall limit,
+  so a server that drips its response can no longer hold a worker for hours.
+- The device authorization endpoint and the client configuration endpoint
+  (RFC 7592) are rate-limited per client IP, and device codes are hashed with
+  SHA-256 instead of Argon2 (they are short-lived 256-bit random values).
+- A `private_key_jwt` assertion's `jti` is remembered through the clock-skew
+  leeway, closing a 60-second replay window. A dynamically registered pairwise
+  client with the device grant must supply a `sector_identifier_uri`. A logout
+  token is no longer accepted as an `id_token_hint`.
 - Updated PyJWT to 2.15.1 (13 advisories, including algorithm confusion when
   symmetric and asymmetric algorithms share one verification path, and JWKS
   fetches following redirects) and urllib3 to 2.8.0 (3 advisories).

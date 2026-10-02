@@ -200,6 +200,15 @@ class TestJwksRefetchThrottle:
         fetch_jwks.side_effect = [stale, JWKS_DOC]
         assert _validate(_sign(_payload()), connection_id="c-rotate")["sid"] == "up-sid"
 
+    def test_malformed_token_does_not_refetch(self, fetch_jwks):
+        """A signed token with a non-numeric exp is a structural problem,
+        not a key-rotation symptom."""
+        jwks_service.clear_jwks_cache("t1", "c-malformed")
+        with pytest.raises(LogoutTokenError) as exc:
+            _validate(_sign(_payload(exp="soon")), connection_id="c-malformed")
+        assert exc.value.reason == "malformed"
+        assert fetch_jwks.call_count == 1
+
     def test_non_signature_failure_does_not_refetch(self, fetch_jwks):
         jwks_service.clear_jwks_cache("t1", "c-iss")
         with pytest.raises(LogoutTokenError):

@@ -176,6 +176,10 @@ def verify_id_token_hint(
     kid = header.get("kid")
     if not isinstance(kid, str):
         return None
+    # A logout token is signed by the same keys for the same audience; it
+    # names a user but is not an ID token (Back-Channel Logout 1.0 section 2.4).
+    if str(header.get("typ", "")).lower() == "logout+jwt":
+        return None
     public_key_pem = get_verification_public_keys(tenant_id).get(kid)
     if public_key_pem is None:
         return None
@@ -189,5 +193,7 @@ def verify_id_token_hint(
             options={"verify_exp": False, "require": ["iss", "sub", "aud"]},
         )
     except jwt.PyJWTError:
+        return None
+    if "events" in claims:
         return None
     return claims if isinstance(claims.get("sub"), str) else None

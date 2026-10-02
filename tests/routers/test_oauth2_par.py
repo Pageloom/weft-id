@@ -17,6 +17,7 @@ from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
 from services import oauth2_par as par_service
 
 from tests.helpers.client_keys import ASSERTION_TYPE, JWKS, make_assertion, make_request_object
+from tests.helpers.reauth import confirm_reauth
 
 REDIRECT_URI = "http://localhost:3000/callback"
 URN_PREFIX = "urn:ietf:params:oauth:request_uri:"
@@ -502,7 +503,8 @@ class TestLoginStash:
             "/oauth2/authorize",
             params={"client_id": normal_oauth2_client["client_id"], "request_uri": request_uri},
         )
-        assert first.status_code == 303
+        assert first.status_code == 200
+        assert confirm_reauth(authed, session_data).status_code == 303
         stashed = session_data.pop(PENDING_OAUTH2_AUTHORIZE_KEY)
         assert set(parse_qs(urlsplit(stashed).query)) == {"client_id", "request_uri"}
         row = database.fetchone(

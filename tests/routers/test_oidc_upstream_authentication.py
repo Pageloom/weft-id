@@ -463,3 +463,118 @@ class TestUserinfoSubject:
         )
         response = self._callback(tenant_client, conn, _FakeResponse(503))
         assert "error=" not in response.headers["location"]
+
+
+class TestCallbackFailures:
+    """Every callback failure fails closed: an error redirect, an
+    oidc_login_failed audit with its reason, and no signed-in session."""
+
+    def _callback(self, tenant_client, conn, *, query="state=state-1&code=code-1", **patches):
+        from tests.fixtures.oidc import load_fixture
+
+        session = {
+            f"oidc_auth:{conn['id']}:state": "state-1",
+            f"oidc_auth:{conn['id']}:nonce": "n-1",
+            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
+        }
+        exchange = patches.get(
+            "exchange", {"return_value": {"access_token": "at", "id_token": _signed_id_token()}}
+        )
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: session),
+            ),
+            patch("services.oidc_upstream.exchange_code", **exchange),
+            patch("services.oidc_upstream.jwks._fetch_jwks", return_value=load_fixture("jwks")),
+        ):
+            response = tenant_client.get(
+                f"/auth/oidc/{conn['id']}/callback?{query}", follow_redirects=False
+            )
+        assert "user_id" not in session
+        return response
+
+    def _assert_failed(self, response, test_tenant, conn, reason, error="auth_failed"):
+        assert response.status_code == 303
+        assert response.headers["location"].endswith(f"/login?error={error}")
+        event = _last_login_failure(test_tenant["id"], conn["id"])
+        assert event["metadata"]["reason"] == reason
+        return event
+
+    def test_missing_code(self, tenant_client, test_tenant, test_user):
+        conn = _make_connection(test_tenant, test_user)
+        response = self._callback(tenant_client, conn, query="state=state-1")
+        self._assert_failed(response, test_tenant, conn, "missing_code")
+
+    def test_token_exchange_failure(self, tenant_client, test_tenant, test_user):
+        import services.oidc_upstream as oidc_service
+
+        conn = _make_connection(test_tenant, test_user)
+        response = self._callback(
+            tenant_client,
+            conn,
+            exchange={"side_effect": oidc_service.TokenExchangeError("token endpoint said 400")},
+        )
+        event = self._assert_failed(response, test_tenant, conn, "token_exchange")
+        assert "400" in event["metadata"]["detail"]
+
+    def test_missing_id_token(self, tenant_client, test_tenant, test_user):
+        conn = _make_connection(test_tenant, test_user)
+        response = self._callback(
+            tenant_client, conn, exchange={"return_value": {"access_token": "at"}}
+        )
+        self._assert_failed(response, test_tenant, conn, "missing_id_token")
+
+    def test_invalid_id_token(self, tenant_client, test_tenant, test_user):
+        conn = _make_connection(test_tenant, test_user, jit_provisioning=True)
+        response = self._callback(
+            tenant_client,
+            conn,
+            exchange={"return_value": {"id_token": _signed_id_token(nonce="replayed")}},
+        )
+        self._assert_failed(response, test_tenant, conn, "id_token")
+
+    def test_missing_correlation_claim(self, tenant_client, test_tenant, test_user):
+        conn = _make_connection(
+            test_tenant, test_user, correlation_claim="employee_id", jit_provisioning=True
+        )
+        response = self._callback(tenant_client, conn)
+        self._assert_failed(response, test_tenant, conn, "missing_sub")
+
+    def test_unknown_user_without_jit(self, tenant_client, test_tenant, test_user):
+        conn = _make_connection(test_tenant, test_user, jit_provisioning=False)
+        response = self._callback(tenant_client, conn)
+        self._assert_failed(response, test_tenant, conn, "user_not_found", error="user_not_found")
+
+    def test_forbidden_user(self, tenant_client, test_tenant, test_user):
+        from services.exceptions import ForbiddenError
+
+        conn = _make_connection(test_tenant, test_user, jit_provisioning=True)
+        with patch(
+            "services.oidc_upstream.authenticate_via_oidc",
+            side_effect=ForbiddenError(message="User is deactivated"),
+        ):
+            response = self._callback(tenant_client, conn)
+        self._assert_failed(response, test_tenant, conn, "auth_failed")
+
+    def test_connection_disabled_since_login(self, tenant_client, test_tenant, test_user):
+        conn = _make_connection(test_tenant, test_user, is_enabled=False)
+        response = self._callback(tenant_client, conn)
+        assert response.headers["location"].endswith("/login?error=idp_disabled")
+
+    @pytest.mark.parametrize("missing", ["token_endpoint", "jwks_uri"])
+    def test_incomplete_configuration(self, tenant_client, test_tenant, test_user, missing):
+        import routers.oidc_upstream.authentication as auth_router
+
+        conn = _make_connection(test_tenant, test_user)
+        real = auth_router._get_connection
+
+        def incomplete(tenant_id, connection_id):
+            row = real(tenant_id, connection_id)
+            return {**row, missing: None}
+
+        with patch.object(auth_router, "_get_connection", side_effect=incomplete):
+            response = self._callback(tenant_client, conn)
+        self._assert_failed(
+            response, test_tenant, conn, "configuration_error", error="configuration_error"
+        )

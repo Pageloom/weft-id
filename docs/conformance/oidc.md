@@ -120,7 +120,7 @@ These are the places where WeftID knowingly differs from what the suite checks f
 * **Unsigned ID tokens are never issued.** Discovery does not list `none` in `id_token_signing_alg_values_supported`, so the suite skips its unsigned ID token module.
 * **No mutual-TLS client authentication.** Confidential clients authenticate with a client secret or `private_key_jwt`; mTLS client authentication (RFC 8705) is not supported.
 * **No `address` or `phone` scopes.** WeftID has no attributes to fill them, so they are not advertised and the suite skips their modules.
-* **Re-authentication is local.** `prompt=login` and an expired `max_age` make the user sign in to WeftID again (password, then two-step verification per policy). The re-authentication is not passed on to an upstream SAML or OIDC identity provider.
+* **Re-authentication is local and confirmed.** `prompt=login` and an expired `max_age` make the user sign in to WeftID again (password, then two-step verification per policy). The user first confirms on a "Sign in again?" page, so a link on another website cannot sign them out; cancelling returns `access_denied` to the app. The re-authentication is not passed on to an upstream SAML or OIDC identity provider.
 
 One known limitation is not a conformance deviation, but is listed so this page does not overstate things: expired OAuth2 access and refresh tokens stop working at expiry but are not yet deleted from the database.
 

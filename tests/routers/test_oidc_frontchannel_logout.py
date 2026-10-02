@@ -19,6 +19,8 @@ from routers.saml_idp._helpers import PENDING_OAUTH2_AUTHORIZE_KEY
 from services.oidc import tokens as tokens_service
 from utils.session import SESSION_ID_KEY
 
+from tests.helpers.reauth import confirm_reauth
+
 SID = "sess-under-test"
 REDIRECT_URI = "https://rp.example/cb"
 BYE = "https://rp.example/post_logout_redirect"
@@ -305,8 +307,9 @@ class TestLocalLogout:
 
 
 class TestReauthentication:
-    def _authorize(self, signed_in, rp, **extra):
-        return signed_in.get(
+    def _authorize(self, signed_in, session_data, rp, **extra):
+        """Request a forced re-authentication and confirm it."""
+        page = signed_in.get(
             "/oauth2/authorize",
             params={
                 "client_id": rp["client_id"],
@@ -316,6 +319,8 @@ class TestReauthentication:
                 **extra,
             },
         )
+        assert page.status_code == 200
+        return confirm_reauth(signed_in, session_data)
 
     def test_other_clients_notified_on_the_way_to_login(
         self, signed_in, make_client, issue, test_user, test_tenant, session_data
@@ -327,7 +332,7 @@ class TestReauthentication:
         issue(asking, test_user)
         issue(other, test_user)
 
-        response = self._authorize(signed_in, asking, prompt="login")
+        response = self._authorize(signed_in, session_data, asking, prompt="login")
 
         (src,) = _assert_interstitial(
             response,
@@ -341,13 +346,13 @@ class TestReauthentication:
         assert event["metadata"]["frontchannel_logout_count"] == 1
 
     def test_only_the_asking_client_means_a_plain_redirect(
-        self, signed_in, make_client, issue, test_user, test_tenant
+        self, signed_in, make_client, issue, test_user, test_tenant, session_data
     ):
         """The RP mid-login is never sent a logout; its record is still removed."""
         asking = make_client("Asking")
         issue(asking, test_user)
 
-        response = self._authorize(signed_in, asking, prompt="login")
+        response = self._authorize(signed_in, session_data, asking, prompt="login")
 
         assert response.status_code == 303
         assert response.headers["location"].startswith("/login")

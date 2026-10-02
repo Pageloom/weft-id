@@ -10,8 +10,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 3 | File Structure (pre-existing); SSRF blocklist gaps (IPv6 unspecified, NAT64/6to4); composite created_by FKs break user delete |
-| Low | 3 | Upload-auth temp-file leak (warning-ignored, tracked); expired OAuth2 tokens never swept; back-channel claim tests race the dev worker |
+| Medium | 2 | File Structure (pre-existing); composite created_by FKs break user delete |
+| Low | 8 | Upload-auth temp-file leak (warning-ignored, tracked); expired OAuth2 tokens never swept; back-channel claim tests race the dev worker; RFC 7592 update can undo admin decisions; outbound fetch negative cache; pre-sid sessions not revocable; OIDC test gaps; OIDC glossary/screenshots |
 
 Note: the HIGH CSRF-never-enforced finding (middleware ordering, discovered 2026-09-14 on
 the oidc-conformance branch) was resolved on 2026-09-14; see ISSUES_ARCHIVE.md.
@@ -149,32 +149,95 @@ sweep on the token-issuance path like the one codes use.
 
 ---
 
-## [SECURITY] SSRF blocklist misses `::`, NAT64 and 6to4 embedded addresses
+## [SECURITY] RFC 7592 client update can undo admin decisions; registration token never rotates
 
-**Discovered:** 2026-09-27 (oidc-conformance Iteration 7a review of the back-channel logout URI)
-**Severity:** Medium (pre-existing; affects every outbound call behind the shared guard)
-**Found in:** `app/utils/url_safety.py` (`_BLOCKED_NETWORKS`, `_is_ip_blocked`), used by
-`app/utils/safe_http.py` (`PinnedResolveTransport`) and the SAML metadata fetchers
+**Discovered:** 2026-10-02 (oidc-conformance final review, security L2)
+**Severity:** Low
+**Found in:** `app/services/oauth2_registration.py` (`update_client_configuration`),
+`app/database/oauth2/registration.py` (`replace_registered_client`)
 
-The blocklist is a hand-written network list. It misses:
+After an admin narrows a dynamically registered client (group access, device grant off,
+redirect URIs trimmed), the holder of its registration access token can PUT the metadata
+back: re-add the device grant, add redirect URIs, change name and logo. The
+`oauth2_client_registration_updated` event logs only name, redirect URIs and subject type.
+The token never expires and an admin cannot reset it short of deleting the client.
 
-- `::` (IPv6 unspecified): on Linux a connect to `::` reaches the local host, so a public
-  hostname with an AAAA record of `::` passes validation and hits localhost.
-- `64:ff9b::/96` (NAT64) and `2002::/16` (6to4): IPv4 addresses embedded in IPv6. Only
-  IPv4-mapped (`::ffff:`) is unwrapped, so e.g. `64:ff9b::a00:1` (10.0.0.1) passes on a
-  NAT64 network. Teredo (`2001::/32`) likewise.
-- Lower risk: `198.18.0.0/15`, documentation ranges, `::/128`, `100::/64`.
+**Fix direction:** treat admin-set flags (device grant, PAR) as a ceiling a PUT cannot
+raise; log every changed field; rotate the registration access token on each update
+(RFC 7592 allows returning a new one) and give admins a reset; consider flagging the client
+for re-review when its redirect URIs change.
 
-Callers exposed: outbound SCIM pushes, SAML metadata fetches, SAML SLO back-channel, and
-OIDC back-channel logout delivery (tenant admins choose all these targets).
+---
 
-**Suggested fix:** Replace the list with `ipaddress` predicates (`is_private`, `is_loopback`,
-`is_unspecified`, `is_link_local`, `is_multicast`, `is_reserved`, `is_site_local`) plus explicit
-CGNAT `100.64.0.0/10` and the metadata range; unwrap `ipv4_mapped`, `sixtofour`, `teredo`
-and NAT64 (`64:ff9b::/96`, last 32 bits) before checking the inner IPv4. Tests for `::`,
-`64:ff9b::a00:1`, `2002:7f00:1::`, and a Teredo address wrapping 127.0.0.1.
+## [SECURITY] Hardening: outbound fetch failures are not cached, no per-client in-flight cap
 
-**Files Affected:** `app/utils/url_safety.py`, `tests/utils/test_url_safety.py`
+**Discovered:** 2026-10-02 (oidc-conformance final review, security M3 remainder)
+**Severity:** Low
+**Found in:** `app/services/oauth2_request_objects.py` (`_fetch`),
+`app/services/oauth2_client_auth.py` (`_fetch_jwks`), `app/services/oidc/subject.py`
+
+The slow-drip half of M3 is fixed (`build_safe_client(total_timeout=)` bounds every fetch
+to 10s overall). Left open: a client whose `request_uri` or `jwks_uri` is slow or failing is
+fetched again on every authorize/token request (no negative cache), and nothing limits
+concurrent fetches per client, so a registered client can still keep a handful of threads
+busy for up to 10s each.
+
+**Fix direction:** cache a failed fetch for ~30s per (tenant, client, URI); allow one
+in-flight fetch per client (others fail fast or wait on it).
+
+---
+
+## [SECURITY] Sessions from before `sid` existed cannot be revoked server-side
+
+**Discovered:** 2026-10-02 (oidc-conformance final review, security hardening note)
+**Severity:** Low (same as `main`)
+**Found in:** `app/routers/auth/logout.py` (`terminate_session`), `utils.session.ensure_session_id`
+
+A session cookie minted before the `sid` work has no session id until something calls
+`ensure_session_id` (issuing an OIDC code does). Signing out of such a session clears the
+cookie but records no revocation, so a copied cookie stays valid until it expires.
+
+**Fix direction:** mint a `sid` on the first authenticated request that lacks one (in the
+auth dependency), so every live session becomes revocable.
+
+---
+
+## [TEST] OIDC branch coverage gaps left after the final review
+
+**Discovered:** 2026-10-02 (oidc-conformance final review, test reviewer)
+**Severity:** Low
+
+- Integrations role gate: no test that a `user` posting to the new App routes
+  (authentication, subject, consent revoke) or the b2b routes in
+  `app/routers/integrations.py` is redirected to `/dashboard` with the service never called.
+  Services enforce admin and are tested; this is defense in depth only.
+- `app/services/oauth2_client_auth.py`: no test for a `private_key_jwt` client whose keys
+  fail to load first and load after the refetch (branch 282->290).
+- `app/services/oauth2_registration.py`: no test asserts `get_registration_settings` and
+  `list_initial_access_tokens` call `track_activity`.
+- E2E: device verification (`/device` anonymous, login, stashed code, approve), remembered
+  consent across two sign-ins, the form_post auto-submit under CSP, and upstream back-channel
+  logout ending a live browser session are covered only by the conformance suite and unit
+  tests, not by `make e2e`.
+
+---
+
+## [DOCS] Glossary entries and screenshots for the OIDC hardening features
+
+**Discovered:** 2026-10-02 (oidc-conformance final review, tech-writer)
+**Severity:** Low
+
+- `docs/glossary.md` has no entries for: pairwise subject identifier / sector identifier,
+  pushed authorization request (PAR), request object, back-channel / front-channel logout and
+  logout token, device authorization grant, initial access token, token introspection /
+  revocation, private key JWT. Short entries linking to the integration pages.
+- Screenshots would help: consent screen with "Already allowed", the device code entry and
+  confirm pages, the Client Registration page, the app detail "Subject Identifiers" and
+  "Back-Channel Logout Deliveries" sections, the "Sign in again?" confirmation.
+- Release step (not a defect): `docs/conformance/oidc.md` labels the last run "1.12.0
+  (`446d4263`)" because that is the version in `pyproject.toml`. Regenerate it with
+  `make oidc-conformance-report ARGS="--write-docs"` after the version bump, per
+  `docs/VERSIONING.md`, or teach the report to label untagged builds.
 
 ---
 

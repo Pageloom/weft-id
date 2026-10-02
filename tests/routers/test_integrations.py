@@ -2073,7 +2073,7 @@ def test_app_detail_shows_backchannel_deliveries(
 
     assert response.status_code == 200
     text = response.text
-    assert "Back-channel Logout Deliveries" in text
+    assert "Back-Channel Logout Deliveries" in text
     assert "0 delivered, 0 pending, 4 failed." in text
     assert "Address not allowed or not found" in text
     assert "The app responded with HTTP 400" in text
@@ -2088,7 +2088,7 @@ def test_app_detail_hides_backchannel_section_when_unused(
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
     assert response.status_code == 200
-    assert "Back-channel Logout Deliveries" not in response.text
+    assert "Back-Channel Logout Deliveries" not in response.text
 
 
 def test_app_detail_backchannel_section_empty_state(

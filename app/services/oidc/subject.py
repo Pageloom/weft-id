@@ -126,6 +126,7 @@ def _fetch_sector_document(sector_identifier_uri: str) -> list[str]:
     """Fetch the sector document through the SSRF guard: a JSON array of URIs."""
     http = build_safe_client(
         timeout=_FETCH_TIMEOUT_SECONDS,
+        total_timeout=_FETCH_TIMEOUT_SECONDS * 2,
         dev_hostname_allowlist=_DEV_HOSTNAME_ALLOWLIST,
         dev_skip_tls_verify=True,
         dev_base_domain_rewrite=True,

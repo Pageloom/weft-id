@@ -95,3 +95,23 @@ def test_revoke_authorized_app_unknown_is_404(
         headers={"Host": test_tenant_host, **oauth2_authorization_header},
     )
     assert response.status_code == 404
+
+
+def test_revoke_authorized_app_malformed_id_is_404(
+    client, test_tenant_host, oauth2_authorization_header
+):
+    response = client.delete(
+        "/api/v1/account/authorized-apps/not-a-uuid",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+    assert response.status_code == 404
+
+
+def test_revoke_authorized_app_overlong_id_is_422(
+    client, test_tenant_host, oauth2_authorization_header
+):
+    response = client.delete(
+        f"/api/v1/account/authorized-apps/{'a' * 51}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+    assert response.status_code == 422

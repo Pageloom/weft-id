@@ -4,11 +4,11 @@ This guide covers everyday tasks in WeftID: accessing your applications, managin
 
 Most pages in WeftID show an information icon in the top-right corner of the navigation bar. Click it to open the relevant documentation page in a new tab.
 
-- [Dashboard](dashboard.md) — Your applications and quick access
-- [Profile](profile.md) — Edit your name, email addresses, and preferences
-- [Password](password.md) — Change your password, reset a forgotten password
-- [Two-Step Verification](two-step-verification.md) — Set up an authenticator app, backup codes, and manage sign-in methods
-- [Passkeys](passkeys.md) — Register and sign in with passkeys (phishing-resistant, passwordless)
-- [Signing In](signing-in.md) — Sign-in flows, sign-out, and identity provider sign-in
-- [Authorized Apps](authorized-apps.md) — See and revoke the applications you have allowed
-- [Background Jobs](background-jobs.md) — Check export status and download files
+- [Dashboard](dashboard.md): Your applications and quick access
+- [Profile](profile.md): Edit your name, email addresses, and preferences
+- [Password](password.md): Change your password, reset a forgotten password
+- [Two-Step Verification](two-step-verification.md): Set up an authenticator app, backup codes, and manage sign-in methods
+- [Passkeys](passkeys.md): Register and sign in with passkeys (phishing-resistant, passwordless)
+- [Signing In](signing-in.md): Sign-in flows, sign-out, and identity provider sign-in
+- [Authorized Apps](authorized-apps.md): See and revoke the applications you have allowed
+- [Background Jobs](background-jobs.md): Check export status and download files

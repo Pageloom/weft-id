@@ -262,7 +262,7 @@ class TestConfirmationPage:
             },
         )
         _assert_confirmation_page(response, session_data)
-        assert "post_logout_redirect_uri not registered" in response.text
+        assert "return to an address it has not registered" in response.text
 
     def test_query_added_to_redirect_uri(self, signed_in, hint, test_user, session_data):
         response = signed_in.get(

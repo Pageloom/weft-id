@@ -211,6 +211,44 @@ class TestAuthenticateClientAssertion:
         )
         assert client["client_id"] == normal_oauth2_client["client_id"]
 
+    def test_jti_kept_through_the_leeway_window(
+        self, test_tenant, test_admin_user, normal_oauth2_client
+    ):
+        """An assertion just past exp still decodes (clock-skew leeway); its
+        jti must still be on record then, or it could be replayed."""
+        import time
+
+        svc.set_client_authentication(
+            _user(test_tenant, test_admin_user, "admin"),
+            normal_oauth2_client["client_id"],
+            method="private_key_jwt",
+            jwks=JWKS,
+        )
+        now = int(time.time())
+        assertion = make_assertion(
+            normal_oauth2_client["client_id"], ISSUER, iat=now - 90, exp=now - 30
+        )
+
+        def authenticate():
+            return svc.authenticate_client_assertion(
+                test_tenant["id"],
+                assertion=assertion,
+                client_id=normal_oauth2_client["client_id"],
+                audiences=[ISSUER],
+            )
+
+        authenticate()
+        # The replay's own insert first sweeps rows past their expires_at; the
+        # jti must survive that sweep.
+        with pytest.raises(UnauthorizedError):
+            authenticate()
+        row = database.fetchone(
+            test_tenant["id"],
+            "select expires_at from oauth2_client_assertion_jtis order by created_at desc limit 1",
+            {},
+        )
+        assert row["expires_at"].timestamp() >= now + 29
+
 
 class TestSetClientAuthentication:
     def test_switch_to_private_key_jwt(self, test_tenant, test_admin_user, normal_oauth2_client):

@@ -16,6 +16,8 @@ import pytest
 from services.oidc import tokens as tokens_service
 from utils.session import SESSION_ID_KEY
 
+from tests.helpers.reauth import confirm_reauth
+
 SID = "sess-under-test"
 REDIRECT_URI = "https://rp.example/cb"
 BYE = "https://rp.example/post_logout_redirect"
@@ -204,14 +206,14 @@ class TestLocalLogout:
 
 class TestReauthentication:
     def test_other_clients_queued_asking_client_not(
-        self, signed_in, make_client, issue, test_user, test_tenant
+        self, signed_in, make_client, issue, test_user, test_tenant, session_data
     ):
         asking = make_client("Asking")
         other = make_client("Other")
         issue(asking, test_user)
         issue(other, test_user)
 
-        response = signed_in.get(
+        page = signed_in.get(
             "/oauth2/authorize",
             params={
                 "client_id": asking["client_id"],
@@ -221,6 +223,9 @@ class TestReauthentication:
                 "prompt": "login",
             },
         )
+        assert page.status_code == 200
+        assert _deliveries(test_tenant) == []
+        response = confirm_reauth(signed_in, session_data)
 
         assert response.status_code == 303
         assert response.headers["location"].startswith("/login")
@@ -275,7 +280,7 @@ class TestRefreshTokenRevocation:
         assert not self._valid(test_tenant, rp, token)
 
     def test_reauthentication_revokes_and_audits(
-        self, signed_in, make_client, issue, test_user, test_tenant
+        self, signed_in, make_client, issue, test_user, test_tenant, session_data
     ):
         asking = make_client("Asking")
         issue(asking, test_user)
@@ -291,6 +296,9 @@ class TestRefreshTokenRevocation:
                 "prompt": "login",
             },
         )
+        # A cross-site GET alone revokes nothing.
+        assert self._valid(test_tenant, asking, token)
+        confirm_reauth(signed_in, session_data)
 
         assert not self._valid(test_tenant, asking, token)
         event = _last_signed_out(test_tenant)
@@ -320,7 +328,7 @@ class TestServerSideRevocation:
         signed_in.post("/oauth2/logout/confirm")
         assert self._revoked(test_tenant)
 
-    def test_reauthentication(self, signed_in, make_client, test_tenant):
+    def test_reauthentication(self, signed_in, make_client, test_tenant, session_data):
         asking = make_client("Asking")
         signed_in.get(
             "/oauth2/authorize",
@@ -332,4 +340,6 @@ class TestServerSideRevocation:
                 "prompt": "login",
             },
         )
+        assert not self._revoked(test_tenant)
+        confirm_reauth(signed_in, session_data)
         assert self._revoked(test_tenant)

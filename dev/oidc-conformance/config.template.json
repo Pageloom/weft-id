@@ -26,6 +26,14 @@
             "match": "{WEFTID_ISSUER}/oauth2/authorize*",
             "tasks": [
                 {
+                    "task": "Confirm sign-in again (prompt=login, max_age, other-user id_token_hint)",
+                    "optional": true,
+                    "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                    "commands": [
+                        ["click", "css", "#reauth-confirm button[value='continue']", "optional"]
+                    ]
+                },
+                {
                     "task": "Login: email step",
                     "optional": true,
                     "match": "{WEFTID_ISSUER}/login*",
@@ -118,6 +126,14 @@
                     "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                     "tasks": [
                         {
+                            "task": "Confirm sign-in again (prompt=login, max_age, other-user id_token_hint)",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                            "commands": [
+                                ["click", "css", "#reauth-confirm button[value='continue']", "optional"]
+                            ]
+                        },
+                        {
                             "task": "Login: email step",
                             "optional": true,
                             "match": "{WEFTID_ISSUER}/login*",
@@ -172,6 +188,14 @@
                     "comment": "Same as oidcc-prompt-login: the expired max_age must force a fresh login.",
                     "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                     "tasks": [
+                        {
+                            "task": "Confirm sign-in again (prompt=login, max_age, other-user id_token_hint)",
+                            "optional": true,
+                            "match": "{WEFTID_ISSUER}/oauth2/authorize*",
+                            "commands": [
+                                ["click", "css", "#reauth-confirm button[value='continue']", "optional"]
+                            ]
+                        },
                         {
                             "task": "Login: email step",
                             "optional": true,

@@ -193,6 +193,8 @@ class TestCreate:
         assert row["device_code_lookup"] == oauth2.token_lookup(created["device_code"])
         assert row["user_code_lookup"] == oauth2.token_lookup(created["user_code"])
         assert created["device_code"] not in row["device_code_hash"]
+        # A fast digest (no Argon2 on a public endpoint polled every 5s).
+        assert row["device_code_hash"] == oauth2.token_lookup(created["device_code"])
         assert row["user_id"] is None
 
     def test_retries_on_user_code_collision(self, test_tenant, client_row, mocker):

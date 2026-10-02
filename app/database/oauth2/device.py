@@ -63,7 +63,11 @@ def create_device_code(
             {
                 "tenant_id": tenant_id_value,
                 "client_id": client_id,
-                "device_code_hash": oauth2.hash_token(device_code),
+                # A device code lives minutes and carries 256 bits of entropy;
+                # the SHA-256 digest is enough, and Argon2 on every request
+                # and every poll was a CPU and memory sink on a public
+                # endpoint. Rows keep the column; lookup equality is the check.
+                "device_code_hash": oauth2.token_lookup(device_code),
                 "device_code_lookup": oauth2.token_lookup(device_code),
                 "user_code_lookup": oauth2.token_lookup(user_code),
                 "scope": scope,
@@ -149,18 +153,15 @@ def find_device_code(tenant_id: TenantArg, device_code: str, client_id: str) -> 
         poll_interval, expires_at, expired; None when the code is unknown or
         was issued to another client
     """
-    row = fetchone(
+    return fetchone(
         tenant_id,
         f"""
-        select device_code_hash, {_ROW_COLUMNS}
+        select {_ROW_COLUMNS}
         from oauth2_device_codes
         where device_code_lookup = :lookup and client_id = :client_id
         """,
         {"lookup": oauth2.token_lookup(device_code), "client_id": client_id},
     )
-    if row is None or not oauth2.verify_token_hash(device_code, row.pop("device_code_hash")):
-        return None
-    return row
 
 
 def record_poll(tenant_id: TenantArg, request_id: str) -> dict | None:

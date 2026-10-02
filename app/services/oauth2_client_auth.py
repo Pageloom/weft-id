@@ -25,7 +25,8 @@ An assertion is accepted when:
   client's JWKS, chosen by ``kid`` when the header names one,
 - ``aud`` names the issuer, the token endpoint, or the endpoint called,
 - ``exp`` is present and at most an hour away, and
-- its ``jti`` has not been used by this client before (kept until ``exp``).
+- its ``jti`` has not been used by this client before (kept until ``exp``
+  plus the clock-skew leeway).
 
 Keys published at ``jwks_uri`` are fetched through the SSRF guard and cached
 for an hour. An assertion whose key is not in the cached set (the client
@@ -174,6 +175,7 @@ def _fetch_jwks(jwks_uri: str) -> dict:
     """Fetch a client's JWKS through the SSRF guard, bounded in size."""
     client = build_safe_client(
         timeout=_JWKS_FETCH_TIMEOUT_SECONDS,
+        total_timeout=_JWKS_FETCH_TIMEOUT_SECONDS * 2,
         dev_hostname_allowlist=_DEV_HOSTNAME_ALLOWLIST,
         dev_skip_tls_verify=True,
         dev_base_domain_rewrite=True,
@@ -339,8 +341,14 @@ def _check_assertion(
     expires_at = datetime.fromtimestamp(claims["exp"], UTC)
     if expires_at > datetime.now(UTC) + MAX_ASSERTION_LIFETIME + timedelta(seconds=_LEEWAY_SECONDS):
         raise _AssertionRejectedError("exp is more than an hour away")
+    # Keep the jti for as long as the assertion decodes: until exp plus the
+    # clock-skew leeway, or it could be replayed inside that window.
     if not database.oauth2.record_client_assertion_jti(
-        tenant_id, tenant_id, str(client["id"]), jti, expires_at
+        tenant_id,
+        tenant_id,
+        str(client["id"]),
+        jti,
+        expires_at + timedelta(seconds=_LEEWAY_SECONDS),
     ):
         raise _AssertionRejectedError("jti was already used")
     return client

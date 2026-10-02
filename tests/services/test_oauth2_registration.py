@@ -1209,6 +1209,37 @@ class TestPairwiseSubjectMetadata:
         }
         assert _error_code(metadata) == "invalid_client_metadata"
 
+    def test_pairwise_device_client_needs_sector(self):
+        """Otherwise a registrant names another app's redirect host and
+        collects its pairwise subjects through device polling."""
+        metadata = {
+            "redirect_uris": ["https://victim.example/cb"],
+            "grant_types": ["authorization_code", "urn:ietf:params:oauth:grant-type:device_code"],
+            "subject_type": "pairwise",
+        }
+        with pytest.raises(ValidationError) as exc:
+            svc.validate_client_metadata(metadata)
+        assert exc.value.code == "invalid_client_metadata"
+        assert "sector_identifier_uri" in exc.value.message
+
+    def test_pairwise_device_client_with_sector(self, monkeypatch, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        uris = ["https://rp.example/cb"]
+        self._serve(monkeypatch, uris)
+        body = _register(
+            test_tenant,
+            {
+                "redirect_uris": uris,
+                "grant_types": [
+                    "authorization_code",
+                    "urn:ietf:params:oauth:grant-type:device_code",
+                ],
+                "subject_type": "pairwise",
+                "sector_identifier_uri": self.SECTOR,
+            },
+        )
+        assert body["subject_type"] == "pairwise"
+
     def test_pairwise_across_hosts_needs_sector(self):
         metadata = {
             "redirect_uris": ["https://a.example/cb", "https://b.example/cb"],

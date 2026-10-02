@@ -5,6 +5,7 @@ and authorization checks for the services/saml.py module.
 """
 
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 import pytest
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError
@@ -4602,7 +4603,7 @@ def test_initiate_sp_logout_no_sp_certificate(test_tenant, test_super_admin_user
     # Should return a redirect URL (or None if SLO building fails)
     # The important thing is it doesn't raise an exception
     if result is not None:
-        assert "idp.example.com" in result or "SAMLRequest" in result
+        assert urlsplit(result).hostname == "idp.example.com"
 
 
 # =============================================================================

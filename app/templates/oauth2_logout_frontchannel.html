@@ -26,16 +26,12 @@
 {% for url in frontchannel_logout_urls %}
 <iframe src="{{ url }}" class="hidden" width="0" height="0" title="Application sign-out" aria-hidden="true" tabindex="-1"></iframe>
 {% endfor %}
-<script type="application/json" id="page-data">{{ {"continue_url": continue_url} | tojson }}</script>
 {% endblock %}
 
 {% block extra_scripts %}
 <script nonce="{{ csp_nonce }}">
     // Backstop for an application whose logout page never finishes loading
-    // (the refresh above waits for every iframe).
-    (() => {
-        const data = JSON.parse(document.getElementById('page-data').textContent);
-        setTimeout(() => { window.location.replace(data.continue_url); }, 5000);
-    })();
+    // (the refresh above waits for every iframe): follow the Continue link.
+    setTimeout(() => { document.getElementById('logout-frontchannel-continue').click(); }, 5000);
 </script>
 {% endblock %}

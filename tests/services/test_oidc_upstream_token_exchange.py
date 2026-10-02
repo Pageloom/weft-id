@@ -176,7 +176,9 @@ class TestDevBaseDomainRewrite:
                 code_verifier="verifier",
             )
         assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
-        assert "localhost.emobix.co.uk" in mock_client.call_args.kwargs["dev_hostname_allowlist"]
+        assert mock_client.call_args.kwargs["dev_hostname_allowlist"] == frozenset(
+            {"localhost.emobix.co.uk"}
+        )
 
     def test_fetch_userinfo_passes_flag(self):
         with _patch_client(_FakeResponse(200, {"sub": "s"})) as mock_client:
@@ -184,4 +186,6 @@ class TestDevBaseDomainRewrite:
                 userinfo_endpoint="https://idp.example.com/ui", access_token="at", expected_sub="s"
             )
         assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
-        assert "localhost.emobix.co.uk" in mock_client.call_args.kwargs["dev_hostname_allowlist"]
+        assert mock_client.call_args.kwargs["dev_hostname_allowlist"] == frozenset(
+            {"localhost.emobix.co.uk"}
+        )

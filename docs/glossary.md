@@ -98,6 +98,45 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 **Refresh token**
 :   A long-lived credential used to obtain new access tokens without re-authorization. Only issued in the authorization code flow. Stored securely by the client application. WeftID rotates refresh tokens: every use returns a new one and retires the old one.
 
+**Device authorization grant** {#device-authorization-grant}
+:   An OAuth2 flow for devices without a convenient browser, such as a command-line tool or a TV. The device shows a short code; the user enters it on a page on their phone or computer, signs in, and approves, and the device then receives its tokens. Off for every app until an admin turns it on. Defined in [RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628). See [Device Sign-In](admin-guide/integrations/device-sign-in.md).
+
+**Pushed authorization request (PAR)** {#pushed-authorization-request-par}
+:   An app sends its authorization request to WeftID server to server first, gets back a one-time `request_uri`, and only that goes through the user's browser. The parameters can't be read or changed in the browser. An admin can require PAR for an app. Defined in [RFC 9126](https://datatracker.ietf.org/doc/html/rfc9126). See [Pushed authorization requests](admin-guide/integrations/oidc-provider-setup.md#pushed-authorization-requests).
+
+**Request object** {#request-object}
+:   An app's authorization request parameters inside a JWT signed with one of the app's keys, sent by value (`request`) or by reference (`request_uri`, a URL WeftID fetches). Unsigned request objects are refused. See [Request objects and signed UserInfo](admin-guide/integrations/oidc-provider-setup.md#request-objects-and-signed-userinfo).
+
+**Pairwise subject identifier** {#pairwise-subject-identifier}
+:   A `sub` value derived from the user and the app's [sector](#sector-identifier), so apps in different sectors get unrelated values for the same person and can't link users by `sub`. The alternative, a public identifier, is the same at every app. Opt-in per app. See [Pairwise Subject Identifiers](admin-guide/integrations/pairwise-subjects.md).
+
+**Sector identifier** {#sector-identifier}
+:   The group of apps that share [pairwise](#pairwise-subject-identifier) `sub` values. By default the host of the app's redirect URIs. An app on several hosts sets a sector identifier URI: an `https` URL returning a JSON array of all its redirect URIs, whose host becomes the sector.
+
+**Front-channel logout** {#front-channel-logout}
+:   When a WeftID session ends, WeftID loads each app's front-channel logout URI in a hidden frame in the user's browser, so the app can end its own session. Depends on the browser, and on third-party cookie rules. Defined in OpenID Connect Front-Channel Logout. See [Front-channel logout](admin-guide/integrations/oidc-provider-setup.md#front-channel-logout).
+
+**Back-channel logout** {#back-channel-logout}
+:   When a session ends, a signed [logout token](#logout-token) is sent server to server, so no browser is involved. WeftID sends one to each app the session signed in to, and also receives them from an upstream OIDC identity provider to end the WeftID sessions that began there. Defined in OpenID Connect Back-Channel Logout. See [Back-channel logout](admin-guide/integrations/oidc-provider-setup.md#back-channel-logout) and [upstream providers](admin-guide/identity-providers/oidc-setup.md).
+
+**Logout token** {#logout-token}
+:   The signed JWT a [back-channel logout](#back-channel-logout) carries. It names the user (`sub`), the session (`sid`), or both, and has an `events` claim marking it as a logout. It never carries a `nonce`, which tells it apart from an ID token.
+
+**Private key JWT** {#private-key-jwt}
+:   A way for an app or service account to authenticate without a client secret: it signs a short-lived JWT with its own private key, and WeftID checks it against the app's public keys. There is no shared secret to leak or rotate by hand. Defined in [RFC 7523](https://datatracker.ietf.org/doc/html/rfc7523). See [Private Key JWT](admin-guide/integrations/private-key-jwt.md).
+
+**Token introspection** {#token-introspection}
+:   An endpoint where an authenticated client asks whether a token is active and gets its details back (user, scopes, expiry). Used by APIs (resource servers) that receive WeftID access tokens. Defined in [RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662). See [Token Introspection and Revocation](admin-guide/integrations/token-introspection.md).
+
+**Token revocation** {#token-revocation}
+:   An endpoint where a client ends one of its own access or refresh tokens before it expires, for example when the user signs out of the app. Defined in [RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009). See [Token Introspection and Revocation](admin-guide/integrations/token-introspection.md#revoking-a-token).
+
+**Initial access token** {#initial-access-token}
+:   A token an admin issues so an application can register itself through dynamic client registration when registration requires one. Shown once, and can expire or be revoked. See [Client Registration](admin-guide/integrations/client-registration.md#initial-access-tokens).
+
+**Registration access token** {#registration-access-token}
+:   The token a dynamically registered app gets back, which lets it read, change, or delete its own registration. Every change returns a new one, and an admin can reset it. See [Client Registration](admin-guide/integrations/client-registration.md).
+
 ## SCIM Provisioning
 
 **SCIM (System for Cross-domain Identity Management)**

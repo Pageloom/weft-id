@@ -3,6 +3,7 @@
 [![Code Quality](https://github.com/pageloom/weft-id/actions/workflows/code-quality.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/code-quality.yml)
 [![Tests](https://github.com/pageloom/weft-id/actions/workflows/tests.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/tests.yml)
 [![E2E Tests](https://github.com/pageloom/weft-id/actions/workflows/e2e-tests.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/e2e-tests.yml)
+[![OIDC Conformance](https://github.com/pageloom/weft-id/actions/workflows/oidc-conformance.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/oidc-conformance.yml)
 
 An open-source identity provider and federation layer. Aggregate multiple upstream IdPs, SAML
 or OpenID Connect, into a single, consistent interface for your applications. Add or remove

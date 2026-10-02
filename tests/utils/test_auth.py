@@ -359,6 +359,44 @@ def test_get_current_user_other_sid_revoked_keeps_session(test_tenant, test_user
         assert get_current_user(request, tid) is not None
 
 
+def test_get_current_user_mints_sid_for_session_without_one(test_tenant, test_user):
+    """A session from before sids existed gets one, so a logout can revoke it."""
+    import time
+
+    from utils.auth import get_current_user
+    from utils.session import SESSION_ID_KEY
+
+    tid = str(test_tenant["id"])
+    request = Mock()
+    request.session = {"user_id": str(test_user["id"]), "session_start": int(time.time())}
+
+    assert get_current_user(request, tid) is not None
+    sid = request.session[SESSION_ID_KEY]
+    assert isinstance(sid, str) and sid
+
+    # The minted sid is stable, and revoking it signs the session out.
+    assert get_current_user(request, tid) is not None
+    assert request.session[SESSION_ID_KEY] == sid
+    database.revoked_sessions.revoke_session(tid, tid, sid)
+    assert get_current_user(request, tid) is None
+
+
+def test_get_current_user_keeps_existing_sid(test_tenant, test_user):
+    import time
+
+    from utils.auth import get_current_user
+    from utils.session import SESSION_ID_KEY
+
+    request = Mock()
+    request.session = {
+        "user_id": str(test_user["id"]),
+        "session_start": int(time.time()),
+        SESSION_ID_KEY: "existing-sid",
+    }
+    assert get_current_user(request, str(test_tenant["id"])) is not None
+    assert request.session[SESSION_ID_KEY] == "existing-sid"
+
+
 def test_get_current_user_revocation_is_per_tenant(test_tenant, test_user):
     """A sid revoked in another tenant does not sign this session out."""
     import time

@@ -9,7 +9,7 @@ endif
 TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TAILWIND_VERSION)/$(TAILWIND_BIN)
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev scim-testbed-up scim-testbed-down scim-testbed-destroy scim-testbed-info scim-testbed-status scim-testbed-logs oidc-conformance-up oidc-conformance-down oidc-conformance-destroy oidc-conformance-info oidc-conformance-status oidc-conformance-logs oidc-conformance oidc-conformance-report test e2e check fix quality-all coverage docs
+.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev scim-testbed-up scim-testbed-down scim-testbed-destroy scim-testbed-info scim-testbed-status scim-testbed-logs oidc-conformance-up oidc-conformance-down oidc-conformance-destroy oidc-conformance-info oidc-conformance-status oidc-conformance-logs oidc-conformance oidc-conformance-report test-db test e2e check fix quality-all coverage docs
 
 help:
 	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -68,8 +68,8 @@ build-css: $(TAILWIND_BIN) ## Build Tailwind CSS for production
 watch-css: $(TAILWIND_BIN) ## Watch and rebuild CSS on changes (dev mode)
 	./$(TAILWIND_BIN) --config dev/tailwind.config.js -i static/css/input.css -o static/css/output.css --watch
 
-watch-tests: ## Watch and rerun tests on changes (dev mode)
-	poetry run python -m watchfiles 'poetry run python -m pytest --testmon' app tests
+watch-tests: test-db ## Watch and rerun tests on changes (dev mode)
+	POSTGRES_DB=$(TEST_DB) poetry run python -m watchfiles 'poetry run python -m pytest --testmon' app tests
 
 seed-sso: ## Set up cross-tenant SSO test bed (dev <-> sp-test)
 	$(COMPOSE) exec app python ./dev/sso_testbed.py
@@ -126,8 +126,13 @@ docs: ## Build documentation site (output in site/)
 	poetry run zensical build
 
 ## Quality
-test: ## Run all tests (pass args: make test ARGS="-v -k my_test")
-	poetry run python -m pytest $(ARGS)
+TEST_DB := appdb_test
+
+test-db: ## Create/migrate the unit-test database (appdb_test, which the dev worker never touches)
+	poetry run python dev/test_db.py
+
+test: test-db ## Run all tests (pass args: make test ARGS="-v -k my_test")
+	POSTGRES_DB=$(TEST_DB) poetry run python -m pytest $(ARGS)
 
 e2e: ## Run E2E tests (pass args: make e2e ARGS="--headed")
 	poetry run python -m pytest tests/e2e/ -n 0 -v --tb=short $(ARGS)
@@ -153,7 +158,8 @@ coverage: ## Combined coverage report (unit + E2E, pass ARGS="--html" for HTML)
 	@COV_DIR=$$(mktemp -d) && trap 'rm -rf "$$COV_DIR"' EXIT \
 	&& rm -f .coverage \
 	&& echo "=== Running unit tests with coverage ===" \
-	&& COVERAGE_FILE="$$COV_DIR/.coverage.unit" poetry run python -m pytest --cov=app --cov-report= -q --no-header \
+	&& poetry run python dev/test_db.py \
+	&& POSTGRES_DB=$(TEST_DB) COVERAGE_FILE="$$COV_DIR/.coverage.unit" poetry run python -m pytest --cov=app --cov-report= -q --no-header \
 	&& echo "" && echo "=== Running E2E tests with coverage ===" \
 	&& COVERAGE_FILE="$$COV_DIR/.coverage.e2e" poetry run python -m pytest tests/e2e/ -n 0 --cov=app --cov-report= -q --no-header \
 	&& echo "" && echo "=== Combining coverage data ===" \

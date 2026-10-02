@@ -386,6 +386,11 @@ make test ARGS="--testmon"                   # Run only tests affected by recent
 
 Note: Tests run in parallel by default (`-n auto` configured in `pyproject.toml`).
 
+`make test` (and `watch-tests`, `coverage`) run against their own database, `appdb_test`, which
+`make test-db` (`dev/test_db.py`) creates and migrates first. The dev worker only connects to
+`appdb`, so its periodic sweeps cannot race the tests. A bare `poetry run python -m pytest`
+still uses `appdb` unless you set `POSTGRES_DB=appdb_test`; CI sets its own database.
+
 **Watch mode** (`make watch-tests`) uses `pytest-testmon` to intelligently run only tests affected by your code changes. On first run, it builds a coverage database (`.testmondata`). Subsequent runs only execute tests that cover the changed code, providing much faster feedback than running the full suite.
 
 **Code quality (lint, format, type check, compliance):**

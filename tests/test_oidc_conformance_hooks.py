@@ -177,6 +177,28 @@ class TestRunRpModule:
         )
         assert calls == ["test"]
 
+    @pytest.mark.parametrize(
+        "module",
+        [
+            "oidcc-client-test-rp-init-logout",
+            "oidcc-client-test-rp-init-logout-no-state",
+            "oidcc-client-test-rp-backchannel-rpinitlogout",
+            "oidcc-client-test-rp-backchannel-rpinitlogout-wrong-iss",
+        ],
+    )
+    def test_logout_modules_sign_in_and_out(self, hooks, module, capsys):
+        calls: list[str] = []
+        hooks.run_rp_module(
+            module,
+            "https://t.example/login",
+            expire=lambda: calls.append("expire"),
+            test_connection=lambda: calls.append("test") or {},
+            sign_in=lambda url: calls.append("sign-in") or [],
+            sign_in_and_out=lambda url: calls.append("sign-in-and-out") or [url, "logout"],
+        )
+        assert calls == ["expire", "sign-in-and-out"]
+        assert "RP sign-in and sign-out:" in capsys.readouterr().out
+
     def test_driver_failure_is_reported_not_raised(self, hooks, capsys):
         def expire():
             raise hooks.HookError("no docker")
@@ -186,21 +208,97 @@ class TestRunRpModule:
 
 
 class _FakeHttpResponse:
-    def __init__(self, status_code, location=None):
+    def __init__(self, status_code, location=None, text=""):
         self.status_code = status_code
         self.headers = {"location": location} if location else {}
         self.is_redirect = location is not None and 300 <= status_code < 400
+        self.text = text
 
 
 class _FakeHttpClient:
     def __init__(self, responses):
         self._responses = list(responses)
         self.urls: list[str] = []
+        self.posts: list[tuple[str, dict]] = []
+        self.closed = False
 
     def get(self, url, follow_redirects=False):
         assert follow_redirects is False
         self.urls.append(url)
         return self._responses.pop(0)
+
+    def post(self, url, data=None, follow_redirects=False):
+        assert follow_redirects is False
+        self.posts.append((url, data))
+        return self._responses.pop(0)
+
+    def close(self):
+        self.closed = True
+
+
+_DASHBOARD = '<head><meta name="csrf-token" content="tok&amp;1"></head>'
+_LOGOUT_PAGE = (
+    '<a id="logout-frontchannel-continue" '
+    'href="https://op.example/end_session?id_token_hint=h&amp;state=s">Continue</a>'
+)
+
+
+class TestDriveRpLogout:
+    def test_posts_logout_and_follows_the_provider_hop(self, hooks):
+        client = _FakeHttpClient(
+            [
+                _FakeHttpResponse(200, text=_DASHBOARD),
+                _FakeHttpResponse(200, text=_LOGOUT_PAGE),
+                _FakeHttpResponse(302, "https://t.example/logout/complete?state=s"),
+                _FakeHttpResponse(303, "/login"),
+                _FakeHttpResponse(200),
+            ]
+        )
+        hops = hooks.drive_rp_logout("https://t.example", client)
+        assert client.urls[0] == "https://t.example/dashboard"
+        assert client.posts == [("https://t.example/logout", {"csrf_token": "tok&1"})]
+        assert client.urls[1] == "https://op.example/end_session?id_token_hint=h&state=s"
+        assert client.urls[-1] == "https://t.example/login"
+        assert hops[-1] == "HTTP 200"
+
+    def test_not_signed_in_stops_before_posting(self, hooks):
+        client = _FakeHttpClient([_FakeHttpResponse(303, "/login")])
+        hops = hooks.drive_rp_logout("https://t.example", client)
+        assert client.posts == []
+        assert "not signed in" in hops[-1]
+
+    def test_local_only_logout_is_reported(self, hooks):
+        client = _FakeHttpClient(
+            [_FakeHttpResponse(200, text=_DASHBOARD), _FakeHttpResponse(303, "/login")]
+        )
+        hops = hooks.drive_rp_logout("https://t.example", client)
+        assert "no provider hop (HTTP 303)" in hops[-1]
+
+    def test_sign_in_and_out_share_one_client(self, hooks):
+        client = _FakeHttpClient(
+            [
+                _FakeHttpResponse(303, "/dashboard"),
+                _FakeHttpResponse(200),
+                _FakeHttpResponse(200, text=_DASHBOARD),
+                _FakeHttpResponse(303, "/login"),
+            ]
+        )
+        hops = hooks.drive_rp_login_and_logout("https://t.example/auth/oidc/c/login", client=client)
+        assert client.urls[:3] == [
+            "https://t.example/auth/oidc/c/login",
+            "https://t.example/dashboard",
+            "https://t.example/dashboard",
+        ]
+        assert "logout" in hops
+        # A client passed in belongs to the caller.
+        assert client.closed is False
+
+    def test_own_client_is_closed_even_on_failure(self, hooks, monkeypatch):
+        client = _FakeHttpClient([])  # the first GET fails (nothing queued)
+        monkeypatch.setattr(hooks, "_new_client", lambda: client)
+        with pytest.raises(IndexError):
+            hooks.drive_rp_login_and_logout("https://t.example/auth/oidc/c/login")
+        assert client.closed is True
 
 
 class TestDriveRpLogin:

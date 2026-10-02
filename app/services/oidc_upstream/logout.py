@@ -126,7 +126,7 @@ def record_upstream_session(
 
 
 def build_upstream_logout_url(
-    *, tenant_id: str, sid: str, post_logout_redirect_uri: str
+    *, tenant_id: str, sid: str, post_logout_redirect_uri: str, state: str | None = None
 ) -> str | None:
     """The provider's end_session URL for WeftID session ``sid``, or None.
 
@@ -136,7 +136,9 @@ def build_upstream_logout_url(
     None unless the session began at an upstream OIDC connection that has
     "sign out at the provider" on and an ``end_session_endpoint``. The URL
     carries ``client_id`` and ``post_logout_redirect_uri`` always, and
-    ``id_token_hint`` when the ID token was kept. Disabled connections still
+    ``id_token_hint`` when the ID token was kept, and ``state`` when given
+    (the provider echoes it to ``post_logout_redirect_uri``, which binds the
+    return to the browser that left). Disabled connections still
     qualify: the session they created is being ended either way.
 
     No audit: the caller's ``user_signed_out`` event records the logout.
@@ -156,6 +158,8 @@ def build_upstream_logout_url(
         params["id_token_hint"] = link["id_token"]
     params["client_id"] = client_id
     params["post_logout_redirect_uri"] = post_logout_redirect_uri
+    if state:
+        params["state"] = state
     separator = "&" if "?" in endpoint else "?"
     return f"{endpoint}{separator}{urlencode(params)}"
 

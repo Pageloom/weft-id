@@ -58,6 +58,8 @@ PROFILES = (
     # connector is the client.
     ("Basic RP", "oidcc-client-basic-certification-test-plan"),
     ("Config RP", "oidcc-client-config-certification-test-plan"),
+    ("RP-Initiated RP", "oidcc-client-rp-initiated-logout-rp-basic"),
+    ("Back-Channel RP", "oidcc-client-back-channel-logout-rp-basic"),
 )
 
 GREEN_RESULTS = {"PASSED", "WARNING", "REVIEW", "SKIPPED"}

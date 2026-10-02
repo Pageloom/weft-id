@@ -6,7 +6,8 @@ end_session endpoint (OpenID Connect RP-Initiated Logout 1.0) with the
 upstream ID token as ``id_token_hint``. A logout an RP started through
 end_session keeps its return address across the round trip: it is stashed in
 the signed-out session and ``/logout/complete`` (the post_logout_redirect_uri
-WeftID registers upstream) finishes there. The same stash carries an
+WeftID registers upstream) finishes there when the provider echoes the
+``state`` WeftID sent. The same stash carries an
 end_session logout through upstream SAML Single Logout (``/saml/slo``).
 
 Real database throughout; the upstream token exchange and JWKS are patched.
@@ -109,6 +110,10 @@ def _refresh_target(response) -> str:
     return html.unescape(match.group(1))
 
 
+def _state_of(url: str) -> str:
+    return parse_qs(urlsplit(url).query)["state"][0]
+
+
 def _last_signed_out(test_tenant) -> dict:
     return next(
         e
@@ -123,11 +128,12 @@ def _last_signed_out(test_tenant) -> dict:
 
 
 class TestBuildUpstreamLogoutUrl:
-    def _url(self, test_tenant, sid=SID):
+    def _url(self, test_tenant, sid=SID, state=None):
         return upstream_logout.build_upstream_logout_url(
             tenant_id=str(test_tenant["id"]),
             sid=sid,
             post_logout_redirect_uri="https://tenant.example/logout/complete",
+            state=state,
         )
 
     def test_full_request(self, test_tenant, test_user, sign_out_connection):
@@ -140,6 +146,10 @@ class TestBuildUpstreamLogoutUrl:
             "client_id": [CLIENT_ID],
             "post_logout_redirect_uri": ["https://tenant.example/logout/complete"],
         }
+
+    def test_state_is_sent_when_given(self, test_tenant, test_user, sign_out_connection):
+        _link(test_tenant, test_user, sign_out_connection)
+        assert _state_of(self._url(test_tenant, state="s-123")) == "s-123"
 
     def test_without_kept_id_token_identifies_by_client_id(
         self, test_tenant, test_user, sign_out_connection
@@ -318,15 +328,29 @@ class TestLogoutButton:
         assert query["id_token_hint"] == ["upstream.id.token"]
         assert query["post_logout_redirect_uri"][0].endswith(oidc_upstream_service.POST_LOGOUT_PATH)
         assert "Signing you out of your identity provider" in response.text
-        # The session ended and was revoked; nothing is stashed for the return.
+        # The session ended and was revoked; only the state is kept for the
+        # return, no destination.
         assert "user_id" not in session_data
         assert logout_router.PENDING_LOGOUT_RETURN_KEY not in session_data
+        assert len(query["state"][0]) >= 32
+        assert session_data[logout_router.UPSTREAM_LOGOUT_STATE_KEY] == query["state"][0]
         assert database.revoked_sessions.is_session_revoked(str(test_tenant["id"]), SID)
         assert _last_signed_out(test_tenant)["metadata"]["upstream_oidc_logout"] is True
+
+    def test_each_logout_gets_a_fresh_state(
+        self, signed_in, session_data, test_tenant, test_user, sign_out_connection
+    ):
+        _link(test_tenant, test_user, sign_out_connection)
+        first = _state_of(_refresh_target(signed_in.post("/logout")))
+        session_data.update({"user_id": str(test_user["id"]), SESSION_ID_KEY: "sess-2"})
+        _link(test_tenant, test_user, sign_out_connection, sid="sess-2")
+        second = _state_of(_refresh_target(signed_in.post("/logout")))
+        assert first != second
 
     def test_toggle_off_stays_local(
         self,
         signed_in,
+        session_data,
         test_tenant,
         test_user,
         connection,  # noqa: F811
@@ -335,6 +359,7 @@ class TestLogoutButton:
         response = signed_in.post("/logout")
         assert response.status_code == 303
         assert response.headers["location"] == "/login"
+        assert logout_router.UPSTREAM_LOGOUT_STATE_KEY not in session_data
         assert _last_signed_out(test_tenant)["metadata"]["upstream_oidc_logout"] is False
 
     def test_session_without_upstream_link_stays_local(self, signed_in, sign_out_connection):
@@ -360,11 +385,17 @@ class TestLogoutButton:
 
 
 class TestLogoutComplete:
+    STATE = "expected-state"
+
     def _stash(self, session_data, url, at=None):
+        session_data[logout_router.UPSTREAM_LOGOUT_STATE_KEY] = self.STATE
         session_data[logout_router.PENDING_LOGOUT_RETURN_KEY] = {
             "url": url,
             "at": int(time.time()) if at is None else at,
         }
+
+    def _back(self, http, state=STATE):
+        return http.get("/logout/complete", params={"state": state} if state else None)
 
     def test_nothing_stashed_goes_to_login(self, http):
         response = http.get("/logout/complete")
@@ -373,18 +404,40 @@ class TestLogoutComplete:
 
     def test_stashed_rp_address_is_honoured_once(self, http, session_data):
         self._stash(session_data, f"{BYE}?state=abc")
-        response = http.get("/logout/complete")
+        response = self._back(http)
         assert response.headers["location"] == f"{BYE}?state=abc"
         assert logout_router.PENDING_LOGOUT_RETURN_KEY not in session_data
-        assert http.get("/logout/complete").headers["location"] == "/login"
+        assert logout_router.UPSTREAM_LOGOUT_STATE_KEY not in session_data
+        assert self._back(http).headers["location"] == "/login"
 
     def test_stashed_path_goes_through_safe_redirect(self, http, session_data):
         self._stash(session_data, "/oauth2/logout/done")
-        assert http.get("/logout/complete").headers["location"] == "/oauth2/logout/done"
+        assert self._back(http).headers["location"] == "/oauth2/logout/done"
 
     def test_unsafe_path_falls_back(self, http, session_data):
         self._stash(session_data, "//evil.example/x")
-        assert http.get("/logout/complete").headers["location"] == "/dashboard"
+        assert self._back(http).headers["location"] == "/dashboard"
+
+    @pytest.mark.parametrize("state", [None, "other-state", "expected-stat", "ünïcode"])
+    def test_wrong_or_missing_state_drops_the_stash(self, http, session_data, state):
+        self._stash(session_data, BYE)
+        assert self._back(http, state).headers["location"] == "/login"
+        assert logout_router.PENDING_LOGOUT_RETURN_KEY not in session_data
+        assert logout_router.UPSTREAM_LOGOUT_STATE_KEY not in session_data
+
+    @pytest.mark.parametrize("expected", [None, "", 5])
+    def test_no_expected_state_drops_the_stash(self, http, session_data, expected):
+        self._stash(session_data, BYE)
+        if expected is None:
+            del session_data[logout_router.UPSTREAM_LOGOUT_STATE_KEY]
+        else:
+            session_data[logout_router.UPSTREAM_LOGOUT_STATE_KEY] = expected
+        assert self._back(http, "anything").headers["location"] == "/login"
+        assert logout_router.PENDING_LOGOUT_RETURN_KEY not in session_data
+
+    def test_overlong_state_is_rejected(self, http, session_data):
+        self._stash(session_data, BYE)
+        assert self._back(http, "x" * 2049).status_code == 422
 
     @pytest.mark.parametrize(
         "stash",
@@ -397,8 +450,9 @@ class TestLogoutComplete:
         ],
     )
     def test_stale_or_malformed_stash_is_dropped(self, http, session_data, stash):
+        session_data[logout_router.UPSTREAM_LOGOUT_STATE_KEY] = self.STATE
         session_data[logout_router.PENDING_LOGOUT_RETURN_KEY] = stash
-        assert http.get("/logout/complete").headers["location"] == "/login"
+        assert self._back(http).headers["location"] == "/login"
         assert logout_router.PENDING_LOGOUT_RETURN_KEY not in session_data
 
 
@@ -447,11 +501,12 @@ class TestEndSessionRoundTrip:
         )
 
         assert response.status_code == 200
-        assert _refresh_target(response).startswith(f"{END_SESSION}?")
+        target = _refresh_target(response)
+        assert target.startswith(f"{END_SESSION}?")
         assert "user_id" not in session_data
 
-        # The provider sends the browser back to the landing.
-        back = signed_in.get("/logout/complete")
+        # The provider sends the browser back to the landing with the state.
+        back = signed_in.get("/logout/complete", params={"state": _state_of(target)})
         assert back.status_code == 303
         assert back.headers["location"] == f"{BYE}?state=st"
 
@@ -459,16 +514,30 @@ class TestEndSessionRoundTrip:
         self, signed_in, hint, test_tenant, test_user, sign_out_connection
     ):
         _link(test_tenant, test_user, sign_out_connection)
-        signed_in.get("/oauth2/logout", params={"id_token_hint": hint})
-        assert signed_in.get("/logout/complete").headers["location"] == "/oauth2/logout/done"
+        target = _refresh_target(signed_in.get("/oauth2/logout", params={"id_token_hint": hint}))
+        back = signed_in.get("/logout/complete", params={"state": _state_of(target)})
+        assert back.headers["location"] == "/oauth2/logout/done"
+
+    def test_return_with_another_state_lands_on_login(
+        self, signed_in, session_data, hint, test_tenant, test_user, sign_out_connection
+    ):
+        _link(test_tenant, test_user, sign_out_connection)
+        signed_in.get(
+            "/oauth2/logout", params={"id_token_hint": hint, "post_logout_redirect_uri": BYE}
+        )
+        back = signed_in.get("/logout/complete", params={"state": "forged"})
+        assert back.headers["location"] == "/login"
+        assert logout_router.PENDING_LOGOUT_RETURN_KEY not in session_data
 
     def test_confirmed_logout_finishes_on_signed_out_page(
         self, signed_in, test_tenant, test_user, sign_out_connection
     ):
         _link(test_tenant, test_user, sign_out_connection)
         response = signed_in.post("/oauth2/logout/confirm")
-        assert _refresh_target(response).startswith(f"{END_SESSION}?")
-        assert signed_in.get("/logout/complete").headers["location"] == "/oauth2/logout/done"
+        target = _refresh_target(response)
+        assert target.startswith(f"{END_SESSION}?")
+        back = signed_in.get("/logout/complete", params={"state": _state_of(target)})
+        assert back.headers["location"] == "/oauth2/logout/done"
 
     def test_upstream_saml_slo_then_back_to_the_rp(self, signed_in, session_data, hint, mocker):
         session_data.update({"saml_idp_id": "idp-1", "saml_name_id": "user@example.com"})
@@ -484,6 +553,8 @@ class TestEndSessionRoundTrip:
 
         assert response.status_code == 303
         assert response.headers["location"] == "https://saml-idp.example/slo?SAMLRequest=x"
+        # No OIDC hop, so no state to check on the SAML return.
+        assert logout_router.UPSTREAM_LOGOUT_STATE_KEY not in session_data
         # The IdP answers at the SP SLO endpoint with its LogoutResponse.
         back = signed_in.get("/saml/slo?SAMLResponse=response")
         assert back.headers["location"] == f"{BYE}?state=st"

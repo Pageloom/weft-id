@@ -52,6 +52,10 @@ def testbed() -> dict:
             "client_secret": 'rp-s"ecret',
             "redirect_uri": "https://oidc-conformance.weftid.localhost/auth/oidc/c1/callback",
             "login_url": "https://oidc-conformance.weftid.localhost/auth/oidc/c1/login",
+            "post_logout_redirect_uri": "https://oidc-conformance.weftid.localhost/logout/complete",
+            "backchannel_logout_uri": (
+                "https://oidc-conformance.weftid.localhost/auth/oidc/c1/backchannel-logout"
+            ),
         },
     }
 
@@ -441,17 +445,26 @@ class TestRpConfig:
             "client_id": "weftid-rp-conformance",
             "client_secret": 'rp-s"ecret',
             "redirect_uri": "https://oidc-conformance.weftid.localhost/auth/oidc/c1/callback",
+            "post_logout_redirect_uri": "https://oidc-conformance.weftid.localhost/logout/complete",
+            "backchannel_logout_uri": (
+                "https://oidc-conformance.weftid.localhost/auth/oidc/c1/backchannel-logout"
+            ),
         }
         # Negative modules end this long after the RP stops calling.
         assert cfg["waitTimeoutSeconds"] == 5
 
-    def test_rp_plans_cover_basic_and_config_rp(self, runner):
+    def test_rp_plans_cover_basic_config_and_logout_rp(self, runner):
         names = [plan.split("[", 1)[0] for plan in runner.RP_PLANS]
         assert names == [
             "oidcc-client-basic-certification-test-plan",
             "oidcc-client-config-certification-test-plan",
+            "oidcc-client-rp-initiated-logout-rp-basic",
+            "oidcc-client-back-channel-logout-rp-basic",
         ]
         assert all("[client_registration=static_client]" in plan for plan in runner.RP_PLANS)
+        for plan in runner.RP_PLANS[2:]:
+            assert "[client_auth_type=client_secret_basic]" in plan
+            assert "[response_mode=default]" in plan
 
     def test_missing_rp_section_is_an_error(self, runner, testbed):
         del testbed["rp"]

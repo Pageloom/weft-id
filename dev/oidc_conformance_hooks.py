@@ -20,6 +20,13 @@ the unmodified runner in-process after patching its ``Conformance`` client:
   authorization endpoint, which answers straight away -> WeftID's callback,
   where WeftID exchanges the code and calls userinfo). Everything WeftID does
   after that is between WeftID and the suite; the module judges it.
+  The RP logout modules (``LOGOUT_MODULE_PREFIXES``) end once the client has
+  called the suite's end_session endpoint (and, with a back-channel logout
+  URI registered, once the suite has posted its logout token to WeftID). For
+  them the same HTTP client then signs out of WeftID: GET the dashboard for
+  the CSRF token, POST ``/logout``, read the "Continue" link of the page
+  WeftID answers with (the hop to the provider's end_session), and follow
+  the redirects from there back to WeftID's post-logout landing.
   The two RP Config discovery modules (``DISCOVERY_ONLY_MODULES``) end as
   soon as the client has fetched discovery (and the JWKS); a sign-in would
   go on to call a finished module, which the suite fails. For them the hook
@@ -34,8 +41,10 @@ scripts directory as the working directory, which is where
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import os
+import re
 import runpy
 import subprocess
 import sys
@@ -56,6 +65,13 @@ RP_MODULE_PREFIX = "oidcc-client-test"
 DISCOVERY_ONLY_MODULES = frozenset(
     {"oidcc-client-test-discovery-openid-config", "oidcc-client-test-discovery-jwks-uri-keys"}
 )
+# RP modules that finish on an RP-initiated logout (both RP logout plans).
+LOGOUT_MODULE_PREFIXES = (
+    "oidcc-client-test-rp-init-logout",
+    "oidcc-client-test-rp-backchannel-rpinitlogout",
+)
+_CSRF_META = re.compile(r'<meta name="csrf-token" content="([^"]+)">')
+_CONTINUE_LINK = re.compile(r'id="logout-frontchannel-continue" href="([^"]+)"')
 # Redirect hops a sign-in may take (WeftID login -> suite authorize -> WeftID
 # callback -> WeftID landing page, with room to spare).
 MAX_RP_HOPS = 8
@@ -93,6 +109,23 @@ def test_rp_connection(run=subprocess.run) -> dict:
     return json.loads(result.stdout)
 
 
+def _new_client() -> httpx.Client:
+    # The dev reverse proxy and the suite both use self-signed certificates.
+    return httpx.Client(verify=False, timeout=30.0)  # noqa: S501 - dev only
+
+
+def _follow(client, url: str, hops: list[str]) -> None:
+    """GET ``url`` and its redirects by hand until a page; record each hop."""
+    for _ in range(MAX_RP_HOPS):
+        response = client.get(url, follow_redirects=False)
+        location = response.headers.get("location")
+        if not response.is_redirect or not location:
+            hops.append(f"HTTP {response.status_code}")
+            return
+        url = urljoin(url, location)
+        hops.append(url)
+
+
 def drive_rp_login(login_url: str, client: httpx.Client | None = None) -> list[str]:
     """Walk a WeftID sign-in through the upstream connector; return the hops.
 
@@ -101,24 +134,56 @@ def drive_rp_login(login_url: str, client: httpx.Client | None = None) -> list[s
     is only logged; the suite module decides pass or fail from what WeftID
     sent it.
     """
-    # The dev reverse proxy and the suite both use self-signed certificates.
     owned = client is None
-    client = client or httpx.Client(verify=False, timeout=30.0)  # noqa: S501 - dev only
+    client = client or _new_client()
     hops = [login_url]
     try:
-        url = login_url
-        for _ in range(MAX_RP_HOPS):
-            response = client.get(url, follow_redirects=False)
-            location = response.headers.get("location")
-            if not response.is_redirect or not location:
-                hops.append(f"HTTP {response.status_code}")
-                break
-            url = urljoin(url, location)
-            hops.append(url)
+        _follow(client, login_url, hops)
     finally:
         if owned:
             client.close()
     return hops
+
+
+def drive_rp_logout(base_url: str, client) -> list[str]:
+    """Sign out of WeftID in ``client``'s session; return the hops.
+
+    The logout form's POST answers with a page that hands the browser to the
+    provider's end_session endpoint; its "Continue" link is that hop.
+    """
+    hops = ["logout"]
+    page = client.get(f"{base_url}/dashboard", follow_redirects=False)
+    token = _CSRF_META.search(page.text) if page.status_code == 200 else None
+    if token is None:
+        hops.append(f"not signed in (dashboard HTTP {page.status_code})")
+        return hops
+    response = client.post(
+        f"{base_url}/logout",
+        data={"csrf_token": html.unescape(token.group(1))},
+        follow_redirects=False,
+    )
+    link = _CONTINUE_LINK.search(response.text) if response.status_code == 200 else None
+    if link is None:
+        # A 303 to /login: the logout stayed local (no upstream hop).
+        hops.append(f"no provider hop (HTTP {response.status_code})")
+        return hops
+    url = urljoin(f"{base_url}/logout", html.unescape(link.group(1)))
+    hops.append(url)
+    _follow(client, url, hops)
+    return hops
+
+
+def drive_rp_login_and_logout(login_url: str, client: httpx.Client | None = None) -> list[str]:
+    """Sign in through the connector, then sign out, in one cookie jar."""
+    owned = client is None
+    client = client or _new_client()
+    parts = urlsplit(login_url)
+    try:
+        hops = drive_rp_login(login_url, client=client)
+        return hops + drive_rp_logout(f"{parts.scheme}://{parts.netloc}", client)
+    finally:
+        if owned:
+            client.close()
 
 
 def _describe(url: str) -> str:
@@ -134,6 +199,7 @@ def run_rp_module(
     expire: Callable[[], None] = expire_rp_discovery,
     test_connection: Callable[[], dict] = test_rp_connection,
     sign_in: Callable[[str], list[str]] = drive_rp_login,
+    sign_in_and_out: Callable[[str], list[str]] = drive_rp_login_and_logout,
 ) -> None:
     """Drive WeftID for one RP module; failures are reported, not raised.
 
@@ -144,11 +210,13 @@ def run_rp_module(
             print(f"RP Test Connection: {test_connection()}")
             return
         expire()
-        hops = sign_in(login_url)
+        logout = module.startswith(LOGOUT_MODULE_PREFIXES)
+        hops = sign_in_and_out(login_url) if logout else sign_in(login_url)
     except Exception as exc:  # noqa: BLE001 - the module times out and reports it
         print(f"RP module could not be driven: {exc}")
         return
-    print("RP sign-in: " + " -> ".join(_describe(hop) for hop in hops))
+    label = "RP sign-in and sign-out" if logout else "RP sign-in"
+    print(f"{label}: " + " -> ".join(_describe(hop) for hop in hops))
 
 
 def install_hooks(

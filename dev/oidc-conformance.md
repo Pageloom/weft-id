@@ -216,8 +216,10 @@ of the server under test.
 
 ## Relying-party plans
 
-In `oidcc-client-basic-certification-test-plan` and
-`oidcc-client-config-certification-test-plan` the suite is the OpenID
+In the four RP plans (`oidcc-client-basic-certification-test-plan`,
+`oidcc-client-config-certification-test-plan`,
+`oidcc-client-rp-initiated-logout-rp-basic`,
+`oidcc-client-back-channel-logout-rp-basic`) the suite is the OpenID
 Provider and WeftID's upstream connector is the client. A client module sits
 in WAITING until a client signs in, and the suite's runner only knows how to
 launch the suite's own sample clients. The hooks wrapper therefore also
@@ -232,7 +234,15 @@ patches `wait_for_state`. When the runner starts waiting for an
    `/auth/oidc/<id>/login`, the suite's authorize endpoint (which redirects
    straight back), then WeftID's callback, where WeftID exchanges the code
    and calls userinfo. It prints the hops, ending on `/dashboard` or
-   `/login?error=...`.
+   `/login?error=...`,
+3. for the logout modules (`oidcc-client-test-rp-init-logout*`,
+   `oidcc-client-test-rp-backchannel-rpinitlogout*`), signs out in the same
+   cookie jar: GET `/dashboard` for the CSRF token, POST `/logout`, follow
+   the **Continue** link of the page WeftID answers with to the suite's
+   end_session endpoint, and on back to `/logout/complete` and `/login`.
+   While handling end_session the suite posts its logout token to the
+   connection's `/auth/oidc/<id>/backchannel-logout` and records WeftID's
+   status code (200 for the valid token, 400 for each broken one).
 
 The suite module judges what WeftID did. The negative modules end about five
 seconds (`waitTimeoutSeconds`) after the last request.
@@ -244,8 +254,15 @@ client stops early for these modules. Here the hook runs the admin
 **Test connection** action instead (`--test-rp-connection-flag`), which
 fetches exactly those two documents.
 
-`oidcc-client-test-idtoken-sig-none` is an expected skip in both RP plans:
-the connector refuses unsigned ID tokens.
+`oidcc-client-test-idtoken-sig-none` is an expected skip in the Basic and
+Config RP plans: the connector refuses unsigned ID tokens.
+
+The testbed connection has **Sign Out at the Provider** on, and the RP
+config registers WeftID's `/logout/complete` as the client's
+`post_logout_redirect_uri` and the connection's receiver as its
+`backchannel_logout_uri` (the RP-initiated modules require at least one of
+the back- or front-channel URIs; WeftID has no upstream front-channel
+receiver). The Front-Channel RP and Session RP plans are not run.
 
 ## Rate limits during a run
 

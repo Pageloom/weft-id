@@ -39,6 +39,7 @@ from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
 from utils.crypto import derive_hmac_key
+from utils.fetch_guard import FetchGuard
 from utils.safe_http import build_safe_client
 
 PUBLIC = "public"
@@ -55,6 +56,10 @@ _FETCH_TIMEOUT_SECONDS = 5.0
 # The OIDC conformance suite serves sector documents from a docker service on
 # the dev network with a self-signed certificate. Dev only, as for jwks_uri.
 _DEV_HOSTNAME_ALLOWLIST = frozenset({"localhost.emobix.co.uk"})
+
+# Per sector URI (registration has no client yet): a failing document is not
+# refetched for 30s, and one fetch runs at a time.
+_sector_fetch_guard = FetchGuard()
 
 
 @functools.cache
@@ -209,7 +214,16 @@ def validate_subject_settings(
 
     if sector_uri is not None:
         sector_uri = _validate_sector_identifier_uri(sector_uri)
-        listed = set(_fetch_sector_document(sector_uri))
+        listed = set(
+            _sector_fetch_guard.run(
+                sector_uri,
+                sector_uri,
+                lambda: _fetch_sector_document(sector_uri),
+                busy=lambda: _sector_error(
+                    "The sector identifier URI is already being retrieved. Try again shortly."
+                ),
+            )
+        )
         missing = [uri for uri in redirect_uris if uri not in listed]
         if missing:
             raise _sector_error(

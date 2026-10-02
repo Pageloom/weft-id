@@ -48,6 +48,7 @@ from services.auth import require_admin, require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, UnauthorizedError, ValidationError
 from services.types import RequestingUser
+from utils.fetch_guard import FetchGuard
 from utils.safe_http import build_safe_client
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,9 @@ _cache_lock = threading.Lock()
 _jwks_cache: dict[tuple[str, str], tuple[str, float, dict]] = {}
 # (tenant_id, client uuid) -> monotonic time of the last forced refetch
 _last_refresh: dict[tuple[str, str], float] = {}
+# Per client: a failing jwks_uri is not refetched for 30s, and one fetch runs
+# at a time.
+_jwks_fetch_guard = FetchGuard()
 
 
 class _AssertionRejectedError(Exception):
@@ -169,6 +173,7 @@ def clear_jwks_cache(tenant_id: str, client_uuid: str) -> None:
     with _cache_lock:
         _jwks_cache.pop(key, None)
         _last_refresh.pop(key, None)
+    _jwks_fetch_guard.forget_owner(key)
 
 
 def _fetch_jwks(jwks_uri: str) -> dict:
@@ -222,7 +227,12 @@ def _client_jwks(tenant_id: str, client: dict, *, refresh: bool) -> dict | None:
         elif cached and cached[0] == jwks_uri and now - cached[1] < _JWKS_TTL_SECONDS:
             return cached[2]
 
-    jwks = _fetch_jwks(jwks_uri)
+    jwks = _jwks_fetch_guard.run(
+        key,
+        jwks_uri,
+        lambda: _fetch_jwks(jwks_uri),
+        busy=lambda: _AssertionRejectedError("a jwks_uri fetch for this client is in progress"),
+    )
     with _cache_lock:
         _jwks_cache[key] = (jwks_uri, time.monotonic(), jwks)
     return jwks

@@ -97,6 +97,25 @@ def memory_cache(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def clear_fetch_guards():
+    """Forget cached outbound fetch failures, so a test that makes a client's
+    URL fail cannot make the next test's fetch of the same URL fail too."""
+    from services import oauth2_client_auth, oauth2_request_objects
+    from services.oidc import subject
+
+    guards = (
+        oauth2_client_auth._jwks_fetch_guard,
+        oauth2_request_objects._fetch_guard,
+        subject._sector_fetch_guard,
+    )
+    for guard in guards:
+        guard.clear()
+    yield
+    for guard in guards:
+        guard.clear()
+
+
+@pytest.fixture(autouse=True)
 def clear_dependency_overrides():
     """Clear dependency overrides after each test to prevent state leakage."""
     yield

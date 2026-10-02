@@ -211,6 +211,19 @@ class TestByReference:
         _mock_http(monkeypatch, lambda _: httpx.Response(200, content=f"\n{obj}\n".encode()))
         assert _resolve(request_uri=REQUEST_URI)["state"] == "st-obj"
 
+    def test_failed_fetch_is_not_retried_at_once(self, monkeypatch):
+        calls = _mock_http(monkeypatch, lambda _: httpx.Response(500))
+        _refused(svc.INVALID_REQUEST_URI, request_uri=REQUEST_URI)
+        _refused(svc.INVALID_REQUEST_URI, request_uri=REQUEST_URI)
+        assert calls == [REQUEST_URI]
+
+    def test_too_many_fetches_in_flight_fail_fast(self, monkeypatch):
+        calls = _mock_http(monkeypatch, lambda _: httpx.Response(200))
+        busy_guard = svc.FetchGuard(max_in_flight=0)
+        monkeypatch.setattr(svc, "_fetch_guard", busy_guard)
+        _refused(svc.INVALID_REQUEST_URI, request_uri=REQUEST_URI)
+        assert calls == []
+
     def test_unregistered_uri_is_never_fetched(self, monkeypatch):
         calls = _mock_http(monkeypatch, lambda _: httpx.Response(200))
         _refused(svc.INVALID_REQUEST_URI, request_uri="https://rp.example.com/other.jwt")

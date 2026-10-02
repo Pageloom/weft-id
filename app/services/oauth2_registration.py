@@ -681,6 +681,9 @@ def validate_client_metadata(metadata: dict) -> dict:
                 "request_uris": request_uris,
                 "request_object_signing_alg": request_object_alg,
                 "userinfo_signed_response_alg": userinfo_alg,
+                # Records that the client asked for PAR itself (so it may later
+                # drop it), unlike an admin who turned it on. Not echoed.
+                "require_pushed_authorization_requests": True if require_par else None,
             }.items()
             if value is not None
         },
@@ -906,6 +909,23 @@ def read_client_configuration(client: dict, base_url: str) -> dict:
     return client_configuration(client, base_url)
 
 
+def _changed_fields(before: dict, after: dict) -> dict:
+    """The configuration fields an update changed, as {field: {from, to}}.
+
+    Key sets are logged as changed without their contents (they can be large
+    and say nothing to a reader of the audit log).
+    """
+    changed: dict = {}
+    for name in sorted(set(before) | set(after)):
+        if name in ("registration_client_uri", "client_id_issued_at"):
+            continue
+        old, new = before.get(name), after.get(name)
+        if old == new:
+            continue
+        changed[name] = {"changed": True} if name == "jwks" else {"from": old, "to": new}
+    return changed
+
+
 def update_client_configuration(
     tenant_id: str, client: dict, metadata: dict, base_url: str
 ) -> dict:
@@ -922,10 +942,21 @@ def update_client_configuration(
     ``client_secret_post`` are interchangeable). The client's keys are
     replaced like the rest of its metadata.
 
-    Logs: oauth2_client_registration_updated (system actor).
+    The client's current device grant and PAR settings (which an admin may
+    have narrowed) are a ceiling: a PUT cannot add the device_code grant, and
+    PAR an admin required stays required (a client may drop PAR it asked for
+    itself). The registration access token
+    is rotated: the response carries the new one and the old one stops
+    working (RFC 7592 section 2.2 allows this).
+
+    Logs: oauth2_client_registration_updated (system actor), with every
+    changed field.
 
     Raises:
-        ValidationError: invalid metadata or a client_id/client_secret mismatch
+        ValidationError: invalid metadata, a client_id/client_secret mismatch,
+            or a request for the device_code grant the client does not have
+        UnauthorizedError: the registration access token was rotated by a
+            concurrent update or an admin reset
     """
     if not isinstance(metadata, dict):
         raise _metadata_error("The request body must be a JSON object")
@@ -951,6 +982,17 @@ def update_client_configuration(
             "token_endpoint_auth_method cannot switch between none, a client secret, "
             "and private_key_jwt"
         )
+    if accepted["device_grant_enabled"] and not client.get("device_grant_enabled"):
+        raise _metadata_error("The device_code grant is not enabled for this client")
+    # PAR an admin required (the client never asked for it) stays required.
+    admin_required_par = bool(client.get("require_pushed_authorization_requests")) and not (
+        client.get("registration_metadata") or {}
+    ).get("require_pushed_authorization_requests")
+    require_par = accepted["require_pushed_authorization_requests"] or (
+        admin_required_par and "authorization_code" in accepted["extra"]["grant_types"]
+    )
+
+    registration_access_token = oauth2.generate_opaque_token("weft-id_rat")
     updated = database.oauth2.replace_registered_client(
         tenant_id,
         client["client_id"],
@@ -971,9 +1013,11 @@ def update_client_configuration(
         jwks=accepted["jwks"],
         jwks_uri=accepted["jwks_uri"],
         token_endpoint_auth_signing_alg=accepted["token_endpoint_auth_signing_alg"],
-        require_pushed_authorization_requests=accepted["require_pushed_authorization_requests"],
+        require_pushed_authorization_requests=require_par,
         subject_type=accepted["subject_type"],
         sector_identifier_uri=accepted["sector_identifier_uri"],
+        previous_token_hash=client["registration_access_token_hash"],
+        registration_access_token_hash=oauth2.hash_token(registration_access_token),
     )
     if updated is None:
         raise UnauthorizedError(message="The registration access token is not valid")
@@ -989,11 +1033,48 @@ def update_client_configuration(
         metadata={
             "name": updated["name"],
             "client_id": updated["client_id"],
-            "redirect_uris": accepted["redirect_uris"],
-            "subject_type": accepted["subject_type"],
+            "changed": _changed_fields(
+                client_configuration(client, base_url), client_configuration(updated, base_url)
+            ),
         },
     )
-    return client_configuration(updated, base_url)
+    body = client_configuration(updated, base_url)
+    body["registration_access_token"] = registration_access_token
+    return body
+
+
+def reset_registration_access_token(requesting_user: RequestingUser, client_id: str) -> str:
+    """Issue a new registration access token for a dynamically registered
+    client. The old one stops working at once; the new value is returned once.
+
+    Use it when the token may have leaked, or to take over the registration.
+
+    Authorization: Requires admin role.
+    Logs: oauth2_client_registration_token_reset.
+
+    Raises:
+        NotFoundError: No dynamically registered client has this client_id
+    """
+    require_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+    token = oauth2.generate_opaque_token("weft-id_rat")
+    row = database.oauth2.set_registration_access_token(
+        tenant_id, client_id, registration_access_token_hash=oauth2.hash_token(token)
+    )
+    if row is None:
+        raise NotFoundError(
+            message="No dynamically registered client has this client ID",
+            code="registered_client_not_found",
+        )
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="oauth2_client",
+        artifact_id=str(row["id"]),
+        event_type="oauth2_client_registration_token_reset",
+        metadata={"name": row["name"], "client_id": row["client_id"]},
+    )
+    return token
 
 
 def delete_client_configuration(tenant_id: str, client: dict) -> None:

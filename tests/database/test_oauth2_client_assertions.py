@@ -247,6 +247,10 @@ class TestRegisteredClientKeys:
             jwks=None,
             jwks_uri="https://rp.example/rotated",
             token_endpoint_auth_signing_alg="ES256",
+            previous_token_hash=database.oauth2.get_client_by_client_id(
+                test_tenant["id"], client["client_id"]
+            )["registration_access_token_hash"],
+            registration_access_token_hash="rotated",
         )
         assert replaced["jwks"] is None
         assert replaced["jwks_uri"] == "https://rp.example/rotated"

@@ -152,3 +152,59 @@ class TestClientFields:
         assert registered["tos_uri"] == "https://rp.example/tos"
         assert registered["oidc_enabled"] is True
         assert by_id[normal_oauth2_client["client_id"]]["dynamically_registered"] is False
+
+
+class TestResetRegistrationTokenApi:
+    def _registered(self, test_tenant, admin):
+        database.oauth2.upsert_registration_settings(
+            test_tenant["id"],
+            test_tenant["id"],
+            policy="open",
+            default_access="none",
+            updated_by=str(admin["id"]),
+        )
+        return registration_service.register_client(
+            test_tenant["id"],
+            {"redirect_uris": ["https://rp.example/cb"]},
+            initial_access_token=None,
+            base_url="https://unused.example",
+        )
+
+    def test_reset(
+        self,
+        client,
+        test_tenant,
+        test_admin_user,
+        test_tenant_host,
+        oauth2_admin_authorization_header,
+    ):
+        body = self._registered(test_tenant, test_admin_user)
+
+        response = client.post(
+            f"{BASE}/clients/{body['client_id']}/reset-registration-token",
+            headers=_h(test_tenant_host, oauth2_admin_authorization_header),
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["client_id"] == body["client_id"]
+        registration_service.authenticate_registration(
+            test_tenant["id"], body["client_id"], data["registration_access_token"]
+        )
+
+    def test_unknown_client(self, client, test_tenant_host, oauth2_admin_authorization_header):
+        response = client.post(
+            f"{BASE}/clients/weft-id_client_nope/reset-registration-token",
+            headers=_h(test_tenant_host, oauth2_admin_authorization_header),
+        )
+        assert response.status_code == 404
+
+    def test_member_forbidden(
+        self, client, test_tenant, test_admin_user, test_tenant_host, oauth2_authorization_header
+    ):
+        body = self._registered(test_tenant, test_admin_user)
+        response = client.post(
+            f"{BASE}/clients/{body['client_id']}/reset-registration-token",
+            headers=_h(test_tenant_host, oauth2_authorization_header),
+        )
+        assert response.status_code == 403

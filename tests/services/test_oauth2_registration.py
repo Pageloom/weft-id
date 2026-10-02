@@ -589,10 +589,38 @@ class TestClientConfiguration:
         assert body["client_id_issued_at"] == registered["client_id_issued_at"]
         event = _events(test_tenant, "oauth2_client_registration_updated")[0]
         assert str(event["actor_user_id"]) == SYSTEM_ACTOR_ID
-        # Credentials survive the replacement.
-        svc.authenticate_registration(
-            test_tenant["id"], registered["client_id"], registered["registration_access_token"]
+        changed = event["metadata"]["changed"]
+        assert set(changed) == {
+            "client_name",
+            "grant_types",
+            "initiate_login_uri",
+            "logo_uri",
+            "redirect_uris",
+        }
+        assert changed["redirect_uris"] == {
+            "from": ["https://rp.example/cb"],
+            "to": ["https://rp.example/new"],
+        }
+        assert changed["logo_uri"] == {"from": "https://rp.example/logo.png", "to": None}
+        # The registration access token rotates; the client secret survives.
+        new_token = body["registration_access_token"]
+        assert new_token != registered["registration_access_token"]
+        with pytest.raises(UnauthorizedError):
+            svc.authenticate_registration(
+                test_tenant["id"], registered["client_id"], registered["registration_access_token"]
+            )
+        client = svc.authenticate_registration(
+            test_tenant["id"], registered["client_id"], new_token
         )
+        assert oauth2.verify_token_hash(registered["client_secret"], client["client_secret_hash"])
+
+    def test_update_with_a_stale_token_is_refused(self, test_tenant, registered):
+        """Two updates racing on one token: the second finds it already rotated."""
+        client = self._client(test_tenant, registered)
+        metadata = {"client_id": registered["client_id"], "redirect_uris": ["https://rp.example/a"]}
+        svc.update_client_configuration(test_tenant["id"], client, metadata, BASE)
+        with pytest.raises(UnauthorizedError):
+            svc.update_client_configuration(test_tenant["id"], client, metadata, BASE)
 
     @pytest.mark.parametrize(
         "patch",
@@ -1130,6 +1158,73 @@ class TestRequirePushedAuthorizationRequestsMetadata:
         row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
         assert row["require_pushed_authorization_requests"] is False
 
+    def test_update_keeps_par_an_admin_required(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, {"redirect_uris": ["https://rp.example/cb"]})
+        database.execute(
+            test_tenant["id"],
+            "update oauth2_clients set require_pushed_authorization_requests = true "
+            "where client_id = :c",
+            {"c": body["client_id"]},
+        )
+        client = svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {"client_id": body["client_id"], "redirect_uris": ["https://rp.example/cb"]},
+            BASE,
+        )
+        assert updated["require_pushed_authorization_requests"] is True
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["require_pushed_authorization_requests"] is True
+
+    def test_update_cannot_add_the_device_grant(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, {"redirect_uris": ["https://rp.example/cb"]})
+        client = svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )
+        with pytest.raises(ValidationError) as exc:
+            svc.update_client_configuration(
+                test_tenant["id"],
+                client,
+                {
+                    "client_id": body["client_id"],
+                    "redirect_uris": ["https://rp.example/cb"],
+                    "grant_types": [
+                        "authorization_code",
+                        "urn:ietf:params:oauth:grant-type:device_code",
+                    ],
+                },
+                BASE,
+            )
+        assert exc.value.code == "invalid_client_metadata"
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["device_grant_enabled"] is False
+
+    def test_update_keeps_a_device_grant_the_client_has(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        grants = ["authorization_code", "urn:ietf:params:oauth:grant-type:device_code"]
+        body = _register(
+            test_tenant, {"redirect_uris": ["https://rp.example/cb"], "grant_types": grants}
+        )
+        client = svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {
+                "client_id": body["client_id"],
+                "redirect_uris": ["https://rp.example/cb"],
+                "grant_types": grants,
+            },
+            BASE,
+        )
+        assert updated["grant_types"] == grants
+
     @pytest.mark.parametrize(
         "metadata",
         [
@@ -1263,4 +1358,34 @@ class TestPairwiseSubjectMetadata:
         )
         assert updated["subject_type"] == "public"
         (event,) = _events(test_tenant, "oauth2_client_registration_updated")
-        assert event["metadata"]["subject_type"] == "public"
+        assert event["metadata"]["changed"]["subject_type"] == {"from": "pairwise", "to": "public"}
+
+
+class TestResetRegistrationAccessToken:
+    def test_reset_rotates_and_logs(self, test_tenant, test_admin_user, registered):
+        token = svc.reset_registration_access_token(
+            _user(test_tenant, test_admin_user), registered["client_id"]
+        )
+        assert token.startswith("weft-id_rat")
+        with pytest.raises(UnauthorizedError):
+            svc.authenticate_registration(
+                test_tenant["id"], registered["client_id"], registered["registration_access_token"]
+            )
+        svc.authenticate_registration(test_tenant["id"], registered["client_id"], token)
+        event = _events(test_tenant, "oauth2_client_registration_token_reset")[0]
+        assert str(event["actor_user_id"]) == str(test_admin_user["id"])
+        assert event["metadata"]["client_id"] == registered["client_id"]
+
+    def test_reset_requires_admin(self, test_tenant, test_user, registered):
+        with pytest.raises(ForbiddenError):
+            svc.reset_registration_access_token(
+                _user(test_tenant, test_user, role="user"), registered["client_id"]
+            )
+
+    def test_reset_of_admin_created_client_is_not_found(
+        self, test_tenant, test_admin_user, normal_oauth2_client
+    ):
+        with pytest.raises(NotFoundError):
+            svc.reset_registration_access_token(
+                _user(test_tenant, test_admin_user), normal_oauth2_client["client_id"]
+            )

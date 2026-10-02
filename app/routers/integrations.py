@@ -282,6 +282,7 @@ def app_detail(
 
     # Check for pending credentials in session (one-time read after regenerate)
     pending_credentials = request.session.pop("pending_credentials", None)
+    pending_registration_token = request.session.pop("pending_registration_token", None)
 
     # OIDC management context: discovery URLs and group access assignments.
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -310,6 +311,7 @@ def app_detail(
         consent_grants=consent_grants,
         backchannel_deliveries=backchannel_deliveries,
         pending_credentials=pending_credentials,
+        pending_registration_token=pending_registration_token,
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
@@ -582,6 +584,30 @@ def app_regenerate_secret(
     }
 
     return safe_redirect(f"{redirect_url}?success=secret_regenerated")
+
+
+@apps_router.post("/{client_id}/reset-registration-token", response_class=HTMLResponse)
+def app_reset_registration_token(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+):
+    """Issue a new registration access token for a dynamically registered App."""
+    if not has_page_access("/applications/oauth", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    redirect_url = f"/applications/oauth/{client_id}"
+    try:
+        token = registration_service.reset_registration_access_token(
+            build_requesting_user(user, tenant_id, request), client_id
+        )
+    except ServiceError:
+        return safe_redirect(f"{redirect_url}?error=registration_token_reset_failed")
+
+    # One-time display, like a regenerated secret.
+    request.session["pending_registration_token"] = token
+    return safe_redirect(f"{redirect_url}?success=registration_token_reset")
 
 
 @apps_router.post("/{client_id}/deactivate", response_class=HTMLResponse)

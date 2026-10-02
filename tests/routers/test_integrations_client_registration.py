@@ -4,9 +4,11 @@ access tokens, and the Registered badge on registered apps. Real database;
 auth via override_auth."""
 
 import database
+import pytest
 from main import app
 from schemas.oauth2 import InitialAccessTokenCreate, RegistrationSettingsUpdate
 from services import oauth2_registration as registration_service
+from services.exceptions import UnauthorizedError
 
 from tests.helpers.client import TestClient
 
@@ -203,3 +205,66 @@ class TestRegisteredBadge:
         assert "registered itself through" in detail
         assert "https://rp.example/privacy" in detail
         assert "registered itself through" not in static_detail
+
+
+def _register_open(test_tenant, test_admin_user):
+    registration_service.update_registration_settings(
+        _admin(test_admin_user),
+        RegistrationSettingsUpdate(policy="open"),
+        "https://unused.example",
+    )
+    return registration_service.register_client(
+        test_tenant["id"],
+        {"redirect_uris": ["https://rp.example/cb"], "client_name": "Self Registered"},
+        initial_access_token=None,
+        base_url="https://unused.example",
+    )
+
+
+class TestResetRegistrationToken:
+    def test_reset_shows_the_new_token_once(self, test_tenant, test_admin_user, override_auth):
+        body = _register_open(test_tenant, test_admin_user)
+        client = _client_for(override_auth, test_admin_user)
+        detail_url = f"/applications/oauth/{body['client_id']}"
+
+        assert "Reset Registration Access Token" in client.get(detail_url).text
+        response = client.post(f"{detail_url}/reset-registration-token", follow_redirects=False)
+
+        assert response.headers["location"] == f"{detail_url}?success=registration_token_reset"
+        first = client.get(response.headers["location"]).text
+        assert "New Registration Access Token" in first
+        assert "weft-id_rat" in first
+        second = client.get(response.headers["location"]).text
+        assert "New Registration Access Token" not in second
+        assert "Registration access token reset." in second
+        # The client's old token no longer opens its configuration.
+        with pytest.raises(UnauthorizedError):
+            registration_service.authenticate_registration(
+                test_tenant["id"], body["client_id"], body["registration_access_token"]
+            )
+
+    def test_not_offered_for_admin_created_app(
+        self, test_admin_user, override_auth, normal_oauth2_client
+    ):
+        client = _client_for(override_auth, test_admin_user)
+        detail_url = f"/applications/oauth/{normal_oauth2_client['client_id']}"
+
+        assert "Reset Registration Access Token" not in client.get(detail_url).text
+        response = client.post(f"{detail_url}/reset-registration-token", follow_redirects=False)
+        assert response.headers["location"] == (
+            f"{detail_url}?error=registration_token_reset_failed"
+        )
+
+    def test_member_redirected(self, test_tenant, test_admin_user, test_user, override_auth):
+        body = _register_open(test_tenant, test_admin_user)
+        client = _client_for(override_auth, test_user)
+
+        response = client.post(
+            f"/applications/oauth/{body['client_id']}/reset-registration-token",
+            follow_redirects=False,
+        )
+
+        assert response.headers["location"] == "/dashboard"
+        registration_service.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )

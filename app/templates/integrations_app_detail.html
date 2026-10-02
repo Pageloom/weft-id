@@ -69,6 +69,10 @@
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">Client secret regenerated.</p>
         </div>
+        {% elif success == 'registration_token_reset' and not pending_registration_token %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">Registration access token reset.</p>
+        </div>
         {% elif success == 'deactivated' %}
         <div class="mb-6 p-4 border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
             <p class="text-sm text-yellow-800 dark:text-yellow-300">App deactivated. It can no longer request tokens.</p>
@@ -134,6 +138,8 @@
                 Failed to remove the group assignment.
                 {% elif error == 'consent_revoke_failed' %}
                 Failed to revoke the consent. It may already have been revoked.
+                {% elif error == 'registration_token_reset_failed' %}
+                Failed to reset the registration access token. Try again.
                 {% elif error == 'public_client_no_secret' %}
                 A public client has no client secret.
                 {% elif error == 'introspection_update_failed' %}
@@ -605,6 +611,24 @@
                 </div>
                 {% endif %}
 
+                <!-- Reset registration access token (dynamically registered apps) -->
+                {% if client.dynamically_registered %}
+                <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Reset Registration Access Token</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The app's current token stops working, so it can no longer read, change, or delete its registration.</p>
+                    </div>
+                    <form method="post" action="/applications/oauth/{{ client.client_id }}/reset-registration-token" class="inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit"
+                                class="confirm-btn px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600"
+                                data-confirm="Reset the registration access token for {{ client.name }}?&#10;&#10;The current token stops working at once. The app keeps signing users in, but can no longer manage its own registration until it gets the new token.">
+                            Reset
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+
                 <!-- Deactivate/Reactivate -->
                 <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                     {% if client.is_active %}
@@ -739,6 +763,33 @@
 </div>
 {% endif %}
 
+<!-- Registration Access Token Modal (locked - no ESC/backdrop dismiss) -->
+{% if pending_registration_token %}
+<div id="registration-token-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-70 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">New Registration Access Token</h3>
+        <div class="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md">
+            <p class="text-sm text-yellow-800 dark:text-yellow-300">
+                <strong>Important:</strong> The token is shown only once. Give it to whoever manages this app's registration.
+            </p>
+        </div>
+        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Registration Access Token</label>
+        <div class="flex items-center gap-2">
+            <code id="registration-token-value" class="flex-1 bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 text-sm font-mono text-gray-800 dark:text-gray-200 break-all">{{ pending_registration_token }}</code>
+            <button class="copy-btn px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0" data-target="registration-token-value">
+                Copy
+            </button>
+        </div>
+        <div class="mt-6">
+            <button id="dismiss-registration-token-btn"
+                    class="w-full px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                I've saved the token
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script nonce="{{ csp_nonce }}">
 const dismissCredentials = () => {
     document.getElementById('credentials-modal').style.display = 'none';
@@ -750,6 +801,9 @@ document.getElementById('hide-regenerate-btn')?.addEventListener('click', () => 
 document.getElementById('show-deactivate-btn')?.addEventListener('click', () => { WeftUtils.showModal('deactivate-modal'); });
 document.getElementById('hide-deactivate-btn')?.addEventListener('click', () => { WeftUtils.hideModal('deactivate-modal'); });
 document.getElementById('dismiss-credentials-btn')?.addEventListener('click', dismissCredentials);
+document.getElementById('dismiss-registration-token-btn')?.addEventListener('click', () => {
+    document.getElementById('registration-token-modal').style.display = 'none';
+});
 
 // Copy buttons
 document.querySelectorAll('.copy-btn').forEach((btn) => {

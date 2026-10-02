@@ -76,6 +76,7 @@ from database.oauth2.registration import (
     list_initial_access_tokens,
     replace_registered_client,
     revoke_initial_access_token,
+    set_registration_access_token,
     touch_initial_access_token,
     upsert_registration_settings,
 )
@@ -169,6 +170,7 @@ __all__ = [
     "touch_initial_access_token",
     "create_registered_client",
     "replace_registered_client",
+    "set_registration_access_token",
     # sessions
     "upsert_session_client",
     "consume_session_clients",

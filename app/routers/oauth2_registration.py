@@ -258,16 +258,22 @@ def update_client_configuration(
 
     A full replacement: metadata left out returns to its default. The body must
     carry ``client_id`` (matching the path); a ``client_secret``, if sent, must
-    be the current one. Accepts the same metadata as registration. Credentials,
-    access settings and the registration access token are unchanged, and a
-    ``token_endpoint_auth_method`` switching between "none" and a secret
-    method is refused (invalid_client_metadata).
+    be the current one. Accepts the same metadata as registration. Credentials
+    and access settings are unchanged. Refused (invalid_client_metadata): a
+    ``token_endpoint_auth_method`` switching between "none", a secret method
+    and "private_key_jwt", and the device_code grant for a client that does not
+    have it. A client that must use PAR keeps that requirement.
+
+    The registration access token rotates: the response carries a new
+    ``registration_access_token`` and the one used for this request stops
+    working.
 
     Path Parameters:
         client_id: The registered client's client_id
 
     Returns:
-        200 with the registered metadata. 400 ``invalid_redirect_uri`` /
+        200 with the registered metadata and the new
+        ``registration_access_token``. 400 ``invalid_redirect_uri`` /
         ``invalid_client_metadata``, 401 ``invalid_token``.
     """
     client = _authenticated_client(request, tenant_id, client_id)

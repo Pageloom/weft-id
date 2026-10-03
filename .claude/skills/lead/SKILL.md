@@ -361,7 +361,7 @@ Present a consolidated report:
 - **Compliance**: Architectural violations with evidence
 - **Tech-writer**: Copy issues and documentation updates needed
 
-For each finding, recommend: **fix now**, **defer to ISSUES.md**, or **dismiss (false positive)**.
+For each finding, recommend: **fix now**, **defer to GitHub**, or **dismiss (false positive)**.
 
 **STOP HERE.** The user decides which findings to address.
 
@@ -370,7 +370,7 @@ For each finding, recommend: **fix now**, **defer to ISSUES.md**, or **dismiss (
 Based on the user's decisions:
 
 - Fix accepted issues yourself
-- Log deferred items to `.claude/ISSUES.md`
+- Log deferred items on GitHub: a labelled issue, or a private draft security advisory for a security finding (see `.claude/references/issue-tracking.md`)
 - Re-run `make quality-all` after changes
 
 ### 8e. Close out

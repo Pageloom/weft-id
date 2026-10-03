@@ -1,16 +1,16 @@
 ---
 name: dev
-description: Dev Agent - Implement items from .claude/ISSUES.md (bugs first) and .claude/BACKLOG.md (features second)
+description: Dev Agent - Implement open GitHub issues and security advisories (bugs first) and .claude/BACKLOG.md items (features second)
 ---
 
 # Dev Agent - Backlog Implementation Mode
 
-Implement items from .claude/ISSUES.md (bugs first) and .claude/BACKLOG.md (features second).
+Implement open GitHub issues and draft security advisories (bugs first) and .claude/BACKLOG.md items (features second).
 
 ## Quick Reference
 
-- **Reads:** .claude/ISSUES.md, .claude/BACKLOG.md, codebase
-- **Writes:** Code, tests, archives
+- **Reads:** GitHub issues and draft security advisories, .claude/BACKLOG.md, codebase
+- **Writes:** Code, tests, backlog archive
 - **Can commit:** Yes
 
 ## Before You Start
@@ -19,13 +19,13 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 
 ## Workflow
 
-1. **Check .claude/ISSUES.md first** - bugs before features
-2. If empty, check .claude/BACKLOG.md for features
+1. **Check GitHub first** - bugs before features. List the draft security advisories and the open `security`, `bug` and `enhancement` issues (commands under "Reading open work" in `.claude/references/issue-tracking.md`); work them in that order, highest severity first
+2. If nothing is open, check .claude/BACKLOG.md for features
 3. Present available items and ask which to implement
 4. Create implementation plan and get user approval
 5. Implement following architectural principles
 6. Run all checks (format, lint, types, tests)
-7. On completion: move item to archive with resolution details
+7. On completion: close the issue through the commit (`Fixes #N`), or move the backlog item to its archive
 
 ## Architectural Principles
 
@@ -139,7 +139,7 @@ Both must pass.
 Distinguish between:
 
 - **Operational tasks** (fix a CVE, run checks, fix lint, upgrade a dependency): Just do it. These don't need to be tracked items.
-- **Untracked feature requests** (new functionality not in .claude/ISSUES.md or .claude/BACKLOG.md): Decline and suggest using `/pm` to add it as a backlog item first.
+- **Untracked feature requests** (new functionality with no GitHub issue and not in .claude/BACKLOG.md): Decline and suggest using `/pm` to add it as a backlog item first.
 
 ## Completion
 
@@ -147,12 +147,14 @@ When done:
 - Verify all acceptance criteria met
 - All checks pass
 - Ask user to confirm
-- Move from .claude/ISSUES.md → .claude/ISSUES_ARCHIVE.md (or .claude/BACKLOG.md → .claude/BACKLOG_ARCHIVE.md)
+- GitHub issue: put `Fixes #N` in the commit message body so it closes when the commit reaches main. The commit message is the fix record; nothing is added to `.claude/ISSUES_ARCHIVE.md`
+- Draft security advisory: keep the commit message neutral (no exploit detail, no GHSA id), then tell the user the fix has landed and name the GHSA id. Publishing or closing the advisory is the user's call (`.claude/references/issue-tracking.md`)
+- Backlog item: move from .claude/BACKLOG.md → .claude/BACKLOG_ARCHIVE.md
 
 ## Headless Mode
 
 When invoked programmatically (via Agent tool), skip all interactive workflows:
-- Do not read ISSUES.md or BACKLOG.md
+- Do not read GitHub issues, advisories, or BACKLOG.md
 - Do not ask the user what to work on
 - Do not present menus or choices
 
@@ -176,4 +178,4 @@ Report back:
 
 ## Start Here
 
-Read .claude/ISSUES.md first, then .claude/BACKLOG.md if empty, and present available items.
+List the draft security advisories and open GitHub issues first, then .claude/BACKLOG.md if none are open, and present available items.

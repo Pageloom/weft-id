@@ -10,7 +10,7 @@ Identify OWASP Top 10 vulnerabilities and security misconfigurations.
 ## Quick Reference
 
 - **Reads:** Codebase (especially auth, database, templates)
-- **Writes:** .claude/ISSUES.md
+- **Writes:** Private draft security advisories on GitHub (never public issues or files)
 - **Can commit:** No
 
 ## Before You Start
@@ -87,7 +87,7 @@ Ask the user:
 - Common gap: UI says "phishing-resistant MFA" but the underlying check only verifies the credential exists, not the UV / assurance level it actually provided.
 
 **For Regression Hunting:**
-- Before closing the scan, `grep` the new diff for the root-cause pattern of every entry in `.claude/ISSUES_ARCHIVE.md` tagged `[SECURITY]`. Re-introduction of a previously fixed pattern is the highest-yield finding.
+- Before closing the scan, `grep` the new diff for the root-cause pattern of every past security finding: entries tagged `[SECURITY]` in `.claude/ISSUES_ARCHIVE.md` (frozen, up to 2026-10-03), plus published and closed advisories and closed `security` issues on GitHub (commands under "History" in `.claude/references/issue-tracking.md`). Re-introduction of a previously fixed pattern is the highest-yield finding.
 
 ### 3. Evidence Collection
 
@@ -98,7 +98,9 @@ For each vulnerability:
 - Impact (worst case)
 - Specific remediation
 
-### 4. Report to .claude/ISSUES.md
+### 4. Report as draft security advisories
+
+The repository is public. Each finding becomes one private draft security advisory, created as described in `.claude/references/issue-tracking.md`: the title is the heading of the issue format below without its `[SECURITY]` tag, the description is the rest of it, and `severity` is the finding's severity. First list the open drafts so a known finding is not filed twice. Give the user the GHSA id and URL of each advisory. Do not write findings to any file in the repository, and do not open public issues for them.
 
 ## Severity Guide
 
@@ -168,6 +170,8 @@ If a subagent returns only narrative summaries, re-delegate with an explicit "qu
 
 ## Issue Format
 
+The heading becomes the advisory title (without the tag), the rest its description.
+
 ```markdown
 ## [SECURITY] [Vulnerability Type]: [Brief Description]
 
@@ -195,22 +199,22 @@ cursor.execute(query, (email,))
 
 ## What You Cannot Do
 
-- No code fixes (log issues for `/dev`)
+- No code fixes (file advisories for `/dev`)
 - No penetration testing (code review only)
 - No assumptions (verify against actual usage)
 
 ## Where Findings and Suggestions Go
 
-- Concrete vulnerabilities: `.claude/ISSUES.md` (using the issue format below).
+- Concrete vulnerabilities: private draft security advisories on GitHub (the issue format above as the description; see `.claude/references/issue-tracking.md`).
 - Follow-up work that is feature-shaped (new automation, new checks, refactors): `.claude/BACKLOG.md` via `/pm`.
-- Do not create parallel backlog / suggestion / automation-ideas files under `.claude/references/`, `.claude/skills/`, or elsewhere. The user engages findings and suggestions manually through ISSUES.md and BACKLOG.md; a sibling surface just duplicates and drifts.
+- Do not create parallel backlog / suggestion / automation-ideas files under `.claude/references/`, `.claude/skills/`, or elsewhere. The user engages findings and suggestions through GitHub (advisories and issues) and BACKLOG.md; a sibling surface just duplicates and drifts.
 - Automation ideas that come out of a sweep: either propose them as BACKLOG entries or surface them in the chat for manual triage. Never park them in a standalone reference doc.
 
 ## Headless Mode
 
 When invoked programmatically (via Agent tool), skip all interactive workflows:
 - Do not ask about scope, focus, or context
-- Do not write to ISSUES.md
+- Do not create advisories or issues
 
 Instead:
 1. Read `.claude/THOUGHT_ERRORS.md`

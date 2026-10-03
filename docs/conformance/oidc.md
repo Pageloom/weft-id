@@ -9,8 +9,8 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 <!-- conformance-results:start -->
 
 * **Suite version:** 5.2.4
-* **WeftID version:** 1.12.0 (`446d4263`)
-* **Run date:** 2026-10-02
+* **WeftID version:** 2.0.0+49b1eb24 (untagged)
+* **Run date:** 2026-10-03
 
 | Profile | Test plan | Outcome | Passed | Warning | Review | Skipped | Failed |
 |---|---|---|---|---|---|---|---|

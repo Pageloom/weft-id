@@ -64,7 +64,7 @@ What happens:
 * With a valid `id_token_hint` for the signed-in user, WeftID signs the user out straight away. The browser then goes to the `post_logout_redirect_uri` (with `state`), or to a "You have signed out" page when none was sent.
 * In every other case (no hint, a hint WeftID cannot verify or that names a different user, or a `post_logout_redirect_uri` that is not registered) WeftID asks the user to confirm. After they confirm, they see the "You have signed out" page. WeftID never sends the user to an address it could not verify.
 
-Signing out through the end session endpoint also ends the user's sessions at SAML applications WeftID signed them in to. It does not sign them out of an upstream identity provider (such as Okta or Entra ID) they used to sign in to WeftID. Remembered consent is not affected: signing out ends the session, not the user's decision to allow the app.
+Signing out through the end session endpoint also ends the user's sessions at SAML applications WeftID signed them in to. It can also sign them out of the upstream identity provider (such as Okta or Entra ID) they used to sign in to WeftID: a SAML identity provider with an SLO URL (see [Single Logout](../identity-providers/saml-setup.md#single-logout)), or an OIDC connection with **Sign Out at the Provider** on (see [Sign-out at the provider](../identity-providers/oidc-setup.md#sign-out-at-the-provider)). The browser goes to the provider first and then on to the app's post-logout redirect URI. Remembered consent is not affected: signing out ends the session, not the user's decision to allow the app.
 
 ### Post-logout redirect URIs
 

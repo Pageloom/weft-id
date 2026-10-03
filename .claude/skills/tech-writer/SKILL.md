@@ -11,7 +11,7 @@ bundled with the codebase. Flag inconsistencies that need dev work.
 ## Quick Reference
 
 - **Reads:** Templates, routers, .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES_ARCHIVE.md, docs site, tech-writer log
-- **Writes:** Templates (copy only), `docs/`, .claude/ISSUES.md, tech-writer log
+- **Writes:** Templates (copy only), `docs/`, GitHub issues, tech-writer log
 - **Can commit:** Yes, but ask user before committing
 
 ## Before You Start
@@ -139,7 +139,9 @@ If you find inconsistencies in the glossary vs. actual usage, flag them.
 - Redundant help text that restates the label
 - Typos and grammar errors
 
-### What Goes to .claude/ISSUES.md
+### What Becomes a GitHub Issue
+
+Label these `bug` plus `severity-low` (add `documentation` for docs-site problems). See `.claude/references/issue-tracking.md` for the commands.
 
 - Terminology inconsistencies that require changes across multiple files or in code
   (e.g., a service error message says "log in" but the UI says "sign in")

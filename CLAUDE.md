@@ -64,8 +64,9 @@ Request → Router → Service → Database → PostgreSQL
 | `.claude/BACKLOG.md` | Product backlog (pending items) |
 | `.claude/BACKLOG_ARCHIVE.md` | Completed backlog items with acceptance criteria |
 | `.claude/ITERATION_*.md` | Active iteration plans managed by `/lead` (gitignored) |
-| `.claude/ISSUES.md` | Active quality/security issues (goal: keep empty) |
-| `.claude/ISSUES_ARCHIVE.md` | Resolved issues with fix details |
+| `.claude/references/issue-tracking.md` | How issues and security advisories are tracked on GitHub (labels, commands) |
+| `.claude/ISSUES.md` | Retired. Scan history and a pointer to GitHub; no issues are logged here |
+| `.claude/ISSUES_ARCHIVE.md` | Frozen record of issues resolved before 2026-10-03 |
 | `app/services/service_providers.py` | SP registration, SSO response building |
 | `app/routers/saml_idp/` | SAML IdP admin, SSO, metadata (package) |
 | `app/database/service_providers.py` | SP database queries |
@@ -565,7 +566,7 @@ All checks must pass before committing.
 
 - Use `/pm` to add items to the product backlog
 - Use `/lead` to groom a backlog item into iterations and implement them one per session (for M/L/XL items)
-- Use `/dev` to implement items from the backlog (checks `.claude/ISSUES.md` first, for S/M standalone items)
+- Use `/dev` to implement items from the backlog (checks GitHub issues and draft security advisories first, for S/M standalone items)
 - Use `/test` to review quality and push coverage intelligently
 - Use `/compliance` to verify architectural principles are followed
 - Use `/security` to scan for OWASP Top 10 and other security vulnerabilities
@@ -576,12 +577,16 @@ All checks must pass before committing.
 
 ## Issue Tracking
 
-- Quality issues found by `/test` are logged in `.claude/ISSUES.md`
-- Architectural violations found by `/compliance` are logged in `.claude/ISSUES.md`
-- Security vulnerabilities found by `/security` are logged in `.claude/ISSUES.md`
-- Dependency vulnerabilities found by `/deps` are logged in `.claude/ISSUES.md`
-- Refactoring opportunities found by `/refactor` are logged in `.claude/ISSUES.md`
-- Copy inconsistencies found by `/tech-writer` are logged in `.claude/ISSUES.md`
-- `/dev` checks `.claude/ISSUES.md` first before `.claude/BACKLOG.md` (bugs before features)
-- **When resolved:** Move issues from `.claude/ISSUES.md` to `.claude/ISSUES_ARCHIVE.md` (don't keep resolved items in `.claude/ISSUES.md`)
-- Goal: keep `.claude/ISSUES.md` empty
+Open work is tracked on GitHub, not in `.claude/ISSUES.md`. The repository is public. See
+`.claude/references/issue-tracking.md` for labels and commands.
+
+- Vulnerabilities in our own code (`/security`, or found along the way) go to **private draft
+  security advisories**. Never put an unfixed vulnerability in a public issue, a commit message,
+  a PR body, or a file under `.claude/`
+- Everything else is a GitHub issue: `/test`, `/compliance` and `/tech-writer` findings are `bug`
+  with a `severity-*` label; `/deps` findings are `security` + `dependencies` with a `severity-*`
+  label; `/refactor` findings are `enhancement` with a `prio-*` label
+- `/dev` checks draft advisories and open issues before `.claude/BACKLOG.md` (bugs before features)
+- **When resolved:** `Fixes #N` in the commit message closes the issue. For an advisory, tell the
+  user the fix has landed; publishing or closing it is their decision
+- `.claude/ISSUES_ARCHIVE.md` is frozen history (still used for regression hunting)

@@ -10,7 +10,7 @@ Identify refactoring opportunities and technical debt. Primary goal: make code e
 ## Quick Reference
 
 - **Reads:** Codebase, `.claude/REFACTOR_HISTORY.md`
-- **Writes:** .claude/ISSUES.md, REFACTOR_HISTORY.md
+- **Writes:** GitHub issues, REFACTOR_HISTORY.md
 - **Can commit:** No
 
 ## Before You Start
@@ -106,7 +106,9 @@ Check `.claude/REFACTOR_HISTORY.md` to understand:
 - Document exact file:line references
 - Assess impact (high/medium/low)
 
-### 4. Report to .claude/ISSUES.md
+### 4. Report as GitHub issues
+
+One issue per opportunity, labelled `enhancement` plus one `prio-*` label (High impact: `prio-high`, Medium: `prio-medium`, Low: `prio-low`), with the issue format below as the body (its heading, without the tag, becomes the title). See `.claude/references/issue-tracking.md` for the commands.
 
 ### 5. Update History
 

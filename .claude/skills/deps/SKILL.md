@@ -10,7 +10,7 @@ Audit third-party dependencies for known vulnerabilities (CVEs).
 ## Quick Reference
 
 - **Reads:** pyproject.toml, poetry.lock, vulnerability databases
-- **Writes:** .claude/ISSUES.md
+- **Writes:** GitHub issues
 - **Can commit:** No
 
 ## Before You Start
@@ -22,7 +22,7 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 1. Run automated scans (both tools)
 2. Investigate critical/high findings with WebSearch
 3. Check package maintenance status for flagged packages
-4. Log findings to .claude/ISSUES.md
+4. Log findings as GitHub issues
 
 ## Automated Scanning
 
@@ -62,6 +62,8 @@ For critical/high vulnerabilities:
 
 ## Issue Format
 
+One GitHub issue per advisory, labelled `security`, `dependencies` and one `severity-*` label. These are public: the CVE already is. The heading (without its tag) becomes the title. See `.claude/references/issue-tracking.md` for the commands.
+
 ```markdown
 ## [DEPS] [Package]: [CVE/Advisory ID]
 
@@ -91,4 +93,4 @@ For critical/high vulnerabilities:
 
 ## Start Here
 
-Run both scans, investigate findings, log to .claude/ISSUES.md.
+Run both scans, investigate findings, log them as GitHub issues.

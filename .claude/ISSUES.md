@@ -10,8 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 1 | File Structure (pre-existing) |
-| Low | 1 | Upload-auth temp-file leak (warning-ignored, tracked) |
+| - | 0 | Open issues are tracked on GitHub: https://github.com/Pageloom/weft-id/issues (security findings as private draft advisories) |
 
 Note: the eight oidc-conformance follow-up issues (creator FKs, expired token sweep, RFC 7592
 update, outbound fetch guard, pre-sid sessions, test DB isolation, glossary, test gaps) were
@@ -40,8 +39,9 @@ consistency, private-helper import boundary, `list_active_tokens` dead code, can
 validation, Pydantic `max_length`) plus the project-wide proxy-headers / forwarded-host trust
 boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHIVE.md.
 
-**Last security scan:** 2026-07-09 (full sweep of the oidc-provider branch vs main, all OWASP categories: OIDC signing keys/JWKS/discovery, ID-token issuance, userinfo, client access control, migrations 0051-0055, templates, worker sweeps. Overall well-defended: parameterized SQL, strict RLS + hardened SECURITY DEFINER accessors, encrypted key material, PKCE/one-time codes intact, CSRF on all new forms, bounded inputs with matching DB CHECKs, regression hunt against ISSUES_ARCHIVE patterns clean. Found 2 MEDIUM + 1 LOW, all resolved 2026-07-12; see ISSUES_ARCHIVE.md)
-**Previous security scan:** 2026-06-21 (targeted 60-day sweep of forward-auth proxy, inbound/outbound SCIM, WebAuthn, and user-attributes→SAML flow; forward-auth, inbound SCIM, and WebAuthn verified well-defended; the 1 HIGH SSRF + 2 MEDIUM attribute-provenance + Low DiD bundle it found have since been resolved, see ISSUES_ARCHIVE.md)
+**Last security scan:** 2026-10-03 (v1.12.0..main: unauthenticated OAuth2 endpoints, signed tokens and request objects, outbound fetches, session revocation and logout, CSRF regression, migrations 0060-0078. Findings are tracked as private draft security advisories on GitHub, not here)
+**Previous security scan:** 2026-07-09 (full sweep of the oidc-provider branch vs main, all OWASP categories: OIDC signing keys/JWKS/discovery, ID-token issuance, userinfo, client access control, migrations 0051-0055, templates, worker sweeps. Overall well-defended: parameterized SQL, strict RLS + hardened SECURITY DEFINER accessors, encrypted key material, PKCE/one-time codes intact, CSRF on all new forms, bounded inputs with matching DB CHECKs, regression hunt against ISSUES_ARCHIVE patterns clean. Found 2 MEDIUM + 1 LOW, all resolved 2026-07-12; see ISSUES_ARCHIVE.md)
+**Earlier security scan:** 2026-06-21 (targeted 60-day sweep of forward-auth proxy, inbound/outbound SCIM, WebAuthn, and user-attributes→SAML flow; forward-auth, inbound SCIM, and WebAuthn verified well-defended; the 1 HIGH SSRF + 2 MEDIUM attribute-provenance + Low DiD bundle it found have since been resolved, see ISSUES_ARCHIVE.md)
 **Last compliance scan:** 2026-06-21 (automated checker clean, 0 violations across 1612 files; targeted 60-day manual sweep of SCIM, WebAuthn, attributes/auth-policy/settings, forward-auth proxy, and migrations 0031-0048; the 6 warning-level judgment findings have since been resolved, see ISSUES_ARCHIVE.md)
 **Last API coverage audit:** 2026-04-23 (3 gaps resolved: group clear relationships, IdP reimport XML, SAML debug entries)
 **Last dependency audit:** 2026-06-20 (cryptography 48.0.0→48.0.1, python-multipart 0.0.29→0.0.31, pip 26.1.1→26.1.2, msgpack 1.1.2→1.2.1, starlette 1.0.1→1.3.1 bumped, clearing all 6 HIGH/MED CVEs; full suite green; the pygments `<2.20` pin has since been dropped in 1.11.0, see ISSUES_ARCHIVE.md)
@@ -55,53 +55,4 @@ boundary were resolved on the inbound-scim branch (2026-05-29); see ISSUES_ARCHI
 
 ---
 
-## [REFACTOR] File Structure: groups/idp.py split candidate at 710 lines
-
-**Found in:** `app/services/groups/idp.py`
-**Impact:** Medium
-**Category:** File Structure
-**Description:** This file handles two distinct concerns: group creation/discovery (create_idp_base_group, get_or_create_idp_group, _ensure_umbrella_relationship, invalidate_idp_groups) and membership management (sync_user_idp_groups, ensure_user_in_base_group, remove_user_from_base_group, move_users_between_idps). At 710 lines with 15 public functions, it's at the limit of maintainability.
-**Why It Matters:** The two concerns are intertwined but distinct. Splitting improves traversability and makes each module's purpose clear.
-**Deferred reason:** The test suite patches `services.groups.idp.database` as a single mock to intercept calls across both lifecycle and membership functions. Splitting the module would require patching two submodules' `database` references in ~40 test locations, doubling mock boilerplate. The file should be split after refactoring tests to use proper fixtures.
-**Suggested Refactoring:** Split into two modules within the existing groups package:
-- `idp_lifecycle.py` (~350 lines): group lifecycle and discovery
-- `idp_membership.py` (~350 lines): sync, base group membership, cross-IdP moves
-**Files Affected:** `app/services/groups/idp.py`, `app/services/groups/__init__.py`, tests
-
----
-
-## [BUG] Upload routes leak the parsed file when super-admin check rejects
-
-**Discovered:** 2026-06-20 (surfaced by enabling `filterwarnings = ["error"]`)
-**Severity:** Low (no production impact; currently warning-ignored + tracked)
-**Source:** pytest `PytestUnraisableExceptionWarning` (`SpooledTemporaryFile.__del__`)
-
-On routes that take an `UploadFile` under a router-level `require_super_admin`
-dependency, FastAPI parses (buffers) the multipart body before the dependency
-runs. When the dependency rejects, the file param is never bound, so its
-`SpooledTemporaryFile` is never closed and is reclaimed only at GC, where
-`__del__` raises an unraisable exception. In tests this attaches
-non-deterministically to whatever test is running and fails the suite under
-error-mode warnings.
-
-**Impact:** None in production (small in-memory temp file, GC-time noise). The
-only observable effect is the test warning.
-
-**Current handling:** A narrowly-scoped `filterwarnings` ignore in
-`pyproject.toml` (matched to the `SpooledTemporaryFile` message only) keeps the
-suite warning-clean. This is a deliberate, documented exception to the
-warnings-are-errors policy.
-
-**Real fix (deferred):** Restructure super-admin-guarded upload routes so the
-body is not buffered before the access check (e.g. in-handler auth for upload
-routes, or a mechanism that closes form files on dependency rejection). The
-obvious fix (parse the form after the auth check via `async with request.form()`)
-collides with the CSRF middleware, which already owns multipart body parsing, so
-this needs a coordinated change. When fixed, remove the `filterwarnings` ignore.
-
-**Files Affected:** `app/routers/saml_idp/admin.py` (and the other 5 `UploadFile`
-routes share the latent pattern), `app/middleware/csrf.py`, `pyproject.toml`
-
----
-
----
+Moved to GitHub on 2026-10-03: the groups/idp.py split (#172) and the upload-route temp-file leak (#173).

@@ -125,7 +125,7 @@ filterwarnings = [
     # SpooledTemporaryFile is closed only at GC, where __del__ raises an
     # unraisable exception. GC-time noise with no production impact; a real fix
     # needs an upload-auth restructure (collides with the CSRF middleware's body
-    # parsing). Scoped to that exact message. Tracked in .claude/ISSUES.md.
+    # parsing). Scoped to that exact message. Tracked in GitHub issue #173.
     "ignore:.*SpooledTemporaryFile.*:pytest.PytestUnraisableExceptionWarning",
 ]
 

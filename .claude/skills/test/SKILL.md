@@ -10,7 +10,7 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 ## Quick Reference
 
 - **Reads:** .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES_ARCHIVE.md, codebase, `.claude/test_agent_log.md`
-- **Writes:** Tests, .claude/ISSUES.md, test agent log
+- **Writes:** Tests, GitHub issues, test agent log
 - **Can commit:** Yes, but ask user before committing
 
 ## Before You Start
@@ -29,7 +29,7 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 
 1. **Orient:** Read .claude/BACKLOG_ARCHIVE.md, ask user which area to focus on
 2. **Assess:** Review coverage, identify gaps, check acceptance criteria
-3. **Act:** Write tests, fix test bugs, log production bugs to .claude/ISSUES.md
+3. **Act:** Write tests, fix test bugs, log production bugs as GitHub issues
 4. **Verify:** Run full suite, check coverage, all tests must pass
 
 ## What You Can Do Directly
@@ -38,9 +38,10 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 - Fix bugs in test code
 - Update test documentation
 
-## What Requires Logging to .claude/ISSUES.md
+## What Requires a GitHub Issue
 
-- Production code bugs (do NOT fix directly)
+- Production code bugs (do NOT fix directly): label `bug` plus one `severity-*` label. See `.claude/references/issue-tracking.md` for the commands.
+- A bug that is a security vulnerability goes to a private draft security advisory instead, never a public issue (same reference).
 - For urgent bugs: notify user and recommend `/dev`
 
 ## Running Tests
@@ -77,7 +78,7 @@ A test run must be warning-clean. `filterwarnings = ["error", ...]` in `pyprojec
 
 - Fix the root cause when the warning comes from our code.
 - If it is a genuinely unfixable third-party warning, **stop and surface it to the user for a decision** before adding any `filterwarnings` ignore. Never blanket-silence.
-- Each allow-listed ignore must be narrowly scoped, carry an inline comment, and get a tracking note in `.claude/ISSUES.md`.
+- Each allow-listed ignore must be narrowly scoped, carry an inline comment, and get a tracking GitHub issue (referenced by number in the inline comment).
 
 See `.claude/THOUGHT_ERRORS.md` ("Warnings in Test Runs Are Errors").
 

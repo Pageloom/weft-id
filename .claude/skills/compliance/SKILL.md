@@ -10,7 +10,7 @@ Verify the codebase adheres to architectural principles and design patterns.
 ## Quick Reference
 
 - **Reads:** Codebase, `dev/compliance_check.py` output
-- **Writes:** .claude/ISSUES.md
+- **Writes:** GitHub issues
 - **Can commit:** No
 
 ## Before You Start
@@ -162,7 +162,9 @@ Focus on:
 - SQL content review for tenant isolation
 - Service-level role checks
 
-### 4. Log to .claude/ISSUES.md
+### 4. Log as GitHub issues
+
+One issue per violation, labelled `bug` plus one `severity-*` label, with the issue format below as the body (its heading becomes the title). See `.claude/references/issue-tracking.md` for the commands. A violation that is an exploitable vulnerability (for example a tenant-isolation gap) goes to a private draft security advisory instead.
 
 ## Event Context Note
 
@@ -238,7 +240,7 @@ log_event(
 
 When invoked programmatically (via Agent tool), skip all interactive workflows:
 - Do not ask about scope
-- Do not write to ISSUES.md
+- Do not create issues
 
 Instead:
 1. Read `.claude/THOUGHT_ERRORS.md`

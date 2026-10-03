@@ -9,6 +9,7 @@ Entra). No live network calls: the safe client / JWKS fetch are patched to
 return the recorded fixture bytes.
 """
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -37,10 +38,14 @@ class _FakeResponse:
         self.status_code = status_code
         self._json_body = json_body
 
-    def json(self):
-        if self._json_body is None:
-            raise ValueError("no json")
-        return self._json_body
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def iter_bytes(self):
+        yield b"not json" if self._json_body is None else json.dumps(self._json_body).encode()
 
 
 class _FakeClient:
@@ -53,7 +58,7 @@ class _FakeClient:
     def __exit__(self, *args):
         return False
 
-    def get(self, url):
+    def stream(self, method, url, **kwargs):
         return self._response
 
 

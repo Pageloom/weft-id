@@ -6,6 +6,7 @@ private/link-local address is refused). No live network calls: the safe
 client is patched with a fake response.
 """
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -29,10 +30,14 @@ class _FakeResponse:
         self._json_body = json_body
         self.text = text
 
-    def json(self):
-        if self._json_body is None:
-            raise ValueError("no json")
-        return self._json_body
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def iter_bytes(self):
+        yield b"not json" if self._json_body is None else json.dumps(self._json_body).encode()
 
 
 class _FakeClient:
@@ -45,7 +50,7 @@ class _FakeClient:
     def __exit__(self, *args):
         return False
 
-    def get(self, url):
+    def stream(self, method, url, **kwargs):
         return self._response
 
 
@@ -233,7 +238,7 @@ class TestDevBaseDomainRewrite:
 
 
 class _RaisingClient(_FakeClient):
-    def get(self, url):
+    def stream(self, method, url, **kwargs):
         raise OSError("connection refused")
 
 

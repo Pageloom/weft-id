@@ -31,13 +31,14 @@ without an admin pressing Test Connection.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 import database
 import settings
-from services.oidc_upstream._http import DEV_HOSTNAME_ALLOWLIST
+from services.oidc_upstream._http import SAFE_CLIENT_OPTIONS, read_capped
 from services.oidc_upstream.errors import (
     DiscoveryError,
     DiscoveryInsecureEndpointError,
@@ -133,26 +134,20 @@ def _fetch_discovery_document(discovery_url: str) -> dict:
             followed).
         DiscoveryError: on any other fetch/parse failure.
     """
-    # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
-    # IdP (the loopback E2E); it is inert outside IS_DEV.
-    with build_safe_client(
-        timeout=10.0,
-        dev_base_domain_rewrite=True,
-        dev_hostname_allowlist=DEV_HOSTNAME_ALLOWLIST,
-    ) as client:
+    with build_safe_client(**SAFE_CLIENT_OPTIONS) as client:
         try:
-            response = client.get(discovery_url)
+            status, body = read_capped(client, "GET", discovery_url)
         except Exception as exc:  # noqa: BLE001 - surface as DiscoveryError
             raise DiscoveryUnavailableError(f"Failed to fetch discovery document: {exc}") from exc
 
-    if 300 <= response.status_code < 400:
-        raise DiscoveryRedirectError(discovery_url, response.status_code)
+    if 300 <= status < 400:
+        raise DiscoveryRedirectError(discovery_url, status)
 
-    if response.status_code != 200:
-        raise DiscoveryUnavailableError(f"Discovery fetch returned HTTP {response.status_code}")
+    if status != 200:
+        raise DiscoveryUnavailableError(f"Discovery fetch returned HTTP {status}")
 
     try:
-        doc = response.json()
+        doc = json.loads(body)
     except Exception as exc:  # noqa: BLE001
         raise DiscoveryError(f"Discovery document is not valid JSON: {exc}") from exc
 

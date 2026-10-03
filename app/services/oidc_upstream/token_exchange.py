@@ -12,9 +12,10 @@ these with the values they already hold.
 
 from __future__ import annotations
 
+import json
 import logging
 
-from services.oidc_upstream._http import DEV_HOSTNAME_ALLOWLIST
+from services.oidc_upstream._http import SAFE_CLIENT_OPTIONS, read_capped
 from services.oidc_upstream.errors import OIDCUpstreamError
 from utils.safe_http import build_safe_client
 
@@ -72,15 +73,11 @@ def exchange_code(
         "code_verifier": code_verifier,
     }
 
-    # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
-    # IdP (the loopback E2E); it is inert outside IS_DEV.
-    with build_safe_client(
-        timeout=10.0,
-        dev_base_domain_rewrite=True,
-        dev_hostname_allowlist=DEV_HOSTNAME_ALLOWLIST,
-    ) as client:
+    with build_safe_client(**SAFE_CLIENT_OPTIONS) as client:
         try:
-            response = client.post(
+            status, body = read_capped(
+                client,
+                "POST",
                 token_endpoint,
                 data=data,
                 auth=(client_id, client_secret),
@@ -88,11 +85,11 @@ def exchange_code(
         except Exception as exc:  # noqa: BLE001
             raise TokenExchangeError(f"Token exchange failed: {exc}") from exc
 
-    if response.status_code != 200:
-        raise TokenExchangeError(f"Token endpoint returned HTTP {response.status_code}")
+    if status != 200:
+        raise TokenExchangeError(f"Token endpoint returned HTTP {status}")
 
     try:
-        payload = response.json()
+        payload = json.loads(body)
     except Exception as exc:  # noqa: BLE001
         raise TokenExchangeError(f"Token response is not valid JSON: {exc}") from exc
 
@@ -124,23 +121,17 @@ def fetch_userinfo(*, userinfo_endpoint: str, access_token: str, expected_sub: s
     """
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
-    # IdP (the loopback E2E); it is inert outside IS_DEV.
-    with build_safe_client(
-        timeout=10.0,
-        dev_base_domain_rewrite=True,
-        dev_hostname_allowlist=DEV_HOSTNAME_ALLOWLIST,
-    ) as client:
+    with build_safe_client(**SAFE_CLIENT_OPTIONS) as client:
         try:
-            response = client.get(userinfo_endpoint, headers=headers)
+            status, body = read_capped(client, "GET", userinfo_endpoint, headers=headers)
         except Exception as exc:  # noqa: BLE001
             raise UserinfoError(f"Userinfo fetch failed: {exc}") from exc
 
-    if response.status_code != 200:
-        raise UserinfoError(f"Userinfo endpoint returned HTTP {response.status_code}")
+    if status != 200:
+        raise UserinfoError(f"Userinfo endpoint returned HTTP {status}")
 
     try:
-        payload = response.json()
+        payload = json.loads(body)
     except Exception as exc:  # noqa: BLE001
         raise UserinfoError(f"Userinfo response is not valid JSON: {exc}") from exc
 

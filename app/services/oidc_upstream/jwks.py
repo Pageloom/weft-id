@@ -13,12 +13,13 @@ rather than per-connection. Instead we fetch the JWKS ourselves through
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from services.oidc_upstream._http import DEV_HOSTNAME_ALLOWLIST
+from services.oidc_upstream._http import SAFE_CLIENT_OPTIONS, read_capped
 from services.oidc_upstream.errors import JwksError
 from utils.safe_http import build_safe_client
 
@@ -48,23 +49,17 @@ def _fetch_jwks(jwks_uri: str) -> dict:
     Raises:
         JwksError: on any fetch/parse failure.
     """
-    # dev_base_domain_rewrite lets a dev-stack tenant act as its own upstream
-    # IdP (the loopback E2E); it is inert outside IS_DEV.
-    with build_safe_client(
-        timeout=10.0,
-        dev_base_domain_rewrite=True,
-        dev_hostname_allowlist=DEV_HOSTNAME_ALLOWLIST,
-    ) as client:
+    with build_safe_client(**SAFE_CLIENT_OPTIONS) as client:
         try:
-            response = client.get(jwks_uri)
+            status, body = read_capped(client, "GET", jwks_uri)
         except Exception as exc:  # noqa: BLE001
             raise JwksError(f"Failed to fetch JWKS: {exc}") from exc
 
-    if response.status_code != 200:
-        raise JwksError(f"JWKS fetch returned HTTP {response.status_code}")
+    if status != 200:
+        raise JwksError(f"JWKS fetch returned HTTP {status}")
 
     try:
-        doc = response.json()
+        doc = json.loads(body)
     except Exception as exc:  # noqa: BLE001
         raise JwksError(f"JWKS is not valid JSON: {exc}") from exc
 

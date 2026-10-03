@@ -54,5 +54,9 @@ Self-hosters can pin to their preferred level of update granularity.
    `make oidc-conformance`, then `make oidc-conformance-report ARGS="--write-docs"`. Commit
    the updated page. A red profile blocks the release.
 3. Push `main`. Wait for the `sync-prod-requirements` workflow, then pull any commit it made.
-4. Tag `v1.2.3` on the resulting `HEAD` and push the tag. The publish workflow checks that
-   the tag matches `pyproject.toml`.
+4. Run `make release-tag`. It creates the tag (`v1.2.3`) on the resulting `HEAD` from the
+   version in `pyproject.toml`, so the name is never typed by hand. It refuses unless you are
+   on a clean `main` that equals `origin/main` and `CHANGELOG.md` has a section for the
+   version.
+5. Push the tag with the command it prints. The publish workflow checks that the tag matches
+   `pyproject.toml`.

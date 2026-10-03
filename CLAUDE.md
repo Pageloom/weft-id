@@ -342,7 +342,7 @@ After install, provision the first tenant and super admin via CLI:
 `docker compose exec app python -m app.cli.provision_tenant --subdomain <sub> --tenant-name <name> --email <email> --first-name <first> --last-name <last>`.
 The super admin receives an invitation email and goes through the standard onboarding flow.
 
-**Release flow:** bump version in `pyproject.toml`, tag `v1.2.3` on main, push the tag. The GHCR
+**Release flow:** bump version in `pyproject.toml`, push main, run `make release-tag` (derives `v1.2.3` from `pyproject.toml`, local only), push the tag. The GHCR
 workflow validates the tag matches `pyproject.toml`, then builds and pushes to `ghcr.io/pageloom/weft-id`.
 The full checklist is in `docs/VERSIONING.md`; it includes refreshing the OIDC conformance results page
 (`docs/conformance/oidc.md`) with `make oidc-conformance-report ARGS="--write-docs"`.

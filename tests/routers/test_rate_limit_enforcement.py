@@ -277,3 +277,83 @@ def test_saml_acs_limit_shared_by_per_idp_and_legacy(tenant_client):
         ):
             response = tenant_client.post("/saml/acs", data={**data, "RelayState": "__test__:abc"})
             assert response.status_code == 200
+
+
+# =============================================================================
+# OAuth2 client authentication (failed secrets only)
+# =============================================================================
+
+
+def test_oauth2_client_secret_failures_limit(tenant_client, b2b_oauth2_client, memory_cache):
+    """30 failed secret authentications per tenant+ip / min, shared by every
+    client-authenticated endpoint; then 429 without checking the secret."""
+    base = memory_cache.clock()
+    memory_cache.clock = lambda: base
+    good = {
+        "client_id": b2b_oauth2_client["client_id"],
+        "client_secret": b2b_oauth2_client["client_secret"],
+    }
+    bad = {**good, "client_secret": "wrong"}
+    endpoints = ["/oauth2/token", "/oauth2/introspect", "/oauth2/revoke", "/oauth2/par"]
+
+    def post(path, credentials):
+        return tenant_client.post(
+            path, data={"grant_type": "client_credentials", "token": "x", **credentials}
+        )
+
+    for attempt in range(30):
+        response = post(endpoints[attempt % len(endpoints)], bad)
+        assert response.status_code == 401
+        assert response.json()["error"] == "invalid_client"
+
+    with patch("routers.oauth2.oauth2.verify_token_hash") as verify:
+        for path in endpoints:
+            # Blocked whatever the secret, and the hash is not computed.
+            response = post(path, good)
+            assert response.status_code == 429
+            assert response.json()["error"] == "too_many_requests"
+            assert response.headers["retry-after"] == "60"
+            assert response.headers["cache-control"] == "no-store"
+        verify.assert_not_called()
+
+    # After the window the bucket has expired.
+    memory_cache.clock = lambda: base + 60
+    assert post("/oauth2/token", good).status_code == 200
+
+
+def test_oauth2_client_secret_successes_are_not_limited(tenant_client, b2b_oauth2_client):
+    """A client authenticating correctly at volume is never throttled."""
+    for _ in range(35):
+        response = tenant_client.post(
+            "/oauth2/introspect",
+            data={
+                "token": "x",
+                "client_id": b2b_oauth2_client["client_id"],
+                "client_secret": b2b_oauth2_client["client_secret"],
+            },
+        )
+        assert response.status_code == 200
+
+
+def test_oauth2_client_secret_failures_count_unknown_and_deactivated_clients(
+    tenant_client, test_tenant, b2b_oauth2_client, memory_cache
+):
+    import database
+
+    database.execute(
+        test_tenant["id"],
+        "update oauth2_clients set is_active = false where client_id = :client_id",
+        {"client_id": b2b_oauth2_client["client_id"]},
+    )
+    deactivated = {
+        "client_id": b2b_oauth2_client["client_id"],
+        "client_secret": b2b_oauth2_client["client_secret"],
+    }
+    unknown = {"client_id": "no-such-client", "client_secret": "x"}
+    for attempt in range(30):
+        response = tenant_client.post(
+            "/oauth2/introspect", data={"token": "x", **(deactivated if attempt % 2 else unknown)}
+        )
+        assert response.status_code == 401
+    response = tenant_client.post("/oauth2/introspect", data={"token": "x", **unknown})
+    assert response.status_code == 429

@@ -73,6 +73,14 @@ DEVICE_CODE_GRANT_TYPE = oauth2.DEVICE_CODE_GRANT_TYPE
 # and an audit event.
 DEVICE_AUTHORIZATION_RATE_LIMIT = 30
 
+# Failed client-secret authentications per client IP per minute, across the
+# token, introspection, revocation, device authorization and PAR endpoints.
+# Each attempt against an existing client costs a secret-hash verification.
+# Only failures count, so a resource server introspecting at volume with a
+# valid secret is never throttled.
+CLIENT_AUTH_FAILURE_RATE_LIMIT = 30
+_CLIENT_AUTH_FAILURE_KEY = "oauth2_client_auth_failed:tenant:{tenant_id}:ip:{ip}"
+
 # Upper bound for ``state``, matching the parameter's max_length.
 _MAX_STATE_LENGTH = 2048
 
@@ -1262,6 +1270,10 @@ def _authenticate_client(
     A client can authenticate only with its own method, so a secret never
     opens a ``private_key_jwt`` client and an assertion never opens a client
     that uses a secret.
+
+    After ``CLIENT_AUTH_FAILURE_RATE_LIMIT`` failed secret authentications
+    from one address within a minute, further secret authentications from it
+    are answered ``429`` with ``Retry-After`` without checking the secret.
     """
     if client_assertion_type is not None or client_assertion is not None:
         if (
@@ -1299,6 +1311,20 @@ def _authenticate_client(
         return _token_error("invalid_client", "Client authentication failed")
     client_id, client_secret = credentials
 
+    remote_ip = extract_remote_address(request) or "unknown"
+    failures, _ = ratelimit.check(
+        _CLIENT_AUTH_FAILURE_KEY,
+        limit=CLIENT_AUTH_FAILURE_RATE_LIMIT,
+        tenant_id=tenant_id,
+        ip=remote_ip,
+    )
+    if failures >= CLIENT_AUTH_FAILURE_RATE_LIMIT:
+        response = _token_error(
+            "too_many_requests", "Too many requests. Please try again later.", status_code=429
+        )
+        response.headers["Retry-After"] = str(MINUTE)
+        return response
+
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
     if (
         not client
@@ -1306,10 +1332,19 @@ def _authenticate_client(
         or client.get("client_auth_method") == oauth2_client_auth_service.PRIVATE_KEY_JWT
         or not oauth2.verify_token_hash(client_secret, client["client_secret_hash"])
     ):
-        return _token_error("invalid_client", "Client authentication failed")
-    if not client.get("is_active", True):
-        return _token_error("invalid_client", "Client is deactivated")
-    return client
+        error = _token_error("invalid_client", "Client authentication failed")
+    elif not client.get("is_active", True):
+        error = _token_error("invalid_client", "Client is deactivated")
+    else:
+        return client
+    ratelimit.log(
+        _CLIENT_AUTH_FAILURE_KEY,
+        limit=CLIENT_AUTH_FAILURE_RATE_LIMIT,
+        timespan=MINUTE,
+        tenant_id=tenant_id,
+        ip=remote_ip,
+    )
+    return error
 
 
 # Endpoints whose form validation failures are reported as RFC 6749 errors.

@@ -14,6 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
+from utils.csp import csp_origins, csp_source
 
 # Content Security Policy
 # Nonce-based CSP is used when available (set by route handlers via get_csp_nonce).
@@ -49,17 +50,22 @@ def _build_csp_with_nonce(
     Returns:
         CSP header value with nonce replacing unsafe-inline
     """
+    # Every source is reduced to a plain source expression here, whatever the
+    # caller passed: a stored URL must never be able to add a directive.
     form_action = "'self'"
-    if form_action_url:
-        form_action = f"'self' {form_action_url}"
+    form_action_source = csp_source(form_action_url)
+    if form_action_source:
+        form_action = f"'self' {form_action_source}"
 
     frame_src = ""
-    if frame_src_origins:
-        frame_src = f"frame-src 'self' {' '.join(frame_src_origins)}; "
+    frame_sources = csp_origins(frame_src_origins)
+    if frame_sources:
+        frame_src = f"frame-src 'self' {' '.join(frame_sources)}; "
 
     img_src = "'self' data:"
-    if img_src_origins:
-        img_src = f"'self' data: {' '.join(img_src_origins)}"
+    img_sources = csp_origins(img_src_origins)
+    if img_sources:
+        img_src = f"'self' data: {' '.join(img_sources)}"
 
     return (
         "default-src 'self'; "

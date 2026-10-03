@@ -50,6 +50,7 @@ from services.exceptions import NotFoundError, UnauthorizedError, ValidationErro
 from services.types import RequestingUser
 from utils.fetch_guard import FetchGuard
 from utils.safe_http import build_safe_client
+from utils.url_safety import has_plain_authority
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,13 @@ def validate_jwks_uri(value: object) -> str:
         host = parts.hostname
     except ValueError:
         parts, host = None, None
-    if parts is None or parts.scheme != "https" or not host or parts.fragment:
+    if (
+        parts is None
+        or parts.scheme != "https"
+        or not host
+        or not has_plain_authority(parts)
+        or parts.fragment
+    ):
         raise ValueError("jwks_uri must be an absolute https URI without a fragment")
     return value
 

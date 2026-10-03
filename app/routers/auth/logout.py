@@ -17,12 +17,10 @@ business logic mutation.
 """
 
 import logging
-import re
 import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Annotated
-from urllib.parse import urlsplit
 
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Query, Request
@@ -31,6 +29,7 @@ from services import oidc as oidc_service
 from services import oidc_upstream as oidc_upstream_service
 from services.event_log import log_event
 from services.oidc import OidcSessionEnd
+from utils.csp import csp_origins
 from utils.csp_nonce import get_csp_nonce
 from utils.redirects import safe_redirect
 from utils.request_metadata import extract_request_metadata
@@ -41,11 +40,6 @@ from utils.urls import tenant_base_url
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# What may appear in a CSP frame-src source built from a registered URI. The
-# URIs are validated at registration; this keeps a header value from ever
-# carrying anything but a plain origin.
-_CSP_ORIGIN = re.compile(r"^https?://[A-Za-z0-9.\-]+(:[0-9]{1,5})?$")
 
 # Where the browser goes once an upstream logout round trip returns, when the
 # logout was started by an RP through end_session (its verified
@@ -146,13 +140,7 @@ def frontchannel_logout_response(
     same-origin path or a verified registered URI. The CSP ``frame-src`` is
     widened to the RP origins, and the page is never cached.
     """
-    origins: list[str] = []
-    for url in frontchannel_logout_urls:
-        parts = urlsplit(url)
-        origin = f"{parts.scheme}://{parts.netloc}"
-        if _CSP_ORIGIN.match(origin) and origin not in origins:
-            origins.append(origin)
-    request.state.csp_frame_src_origins = origins
+    request.state.csp_frame_src_origins = csp_origins(frontchannel_logout_urls)
     response = templates.TemplateResponse(
         request,
         "oauth2_logout_frontchannel.html",

@@ -460,6 +460,53 @@ class TestConsentPage:
         assert 'id="client-policy"' not in response.text
         assert "img-src 'self' data:;" in response.headers["content-security-policy"]
 
+    def test_stored_logo_uri_cannot_add_csp_directives(
+        self,
+        client,
+        test_tenant,
+        test_tenant_host,
+        test_user,
+        override_auth,
+        session_data,
+        set_policy,
+    ):
+        """A row written before registration refused such URIs is harmless."""
+        set_policy("open", default_access="all")
+        registered = _register(
+            client, test_tenant_host, body={"redirect_uris": ["https://rp.example/cb"]}
+        ).json()
+        database.execute(
+            test_tenant["id"],
+            "update oauth2_clients set logo_uri = :logo_uri where client_id = :client_id",
+            {
+                "logo_uri": "https://a.example; frame-ancestors *; script-src-elem *;x/logo.png",
+                "client_id": registered["client_id"],
+            },
+        )
+        override_auth(test_user)
+        session_data["user_id"] = str(test_user["id"])
+        session_data["session_start"] = int(time.time())
+
+        response = client.get(
+            "/oauth2/authorize",
+            headers={"Host": test_tenant_host},
+            params={
+                "client_id": registered["client_id"],
+                "redirect_uri": "https://rp.example/cb",
+                "response_type": "code",
+                "scope": "openid",
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 200
+        csp = response.headers["content-security-policy"]
+        assert "img-src 'self' data:;" in csp
+        assert "frame-ancestors 'none'" in csp
+        assert "frame-ancestors *" not in csp
+        assert "script-src-elem" not in csp
+        assert csp.endswith("form-action 'self' https://rp.example")
+
     def test_default_access_none_denies(
         self, client, test_tenant_host, test_user, override_auth, session_data, set_policy
     ):

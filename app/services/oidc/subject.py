@@ -41,6 +41,7 @@ from services.types import RequestingUser
 from utils.crypto import derive_hmac_key
 from utils.fetch_guard import FetchGuard
 from utils.safe_http import build_safe_client
+from utils.url_safety import has_plain_authority
 
 PUBLIC = "public"
 PAIRWISE = "pairwise"
@@ -174,6 +175,7 @@ def _validate_sector_identifier_uri(value: str) -> str:
         or len(cleaned) > MAX_URI_LENGTH
         or parts.scheme != "https"
         or not host
+        or not has_plain_authority(parts)
         or parts.fragment
         or "#" in cleaned
     ):

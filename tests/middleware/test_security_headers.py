@@ -208,3 +208,40 @@ def test_csp_img_src_widened_only_when_origins_are_given():
     assert "img-src 'self' data:;" in _build_csp_with_nonce("n")
     widened = _build_csp_with_nonce("n", img_src_origins=["https://cdn.example"])
     assert "img-src 'self' data: https://cdn.example;" in widened
+
+
+INJECTION = "https://a.example; frame-ancestors *; script-src-elem * 'unsafe-inline';x/logo.png"
+
+
+def _directives(csp: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for directive in csp.split(";"):
+        name, _, value = directive.strip().partition(" ")
+        assert name not in parsed, f"duplicate directive {name}"
+        parsed[name] = value
+    return parsed
+
+
+def test_csp_sources_cannot_add_directives():
+    """Whatever a caller passes as a source, the header keeps its directives."""
+    from middleware.security_headers import _build_csp_with_nonce
+
+    default = _directives(_build_csp_with_nonce("n"))
+    csp = _build_csp_with_nonce(
+        "n",
+        form_action_url=INJECTION,
+        frame_src_origins=[INJECTION],
+        img_src_origins=[INJECTION, "https://cdn.example"],
+    )
+    assert "frame-src" not in csp
+    widened = _directives(csp)
+    assert widened == {**default, "img-src": "'self' data: https://cdn.example"}
+
+
+def test_csp_form_action_keeps_a_clean_url_and_reduces_an_unsafe_one():
+    from middleware.security_headers import _build_csp_with_nonce
+
+    clean = _build_csp_with_nonce("n", form_action_url="https://sp.example/saml/acs")
+    assert clean.endswith("form-action 'self' https://sp.example/saml/acs")
+    unsafe = _build_csp_with_nonce("n", form_action_url="https://sp.example/acs; sandbox")
+    assert unsafe.endswith("form-action 'self' https://sp.example")

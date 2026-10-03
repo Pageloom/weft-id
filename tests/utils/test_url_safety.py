@@ -511,3 +511,46 @@ class TestSafeRedirectHandler:
             req, None, 301, "Moved", {}, "https://new.example.com/metadata"
         )
         assert result is not None
+
+
+class TestHasPlainAuthority:
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://rp.example/cb",
+            "https://rp.example:8443/cb",
+            "https://xn--bcher-kva.example/cb",
+            "http://127.0.0.1:8080/cb",
+            "http://[::1]/cb",
+            "http://[::1]:8080/cb",
+        ],
+    )
+    def test_plain(self, url):
+        from urllib.parse import urlsplit
+
+        from utils.url_safety import has_plain_authority
+
+        assert has_plain_authority(urlsplit(url)) is True
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://a.example; frame-ancestors *;x/logo.png",
+            "https://a.example 'unsafe-inline'/x",
+            "https://user@a.example/x",
+            "https://user:pw@a.example/x",
+            "https://:pw@a.example/x",
+            "https://a.example:port/x",
+            "https://a.example:99999/x",
+            "https://a_b.example/x",
+            "https://b\u00fccher.example/x",
+            "https:///path",
+            "/relative",
+        ],
+    )
+    def test_not_plain(self, url):
+        from urllib.parse import urlsplit
+
+        from utils.url_safety import has_plain_authority
+
+        assert has_plain_authority(urlsplit(url)) is False

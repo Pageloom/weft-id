@@ -14,7 +14,7 @@ here instead of ending on the dashboard.
 import time
 from datetime import UTC, datetime
 from typing import Annotated
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 
 import oauth2
 import services.oauth2_device as oauth2_device_service
@@ -27,6 +27,7 @@ from routers.saml_idp._helpers import PENDING_DEVICE_KEY
 from services.exceptions import RateLimitError
 from services.oauth2_device import PendingRequest
 from services.oidc.claims import parse_scope
+from utils.csp import csp_origins
 from utils.csp_nonce import get_csp_nonce
 from utils.ratelimit import MINUTE, ratelimit
 from utils.templates import templates
@@ -185,8 +186,7 @@ def device_submit(
 
     # A registered logo (https, validated when set) loads from its own origin.
     if pending.client.get("logo_uri"):
-        parts = urlparse(pending.client["logo_uri"])
-        request.state.csp_img_src_origins = [f"{parts.scheme}://{parts.netloc}"]
+        request.state.csp_img_src_origins = csp_origins([pending.client["logo_uri"]])
 
     return templates.TemplateResponse(
         request,

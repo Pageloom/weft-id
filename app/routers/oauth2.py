@@ -16,7 +16,7 @@ import time
 from dataclasses import asdict, dataclass, fields, replace
 from datetime import UTC, datetime
 from typing import Annotated
-from urllib.parse import unquote, urlencode, urlparse
+from urllib.parse import unquote, urlencode
 
 import oauth2
 import services.oauth2 as oauth2_service
@@ -43,6 +43,7 @@ from schemas.oauth2 import (
 from services.event_log import log_event
 from services.exceptions import ForbiddenError, RateLimitError, UnauthorizedError, ValidationError
 from services.oidc.claims import SCOPE_OPENID, parse_scope
+from utils.csp import csp_origin, csp_origins
 from utils.csp_nonce import get_csp_nonce
 from utils.ratelimit import MINUTE, ratelimit
 from utils.redirects import safe_redirect
@@ -589,7 +590,7 @@ def _handle_authorize_request(
     # A registered logo (an https URI, validated at registration or by the
     # admin) is loaded from the client's own origin; allow just that origin.
     if client.get("logo_uri"):
-        request.state.csp_img_src_origins = [_form_action_origin(client["logo_uri"])]
+        request.state.csp_img_src_origins = csp_origins([client["logo_uri"]])
 
     # Show authorization page
     return templates.TemplateResponse(
@@ -1015,10 +1016,10 @@ def _pending_authorize_path(
     return f"/oauth2/authorize?{query}" if query else "/oauth2/authorize"
 
 
-def _form_action_origin(redirect_uri: str) -> str:
-    """Return ``scheme://host[:port]`` of a registered redirect_uri for CSP."""
-    parts = urlparse(redirect_uri)
-    return f"{parts.scheme}://{parts.netloc}"
+def _form_action_origin(redirect_uri: str) -> str | None:
+    """Return ``scheme://host[:port]`` of a registered redirect_uri for CSP,
+    or None when the URI has no plain origin (the policy is then not widened)."""
+    return csp_origin(redirect_uri)
 
 
 # ============================================================================

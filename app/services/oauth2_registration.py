@@ -57,6 +57,7 @@ from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import NotFoundError, UnauthorizedError, ValidationError
 from services.oidc import subject as subject_service
 from services.types import RequestingUser
+from utils.url_safety import has_plain_authority
 
 logger = logging.getLogger(__name__)
 
@@ -398,6 +399,7 @@ def _validate_redirect_uris(metadata: dict, application_type: str) -> list[str]:
         valid = (
             parts is not None
             and host
+            and has_plain_authority(parts)
             and not parts.fragment
             and "#" not in uri
             and (
@@ -425,7 +427,13 @@ def _https_uri(metadata: dict, name: str) -> str | None:
         host = parts.hostname
     except ValueError:
         parts, host = None, None
-    if parts is None or parts.scheme != "https" or not host or parts.fragment:
+    if (
+        parts is None
+        or parts.scheme != "https"
+        or not host
+        or not has_plain_authority(parts)
+        or parts.fragment
+    ):
         raise _metadata_error(f"{name} must be an absolute https URI without a fragment")
     return value
 
@@ -445,7 +453,7 @@ def _validate_request_uris(metadata: dict) -> list[str] | None:
             host = parts.hostname
         except ValueError:
             parts, host = None, None
-        if parts is None or parts.scheme != "https" or not host:
+        if parts is None or parts.scheme != "https" or not host or not has_plain_authority(parts):
             raise _metadata_error("request_uris must be absolute https URIs")
     return values
 

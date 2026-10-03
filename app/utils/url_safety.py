@@ -1,12 +1,13 @@
 """URL safety utilities for SSRF protection on metadata fetches."""
 
 import ipaddress
+import re
 import socket
 import ssl
 import urllib.request
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import SplitResult, urlparse, urlunparse
 
 import settings
 
@@ -260,3 +261,30 @@ def fetch_metadata_xml(url: str, timeout: int = 10) -> str:
         raise ValueError(f"Failed to fetch metadata: {e.reason}") from e
     except TimeoutError:
         raise ValueError(f"Timeout fetching metadata (>{timeout}s)") from None
+
+
+_PLAIN_HOSTNAME = re.compile(r"[A-Za-z0-9.\-]+")
+
+
+def has_plain_authority(parts: SplitResult) -> bool:
+    """Whether a parsed URL's authority is just ``host[:port]``.
+
+    The host must be a plain hostname (letters, digits, dots, hyphens; an
+    internationalised name in its punycode form) or an IP literal, the port
+    valid if present, and there must be no userinfo. ``urlsplit`` accepts
+    spaces, semicolons and quotes in the authority; a registered URI carrying
+    them must not reach anything built from its origin.
+    """
+    try:
+        host, _port = parts.hostname, parts.port
+    except ValueError:
+        return False
+    if not host or parts.username is not None or parts.password is not None:
+        return False
+    if _PLAIN_HOSTNAME.fullmatch(host):
+        return True
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return True

@@ -137,6 +137,10 @@ class TestValidateClientMetadata:
             ["http://127.0.0.1/cb"],  # loopback http is for native clients only
             ["myapp:/cb"],
             ["/relative"],
+            ["https://rp.example; sandbox;x/cb"],
+            ["https://rp.example 'unsafe-inline'/cb"],
+            ["https://user@rp.example/cb"],
+            ["https://rp.example:port/cb"],
             [123],
             ["https://rp.example/" + "a" * 2050],
             [f"https://rp.example/{i}" for i in range(51)],
@@ -1242,6 +1246,55 @@ class TestRequirePushedAuthorizationRequestsMetadata:
     )
     def test_invalid(self, metadata):
         assert _error_code(metadata) == "invalid_client_metadata"
+
+
+class TestUriAuthority:
+    """A registered URI's authority is a plain host[:port]: nothing built from
+    its origin (a CSP source, a sector identifier) can carry anything else."""
+
+    BAD = "https://a.example; frame-ancestors *; script-src-elem * 'unsafe-inline';x/p"
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "logo_uri",
+            "client_uri",
+            "policy_uri",
+            "tos_uri",
+            "jwks_uri",
+            "initiate_login_uri",
+            "backchannel_logout_uri",
+            "frontchannel_logout_uri",
+        ],
+    )
+    @pytest.mark.parametrize("value", [BAD, "https://user:pw@rp.example/p"])
+    def test_single_uris(self, name, value):
+        metadata = {"redirect_uris": ["https://rp.example/cb"], name: value}
+        with pytest.raises(ValidationError):
+            svc.validate_client_metadata(metadata)
+
+    @pytest.mark.parametrize("name", ["post_logout_redirect_uris", "request_uris"])
+    def test_uri_lists(self, name):
+        metadata = {"redirect_uris": ["https://rp.example/cb"], name: [self.BAD]}
+        with pytest.raises(ValidationError):
+            svc.validate_client_metadata(metadata)
+
+    def test_sector_identifier_uri(self):
+        metadata = {
+            "redirect_uris": ["https://rp.example/cb"],
+            "subject_type": "pairwise",
+            "sector_identifier_uri": self.BAD,
+        }
+        assert _error_code(metadata) == "invalid_client_metadata"
+
+    def test_plain_uris_with_a_port_are_accepted(self):
+        accepted = svc.validate_client_metadata(
+            {
+                "redirect_uris": ["https://rp.example:8443/cb"],
+                "logo_uri": "https://cdn.rp.example:8443/logo.png",
+            }
+        )
+        assert accepted["logo_uri"] == "https://cdn.rp.example:8443/logo.png"
 
 
 class TestPairwiseSubjectMetadata:

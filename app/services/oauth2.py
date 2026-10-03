@@ -18,6 +18,7 @@ import database
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.oidc import subject as subject_service
+from utils.url_safety import has_plain_authority
 
 # Upper bound on registered post-logout redirect URIs (matches the CHECK
 # constraint on oauth2_clients.post_logout_redirect_uris).
@@ -48,7 +49,7 @@ def validate_post_logout_redirect_uris(uris: list[str]) -> list[str]:
         if (
             parts is None
             or parts.scheme not in ("http", "https")
-            or not parts.netloc
+            or not has_plain_authority(parts)
             or parts.fragment
             or "#" in uri
         ):
@@ -66,13 +67,11 @@ def validate_post_logout_redirect_uris(uris: list[str]) -> list[str]:
 
 
 def _origin(parts) -> tuple[str, str, int | None] | None:
-    """``(scheme, host, port)`` of a parsed URL with default ports filled in."""
-    try:
-        port = parts.port
-    except ValueError:
+    """``(scheme, host, port)`` of a parsed URL with default ports filled in,
+    or None when its authority is not a plain ``host[:port]``."""
+    if not has_plain_authority(parts):
         return None
-    if parts.hostname is None:
-        return None
+    port = parts.port
     scheme = parts.scheme.lower()
     return scheme, parts.hostname.lower(), port or {"http": 80, "https": 443}.get(scheme)
 

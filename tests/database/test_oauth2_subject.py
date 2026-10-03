@@ -35,6 +35,25 @@ def test_set_subject_type_round_trip(test_tenant, normal_oauth2_client):
     assert listed["subject_type"] == "pairwise"
 
 
+def test_set_subject_type_forgets_the_clients_own_pairwise_request(
+    test_tenant, normal_oauth2_client
+):
+    database.execute(
+        test_tenant["id"],
+        "update oauth2_clients set registration_metadata = "
+        """cast('{"subject_type": "pairwise", "contacts": ["a@rp.example"]}' as jsonb) """
+        "where client_id = :client_id",
+        {"client_id": normal_oauth2_client["client_id"]},
+    )
+    updated = database.oauth2.set_client_subject_type(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        subject_type="pairwise",
+        sector_identifier_uri=None,
+    )
+    assert updated["registration_metadata"] == {"contacts": ["a@rp.example"]}
+
+
 def test_set_subject_type_skips_b2b(test_tenant, b2b_oauth2_client):
     assert (
         database.oauth2.set_client_subject_type(

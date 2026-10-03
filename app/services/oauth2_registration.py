@@ -684,6 +684,11 @@ def validate_client_metadata(metadata: dict) -> dict:
                 # Records that the client asked for PAR itself (so it may later
                 # drop it), unlike an admin who turned it on. Not echoed.
                 "require_pushed_authorization_requests": True if require_par else None,
+                # Likewise for pairwise subjects. Not echoed (the response
+                # reports the client's actual subject type).
+                "subject_type": (
+                    subject_service.PAIRWISE if subject_type == subject_service.PAIRWISE else None
+                ),
             }.items()
             if value is not None
         },
@@ -945,7 +950,9 @@ def update_client_configuration(
     The client's current device grant and PAR settings (which an admin may
     have narrowed) are a ceiling: a PUT cannot add the device_code grant, and
     PAR an admin required stays required (a client may drop PAR it asked for
-    itself). The registration access token
+    itself). Pairwise subjects an admin set stay too, with the sector the
+    admin gave them (a client may drop pairwise subjects it asked for itself).
+    The registration access token
     is rotated: the response carries the new one and the old one stops
     working (RFC 7592 section 2.2 allows this).
 
@@ -954,7 +961,8 @@ def update_client_configuration(
 
     Raises:
         ValidationError: invalid metadata, a client_id/client_secret mismatch,
-            or a request for the device_code grant the client does not have
+            a request for the device_code grant the client does not have, or
+            redirect URIs that do not fit the pairwise sector an admin set
         UnauthorizedError: the registration access token was rotated by a
             concurrent update or an admin reset
     """
@@ -991,6 +999,27 @@ def update_client_configuration(
     require_par = accepted["require_pushed_authorization_requests"] or (
         admin_required_par and "authorization_code" in accepted["extra"]["grant_types"]
     )
+    # Pairwise subjects an admin set (the client never asked for them) stay,
+    # with the stored sector, checked against the new redirect URIs.
+    subject_type = accepted["subject_type"]
+    sector_identifier_uri = accepted["sector_identifier_uri"]
+    registration_metadata = accepted["extra"]
+    if (
+        client.get("subject_type") == subject_service.PAIRWISE
+        and (client.get("registration_metadata") or {}).get("subject_type")
+        != subject_service.PAIRWISE
+    ):
+        try:
+            subject_type, sector_identifier_uri = subject_service.validate_subject_settings(
+                subject_service.PAIRWISE,
+                client.get("sector_identifier_uri"),
+                accepted["redirect_uris"],
+            )
+        except ValidationError as exc:
+            raise _metadata_error(exc.message) from exc
+        registration_metadata = {
+            key: value for key, value in registration_metadata.items() if key != "subject_type"
+        }
 
     registration_access_token = oauth2.generate_opaque_token("weft-id_rat")
     updated = database.oauth2.replace_registered_client(
@@ -1008,14 +1037,14 @@ def update_client_configuration(
         policy_uri=accepted["policy_uri"],
         tos_uri=accepted["tos_uri"],
         initiate_login_uri=accepted["initiate_login_uri"],
-        registration_metadata=accepted["extra"],
+        registration_metadata=registration_metadata,
         device_grant_enabled=accepted["device_grant_enabled"],
         jwks=accepted["jwks"],
         jwks_uri=accepted["jwks_uri"],
         token_endpoint_auth_signing_alg=accepted["token_endpoint_auth_signing_alg"],
         require_pushed_authorization_requests=require_par,
-        subject_type=accepted["subject_type"],
-        sector_identifier_uri=accepted["sector_identifier_uri"],
+        subject_type=subject_type,
+        sector_identifier_uri=sector_identifier_uri,
         previous_token_hash=client["registration_access_token_hash"],
         registration_access_token_hash=oauth2.hash_token(registration_access_token),
     )

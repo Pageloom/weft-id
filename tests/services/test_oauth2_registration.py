@@ -1360,6 +1360,131 @@ class TestPairwiseSubjectMetadata:
         (event,) = _events(test_tenant, "oauth2_client_registration_updated")
         assert event["metadata"]["changed"]["subject_type"] == {"from": "pairwise", "to": "public"}
 
+    def test_own_pairwise_request_is_recorded_but_not_echoed(self, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(
+            test_tenant, {"redirect_uris": ["https://rp.example/cb"], "subject_type": "pairwise"}
+        )
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["registration_metadata"]["subject_type"] == "pairwise"
+        public = _register(test_tenant, {"redirect_uris": ["https://other.example/cb"]})
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], public["client_id"])
+        assert "subject_type" not in row["registration_metadata"]
+
+    def _admin_sets_pairwise(self, test_tenant, body, sector_identifier_uri=None):
+        row = database.oauth2.set_client_subject_type(
+            test_tenant["id"],
+            body["client_id"],
+            subject_type="pairwise",
+            sector_identifier_uri=sector_identifier_uri,
+        )
+        assert row["subject_type"] == "pairwise"
+        return svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], body["registration_access_token"]
+        )
+
+    @pytest.mark.parametrize("requested", [None, "public"])
+    def test_update_keeps_pairwise_an_admin_set(self, test_tenant, test_admin_user, requested):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, {"redirect_uris": ["https://rp.example/cb"]})
+        client = self._admin_sets_pairwise(test_tenant, body)
+        metadata = {"client_id": body["client_id"], "redirect_uris": ["https://rp.example/cb2"]}
+        if requested:
+            metadata["subject_type"] = requested
+        updated = svc.update_client_configuration(test_tenant["id"], client, metadata, BASE)
+        assert updated["subject_type"] == "pairwise"
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["subject_type"] == "pairwise"
+        (event,) = _events(test_tenant, "oauth2_client_registration_updated")
+        assert "subject_type" not in event["metadata"]["changed"]
+
+    def test_asking_for_pairwise_an_admin_set_does_not_make_it_the_clients_own(
+        self, test_tenant, test_admin_user
+    ):
+        """Otherwise two updates (ask for pairwise, then omit it) would undo
+        the admin's setting."""
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, {"redirect_uris": ["https://rp.example/cb"]})
+        client = self._admin_sets_pairwise(test_tenant, body)
+        first = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {
+                "client_id": body["client_id"],
+                "redirect_uris": ["https://rp.example/cb"],
+                "subject_type": "pairwise",
+            },
+            BASE,
+        )
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert "subject_type" not in row["registration_metadata"]
+        client = svc.authenticate_registration(
+            test_tenant["id"], body["client_id"], first["registration_access_token"]
+        )
+        second = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {"client_id": body["client_id"], "redirect_uris": ["https://rp.example/cb"]},
+            BASE,
+        )
+        assert second["subject_type"] == "pairwise"
+
+    def test_update_keeps_the_sector_an_admin_set(self, monkeypatch, test_tenant, test_admin_user):
+        _set_policy(test_tenant, test_admin_user, "open")
+        self._serve(monkeypatch, ["https://rp.example/cb", "https://app.rp.example/cb"])
+        body = _register(test_tenant, {"redirect_uris": ["https://rp.example/cb"]})
+        client = self._admin_sets_pairwise(
+            test_tenant, body, sector_identifier_uri="https://rp.example/sector.json"
+        )
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {"client_id": body["client_id"], "redirect_uris": ["https://app.rp.example/cb"]},
+            BASE,
+        )
+        assert updated["subject_type"] == "pairwise"
+        assert updated["sector_identifier_uri"] == "https://rp.example/sector.json"
+
+    def test_update_refused_when_redirect_uris_leave_the_admin_set_sector(
+        self, test_tenant, test_admin_user
+    ):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(test_tenant, {"redirect_uris": ["https://rp.example/cb"]})
+        client = self._admin_sets_pairwise(test_tenant, body)
+        with pytest.raises(ValidationError) as exc:
+            svc.update_client_configuration(
+                test_tenant["id"],
+                client,
+                {
+                    "client_id": body["client_id"],
+                    "redirect_uris": ["https://rp.example/cb", "https://other.example/cb"],
+                },
+                BASE,
+            )
+        assert exc.value.code == "invalid_client_metadata"
+        row = database.oauth2.get_client_by_client_id(test_tenant["id"], body["client_id"])
+        assert row["redirect_uris"] == ["https://rp.example/cb"]
+
+    def test_admin_change_takes_over_a_pairwise_setting_the_client_asked_for(
+        self, test_tenant, test_admin_user
+    ):
+        _set_policy(test_tenant, test_admin_user, "open")
+        body = _register(
+            test_tenant, {"redirect_uris": ["https://rp.example/cb"], "subject_type": "pairwise"}
+        )
+        database.oauth2.set_client_subject_type(
+            test_tenant["id"], body["client_id"], subject_type="public", sector_identifier_uri=None
+        )
+        client = self._admin_sets_pairwise(test_tenant, body)
+        assert "subject_type" not in client["registration_metadata"]
+        updated = svc.update_client_configuration(
+            test_tenant["id"],
+            client,
+            {"client_id": body["client_id"], "redirect_uris": ["https://rp.example/cb"]},
+            BASE,
+        )
+        assert updated["subject_type"] == "pairwise"
+
 
 class TestResetRegistrationAccessToken:
     def test_reset_rotates_and_logs(self, test_tenant, test_admin_user, registered):

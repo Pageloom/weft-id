@@ -661,6 +661,10 @@ def set_client_subject_type(
 ) -> dict | None:
     """Set the ``sub`` a client receives: public or pairwise (with its sector URI).
 
+    Also forgets that a registered client asked for pairwise subjects itself
+    (the ``subject_type`` marker in ``registration_metadata``): the setting is
+    now the admin's, and the client's own configuration updates keep it.
+
     Args:
         tenant_id: Tenant ID for scoping
         client_id: Client ID (the TEXT identifier, e.g., "weft-id_client_abc123")
@@ -676,7 +680,8 @@ def set_client_subject_type(
         """
         update oauth2_clients
         set subject_type = :subject_type,
-            sector_identifier_uri = :sector_identifier_uri
+            sector_identifier_uri = :sector_identifier_uri,
+            registration_metadata = registration_metadata - 'subject_type'
         where client_id = :client_id and client_type = 'normal'
         returning id, tenant_id, client_id, client_type, name, description,
                   redirect_uris, post_logout_redirect_uris, frontchannel_logout_uri,

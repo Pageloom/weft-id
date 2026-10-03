@@ -27,6 +27,7 @@ WeftID is a multi-tenant identity federation platform that acts as middleware be
 - The summary should be short (80 chars or less)
 - The description should include a short definition of what problem was addressed
 - The description should then explain, tersely, how it was done
+- Hard-wrap the description at 72 columns (never one long line per paragraph)
 - Do NOT include Claude attributions in commit messages
 
 ## Architecture Overview

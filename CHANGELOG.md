@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-03
+
+A major release because existing OAuth2 / OIDC apps and SAML identity
+providers may need changes. Read the entries marked **BREAKING** under
+[Changed](#changed) before upgrading.
+
 ### Added
 
 - **Relying-party conformance for upstream OIDC.** WeftID's upstream OpenID
@@ -248,6 +254,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `oauth2_initial_access_token_revoked`. See the new
   [Client Registration](docs/admin-guide/integrations/client-registration.md)
   page. Migration 0070.
+- **Registration access tokens rotate and can be reset.** Every
+  configuration update (`PUT`) by a dynamically registered client returns a
+  new registration access token and the old one stops working. Admins can
+  issue a new one with **Reset Registration Access Token** on the app's page
+  or `POST /api/v1/oauth2/registration/clients/{client_id}/reset-registration-token`
+  (audited as `oauth2_client_registration_token_reset`). The
+  `oauth2_client_registration_updated` event now records every changed field.
+- A [security policy](SECURITY.md): how to report a vulnerability privately,
+  response times, and which versions receive fixes.
 
 ### Fixed
 
@@ -262,6 +277,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Deleting a user who created an OAuth2 client failed, because the
   client's creator reference could not be cleared. It is now cleared and
   the client is kept (migration 0070).
+- Deleting a user who had created a SAML identity provider, service
+  provider, domain binding or similar record failed for the same reason.
+  The creator reference is now cleared and the record is kept
+  (migration 0077).
+- **Email Addresses** in User Settings (`/account/emails`) returned a server
+  error for users without an admin role.
+- A registered client's own configuration update returned `subject_type` to
+  `public` even when an admin had set the app to pairwise subjects. The
+  admin's setting is now kept.
 
 - `GET /api/v1/oauth2/clients` reported `oidc_enabled` and
   `available_to_all` as `false` for every client. It now returns the stored
@@ -299,13 +323,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   next request. The switch-account and SP-initiated logout paths also notify
   downstream OIDC apps (back-channel) and revoke their session refresh
   tokens, like the sign-out button.
-- **SAML Single Logout messages are signed and verified.** WeftID now signs
+- **BREAKING: SAML Single Logout messages are signed and verified.** WeftID now signs
   the logout requests and responses it sends to SAML identity providers, and
   refuses unsigned logout requests from them (SAML Profiles 4.4.4.1). An IdP
   that sends unsigned logout requests must be configured to sign them.
   Signing out through the OIDC end session endpoint now also starts Single
   Logout at the upstream SAML IdP, as the sign-out button does.
-- **OAuth2 / OIDC provider behaviour changes that relying parties may notice.**
+- **BREAKING: OAuth2 / OIDC provider behaviour changes that relying parties may notice.**
   These make the provider pass the OpenID Foundation conformance suite's
   Basic, Config, and Form Post OP plans.
   - Token endpoint errors are RFC 6749 JSON objects with top-level `error`
@@ -345,6 +369,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   identity provider (new `groups.oidc_connection_id` column, migration 0060).
   Group views show the connection name as the group's source, and IdP group
   audit events carry an `idp_source` of `saml` or `oidc`.
+- Expired OAuth2 access and refresh tokens are deleted by the daily cleanup
+  job a day after they expire, instead of being kept forever
+  (migration 0078).
+- A registered client's configuration update can no longer add the device
+  grant or drop pushed authorization requests an admin required.
 
 ### Security
 
@@ -360,6 +389,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   leeway, closing a 60-second replay window. A dynamically registered pairwise
   client with the device grant must supply a `sector_identifier_uri`. A logout
   token is no longer accepted as an `id_token_hint`.
+- **Failed client-secret authentication is throttled.** The token,
+  introspection, revocation and PAR endpoints allow 30 failed client-secret
+  attempts per minute per client IP, then answer `429` with `Retry-After`.
+  Successful authentications are not counted.
+- **Slow or oversized responses no longer hold workers.** Fetches from
+  upstream OIDC providers (discovery, signing keys, token exchange, UserInfo)
+  have a 20-second overall limit and a 1 MiB response cap. Back-channel
+  logout deliveries and SAML back-channel logout requests have a 10-second
+  overall limit. A failing client URL (`request_uri`, `jwks_uri`, sector
+  identifier) is not refetched for 30 seconds, and concurrent fetches per
+  client are capped.
+- **Registered URIs must have a plain host.** Redirect, logo, logout, JWKS,
+  sector identifier and request URIs with userinfo, an invalid port or a
+  malformed host are refused, and the Content Security Policy sources built
+  from registered URIs are reduced to a plain origin.
+- A session that began before this release gets a session ID on its next
+  request, so signing out revokes it on the server like any newer session.
 - Updated PyJWT to 2.15.1 (13 advisories, including algorithm confusion when
   symmetric and asymmetric algorithms share one verification path, and JWKS
   fetches following redirects) and urllib3 to 2.8.0 (3 advisories).

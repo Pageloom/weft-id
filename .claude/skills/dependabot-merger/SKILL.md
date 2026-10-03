@@ -245,7 +245,7 @@ git diff poetry.lock | grep -B4 "^[-+]version = " | grep -E "^[-+ ]name|^[-+]ver
   `deploy/prod_requirements.lock.txt` (unless a breaking change forces an adjustment, which
   should be called out explicitly)
 - Does not manually close any dependabot PRs (dependabot auto-closes them)
-- Does not read GitHub issues, security advisories, or .claude/BACKLOG.md
+- Does not read GitHub issues, security advisories, or the roadmap
 - There are two Docker ecosystem entries in `.github/dependabot.yml` (dev at `/app`, production at `/`). Base image bumps may arrive as pairs.
 
 ---

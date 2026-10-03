@@ -206,9 +206,9 @@ cursor.execute(query, (email,))
 ## Where Findings and Suggestions Go
 
 - Concrete vulnerabilities: private draft security advisories on GitHub (the issue format above as the description; see `.claude/references/issue-tracking.md`).
-- Follow-up work that is feature-shaped (new automation, new checks, refactors): `.claude/BACKLOG.md` via `/pm`.
-- Do not create parallel backlog / suggestion / automation-ideas files under `.claude/references/`, `.claude/skills/`, or elsewhere. The user engages findings and suggestions through GitHub (advisories and issues) and BACKLOG.md; a sibling surface just duplicates and drifts.
-- Automation ideas that come out of a sweep: either propose them as BACKLOG entries or surface them in the chat for manual triage. Never park them in a standalone reference doc.
+- Follow-up work that is feature-shaped (new automation, new checks, refactors): a roadmap item via `/pm` (`.claude/references/roadmap.md`). The roadmap is public, so describe the improvement, never an unfixed weakness.
+- Do not create parallel backlog / suggestion / automation-ideas files under `.claude/references/`, `.claude/skills/`, or elsewhere. The user engages findings and suggestions through GitHub (advisories, issues and the roadmap); a sibling surface just duplicates and drifts.
+- Automation ideas that come out of a sweep: either propose them as roadmap items or surface them in the chat for manual triage. Never park them in a standalone reference doc.
 
 ## Headless Mode
 

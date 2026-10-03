@@ -1,6 +1,8 @@
 # Product Backlog Archive
 
-This document contains completed backlog items for historical reference.
+This document contains completed backlog items for historical reference. It is frozen:
+items completed after 2026-10-03 are closed issues in
+[Pageloom/weft-id-roadmap](https://github.com/Pageloom/weft-id-roadmap/issues?q=is%3Aclosed).
 
 ---
 

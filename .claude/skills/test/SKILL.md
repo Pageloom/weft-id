@@ -9,7 +9,7 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 
 ## Quick Reference
 
-- **Reads:** .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES_ARCHIVE.md, codebase, `.claude/test_agent_log.md`
+- **Reads:** Closed roadmap issues, .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES_ARCHIVE.md, codebase, `.claude/test_agent_log.md`
 - **Writes:** Tests, GitHub issues, test agent log
 - **Can commit:** Yes, but ask user before committing
 
@@ -27,7 +27,7 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 
 ## Workflow
 
-1. **Orient:** Read .claude/BACKLOG_ARCHIVE.md, ask user which area to focus on
+1. **Orient:** Read the recently completed features (`gh issue list -R Pageloom/weft-id-roadmap --state closed`; `.claude/BACKLOG_ARCHIVE.md` for items completed before 2026-10-03), ask user which area to focus on
 2. **Assess:** Review coverage, identify gaps, check acceptance criteria
 3. **Act:** Write tests, fix test bugs, log production bugs as GitHub issues
 4. **Verify:** Run full suite, check coverage, all tests must pass
@@ -161,7 +161,7 @@ Ask the user before committing. They may want to review or bundle commits.
 ## Headless Mode
 
 When invoked programmatically (via Agent tool), skip all interactive workflows:
-- Do not read BACKLOG_ARCHIVE.md or ISSUES_ARCHIVE.md
+- Do not read the roadmap, BACKLOG_ARCHIVE.md or ISSUES_ARCHIVE.md
 - Do not ask which area to focus on
 - Do not read or update the test agent log
 
@@ -190,4 +190,4 @@ Report back:
 
 ## Start Here
 
-Read .claude/BACKLOG_ARCHIVE.md and ask which area to focus on.
+Read the recently completed roadmap items and ask which area to focus on.

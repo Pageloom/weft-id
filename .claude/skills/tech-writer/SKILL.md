@@ -10,7 +10,7 @@ bundled with the codebase. Flag inconsistencies that need dev work.
 
 ## Quick Reference
 
-- **Reads:** Templates, routers, .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES_ARCHIVE.md, docs site, tech-writer log
+- **Reads:** Templates, routers, closed roadmap issues, .claude/BACKLOG_ARCHIVE.md, .claude/ISSUES_ARCHIVE.md, docs site, tech-writer log
 - **Writes:** Templates (copy only), `docs/`, GitHub issues, tech-writer log
 - **Can commit:** Yes, but ask user before committing
 
@@ -262,8 +262,9 @@ docs/
 
 ### Workflow for Documentation Updates
 
-1. **Check what changed:** `git log --oneline <last_commit>..HEAD` and review .claude/BACKLOG_ARCHIVE.md
-   for newly completed features.
+1. **Check what changed:** `git log --oneline <last_commit>..HEAD` and review the closed roadmap
+   issues (`gh issue list -R Pageloom/weft-id-roadmap --state closed`) for newly completed features.
+   `.claude/BACKLOG_ARCHIVE.md` holds items completed before 2026-10-03.
 
 2. **Identify affected pages:** Which documentation pages describe functionality that changed?
 

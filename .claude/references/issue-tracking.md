@@ -2,6 +2,8 @@
 
 Open work is tracked on GitHub (`Pageloom/weft-id`), not in `.claude/ISSUES.md`.
 The repository is **public**, so where a finding goes depends on what it is.
+Features and the roadmap are tracked separately, in `Pageloom/weft-id-roadmap`
+(see `roadmap.md`).
 
 | Finding | Where it goes |
 |---------|---------------|

@@ -1,16 +1,16 @@
 ---
 name: dev
-description: Dev Agent - Implement open GitHub issues and security advisories (bugs first) and .claude/BACKLOG.md items (features second)
+description: Dev Agent - Implement open GitHub issues and security advisories (bugs first) and roadmap backlog items (features second)
 ---
 
 # Dev Agent - Backlog Implementation Mode
 
-Implement open GitHub issues and draft security advisories (bugs first) and .claude/BACKLOG.md items (features second).
+Implement open GitHub issues and draft security advisories (bugs first) and backlog items from the roadmap repo, `Pageloom/weft-id-roadmap` (features second).
 
 ## Quick Reference
 
-- **Reads:** GitHub issues and draft security advisories, .claude/BACKLOG.md, codebase
-- **Writes:** Code, tests, backlog archive
+- **Reads:** GitHub issues and draft security advisories, the roadmap repo and WeftID project, codebase
+- **Writes:** Code, tests, roadmap issue status
 - **Can commit:** Yes
 
 ## Before You Start
@@ -20,12 +20,12 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 ## Workflow
 
 1. **Check GitHub first** - bugs before features. List the draft security advisories and the open `security`, `bug` and `enhancement` issues (commands under "Reading open work" in `.claude/references/issue-tracking.md`); work them in that order, highest severity first
-2. If nothing is open, check .claude/BACKLOG.md for features
+2. If nothing is open, read the roadmap for features: the items of the top stage, in priority order ("Reading" in `.claude/references/roadmap.md`). Items with iteration sub-issues or effort L/XL belong to `/lead`
 3. Present available items and ask which to implement
 4. Create implementation plan and get user approval
 5. Implement following architectural principles
 6. Run all checks (format, lint, types, tests)
-7. On completion: close the issue through the commit (`Fixes #N`), or move the backlog item to its archive
+7. On completion: close the issue through the commit (`Fixes #N`, or `Fixes Pageloom/weft-id-roadmap#N` for a backlog item)
 
 ## Architectural Principles
 
@@ -139,7 +139,7 @@ Both must pass.
 Distinguish between:
 
 - **Operational tasks** (fix a CVE, run checks, fix lint, upgrade a dependency): Just do it. These don't need to be tracked items.
-- **Untracked feature requests** (new functionality with no GitHub issue and not in .claude/BACKLOG.md): Decline and suggest using `/pm` to add it as a backlog item first.
+- **Untracked feature requests** (new functionality with no GitHub issue and no roadmap item): Decline and suggest using `/pm` to add it as a backlog item first.
 
 ## Completion
 
@@ -149,12 +149,12 @@ When done:
 - Ask user to confirm
 - GitHub issue: put `Fixes #N` in the commit message body so it closes when the commit reaches main. The commit message is the fix record; nothing is added to `.claude/ISSUES_ARCHIVE.md`
 - Draft security advisory: keep the commit message neutral (no exploit detail, no GHSA id), then tell the user the fix has landed and name the GHSA id. Publishing or closing the advisory is the user's call (`.claude/references/issue-tracking.md`)
-- Backlog item: move from .claude/BACKLOG.md → .claude/BACKLOG_ARCHIVE.md
+- Backlog item: set its `Status` to In Progress when work starts, and put `Fixes Pageloom/weft-id-roadmap#N` in the commit message body so it closes when the commit reaches main. If what shipped differs from the item as written, say so in a comment on the issue. Nothing is added to `.claude/BACKLOG_ARCHIVE.md` (`.claude/references/roadmap.md`). The roadmap is public: no PII, customer names, or disparaging remarks in comments
 
 ## Headless Mode
 
 When invoked programmatically (via Agent tool), skip all interactive workflows:
-- Do not read GitHub issues, advisories, or BACKLOG.md
+- Do not read GitHub issues, advisories, or the roadmap
 - Do not ask the user what to work on
 - Do not present menus or choices
 
@@ -178,4 +178,4 @@ Report back:
 
 ## Start Here
 
-List the draft security advisories and open GitHub issues first, then .claude/BACKLOG.md if none are open, and present available items.
+List the draft security advisories and open GitHub issues first, then the roadmap's top stage if none are open, and present available items.

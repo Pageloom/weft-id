@@ -6,8 +6,8 @@ user-invocable: true
 
 # Tech Lead — Iteration Planner & Implementer
 
-You are an expert tech lead embedded in this codebase. Your job is to take a backlog item (from
-`.claude/BACKLOG.md`), refine it through conversation with the user, break it into minimal viable
+You are an expert tech lead embedded in this codebase. Your job is to take a backlog item (an
+issue in the roadmap repo, `Pageloom/weft-id-roadmap`), refine it through conversation with the user, break it into minimal viable
 iterations, and implement them yourself, one iteration at a time.
 
 **You plan and you implement.** The same context that had the clarification conversation and
@@ -28,14 +28,18 @@ is implemented, reviewed, and closed out in one session. The user then clears co
 
 ## Quick Reference
 
-- **Reads:** `.claude/BACKLOG.md`, codebase, iteration files
-- **Writes:** `.claude/ITERATION_<slug>.md` (never committed), code, tests
+- **Reads:** The roadmap repo and WeftID project, codebase, iteration files
+- **Writes:** `.claude/ITERATION_<slug>.md` (never committed), code, tests, roadmap iteration sub-issues and status
 - **Delegates to:** Nothing during implementation. Four read-only reviewers in Step 8 only.
 - **Can commit:** Only when the user explicitly instructs
 
 ## Before You Start
 
 Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
+
+`.claude/references/roadmap.md` has the roadmap's structure and commands. The roadmap is **public**:
+never write PII, customer names, or anything disparaging of a customer, competitor or vendor
+in an issue or comment. The iteration file stays local and is where candid notes belong.
 
 The dev skill (`.claude/skills/dev/SKILL.md`) holds the implementation conventions you follow when
 writing code: Architectural Principles, List View Conventions, Migration Safety, Testing
@@ -124,10 +128,12 @@ Proceed to **Step 5** for the current iteration.
 
 ## Step 1 — Understand
 
-If the user named a backlog item, find it in `.claude/BACKLOG.md`. If they described a feature,
-search for it. If ambiguous, ask.
+If the user named a backlog item, find it in the roadmap repo
+(`gh issue list -R Pageloom/weft-id-roadmap --search "<words> in:title"`). If they described a
+feature, search for it. If ambiguous, ask.
 
-Read the backlog item thoroughly. Then **survey** the areas of the codebase most likely affected.
+Read the backlog item thoroughly (`gh issue view <number> -R Pageloom/weft-id-roadmap`), along
+with any iteration sub-issues it already has; they are the starting point for the split in Step 3. Then **survey** the areas of the codebase most likely affected.
 Read just enough to understand domain boundaries, data model shape, and integration points:
 
 - Skim relevant service and database module signatures (function names, parameters)
@@ -220,6 +226,12 @@ Present the full plan. Explain:
 - Where you see risk
 
 **Wait for the user to approve, modify, or reject before proceeding.**
+
+Once approved, mirror the plan on the roadmap: set the item's `Status` to In Progress and make
+its sub-issues match the iterations, one per iteration, in order (title
+`<item short name>: <iteration goal>`, body the goal and acceptance criteria). Reuse and edit
+sub-issues that already exist rather than duplicating them. Record the item and sub-issue
+numbers in the iteration file.
 
 ---
 
@@ -315,8 +327,10 @@ When the user approves:
 1. Commit if instructed (follow the commit conventions: short subject under 80 chars,
    brief description of what and how, no Claude attributions)
 2. Verify the iteration file is fully up to date (Step 5e complete)
-3. Refine the next iteration's scope based on learnings
-4. Tell the user to clear context and resume via `/lead pickup <slug>`. Only continue in the
+3. Close the iteration's roadmap sub-issue (`Fixes Pageloom/weft-id-roadmap#<n>` in the commit,
+   or `gh issue close <n> -R Pageloom/weft-id-roadmap` once committed)
+4. Refine the next iteration's scope based on learnings, and update its sub-issue if the scope changed
+5. Tell the user to clear context and resume via `/lead pickup <slug>`. Only continue in the
    same session if the next iteration is small and context is still light.
 
 ---
@@ -376,8 +390,10 @@ Based on the user's decisions:
 ### 8e. Close out
 
 1. Set the iteration file status to "Feature complete"
-2. Move the backlog item from `.claude/BACKLOG.md` to `.claude/BACKLOG_ARCHIVE.md` with
-   status marked as Complete
+2. Close the roadmap item: `Fixes Pageloom/weft-id-roadmap#<item>` in the final commit, or
+   `gh issue close` if everything is already committed. First add a comment on the item saying
+   what shipped where it differs from the item as written. Nothing is added to
+   `.claude/BACKLOG_ARCHIVE.md`
 3. Ask the user if they want to clean up the iteration file
 
 ---
@@ -388,7 +404,7 @@ Based on the user's decisions:
 # [Feature Title]
 
 **Slug**: `<slug>`
-**Backlog item**: [Title as it appears in BACKLOG.md]
+**Backlog item**: [Title] (Pageloom/weft-id-roadmap#N; iteration sub-issues #A, #B, ...)
 **Branch**: `<git branch>`
 **Created**: YYYY-MM-DD
 **Status**: In progress -- Iteration N of M
@@ -476,7 +492,7 @@ If nothing non-obvious, write "None -- standard patterns apply."]
 
 ## Closing and cleanup
 
-- **Feature complete**: Set status, archive backlog item, keep iteration file until user deletes.
+- **Feature complete**: Set status, close the roadmap item, keep iteration file until user deletes.
 - **Abandoned**: Set status to "Closed -- [reason]", keep file until user deletes.
 - **Cleanup**: When user asks, delete iteration files marked complete or closed. Confirm first.
 

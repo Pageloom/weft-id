@@ -61,8 +61,9 @@ Request → Router → Service → Database → PostgreSQL
 | `app/utils/email.py` | All outbound emails. Shared layout with inline styles, branded header/footer |
 | `app/utils/email_branding.py` | Fetches tenant logo PNG + name for email headers |
 | `app/dev/preview_emails.py` | Sends all 15 email types to MailDev for visual testing |
-| `.claude/BACKLOG.md` | Product backlog (pending items) |
-| `.claude/BACKLOG_ARCHIVE.md` | Completed backlog items with acceptance criteria |
+| `.claude/references/roadmap.md` | How the roadmap and backlog are tracked on GitHub (`Pageloom/weft-id-roadmap` + the WeftID project) |
+| `.claude/BACKLOG.md` | Retired. A pointer to the roadmap repo; no items are logged here |
+| `.claude/BACKLOG_ARCHIVE.md` | Frozen record of backlog items completed before 2026-10-03 |
 | `.claude/ITERATION_*.md` | Active iteration plans managed by `/lead` (gitignored) |
 | `.claude/references/issue-tracking.md` | How issues and security advisories are tracked on GitHub (labels, commands) |
 | `.claude/ISSUES.md` | Retired. Scan history and a pointer to GitHub; no issues are logged here |
@@ -538,7 +539,7 @@ All checks must pass before committing.
 6. **Migrations** go in `db-init/migrations/` with 4-digit numbering (e.g. `0001_description.sql`). Pure SQL, no `BEGIN/COMMIT`, use `SET LOCAL ROLE appowner` for DDL
 7. **Run formatting and linting** before committing code
 8. **API-first methodology** - any functionality available in the web client must also be exposed via API endpoints under `/api/v1/`. API endpoint docstrings must document all accepted fields/parameters (not a subset).
-9. **Backlog management** - after completing a `.claude/BACKLOG.md` item, move it to `.claude/BACKLOG_ARCHIVE.md` with status marked as Complete
+9. **Backlog management** - the backlog lives in `Pageloom/weft-id-roadmap` (see `.claude/references/roadmap.md`). Complete an item with `Fixes Pageloom/weft-id-roadmap#N` in the commit message; nothing is added to `.claude/BACKLOG_ARCHIVE.md`
 10. **All string fields must have `max_length`** - every `str` field in Pydantic input schemas (Create, Update, Import) **and every `Form()` parameter in route handlers** must specify `max_length`. Use these standard limits: names/titles 255, descriptions 2000, URLs 2048, enum-like fields 50, subdomains 63, domains 253, passwords 255, emails 320, UUIDs/IDs 50, verification codes 100, timezone 50, locale 10. Database columns should have matching `CHECK` constraints or `VARCHAR(N)` types.
 11. **Use watch mode during development** - run `make watch-tests` in a separate terminal to get immediate feedback on code changes. It intelligently reruns only affected tests, providing fast iteration cycles (seconds instead of minutes).
 12. **State-changing fetch() calls to API endpoints must use `WeftUtils.apiFetch()`** - bare `fetch()` with `credentials: 'same-origin'` on a non-GET endpoint is a CSRF vulnerability. Bearer-token clients are unaffected.
@@ -564,9 +565,9 @@ All checks must pass before committing.
 
 ## Agent Workflow
 
-- Use `/pm` to add items to the product backlog
+- Use `/pm` to add items to the product backlog and prioritise the roadmap (GitHub, `Pageloom/weft-id-roadmap`)
 - Use `/lead` to groom a backlog item into iterations and implement them one per session (for M/L/XL items)
-- Use `/dev` to implement items from the backlog (checks GitHub issues and draft security advisories first, for S/M standalone items)
+- Use `/dev` to implement items from the roadmap backlog (checks GitHub issues and draft security advisories first, for S/M standalone items)
 - Use `/test` to review quality and push coverage intelligently
 - Use `/compliance` to verify architectural principles are followed
 - Use `/security` to scan for OWASP Top 10 and other security vulnerabilities
@@ -586,7 +587,20 @@ Open work is tracked on GitHub, not in `.claude/ISSUES.md`. The repository is pu
 - Everything else is a GitHub issue: `/test`, `/compliance` and `/tech-writer` findings are `bug`
   with a `severity-*` label; `/deps` findings are `security` + `dependencies` with a `severity-*`
   label; `/refactor` findings are `enhancement` with a `prio-*` label
-- `/dev` checks draft advisories and open issues before `.claude/BACKLOG.md` (bugs before features)
+- `/dev` checks draft advisories and open issues before the roadmap backlog (bugs before features)
 - **When resolved:** `Fixes #N` in the commit message closes the issue. For an advisory, tell the
   user the fix has landed; publishing or closing it is their decision
 - `.claude/ISSUES_ARCHIVE.md` is frozen history (still used for regression hunting)
+
+## Roadmap and Backlog
+
+Features and the roadmap are tracked in the public `Pageloom/weft-id-roadmap` repository and
+ordered in the WeftID GitHub project (`Pageloom` project 2), not in `.claude/BACKLOG.md`. See
+`.claude/references/roadmap.md` for the structure and commands.
+
+- Top-level issues are stages, in order. Their sub-issues are backlog items in priority order;
+  groomed items have iteration sub-issues
+- The roadmap is public and read-only for outsiders. Never write PII, customer or prospect
+  names, or anything that puts a customer, competitor or vendor in a bad light
+- **When completed:** `Fixes Pageloom/weft-id-roadmap#N` in the commit message closes the item
+- `.claude/BACKLOG_ARCHIVE.md` is frozen history (items completed before 2026-10-03)

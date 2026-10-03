@@ -409,6 +409,55 @@ class TestDelivery:
         build.assert_called_once()
         assert counts["delivered"] == 1
 
+    def test_every_delivery_gets_its_own_client(self, test_tenant, make_client, queue, mocker):
+        rp = _RP(200)
+        clients: list[httpx.Client] = []
+
+        def build():
+            clients.append(rp.client())
+            return clients[-1]
+
+        mocker.patch.object(backchannel_service, "_build_http_client", side_effect=build)
+        client = make_client()
+        for sid in ("s-1", "s-2", "s-3"):
+            queue(client, sid=sid)
+        _release(test_tenant)
+        with system_context():
+            counts = backchannel_service.deliver_due_backchannel_logouts(str(test_tenant["id"]))
+        assert counts["delivered"] == 3
+        assert len(clients) == 3
+        assert all(c.is_closed for c in clients)
+
+    def test_own_client_is_closed_after_a_network_error(
+        self, test_tenant, make_client, queue, mocker
+    ):
+        rp = _RP(exc=httpx.ReadTimeout("total timeout exceeded"))
+        client = rp.client()
+        mocker.patch.object(backchannel_service, "_build_http_client", return_value=client)
+        queue(make_client())
+        _release(test_tenant)
+        with system_context():
+            counts = backchannel_service.deliver_due_backchannel_logouts(str(test_tenant["id"]))
+        assert counts["retried"] == 1
+        assert client.is_closed
+        assert "ReadTimeout" in _row(test_tenant)["last_error"]
+
+    def test_response_body_is_never_read(self, test_tenant, make_client, queue):
+        class _Body(httpx.SyncByteStream):
+            def __iter__(self):
+                raise AssertionError("the response body must not be read")
+
+        queue(make_client())
+        client = httpx.Client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, stream=_Body()))
+        )
+        _release(test_tenant)
+        with system_context():
+            counts = backchannel_service.deliver_due_backchannel_logouts(
+                str(test_tenant["id"]), http_client=client
+            )
+        assert counts["delivered"] == 1
+
 
 class TestSafeClient:
     def test_uses_ssrf_guarded_client_with_dev_exceptions(self, mocker):
@@ -416,9 +465,16 @@ class TestSafeClient:
         backchannel_service._build_http_client()
         kwargs = build.call_args.kwargs
         assert kwargs["timeout"] == backchannel_service.HTTP_TIMEOUT_SECONDS
+        assert kwargs["total_timeout"] == backchannel_service.DELIVERY_BUDGET_SECONDS
         assert kwargs["dev_hostname_allowlist"] == frozenset({"localhost.emobix.co.uk"})
         assert kwargs["dev_skip_tls_verify"] is True
         assert kwargs["dev_base_domain_rewrite"] is True
+
+    def test_a_whole_batch_at_the_budget_fits_the_lease(self):
+        assert (
+            backchannel_service.BATCH_SIZE * backchannel_service.DELIVERY_BUDGET_SECONDS
+            < backchannel_service.LEASE_SECONDS
+        )
 
 
 class TestCleanup:

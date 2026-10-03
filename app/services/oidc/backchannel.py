@@ -61,10 +61,14 @@ LOGOUT_TOKEN_LIFETIME = timedelta(minutes=2)
 RETRY_SCHEDULE = (30, 120, 600, 3600, 21600)
 MAX_ATTEMPTS = 1 + len(RETRY_SCHEDULE)
 
-# Deliveries are claimed in small batches; a claimed delivery is hidden from
-# other workers for LEASE_SECONDS, which exceeds a whole batch at the HTTP
-# timeout (10 x 5 s), so a slow RP cannot cause a second send.
+# HTTP_TIMEOUT_SECONDS applies to each socket operation; DELIVERY_BUDGET_SECONDS
+# bounds one whole delivery (connect, TLS, request, status line), so an RP that
+# drips its response cannot hold the worker. Deliveries are claimed in small
+# batches; a claimed delivery is hidden from other workers for LEASE_SECONDS,
+# which exceeds a whole batch at the budget (10 x 10 s), so a slow RP cannot
+# cause a second send.
 HTTP_TIMEOUT_SECONDS = 5.0
+DELIVERY_BUDGET_SECONDS = 10.0
 BATCH_SIZE = 10
 LEASE_SECONDS = 120
 
@@ -122,8 +126,10 @@ def build_logout_token(
 
 
 def _build_http_client() -> httpx.Client:
+    """A client for one delivery: the total budget runs from construction."""
     return build_safe_client(
         timeout=HTTP_TIMEOUT_SECONDS,
+        total_timeout=DELIVERY_BUDGET_SECONDS,
         dev_hostname_allowlist=_DEV_HOSTNAME_ALLOWLIST,
         dev_skip_tls_verify=True,
         dev_base_domain_rewrite=True,
@@ -139,8 +145,14 @@ def _still_eligible(delivery: dict) -> bool:
     )
 
 
-def _send(client: httpx.Client, delivery: dict, tenant_id: str) -> tuple[int | None, str | None]:
-    """POST the logout token. Returns (HTTP status or None, error or None)."""
+def _send(
+    http_client: httpx.Client | None, delivery: dict, tenant_id: str
+) -> tuple[int | None, str | None]:
+    """POST the logout token. Returns (HTTP status or None, error or None).
+
+    Without ``http_client`` the delivery gets a client (and time budget) of its
+    own. Only the status is read; the response body is never buffered.
+    """
     token = build_logout_token(
         tenant_id=tenant_id,
         issuer=delivery["issuer"],
@@ -148,12 +160,15 @@ def _send(client: httpx.Client, delivery: dict, tenant_id: str) -> tuple[int | N
         sub=subject_for(delivery, str(delivery["sub"])),
         sid=delivery["sid"] if delivery.get("backchannel_logout_session_required") else None,
     )
+    client = http_client if http_client is not None else _build_http_client()
     try:
-        response = client.post(
+        with client.stream(
+            "POST",
             delivery["backchannel_logout_uri"],
             data={"logout_token": token},
             headers={"Cache-Control": "no-store"},
-        )
+        ) as response:
+            status_code = response.status_code
     except SsrfBlockedError:
         # One generic code for every guard refusal (unresolvable, private or
         # reserved address): admins read this log, and telling those cases
@@ -161,9 +176,12 @@ def _send(client: httpx.Client, delivery: dict, tenant_id: str) -> tuple[int | N
         return None, BLOCKED_DESTINATION_ERROR
     except httpx.HTTPError as exc:
         return None, f"network_error: {type(exc).__name__}: {str(exc)[:200]}"
-    if 200 <= response.status_code < 300:
-        return response.status_code, None
-    return response.status_code, f"http_{response.status_code}"
+    finally:
+        if http_client is None:
+            client.close()
+    if 200 <= status_code < 300:
+        return status_code, None
+    return status_code, f"http_{status_code}"
 
 
 def _record_failure(tenant_id: str, delivery: dict, *, error: str, http_status: int | None) -> None:
@@ -201,27 +219,18 @@ def deliver_due_backchannel_logouts(
         Counts: ``delivered``, ``retried``, ``failed``, ``skipped``.
     """
     counts = {"delivered": 0, "retried": 0, "failed": 0, "skipped": 0}
-    owns_client = http_client is None
-    client: httpx.Client | None = http_client
-    try:
-        while True:
-            deliveries = database.oauth2.claim_due_deliveries(
-                tenant_id, limit=BATCH_SIZE, lease_seconds=LEASE_SECONDS
-            )
-            if deliveries and client is None:
-                client = _build_http_client()
-            for delivery in deliveries:
-                assert client is not None
-                counts[_deliver_one(client, delivery, tenant_id)] += 1
-            if len(deliveries) < BATCH_SIZE:
-                break
-    finally:
-        if owns_client and client is not None:
-            client.close()
+    while True:
+        deliveries = database.oauth2.claim_due_deliveries(
+            tenant_id, limit=BATCH_SIZE, lease_seconds=LEASE_SECONDS
+        )
+        for delivery in deliveries:
+            counts[_deliver_one(http_client, delivery, tenant_id)] += 1
+        if len(deliveries) < BATCH_SIZE:
+            break
     return counts
 
 
-def _deliver_one(client: httpx.Client, delivery: dict, tenant_id: str) -> str:
+def _deliver_one(http_client: httpx.Client | None, delivery: dict, tenant_id: str) -> str:
     """Attempt one claimed delivery, record the outcome, return its count key."""
     delivery_id = str(delivery["id"])
     if not _still_eligible(delivery):
@@ -234,7 +243,7 @@ def _deliver_one(client: httpx.Client, delivery: dict, tenant_id: str) -> str:
         )
         return "skipped"
 
-    http_status, error = _send(client, delivery, tenant_id)
+    http_status, error = _send(http_client, delivery, tenant_id)
     if error is None:
         database.oauth2.mark_delivered(tenant_id, delivery_id, http_status=http_status or 200)
         return "delivered"

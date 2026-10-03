@@ -245,14 +245,15 @@ class TestPropagateLogoutToSps:
         ]
 
     @staticmethod
-    def _client_post(mock_factory):
-        """The `.post` mock of the client yielded by `build_safe_client()`.
+    def _client_stream(mock_factory):
+        """The `.stream` mock of the client yielded by `build_safe_client()`.
 
         The service uses the client as a context manager
         (`with build_safe_client(...) as client:`), so the real client is
-        `mock_factory.return_value.__enter__.return_value`.
+        `mock_factory.return_value.__enter__.return_value`. The response is
+        what the `client.stream(...)` context manager yields.
         """
-        return mock_factory.return_value.__enter__.return_value.post
+        return mock_factory.return_value.__enter__.return_value.stream
 
     @patch("services.service_providers.slo.log_event")
     @patch("services.service_providers.slo.build_safe_client")
@@ -283,8 +284,8 @@ class TestPropagateLogoutToSps:
         }
 
         mock_response = MagicMock()
-        mock_response.is_success = True
-        self._client_post(mock_client).return_value = mock_response
+        mock_response.status_code = 200
+        self._client_stream(mock_client).return_value.__enter__.return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -301,8 +302,12 @@ class TestPropagateLogoutToSps:
             )
 
         assert result == 1
-        # Routed through the SSRF-guarded client; timeout lives on the client.
-        self._client_post(mock_client).assert_called_once_with(
+        # Routed through the SSRF-guarded client, with an overall time budget.
+        assert mock_client.call_args.kwargs["timeout"] == 5.0
+        assert mock_client.call_args.kwargs["total_timeout"] == 10.0
+        assert mock_client.call_args.kwargs["dev_base_domain_rewrite"] is True
+        self._client_stream(mock_client).assert_called_once_with(
+            "POST",
             "https://sp0.example.com/slo",
             data={"SAMLRequest": "base64-logout-request"},
         )
@@ -325,7 +330,7 @@ class TestPropagateLogoutToSps:
         )
 
         assert result == 0
-        self._client_post(mock_client).assert_not_called()
+        self._client_stream(mock_client).assert_not_called()
 
     @patch("services.service_providers.slo.log_event")
     @patch("services.service_providers.slo.build_safe_client")
@@ -341,7 +346,7 @@ class TestPropagateLogoutToSps:
         )
 
         assert result == 0
-        self._client_post(mock_client).assert_not_called()
+        self._client_stream(mock_client).assert_not_called()
 
     @patch("services.service_providers.slo.log_event")
     @patch("services.service_providers.slo.build_safe_client")
@@ -359,9 +364,8 @@ class TestPropagateLogoutToSps:
         }
 
         mock_response = MagicMock()
-        mock_response.is_success = False
         mock_response.status_code = 500
-        self._client_post(mock_client).return_value = mock_response
+        self._client_stream(mock_client).return_value.__enter__.return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -396,7 +400,7 @@ class TestPropagateLogoutToSps:
 
         # An SSRF-blocked or unreachable target surfaces as an exception; the
         # best-effort loop must swallow it and continue.
-        self._client_post(mock_client).side_effect = Exception("Connection refused")
+        self._client_stream(mock_client).side_effect = Exception("Connection refused")
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -431,8 +435,8 @@ class TestPropagateLogoutToSps:
         }
 
         mock_response = MagicMock()
-        mock_response.is_success = True
-        self._client_post(mock_client).return_value = mock_response
+        mock_response.status_code = 200
+        self._client_stream(mock_client).return_value.__enter__.return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -475,7 +479,7 @@ class TestPropagateLogoutToSps:
         )
 
         assert result == 0
-        self._client_post(mock_client).assert_not_called()
+        self._client_stream(mock_client).assert_not_called()
 
     @patch("services.service_providers.slo.log_event")
     @patch("services.service_providers.slo.build_safe_client")
@@ -492,8 +496,8 @@ class TestPropagateLogoutToSps:
         }
 
         mock_response = MagicMock()
-        mock_response.is_success = True
-        self._client_post(mock_client).return_value = mock_response
+        mock_response.status_code = 200
+        self._client_stream(mock_client).return_value.__enter__.return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -510,7 +514,9 @@ class TestPropagateLogoutToSps:
             )
 
         assert result == 3
-        assert self._client_post(mock_client).call_count == 3
+        assert self._client_stream(mock_client).call_count == 3
+        # One client per SP: each request gets its own time budget.
+        assert mock_client.call_count == 3
         # Verify event metadata
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["metadata"]["sp_count"] == 3
@@ -533,8 +539,8 @@ class TestPropagateLogoutToSps:
         }
 
         mock_response = MagicMock()
-        mock_response.is_success = True
-        self._client_post(mock_client).return_value = mock_response
+        mock_response.status_code = 200
+        self._client_stream(mock_client).return_value.__enter__.return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -551,7 +557,7 @@ class TestPropagateLogoutToSps:
             )
 
         assert result == 1
-        assert self._client_post(mock_client).call_count == 1
+        assert self._client_stream(mock_client).call_count == 1
         # Verify event counts reflect partial success
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["metadata"]["sp_count"] == 3
@@ -573,8 +579,8 @@ class TestPropagateLogoutToSps:
         }
 
         mock_response = MagicMock()
-        mock_response.is_success = True
-        self._client_post(mock_client).return_value = mock_response
+        mock_response.status_code = 200
+        self._client_stream(mock_client).return_value.__enter__.return_value = mock_response
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),

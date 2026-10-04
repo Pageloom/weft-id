@@ -87,8 +87,30 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  release:
+  verify-public:
     needs: [validate, build-and-push]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Verify image is pullable without credentials
+        run: |
+          REF="${{ needs.validate.outputs.version }}"
+          TOKEN=$(curl -fsS "https://${REGISTRY}/token?scope=repository:${IMAGE_NAME}:pull" \
+            | python3 -c "import json, sys; print(json.load(sys.stdin)['token'])") || {
+            echo "::error::${REGISTRY}/${IMAGE_NAME} refuses anonymous pulls. Make the package public in its GitHub package settings."
+            exit 1
+          }
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' \
+            "https://${REGISTRY}/v2/${IMAGE_NAME}/manifests/${REF}")
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Anonymous pull of ${REGISTRY}/${IMAGE_NAME}:${REF} returned HTTP ${STATUS}"
+            exit 1
+          fi
+
+  release:
+    needs: [validate, build-and-push, verify-public]
     runs-on: ubuntu-latest
     permissions:
       contents: write

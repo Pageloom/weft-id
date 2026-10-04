@@ -45,3 +45,21 @@ def update_tenant_name(tenant_id: str, name: str) -> int:
         "UPDATE tenants SET name = :name WHERE id = :tenant_id",
         {"tenant_id": tenant_id, "name": name},
     )
+
+
+def create_tenant(subdomain: str, name: str) -> int:
+    """
+    Create a tenant unless one already uses the subdomain.
+
+    Returns:
+        Number of rows inserted (0 when the subdomain already exists).
+    """
+    return execute(
+        UNSCOPED,
+        """
+        INSERT INTO tenants (subdomain, name)
+        VALUES (:subdomain, :name)
+        ON CONFLICT (subdomain) DO NOTHING
+        """,
+        {"subdomain": subdomain, "name": name},
+    )

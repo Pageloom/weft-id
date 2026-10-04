@@ -12,15 +12,7 @@ def provision_tenant(subdomain: str, name: str, retries=10):
     utils.validate.subdomain(subdomain)
     logging.info("Provisioning tenant %s at %s", name, subdomain)
     try:
-        database.execute(
-            database.UNSCOPED,
-            """
-            insert into tenants (subdomain, name)
-            values (:subdomain, :name)
-            on conflict (subdomain) do nothing
-            """,
-            {"subdomain": subdomain, "name": name},
-        )
+        database.tenants.create_tenant(subdomain, name)
     except psycopg.errors.UndefinedTable:
         if retries > 0:
             time.sleep(1)

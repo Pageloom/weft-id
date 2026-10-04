@@ -1,4 +1,5 @@
 import os
+from urllib.parse import quote
 
 
 def _parse_bool(value: str | None) -> bool:
@@ -12,7 +13,16 @@ POSTGRES_USER = os.environ.get("POSTGRES_USER", "")
 POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
 POSTGRES_DB = os.environ.get("POSTGRES_DB", "")
 POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5432")
-DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@db:5432/{POSTGRES_DB}"
+
+
+def database_url(
+    user: str, password: str, dbname: str, host: str = "db", port: str = "5432"
+) -> str:
+    """Build a libpq URL, percent-encoding credentials (generated passwords may contain / + =)."""
+    return f"postgresql://{quote(user, safe='')}:{quote(password, safe='')}@{host}:{port}/{dbname}"
+
+
+DATABASE_URL = database_url(POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB)
 
 IS_DEV = _parse_bool(os.environ.get("IS_DEV"))
 BASE_DOMAIN = os.environ.get("BASE_DOMAIN", "")

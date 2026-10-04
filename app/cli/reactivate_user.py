@@ -6,7 +6,7 @@ is recovering from a state where all super admins have been inactivated
 (e.g., by the auto-inactivation job).
 
 Usage:
-    python -m app.cli.reactivate_user \
+    python -m cli.reactivate_user \
         --subdomain acme \
         --email admin@acme.com
 """
@@ -85,7 +85,12 @@ def cli() -> int:
     parser.add_argument("--email", required=True, help="User's primary email address")
 
     args = parser.parse_args()
-    return main(args)
+    try:
+        return main(args)
+    finally:
+        # Close before interpreter shutdown, where the pool's worker threads
+        # can no longer be joined
+        database.close_pool()
 
 
 if __name__ == "__main__":

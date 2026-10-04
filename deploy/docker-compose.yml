@@ -133,7 +133,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: appdb
     volumes:
-      - dbdata:/var/lib/postgresql/data
+      # PostgreSQL 18+ images keep data in /var/lib/postgresql/<major>/docker,
+      # so the volume must cover /var/lib/postgresql (not .../data) to persist
+      - dbdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d appdb"]
       interval: 5s

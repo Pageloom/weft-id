@@ -4,7 +4,7 @@ Checks DNS records (SPF, DKIM, DMARC) for the FROM_EMAIL domain and sends
 a test email through the configured backend.
 
 Usage:
-    python -m app.cli.verify_email --to admin@example.com
+    python -m cli.verify_email --to admin@example.com
 """
 
 import argparse

@@ -20,6 +20,7 @@ import traceback
 from pathlib import Path
 
 import psycopg
+from psycopg import sql
 
 DB_INIT = Path(__file__).resolve().parent
 SCHEMA_SQL = DB_INIT / "schema.sql"
@@ -155,6 +156,10 @@ def run_migration(conn: psycopg.Connection, path: Path) -> None:
         sys.exit(1)
 
 
+def role_password_statement(role: str, password: str) -> sql.Composed:
+    return sql.SQL("ALTER ROLE {} PASSWORD {}").format(sql.Identifier(role), sql.Literal(password))
+
+
 def sync_role_passwords(conn: psycopg.Connection) -> None:
     """Set appuser password from environment if provided.
 
@@ -164,7 +169,8 @@ def sync_role_passwords(conn: psycopg.Connection) -> None:
     """
     appuser_pw = os.environ.get("APPUSER_PASSWORD")
     if appuser_pw:
-        conn.execute("ALTER ROLE appuser PASSWORD %s", (appuser_pw,))
+        # Utility statements cannot take bound parameters, so quote client-side
+        conn.execute(role_password_statement("appuser", appuser_pw))
         print("  appuser password synced from APPUSER_PASSWORD.", flush=True)
 
 

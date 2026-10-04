@@ -80,3 +80,29 @@ class TestValidateProductionSettings:
             error_message = str(exc_info.value)
             assert "SECRET_KEY has insecure default value" in error_message
             assert "BYPASS_OTP must be disabled in production" in error_message
+
+
+class TestDatabaseUrl:
+    """Tests for database_url credential encoding."""
+
+    def test_generated_password_characters_survive(self):
+        """Base64 passwords (/ + =) round-trip instead of corrupting the host."""
+        import settings
+        from psycopg.conninfo import conninfo_to_dict
+
+        password = "ab/cd+ef==gh@ij:kl"
+        url = settings.database_url("appuser", password, "appdb")
+
+        parsed = conninfo_to_dict(url)
+        assert parsed["user"] == "appuser"
+        assert parsed["password"] == password
+        assert parsed["host"] == "db"
+        assert parsed["port"] == "5432"
+        assert parsed["dbname"] == "appdb"
+
+    def test_plain_credentials_unchanged(self):
+        import settings
+
+        url = settings.database_url("appuser", "apppass", "appdb", host="localhost")
+
+        assert url == "postgresql://appuser:apppass@localhost:5432/appdb"

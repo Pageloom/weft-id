@@ -136,7 +136,7 @@ Before provisioning a tenant, verify that email delivery is working. The foundin
 receives an invitation email, so broken email configuration means they cannot complete setup.
 
 ```bash
-docker compose exec app python -m app.cli.verify_email --to you@example.com
+docker compose exec app python -m cli.verify_email --to you@example.com
 ```
 
 Replace `you@example.com` with an address you can check. The command:
@@ -153,7 +153,7 @@ production to improve deliverability.
 Once the services are running, create a tenant and its founding super admin:
 
 ```bash
-docker compose exec app python -m app.cli.provision_tenant \
+docker compose exec app python -m cli.provision_tenant \
   --subdomain acme \
   --tenant-name "Acme Corp" \
   --email admin@acme.com \

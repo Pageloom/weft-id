@@ -1,7 +1,7 @@
 """Provision a new tenant and super admin via CLI.
 
 Usage:
-    python -m app.cli.provision_tenant \
+    python -m cli.provision_tenant \
         --subdomain acme \
         --tenant-name "Acme Corp" \
         --email admin@acme.com \
@@ -20,9 +20,9 @@ import database.branding  # noqa: E402
 import database.tenants  # noqa: E402
 import settings  # noqa: E402
 import utils.validate  # noqa: E402
-from dev.tenants import provision_tenant  # noqa: E402
 from services.branding import _rasterize_to_png  # noqa: E402
 from services.event_log import SYSTEM_ACTOR_ID, log_event  # noqa: E402
+from services.settings.attributes import seed_tenant_attribute_config  # noqa: E402
 from services.users.utilities import (  # noqa: E402
     add_unverified_email_with_nonce,
     create_user_raw,
@@ -31,6 +31,14 @@ from services.users.utilities import (  # noqa: E402
 from utils.email import send_provisioning_invitation  # noqa: E402
 from utils.mandala import generate_mandala_svg  # noqa: E402
 from utils.request_context import system_context  # noqa: E402
+
+
+def provision_tenant(subdomain: str, name: str) -> None:
+    """Create the tenant if needed and seed its attribute config (both idempotent)."""
+    database.tenants.create_tenant(subdomain, name)
+    tenant = database.tenants.get_tenant_by_subdomain(subdomain)
+    if tenant is not None:
+        seed_tenant_attribute_config(str(tenant["id"]))
 
 
 def _validate_args(args: argparse.Namespace) -> list[str]:
@@ -160,7 +168,12 @@ def cli() -> int:
     parser.add_argument("--last-name", required=True, help="Super admin last name")
 
     args = parser.parse_args()
-    return main(args)
+    try:
+        return main(args)
+    finally:
+        # Close before interpreter shutdown, where the pool's worker threads
+        # can no longer be joined
+        database.close_pool()
 
 
 if __name__ == "__main__":

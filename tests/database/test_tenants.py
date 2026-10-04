@@ -40,3 +40,28 @@ def test_get_tenant_by_id_not_found():
     tenant = database.tenants.get_tenant_by_id(uuid4())
 
     assert tenant is None
+
+
+def test_create_tenant_is_idempotent():
+    """create_tenant inserts once and ignores a repeated subdomain."""
+    from uuid import uuid4
+
+    import database
+
+    subdomain = f"create-{uuid4().hex[:12]}"
+    try:
+        assert database.tenants.create_tenant(subdomain, "First") == 1
+        assert database.tenants.create_tenant(subdomain, "Second") == 0
+
+        row = database.fetchone(
+            database.UNSCOPED,
+            "SELECT name FROM tenants WHERE subdomain = :subdomain",
+            {"subdomain": subdomain},
+        )
+        assert row == {"name": "First"}
+    finally:
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE subdomain = :subdomain",
+            {"subdomain": subdomain},
+        )

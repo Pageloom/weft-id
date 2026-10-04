@@ -27,14 +27,16 @@ from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
-from services.oidc_upstream.adapters import callback_url
+from services.oidc_upstream.adapters import ProviderCheckError, callback_url, get_adapter
 from services.oidc_upstream.presets import (
     compose_entra_authority,
     compose_entra_discovery_url,
     email_linking_trusted,
+    get_preset,
     get_preset_defaults,
     login_button_style,
     provider_display_name,
+    uses_discovery,
 )
 from services.types import RequestingUser
 from utils.crypto import derive_fernet_key
@@ -87,6 +89,7 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         provider_type=row["provider_type"],
         provider_label=provider_display_name(row["provider_type"]),
         email_linking_trusted=email_linking_trusted(row["provider_type"]),
+        uses_discovery=uses_discovery(row["provider_type"]),
         issuer=row["issuer"],
         discovery_url=row.get("discovery_url"),
         authorization_endpoint=row.get("authorization_endpoint"),
@@ -112,6 +115,7 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         allow_email_linking=row["allow_email_linking"],
         sign_out_at_idp=row["sign_out_at_idp"],
         show_on_login=row["show_on_login"],
+        github_allowed_orgs=list(row.get("github_allowed_orgs") or []),
         callback_url=callback_url(base_url, connection_id),
         backchannel_logout_url=f"{base_url}/auth/oidc/{connection_id}/backchannel-logout",
         post_logout_redirect_uri=f"{base_url}{POST_LOGOUT_PATH}",
@@ -127,6 +131,7 @@ def _row_to_list_item(row: dict) -> OIDCConnectionListItem:
         name=row["name"],
         provider_type=row["provider_type"],
         provider_label=provider_display_name(row["provider_type"]),
+        uses_discovery=uses_discovery(row["provider_type"]),
         is_enabled=row["is_enabled"],
         is_default=row["is_default"],
         show_on_login=row["show_on_login"],
@@ -318,6 +323,59 @@ def _validate_email_linking(provider_type: str, allow_email_linking: bool | None
         )
 
 
+# Settings a provider with fixed endpoints (no discovery) has no use for. Each
+# must be left blank, or for issuer/correlation_claim equal the preset's value
+# (what the web form submits).
+_FIXED_ENDPOINT_BLANK_FIELDS = (
+    "discovery_url",
+    *_MANUAL_ENDPOINT_FIELDS,
+    "hosted_domain",
+    "entra_tenant_id",
+)
+
+
+def _validate_fixed_endpoint_fields(
+    provider_type: str, data: OIDCConnectionCreate | OIDCConnectionUpdate
+) -> None:
+    """Reject discovery and endpoint settings on a provider that has none."""
+    preset = get_preset(provider_type)
+    if preset is None or preset.uses_discovery:
+        return
+    supplied = [field for field in _FIXED_ENDPOINT_BLANK_FIELDS if getattr(data, field, None)]
+    for field, expected in (
+        ("issuer", preset.issuer),
+        ("correlation_claim", preset.correlation_claim),
+    ):
+        value = getattr(data, field, None)
+        if value and value.rstrip("/") != (expected or "").rstrip("/"):
+            supplied.append(field)
+    if supplied:
+        raise ValidationError(
+            message=(
+                f"{preset.display_name} has fixed endpoints; these settings do not "
+                f"apply to it: {', '.join(supplied)}"
+            ),
+            code="oidc_setting_not_supported",
+        )
+
+
+def _normalize_github_allowed_orgs(provider_type: str, orgs: list[str] | None) -> list[str] | None:
+    """Lower-case and de-duplicate allowed organizations (order kept).
+
+    Returns None for no restriction. Rejects a non-empty list on a provider
+    other than GitHub.
+    """
+    if orgs is None:
+        return None
+    if orgs and provider_type != "github":
+        raise ValidationError(
+            message="Allowed organizations apply to GitHub connections only",
+            code="oidc_setting_not_supported",
+        )
+    normalized = list(dict.fromkeys(org.lower() for org in orgs))
+    return normalized or None
+
+
 def create_connection(
     requesting_user: RequestingUser,
     data: OIDCConnectionCreate,
@@ -333,9 +391,13 @@ def create_connection(
 
     tenant_id = requesting_user["tenant_id"]
 
+    _validate_fixed_endpoint_fields(data.provider_type, data)
     data = _apply_preset_defaults(data)
     _validate_manual_endpoints(data)
     _validate_email_linking(data.provider_type, data.allow_email_linking)
+    github_allowed_orgs = _normalize_github_allowed_orgs(
+        data.provider_type, data.github_allowed_orgs
+    )
 
     # _apply_preset_defaults guarantees a non-None issuer (composed from the
     # preset or tenant id, or rejected for generic) and a non-None
@@ -378,6 +440,7 @@ def create_connection(
         allow_email_linking=data.allow_email_linking,
         sign_out_at_idp=data.sign_out_at_idp,
         show_on_login=data.show_on_login,
+        github_allowed_orgs=github_allowed_orgs,
     )
 
     if row is None:
@@ -445,6 +508,7 @@ def update_connection(
             code="oidc_connection_not_found",
         )
 
+    _validate_fixed_endpoint_fields(existing["provider_type"], data)
     _validate_manual_endpoints(data)
     _validate_email_linking(existing["provider_type"], data.allow_email_linking)
 
@@ -486,6 +550,12 @@ def update_connection(
     # them. A later successful Test Connection puts it back under discovery.
     if any(field in update_kwargs for field in _MANUAL_ENDPOINT_FIELDS):
         update_kwargs["discovery_fetched_at"] = None
+
+    # An empty list clears the restriction (stored as NULL).
+    if data.github_allowed_orgs is not None:
+        update_kwargs["github_allowed_orgs"] = _normalize_github_allowed_orgs(
+            existing["provider_type"], data.github_allowed_orgs
+        )
 
     # The client secret is handled separately: it is write-only and encrypted.
     if data.client_secret is not None:
@@ -664,26 +734,23 @@ def test_connection(
     connection_id: str,
     base_url: str,
 ) -> OIDCConnectionConfig:
-    """Fetch the IdP's discovery document and the key set it advertises.
+    """Check a connection against its provider.
 
-    Discovery runs regardless of the TTL and, on success, replaces the stored
-    endpoints (see ``discovery.run_discovery``). The JWKS is then fetched
-    from the discovered ``jwks_uri``, so a key set that is unreachable or
-    unusable is reported here rather than at the first sign-in.
+    What runs depends on the provider's adapter. For spec OIDC: discovery
+    (regardless of the TTL, replacing the stored endpoints on success, see
+    ``discovery.run_discovery``) and a fetch of the key set it advertises, so
+    an unusable one is reported here rather than at the first sign-in. For
+    GitHub: the client credentials and callback URL are checked at GitHub's
+    token endpoint.
 
     Authorization: Requires super_admin role.
-    Logs: oidc_idp_connection_tested event (``result`` success or failed;
-    discovery writes the endpoints or the error either way).
+    Logs: oidc_idp_connection_tested event (``result`` success or failed).
 
     Raises:
         NotFoundError: unknown connection.
-        ValidationError: discovery or the JWKS fetch failed; the message is
-            the reason, safe to show to the admin.
+        ValidationError: the check failed; the message is the reason, safe to
+            show to the admin.
     """
-    from services.oidc_upstream import jwks as jwks_service
-    from services.oidc_upstream.discovery import run_discovery
-    from services.oidc_upstream.errors import DiscoveryError, JwksError
-
     require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
     tenant_id = requesting_user["tenant_id"]
@@ -698,12 +765,11 @@ def test_connection(
     detail: str | None = None
     row: dict | None = None
     try:
-        row = run_discovery(tenant_id, connection_id, force=True)
-        jwks_service.refresh_jwks(tenant_id, connection_id, str(row["jwks_uri"]))
-    except DiscoveryError as exc:
-        detail = f"Discovery failed: {exc}"
-    except JwksError as exc:
-        detail = f"Key set (JWKS) failed: {exc}"
+        row = get_adapter(existing["provider_type"]).check(
+            tenant_id, existing, redirect_uri=callback_url(base_url, connection_id)
+        )
+    except ProviderCheckError as exc:
+        detail = str(exc)
 
     log_event(
         tenant_id=tenant_id,

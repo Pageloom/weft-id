@@ -14,8 +14,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # The provider types an admin can create. The database accepts more (the
 # adapter-backed social providers), which are added here as they ship.
-PROVIDER_TYPES = ("generic", "google", "entra", "microsoft", "linkedin", "gitlab")
+PROVIDER_TYPES = ("generic", "google", "entra", "microsoft", "linkedin", "gitlab", "github")
 _PROVIDER_TYPE_PATTERN = f"^({'|'.join(PROVIDER_TYPES)})$"
+
+# A GitHub organization login: alphanumerics and single hyphens, up to 39
+# characters, not starting with a hyphen.
+GITHUB_ORG_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
+MAX_GITHUB_ALLOWED_ORGS = 100
+
+GitHubOrgList = list[Annotated[str, Field(max_length=39, pattern=GITHUB_ORG_PATTERN)]]
 
 DEFAULT_CLAIM_MAPPING = {
     "email": "email",
@@ -92,6 +99,8 @@ class OIDCConnectionCreate(BaseModel):
     allow_email_linking: bool = False
     sign_out_at_idp: bool = False
     show_on_login: bool = False
+    # GitHub only: organizations a user must belong to (one is enough).
+    github_allowed_orgs: GitHubOrgList | None = Field(None, max_length=MAX_GITHUB_ALLOWED_ORGS)
 
 
 class OIDCConnectionUpdate(BaseModel):
@@ -128,6 +137,8 @@ class OIDCConnectionUpdate(BaseModel):
     allow_email_linking: bool | None = None
     sign_out_at_idp: bool | None = None
     show_on_login: bool | None = None
+    # An empty list clears the restriction; None leaves it unchanged.
+    github_allowed_orgs: GitHubOrgList | None = Field(None, max_length=MAX_GITHUB_ALLOWED_ORGS)
 
 
 class OIDCConnectionConfig(BaseModel):
@@ -140,6 +151,7 @@ class OIDCConnectionConfig(BaseModel):
     provider_type: str
     provider_label: str
     email_linking_trusted: bool
+    uses_discovery: bool
     issuer: str
     discovery_url: str | None
     authorization_endpoint: str | None
@@ -165,6 +177,7 @@ class OIDCConnectionConfig(BaseModel):
     allow_email_linking: bool
     sign_out_at_idp: bool
     show_on_login: bool
+    github_allowed_orgs: list[str]
     callback_url: str
     backchannel_logout_url: str
     post_logout_redirect_uri: str
@@ -181,6 +194,7 @@ class OIDCConnectionListItem(BaseModel):
     name: str
     provider_type: str
     provider_label: str
+    uses_discovery: bool
     is_enabled: bool
     is_default: bool
     show_on_login: bool

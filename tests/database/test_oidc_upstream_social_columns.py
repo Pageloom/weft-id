@@ -102,6 +102,22 @@ class TestConnectionSettingsColumns:
             )
 
 
+class TestCreateWithAllowedOrgs:
+    def test_create_stores_allowed_orgs(self, test_tenant, test_user):
+        row = database.oidc_upstream.create_connection(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            name=f"GitHub {uuid4().hex[:8]}",
+            provider_type="github",
+            issuer="https://github.com",
+            created_by=str(test_user["id"]),
+            github_allowed_orgs=["acme", "globex"],
+        )
+        assert row["github_allowed_orgs"] == ["acme", "globex"]
+        fetched = database.oidc_upstream.get_connection(test_tenant["id"], str(row["id"]))
+        assert fetched["github_allowed_orgs"] == ["acme", "globex"]
+
+
 class TestLinkLastUsed:
     def test_last_used_at_null_on_create(self, test_tenant, test_user):
         conn = _create_connection(test_tenant, test_user)

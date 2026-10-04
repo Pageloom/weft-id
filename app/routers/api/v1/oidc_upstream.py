@@ -84,7 +84,11 @@ def create_connection(
     Request body:
     - name: Display name for the connection (<=120 chars)
     - provider_type: One of generic, google, entra, microsoft (personal
-      Microsoft accounts), linkedin, gitlab
+      Microsoft accounts), linkedin, gitlab, github. github is OAuth2 with
+      fixed endpoints: discovery_url, the manual endpoints, hosted_domain and
+      entra_tenant_id must be omitted, and issuer / correlation_claim must be
+      omitted or equal the preset values (https://github.com, sub); otherwise
+      400 oidc_setting_not_supported
     - issuer: The IdP issuer URL (<=2048 chars). Filled from the preset when
       omitted (required for generic; composed from entra_tenant_id for
       entra). For gitlab, set it to a self-managed instance's URL
@@ -114,8 +118,14 @@ def create_connection(
     - show_on_login: Put a "Continue with <provider>" button for this
       connection on the sign-in page (default false). Shown only while the
       connection is enabled
+    - github_allowed_orgs: github only. GitHub organization logins (each
+      <=39 chars of letters, digits and hyphens; at most 100). A user must
+      belong to at least one; omit for any GitHub account. Stored
+      lower-cased. Rejected (400) on other provider types
 
     Returns the created connection. The client secret is never returned.
+    The response's uses_discovery is false for a provider with fixed
+    endpoints (github).
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     base_url = _get_base_url(request)
@@ -173,10 +183,14 @@ def update_connection(
       client_secret, scopes, claim_mapping, correlation_claim,
       group_claim_source, group_claim_name_key, hosted_domain,
       entra_tenant_id, require_platform_mfa, jit_provisioning,
-      allow_email_linking, sign_out_at_idp, show_on_login.
+      allow_email_linking, sign_out_at_idp, show_on_login,
+      github_allowed_orgs.
       An empty string for group_claim_source or group_claim_name_key clears
       the setting. allow_email_linking=true is rejected (400) for providers
-      without a trusted verified-email claim (microsoft)
+      without a trusted verified-email claim (microsoft). For github,
+      github_allowed_orgs replaces the list (an empty list removes the
+      restriction), and the discovery/endpoint fields are rejected as on
+      create
 
     Returns the updated connection. The client secret is never returned.
     """
@@ -276,11 +290,14 @@ def test_connection(
     connection_id: str,
 ):
     """
-    Test an OIDC upstream connection: run discovery and fetch the signing keys.
+    Test an OIDC upstream connection against its provider.
 
-    Fetches the IdP's discovery document (ignoring the refresh interval),
-    checks its issuer and endpoints, stores the discovered endpoints, and
-    fetches the JWKS from the discovered ``jwks_uri``.
+    For an OIDC provider: fetches the IdP's discovery document (ignoring the
+    refresh interval), checks its issuer and endpoints, stores the
+    discovered endpoints, and fetches the JWKS from the discovered
+    ``jwks_uri``. For github: presents the client id, client secret and
+    callback URL to GitHub's token endpoint and reports whether GitHub
+    accepts them.
 
     Requires super_admin role.
 
@@ -288,8 +305,7 @@ def test_connection(
     - connection_id: UUID of the connection
 
     Returns the updated connection. Fails with 400 (``oidc_connection_test_failed``)
-    and the reason when discovery or the key set fetch fails; with 404 for an
-    unknown connection.
+    and the reason when the check fails; with 404 for an unknown connection.
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:

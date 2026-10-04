@@ -31,7 +31,7 @@ Email linking trusts the provider's statement that the user controls the email a
 
 For these providers the **Allow email linking** setting is unavailable in the admin UI, and the API rejects it. Users of these providers get a new account through JIT provisioning, or are refused.
 
-Every other provider links only when its token says `email_verified: true`. See [Allow email linking](oidc-setup.md#allow-email-linking) for the security trade-off before turning it on.
+Every other provider links only when its token says `email_verified: true`. GitHub has no tokens of that kind: WeftID treats the account's primary email address as verified only when GitHub reports it verified. See [Allow email linking](oidc-setup.md#allow-email-linking) for the security trade-off before turning it on.
 
 ## Signing in with an email address
 

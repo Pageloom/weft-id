@@ -15,6 +15,7 @@ All functions follow the service layer pattern:
 from services.oidc_upstream.adapters import (
     ClientCredentials,
     ProviderAdapter,
+    ProviderCheckError,
     ProviderLoginError,
     SpecOIDCAdapter,
     UpstreamIdentity,
@@ -123,6 +124,7 @@ from services.oidc_upstream.token_exchange import (
 __all__ = [
     "ClientCredentials",
     "ProviderAdapter",
+    "ProviderCheckError",
     "ProviderLoginError",
     "SpecOIDCAdapter",
     "UpstreamIdentity",

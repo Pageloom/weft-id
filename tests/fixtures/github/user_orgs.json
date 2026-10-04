@@ -1,0 +1,18 @@
+[
+  {
+    "login": "Acme",
+    "id": 1001,
+    "node_id": "MDEyOk9yZ2FuaXphdGlvbjEwMDE=",
+    "url": "https://api.github.com/orgs/Acme",
+    "avatar_url": "https://avatars.githubusercontent.com/u/1001?v=4",
+    "description": "Acme engineering"
+  },
+  {
+    "login": "octo-hobby",
+    "id": 1002,
+    "node_id": "MDEyOk9yZ2FuaXphdGlvbjEwMDI=",
+    "url": "https://api.github.com/orgs/octo-hobby",
+    "avatar_url": "https://avatars.githubusercontent.com/u/1002?v=4",
+    "description": null
+  }
+]

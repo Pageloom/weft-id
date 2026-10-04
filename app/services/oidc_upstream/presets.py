@@ -11,6 +11,9 @@ so a preset is purely a set of defaults.
   standard ``openid profile email`` scopes, and ``sub`` correlation.
 - **Google** points at ``https://accounts.google.com`` with the same scopes
   and ``sub`` correlation.
+- **GitHub** is OAuth2, not OIDC: no discovery and no ID token. Its adapter
+  (``services.oidc_upstream.github``) fixes the endpoints; the preset only
+  supplies the scopes and button style.
 - **Entra** composes its authority from the tenant id
   (``https://login.microsoftonline.com/<entra_tenant_id>/v2.0``), requests
   ``openid profile email User.Read``, and correlates on ``oid`` (Entra's
@@ -38,6 +41,15 @@ _ENTRA_AUTHORITY_TEMPLATE = "https://login.microsoftonline.com/{tenant_id}/v2.0"
 _MICROSOFT_CONSUMERS_ISSUER = (
     "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"
 )
+
+# GitHub has no OIDC issuer for user sign-in; this fixed value fills the
+# connection's issuer column.
+GITHUB_ISSUER = "https://github.com"
+
+# GitHub OAuth scopes: the profile, the email addresses (to find the primary
+# verified one), and organization and team membership (allowed organizations
+# and group sync).
+_GITHUB_SCOPES = "read:user user:email read:org"
 
 # How the client authenticates at the token endpoint (RFC 6749 2.3.1).
 TOKEN_AUTH_BASIC = "client_secret_basic"
@@ -76,6 +88,10 @@ class OIDCPreset:
             <login_label>"), or None to use the connection's own name.
         logo: The brand logo file (``templates/provider_logos/<logo>.svg``)
             shown on the button, or None for no logo.
+        uses_discovery: Whether the provider publishes an OIDC discovery
+            document and issues ID tokens. False for a provider whose adapter
+            fixes the endpoints itself (GitHub); its connections have no
+            discovery, endpoint or correlation settings.
     """
 
     provider_type: str
@@ -90,6 +106,7 @@ class OIDCPreset:
     email_linking_trusted: bool = True
     login_label: str | None = None
     logo: str | None = None
+    uses_discovery: bool = True
 
 
 _PRESETS: dict[str, OIDCPreset] = {
@@ -159,6 +176,22 @@ _PRESETS: dict[str, OIDCPreset] = {
         login_label="GitLab",
         logo="gitlab",
     ),
+    "github": OIDCPreset(
+        provider_type="github",
+        display_name="GitHub",
+        # GitHub is OAuth2 only. The issuer is a fixed label (the column is
+        # required); the adapter owns the endpoints.
+        issuer=GITHUB_ISSUER,
+        discovery_url=None,
+        scopes=_GITHUB_SCOPES,
+        correlation_claim="sub",
+        token_auth_method=TOKEN_AUTH_POST,
+        # The adapter only ever asserts a primary email GitHub has verified.
+        email_linking_trusted=True,
+        login_label="GitHub",
+        logo="github",
+        uses_discovery=False,
+    ),
 }
 
 
@@ -186,6 +219,7 @@ def get_preset_defaults(provider_type: str) -> dict:
         "requires_entra_tenant_id": preset.requires_entra_tenant_id,
         "issuer_overridable": preset.issuer_overridable,
         "email_linking_trusted": preset.email_linking_trusted,
+        "uses_discovery": preset.uses_discovery,
     }
 
 
@@ -224,6 +258,15 @@ def email_linking_trusted(provider_type: str) -> bool:
     """
     preset = get_preset(provider_type)
     return preset.email_linking_trusted if preset else False
+
+
+def uses_discovery(provider_type: str) -> bool:
+    """Return whether a provider type is configured through OIDC discovery.
+
+    A type with no preset is treated as spec OIDC (True).
+    """
+    preset = get_preset(provider_type)
+    return preset.uses_discovery if preset else True
 
 
 def compose_entra_authority(entra_tenant_id: str) -> str:

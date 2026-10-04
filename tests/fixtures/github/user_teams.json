@@ -1,0 +1,20 @@
+[
+  {
+    "id": 2001,
+    "node_id": "MDQ6VGVhbTIwMDE=",
+    "name": "Platform",
+    "slug": "platform",
+    "privacy": "closed",
+    "permission": "pull",
+    "organization": {"login": "Acme", "id": 1001}
+  },
+  {
+    "id": 2002,
+    "node_id": "MDQ6VGVhbTIwMDI=",
+    "name": "Hobby Core",
+    "slug": "hobby-core",
+    "privacy": "closed",
+    "permission": "pull",
+    "organization": {"login": "octo-hobby", "id": 1002}
+  }
+]

@@ -88,6 +88,10 @@ class ProviderLoginError(OIDCUpstreamError):
         self.public_error = public_error
 
 
+class ProviderCheckError(OIDCUpstreamError):
+    """Test Connection found a problem. The message is safe to show an admin."""
+
+
 class ProviderAdapter(Protocol):
     """What a provider adapter does for the login and callback routes."""
 
@@ -129,6 +133,16 @@ class ProviderAdapter(Protocol):
 
         Raises:
             ProviderLoginError: any step failed; carries the audit reason.
+        """
+        ...
+
+    def check(self, tenant_id: str, connection: dict, *, redirect_uri: str) -> dict:
+        """Check the connection against the provider (Test Connection).
+
+        Returns the connection row, refreshed with anything the check stored.
+
+        Raises:
+            ProviderCheckError: the check failed; the message says why.
         """
         ...
 
@@ -293,11 +307,35 @@ class SpecOIDCAdapter:
             id_token=id_token,
         )
 
+    def check(self, tenant_id: str, connection: dict, *, redirect_uri: str) -> dict:
+        # Discovery runs regardless of the TTL and replaces the stored
+        # endpoints; the key set it advertises is then fetched so an unusable
+        # one is reported now rather than at the first sign-in.
+        from services.oidc_upstream import jwks as jwks_service
+        from services.oidc_upstream.discovery import run_discovery
+        from services.oidc_upstream.errors import DiscoveryError, JwksError
+
+        try:
+            row = run_discovery(tenant_id, str(connection["id"]), force=True)
+            jwks_service.refresh_jwks(tenant_id, str(connection["id"]), str(row["jwks_uri"]))
+        except DiscoveryError as exc:
+            raise ProviderCheckError(f"Discovery failed: {exc}") from exc
+        except JwksError as exc:
+            raise ProviderCheckError(f"Key set (JWKS) failed: {exc}") from exc
+        return row
+
 
 _SPEC_OIDC = SpecOIDCAdapter()
 
-# Provider types with their own adapter. Every other type is spec OIDC.
-_ADAPTERS: dict[str, ProviderAdapter] = {}
+
+def _adapters() -> dict[str, ProviderAdapter]:
+    """Provider types with their own adapter. Every other type is spec OIDC."""
+    from services.oidc_upstream.github import GitHubAdapter
+
+    return {"github": GitHubAdapter()}
+
+
+_ADAPTERS: dict[str, ProviderAdapter] = _adapters()
 
 
 def get_adapter(provider_type: str | None) -> ProviderAdapter:

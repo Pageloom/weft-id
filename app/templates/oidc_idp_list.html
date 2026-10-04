@@ -92,7 +92,9 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            {% if connection.discovery_error %}
+                            {% if not connection.uses_discovery %}
+                            <span class="text-gray-500 dark:text-gray-400">Not applicable</span>
+                            {% elif connection.discovery_error %}
                             <span class="text-red-600 dark:text-red-400" title="{{ connection.discovery_error }}">
                                 Sync Error
                             </span>

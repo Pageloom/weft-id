@@ -24,6 +24,7 @@ Each button carries the provider's name and logo:
 * **Microsoft Entra ID** and **Microsoft personal accounts**: "Continue with Microsoft"
 * **LinkedIn**: "Continue with LinkedIn"
 * **GitLab**: "Continue with GitLab"
+* **GitHub**: "Continue with GitHub"
 * **Generic OIDC**: "Continue with" followed by the connection name, with no logo. Name the connection the way users know the provider.
 
 Buttons appear on the first step of sign-in only, not on the password step.

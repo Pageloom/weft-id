@@ -13,6 +13,7 @@ from schemas.api import (
     UserListResponse,
     UserUpdate,
 )
+from schemas.oidc_upstream import OIDCUserLinkList
 from schemas.saml import UserIdpAssignment
 from schemas.service_providers import UserAccessibleAppList
 from services.exceptions import ServiceError
@@ -381,6 +382,89 @@ def assign_user_idp(
             user_id=user_id,
             saml_idp_id=assignment.saml_idp_id,
             scrub_mirrored_attributes=assignment.scrub_mirrored_attributes,
+        )
+        return None
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+# ============================================================================
+# Admin User OIDC Link Endpoints
+# ============================================================================
+
+
+@router.get("/{user_id}/oidc-links", response_model=OIDCUserLinkList)
+def list_user_oidc_links(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    user_id: str,
+):
+    """
+    List the upstream OIDC identities linked to a user.
+
+    A user may be linked to several OIDC connections (one link per
+    connection). Email-first sign-in routes the user to the most recently
+    used link whose connection is enabled.
+
+    Requires super_admin role.
+
+    Path Parameters:
+        user_id: User UUID
+
+    Returns:
+        items: Linked identities, most recently used first, each with:
+            - connection_id: OIDC connection UUID
+            - connection_name: Connection display name
+            - provider_type: Provider type (e.g. "google", "microsoft")
+            - provider_label: Provider display name (e.g. "Google")
+            - connection_enabled: Whether the connection is enabled
+            - sub: The upstream subject the user is linked by
+            - created_at: When the link was created
+            - last_used_at: Last sign-in through this link (nullable)
+
+    Errors:
+        403: Insufficient permissions (super_admin required)
+        404: User not found
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        return _pkg.oidc_upstream_service.list_user_links(requesting_user, user_id)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+@router.delete("/{user_id}/oidc-links/{connection_id}", status_code=204)
+def unlink_user_oidc_link(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    user_id: str,
+    connection_id: str,
+):
+    """
+    Unlink one upstream OIDC identity from a user.
+
+    Removes the user's link to the connection, scrubs canonical attributes
+    still matching the connection's last-mirrored snapshot, and drops the
+    mirror rows. When it was the user's last OIDC link, the user is also
+    deactivated, their emails unverified and their tokens revoked (mirroring
+    SAML disconnect). A user with other links keeps signing in through them.
+
+    Same operation as DELETE /api/v1/oidc-upstream/connections/{connection_id}/users/{user_id}.
+
+    Requires super_admin role.
+
+    Path Parameters:
+        user_id: User UUID
+        connection_id: OIDC connection UUID
+
+    Errors:
+        403: Insufficient permissions (super_admin required)
+        404: User, connection, or link not found
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        _pkg.oidc_upstream_service.unlink_user_from_connection(
+            requesting_user, user_id, connection_id
         )
         return None
     except ServiceError as e:

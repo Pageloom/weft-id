@@ -30,6 +30,7 @@ from services.oidc_upstream.adapters import callback_url
 from services.oidc_upstream.presets import (
     compose_entra_authority,
     compose_entra_discovery_url,
+    email_linking_trusted,
     get_preset_defaults,
     provider_display_name,
 )
@@ -83,6 +84,7 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         name=row["name"],
         provider_type=row["provider_type"],
         provider_label=provider_display_name(row["provider_type"]),
+        email_linking_trusted=email_linking_trusted(row["provider_type"]),
         issuer=row["issuer"],
         discovery_url=row.get("discovery_url"),
         authorization_endpoint=row.get("authorization_endpoint"),
@@ -276,6 +278,18 @@ def _apply_preset_defaults(data: OIDCConnectionCreate) -> OIDCConnectionCreate:
     return data
 
 
+def _validate_email_linking(provider_type: str, allow_email_linking: bool | None) -> None:
+    """Reject email linking on a provider whose verified-email claim is not trusted."""
+    if allow_email_linking and not email_linking_trusted(provider_type):
+        raise ValidationError(
+            message=(
+                f"{provider_display_name(provider_type)} does not assert a verified "
+                "email address, so email linking cannot be enabled for it"
+            ),
+            code="oidc_email_linking_not_supported",
+        )
+
+
 def create_connection(
     requesting_user: RequestingUser,
     data: OIDCConnectionCreate,
@@ -293,6 +307,7 @@ def create_connection(
 
     data = _apply_preset_defaults(data)
     _validate_manual_endpoints(data)
+    _validate_email_linking(data.provider_type, data.allow_email_linking)
 
     # _apply_preset_defaults guarantees a non-None issuer (composed from the
     # preset or tenant id, or rejected for generic) and a non-None
@@ -401,6 +416,7 @@ def update_connection(
         )
 
     _validate_manual_endpoints(data)
+    _validate_email_linking(existing["provider_type"], data.allow_email_linking)
 
     update_kwargs: dict[str, Any] = {}
     for field in [

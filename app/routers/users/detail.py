@@ -16,6 +16,7 @@ from pages import has_page_access
 from schemas.api import UserUpdate
 from services import emails as emails_service
 from services import groups as groups_service
+from services import oidc_upstream as oidc_upstream_service
 from services import saml as saml_service
 from services import service_providers as sp_service
 from services import settings as settings_service
@@ -129,12 +130,17 @@ def user_detail_profile(
     # Get privileged domains for email validation
     privileged_domains = settings_service.get_privileged_domains_list(tenant_id)
 
-    # Get IdPs list for super_admin
+    # Get IdPs list and linked OIDC identities for super_admin
     idps = []
+    oidc_links = []
     if user.get("role") == "super_admin":
         try:
             idp_list = saml_service.list_identity_providers(requesting_user)
             idps = idp_list.items
+        except ServiceError:
+            pass
+        try:
+            oidc_links = oidc_upstream_service.list_user_links(requesting_user, user_id).items
         except ServiceError:
             pass
 
@@ -168,6 +174,7 @@ def user_detail_profile(
             emails=user_detail_data.emails,
             privileged_domains=privileged_domains,
             idps=idps,
+            oidc_links=oidc_links,
             email_impact=email_impact,
             passkeys=passkeys,
             attribute_categories=attribute_categories,
@@ -459,6 +466,33 @@ def update_user_idp_route(
         return render_error_page(request, tenant_id, exc)
 
     return safe_redirect(f"/users/{user_id}/profile?success=idp_updated")
+
+
+@router.post("/{user_id}/oidc-links/{connection_id}/unlink")
+def unlink_oidc_link_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+    connection_id: str,
+):
+    """Unlink one upstream OIDC identity from a user (super_admin only).
+
+    Removing the user's last link also deactivates them.
+    """
+    if user.get("role") != "super_admin":
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        oidc_upstream_service.unlink_user_from_connection(requesting_user, user_id, connection_id)
+    except NotFoundError as exc:
+        return safe_redirect(f"/users/{user_id}/profile?error={exc.code}")
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return safe_redirect(f"/users/{user_id}/profile?success=oidc_link_removed")
 
 
 @router.post("/{user_id}/force-password-reset")

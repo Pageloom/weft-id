@@ -8,12 +8,21 @@ named by the connection's ``correlation_claim``), not on email: the OIDC
 The flow has three branches for an unrecognized subject:
 
 1. An existing ``oidc_idp_user_links`` row authenticates that user.
-2. No link + ``allow_email_linking`` + ``email_verified: true`` + a matching
-   existing email links the subject to that account.
+2. No link + ``allow_email_linking`` + a provider trusted for email linking
+   + ``email_verified: true`` + a matching existing email links the subject
+   to that account.
 3. No link + JIT enabled provisions a new user.
 
 ``allow_email_linking=false`` never attaches an unrecognized subject to an
-existing account (account-takeover guard).
+existing account (account-takeover guard). A user may hold links to several
+connections, but only one per connection: email linking never attaches a
+second upstream account to a user already linked on the connection.
+
+A user assigned to a SAML IdP is refused on every branch. SAML assignment is
+the tenant's policy for that user and an OIDC link must not bypass it.
+
+Every successful sign-in stamps the link's ``last_used_at``, which
+email-first routing uses to pick among a user's links.
 """
 
 import logging
@@ -21,6 +30,7 @@ import logging
 import database
 from services.event_log import log_event
 from services.exceptions import ForbiddenError, NotFoundError, ValidationError
+from services.oidc_upstream.presets import email_linking_trusted
 from utils.validate import is_email_like
 
 logger = logging.getLogger(__name__)
@@ -207,12 +217,16 @@ def authenticate_via_oidc(
     Correlation order:
 
     1. Existing ``(idp_id, sub)`` link -> authenticate that user.
-    2. No link + ``allow_email_linking`` + ``email_verified: true`` + matching
-       email -> link and authenticate.
+    2. No link + ``allow_email_linking`` + trusted provider +
+       ``email_verified: true`` + matching email -> link and authenticate.
     3. No link + JIT enabled -> provision.
     4. Otherwise -> reject.
 
-    Inactivated users are rejected (matching SAML).
+    Inactivated users are rejected (matching SAML). Users assigned to a SAML
+    IdP are rejected (``saml_assigned_user``), as is an email link to a user
+    already linked to this connection under another subject
+    (``oidc_connection_already_linked``). Both log
+    ``oidc_login_refused``.
 
     Args:
         tenant_id: Tenant ID.
@@ -225,7 +239,8 @@ def authenticate_via_oidc(
 
     Raises:
         NotFoundError if no link, no email-link, and JIT disabled.
-        ForbiddenError if the user is inactivated.
+        ForbiddenError if the user is inactivated, assigned to a SAML IdP, or
+        already linked to this connection under another subject.
     """
     connection_id = str(connection["id"])
 
@@ -243,13 +258,19 @@ def authenticate_via_oidc(
                 message="User account is inactivated",
                 code="user_inactivated",
             )
+        _refuse_saml_assigned(tenant_id, user, connection, sub)
         _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
         _sync_groups(tenant_id, str(user["id"]), connection, claims, user)
+        database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
         _log_sign_in(tenant_id, str(user["id"]), connection, sub, claims)
         return user
 
     # 2. Email linking (opt-in, gated on email_verified).
-    if connection.get("allow_email_linking"):
+    # The trust rule is checked here as well as on save: a connection saved
+    # before the rule existed must still not email-link.
+    if connection.get("allow_email_linking") and email_linking_trusted(
+        connection.get("provider_type") or ""
+    ):
         email = _extract_claims(claims, connection.get("claim_mapping") or {}).get("email")
         if email and claims.get("email_verified") is True:
             existing = database.users.get_user_by_email_for_saml(tenant_id, email)
@@ -259,9 +280,16 @@ def authenticate_via_oidc(
                         message="User account is inactivated",
                         code="user_inactivated",
                     )
+                _refuse_saml_assigned(tenant_id, existing, connection, sub)
+                user_id = str(existing["id"])
+                if database.oidc_upstream.get_link_for_user_idp(tenant_id, user_id, connection_id):
+                    _log_refusal(tenant_id, user_id, connection, sub, "already_linked")
+                    raise ForbiddenError(
+                        message="User is already linked to this connection",
+                        code="oidc_connection_already_linked",
+                    )
                 if not existing.get("email_verified"):
                     database.user_emails.verify_email(tenant_id, str(existing["email_id"]))
-                user_id = str(existing["id"])
                 database.oidc_upstream.create_link(
                     tenant_id=tenant_id,
                     tenant_id_value=tenant_id,
@@ -297,6 +325,7 @@ def authenticate_via_oidc(
                 )
                 _apply_oidc_idp_attributes_safe(tenant_id, user_id, connection, claims)
                 _sync_groups(tenant_id, user_id, connection, claims, existing)
+                database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
                 _log_sign_in(tenant_id, user_id, connection, sub, claims)
                 return existing
 
@@ -305,6 +334,7 @@ def authenticate_via_oidc(
         user = jit_provision_user(tenant_id, connection, sub, claims)
         _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
         _sync_groups(tenant_id, str(user["id"]), connection, claims, user)
+        database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
         return user
 
     # 4. Reject.
@@ -312,6 +342,46 @@ def authenticate_via_oidc(
         message="User account not found",
         code="user_not_found",
         details={"sub": sub},
+    )
+
+
+def _refuse_saml_assigned(
+    tenant_id: str,
+    user: dict,
+    connection: dict,
+    sub: str,
+) -> None:
+    """Refuse an OIDC sign-in for a user assigned to a SAML IdP."""
+    if not user.get("saml_idp_id"):
+        return
+    user_id = str(user["id"])
+    _log_refusal(tenant_id, user_id, connection, sub, "saml_assigned_user")
+    raise ForbiddenError(
+        message="User signs in through a SAML identity provider",
+        code="saml_assigned_user",
+    )
+
+
+def _log_refusal(
+    tenant_id: str,
+    user_id: str,
+    connection: dict,
+    sub: str,
+    reason: str,
+) -> None:
+    """Log ``oidc_login_refused`` for a known user turned away by policy."""
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=user_id,
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="oidc_login_refused",
+        metadata={
+            "idp_id": str(connection["id"]),
+            "idp_name": connection["name"],
+            "sub": sub,
+            "reason": reason,
+        },
     )
 
 

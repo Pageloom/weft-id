@@ -179,7 +179,8 @@
                 <div class="flex items-center h-5">
                     <input type="checkbox" id="allow_email_linking" name="allow_email_linking"
                            {% if connection.allow_email_linking %}checked{% endif %}
-                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                           {% if not connection.email_linking_trusted %}disabled{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50">
                 </div>
                 <div class="ml-3">
                     <label for="allow_email_linking" class="text-sm font-medium text-gray-700 dark:text-gray-300">Allow Email Linking</label>
@@ -189,6 +190,11 @@
                         (requires <code>email_verified: true</code>). Leave off unless you trust the
                         IdP to verify emails.
                     </p>
+                    {% if not connection.email_linking_trusted %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="email-linking-unsupported">
+                        Not available for {{ connection.provider_label }}: it does not assert a verified email address.
+                    </p>
+                    {% endif %}
                 </div>
             </div>
 

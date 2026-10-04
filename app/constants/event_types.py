@@ -164,6 +164,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oidc_login_started": "OIDC upstream login initiated",
     "oidc_login_completed": "User signed in via OIDC upstream",
     "oidc_login_failed": "OIDC upstream login attempt failed",
+    "oidc_login_refused": "OIDC upstream sign-in refused by the account-linking policy",
     "oidc_idp_logout_rejected": (
         "Back-channel logout token from an OIDC upstream identity provider rejected"
     ),
@@ -349,6 +350,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oidc_login_started": "security",
     "oidc_login_completed": "security",
     "oidc_login_failed": "security",
+    "oidc_login_refused": "security",
     "oidc_idp_logout_rejected": "security",
     "oidc_group_claim_overage": "operational",
     "oidc_user_jit_provisioned": "security",

@@ -83,49 +83,61 @@ def get_user_id_by_sub(tenant_id: TenantArg, idp_id: str, sub: str) -> str | Non
     return str(row["user_id"]) if row else None
 
 
-def get_link_for_user(tenant_id: TenantArg, user_id: str) -> dict | None:
-    """Return the first OIDC user link for a user, or None.
+def list_links_for_user(tenant_id: TenantArg, user_id: str) -> list[dict]:
+    """Return every OIDC link a user holds, joined to its connection.
 
-    Used by the auth-routing decision point to detect that a user is an OIDC
-    user. A user has at most one OIDC link in practice (one upstream subject),
-    but this returns the first match ordered by created_at for determinism.
+    Ordered most recently used first (never-used links last, then newest
+    created), so the auth-routing decision point can take the first link
+    whose connection is enabled. Rows carry the link columns plus
+    ``connection_name``, ``provider_type`` and ``connection_enabled``.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select l.id, l.tenant_id, l.idp_id, l.sub, l.user_id, l.created_at,
+               l.last_used_at,
+               c.name as connection_name, c.provider_type,
+               c.is_enabled as connection_enabled
+        from oidc_idp_user_links l
+        join oidc_idp_connections c on c.id = l.idp_id
+        where l.user_id = :user_id
+        order by l.last_used_at desc nulls last, l.created_at desc, l.id desc
+        """,
+        {"user_id": user_id},
+    )
+
+
+def get_link_for_user_idp(
+    tenant_id: TenantArg,
+    user_id: str,
+    idp_id: str,
+) -> dict | None:
+    """Return a user's link to one connection, or None.
+
+    UNIQUE (idp_id, user_id) means a user holds at most one link per
+    connection.
     """
     return fetchone(
         tenant_id,
         f"""
         select {_COLUMNS}
         from oidc_idp_user_links
-        where user_id = :user_id
-        order by created_at asc
-        limit 1
+        where user_id = :user_id and idp_id = :idp_id
         """,
-        {"user_id": user_id},
+        {"user_id": user_id, "idp_id": idp_id},
     )
 
 
-def get_links_for_user_idp(
-    tenant_id: TenantArg,
-    user_id: str,
-    idp_id: str,
-) -> list[dict]:
-    """Return all OIDC user links for a (user_id, idp_id) pair, ordered by created_at.
-
-    Unlike ``get_link_for_user`` (which returns only the first link for a user,
-    used by the auth-routing decision point), this returns every link a user
-    holds against a single connection. A user can legitimately accumulate
-    multiple links against one connection (e.g. the email-linking path creates
-    a link without an existing-link check), so the disconnect path must remove
-    all of them, not just the first.
-    """
-    return fetchall(
+def touch_link(tenant_id: TenantArg, idp_id: str, sub: str) -> int:
+    """Set ``last_used_at`` to now on the (idp_id, sub) link. Returns row count."""
+    return execute(
         tenant_id,
-        f"""
-        select {_COLUMNS}
-        from oidc_idp_user_links
-        where user_id = :user_id and idp_id = :idp_id
-        order by created_at asc
+        """
+        update oidc_idp_user_links
+        set last_used_at = now()
+        where idp_id = :idp_id and sub = :sub
         """,
-        {"user_id": user_id, "idp_id": idp_id},
+        {"idp_id": idp_id, "sub": sub},
     )
 
 
@@ -138,17 +150,12 @@ def delete_link(tenant_id: TenantArg, link_id: str) -> int:
     )
 
 
-def delete_links_for_user_idp(
+def delete_link_for_user_idp(
     tenant_id: TenantArg,
     user_id: str,
     idp_id: str,
 ) -> int:
-    """Delete all user links for a (user_id, idp_id) pair. Returns row count.
-
-    Used by the per-user disconnect path, which must remove every link a user
-    holds against a connection (not just the first), since the schema has no
-    uniqueness on ``user_id``.
-    """
+    """Delete a user's link to one connection. Returns the number of rows deleted."""
     return execute(
         tenant_id,
         """

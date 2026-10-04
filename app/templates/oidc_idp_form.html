@@ -208,7 +208,7 @@
                 <div class="flex items-start">
                     <div class="flex items-center h-5">
                         <input type="checkbox" id="allow_email_linking" name="allow_email_linking"
-                               class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                               class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50">
                     </div>
                     <div class="ml-3">
                         <label for="allow_email_linking" class="text-sm font-medium text-gray-700 dark:text-gray-300">Allow Email Linking</label>
@@ -217,6 +217,9 @@
                             When enabled, an unrecognized subject may be attached to an existing
                             account on an email match (requires <code>email_verified: true</code>).
                             Leave off unless you trust the IdP to verify emails.
+                        </p>
+                        <p class="hidden text-xs text-gray-500 dark:text-gray-400 mt-1" id="email-linking-unsupported">
+                            Not available for this provider: it does not assert a verified email address.
                         </p>
                     </div>
                 </div>
@@ -246,6 +249,8 @@
     const entraField = document.getElementById('entra-tenant-field');
     const hostedField = document.getElementById('hosted-domain-field');
     const issuerHint = document.getElementById('issuer-override-hint');
+    const emailLinking = document.getElementById('allow_email_linking');
+    const emailLinkingHint = document.getElementById('email-linking-unsupported');
     const manualSection = document.getElementById('manual-endpoints-section');
     const manualToggle = document.getElementById('manual-endpoints-toggle');
     const manualFields = document.getElementById('manual-endpoints-fields');
@@ -278,6 +283,13 @@
         entraField.classList.toggle('hidden', type !== 'entra');
         issuerHint.classList.toggle('hidden', !preset.issuer_overridable);
         hostedField.classList.toggle('hidden', type !== 'google');
+        // Providers without a trusted verified-email claim never email-link.
+        const linkingTrusted = preset.email_linking_trusted !== false;
+        emailLinking.disabled = !linkingTrusted;
+        if (!linkingTrusted) {
+            emailLinking.checked = false;
+        }
+        emailLinkingHint.classList.toggle('hidden', linkingTrusted);
         // Every preset publishes discovery; manual endpoints only make sense
         // for a generic provider.
         manualSection.classList.toggle('hidden', type !== 'generic');

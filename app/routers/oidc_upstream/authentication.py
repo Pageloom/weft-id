@@ -38,7 +38,7 @@ from routers.auth._login_completion import (
     stash_upstream_oidc_session,
 )
 from services.event_log import SYSTEM_ACTOR_ID, log_event
-from services.exceptions import NotFoundError, RateLimitError
+from services.exceptions import ForbiddenError, NotFoundError, RateLimitError
 from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp
 from utils.ratelimit import MINUTE, ratelimit
@@ -55,6 +55,12 @@ _SESSION_PREFIX = "oidc_auth"
 # session cookie (browsers cap a cookie at about 4 KB, and the session holds
 # more than the stash).
 _MAX_COOKIE_STASHED_ID_TOKEN_LENGTH = 2048
+
+# Account-linking policy refusals (service error code -> login page error).
+_POLICY_REFUSALS = {
+    "saml_assigned_user": "sso_required",
+    "oidc_connection_already_linked": "account_already_linked",
+}
 
 
 def _session_key(connection_id: str, name: str) -> str:
@@ -224,6 +230,14 @@ def oidc_callback(
     except NotFoundError as exc:
         _log_failure(tenant_id, connection_id, connection, "user_not_found", str(exc))
         return _error_response("user_not_found")
+    except ForbiddenError as exc:
+        # Account-linking policy refusals are audited by the service
+        # (oidc_login_refused); everything else is a generic failure.
+        refusal = _POLICY_REFUSALS.get(exc.code)
+        if refusal:
+            return _error_response(refusal)
+        _log_failure(tenant_id, connection_id, connection, "auth_failed", str(exc))
+        return _error_response("auth_failed")
     except Exception as exc:  # noqa: BLE001 - ForbiddenError and others
         _log_failure(tenant_id, connection_id, connection, "auth_failed", str(exc))
         return _error_response("auth_failed")

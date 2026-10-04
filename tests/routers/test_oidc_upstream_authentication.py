@@ -562,6 +562,55 @@ class TestCallbackFailures:
             response = self._callback(tenant_client, conn)
         self._assert_failed(response, test_tenant, conn, "auth_failed")
 
+    def test_saml_assigned_user_refused(
+        self, tenant_client, test_tenant, test_user, test_super_admin_user
+    ):
+        """A linked user who is assigned to SAML is sent back to email-first."""
+        import database
+
+        conn = _make_connection(test_tenant, test_user)
+        database.oidc_upstream.create_link(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            idp_id=str(conn["id"]),
+            sub="subject-123",
+            user_id=str(test_user["id"]),
+        )
+        idp = database.saml.create_identity_provider(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            name="Corp SAML",
+            provider_type="okta",
+            sp_entity_id=f"https://sp.example.com/{uuid4()}",
+            created_by=str(test_super_admin_user["id"]),
+            is_enabled=True,
+        )
+        database.users.update_user_saml_idp(test_tenant["id"], str(test_user["id"]), str(idp["id"]))
+
+        response = self._callback(tenant_client, conn)
+
+        assert response.status_code == 303
+        assert response.headers["location"].endswith("/login?error=sso_required")
+        events = database.event_log.list_events(test_tenant["id"], limit=20)
+        refused = [e for e in events if e["event_type"] == "oidc_login_refused"]
+        assert len(refused) == 1
+        assert refused[0]["metadata"]["reason"] == "saml_assigned_user"
+        # Audited once, as a refusal, not also as a generic failure.
+        assert not any(e["event_type"] == "oidc_login_failed" for e in events)
+
+    def test_already_linked_refused(self, tenant_client, test_tenant, test_user):
+        from services.exceptions import ForbiddenError
+
+        conn = _make_connection(test_tenant, test_user, jit_provisioning=True)
+        with patch(
+            "services.oidc_upstream.authenticate_via_oidc",
+            side_effect=ForbiddenError(
+                message="already linked", code="oidc_connection_already_linked"
+            ),
+        ):
+            response = self._callback(tenant_client, conn)
+        assert response.headers["location"].endswith("/login?error=account_already_linked")
+
     def test_connection_disabled_since_login(self, tenant_client, test_tenant, test_user):
         conn = _make_connection(test_tenant, test_user, is_enabled=False)
         response = self._callback(tenant_client, conn)
@@ -649,3 +698,17 @@ class TestSocialPresetRoutes:
         ):
             response = tenant_client.get(f"/auth/oidc/{conn['id']}/login", follow_redirects=False)
         assert response.headers["location"].endswith("/login?error=configuration_error")
+
+
+class TestRefusalMessages:
+    @pytest.mark.parametrize(
+        ("error", "text"),
+        [
+            ("sso_required", "signs in through your organization's single sign-on"),
+            ("account_already_linked", "already linked to a different account at this provider"),
+        ],
+    )
+    def test_login_page_explains_refusal(self, tenant_client, error, text):
+        response = tenant_client.get(f"/login?error={error}")
+        assert response.status_code == 200
+        assert text in response.text.replace("&#39;", "'")

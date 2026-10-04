@@ -137,6 +137,7 @@ class OIDCConnectionConfig(BaseModel):
     name: str
     provider_type: str
     provider_label: str
+    email_linking_trusted: bool
     issuer: str
     discovery_url: str | None
     authorization_endpoint: str | None
@@ -190,6 +191,25 @@ class OIDCConnectionListResponse(BaseModel):
 
     items: list[OIDCConnectionListItem]
     total: int
+
+
+class OIDCUserLink(BaseModel):
+    """One upstream OIDC identity linked to a user."""
+
+    connection_id: str
+    connection_name: str
+    provider_type: str
+    provider_label: str
+    connection_enabled: bool
+    sub: str
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+class OIDCUserLinkList(BaseModel):
+    """A user's linked OIDC identities, most recently used first."""
+
+    items: list[OIDCUserLink]
 
 
 # ============================================================================

@@ -26,10 +26,12 @@ from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
+from services.oidc_upstream.adapters import callback_url
 from services.oidc_upstream.presets import (
     compose_entra_authority,
     compose_entra_discovery_url,
     get_preset_defaults,
+    provider_display_name,
 )
 from services.types import RequestingUser
 from utils.crypto import derive_fernet_key
@@ -80,6 +82,7 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         id=connection_id,
         name=row["name"],
         provider_type=row["provider_type"],
+        provider_label=provider_display_name(row["provider_type"]),
         issuer=row["issuer"],
         discovery_url=row.get("discovery_url"),
         authorization_endpoint=row.get("authorization_endpoint"),
@@ -104,7 +107,7 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         jit_provisioning=row["jit_provisioning"],
         allow_email_linking=row["allow_email_linking"],
         sign_out_at_idp=row["sign_out_at_idp"],
-        callback_url=f"{base_url}/auth/oidc/{connection_id}/callback",
+        callback_url=callback_url(base_url, connection_id),
         backchannel_logout_url=f"{base_url}/auth/oidc/{connection_id}/backchannel-logout",
         post_logout_redirect_uri=f"{base_url}{POST_LOGOUT_PATH}",
         created_at=row["created_at"],
@@ -118,6 +121,7 @@ def _row_to_list_item(row: dict) -> OIDCConnectionListItem:
         id=str(row["id"]),
         name=row["name"],
         provider_type=row["provider_type"],
+        provider_label=provider_display_name(row["provider_type"]),
         is_enabled=row["is_enabled"],
         is_default=row["is_default"],
         discovery_url=row.get("discovery_url"),
@@ -230,7 +234,8 @@ def _apply_preset_defaults(data: OIDCConnectionCreate) -> OIDCConnectionCreate:
     This makes the service layer the single source of truth.
 
     For Entra, the issuer/discovery URL are composed from ``entra_tenant_id``
-    when the admin did not supply an explicit issuer.
+    when the admin did not supply an explicit issuer. The preset discovery URL
+    is only applied alongside the preset issuer.
     """
     defaults = get_preset_defaults(data.provider_type)
     if not defaults:
@@ -248,7 +253,10 @@ def _apply_preset_defaults(data: OIDCConnectionCreate) -> OIDCConnectionCreate:
     if not data.issuer and defaults.get("issuer"):
         data.issuer = defaults["issuer"]
 
-    if not data.discovery_url and defaults.get("discovery_url"):
+    # The preset discovery URL belongs to the preset issuer. An overridden
+    # issuer (a self-managed GitLab) discovers from its own well-known path.
+    issuer_is_preset = (data.issuer or "").rstrip("/") == (defaults.get("issuer") or "").rstrip("/")
+    if not data.discovery_url and defaults.get("discovery_url") and issuer_is_preset:
         data.discovery_url = defaults["discovery_url"]
 
     # Entra composes its authority from the tenant id when no explicit issuer

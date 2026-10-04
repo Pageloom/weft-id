@@ -22,6 +22,7 @@ _COLUMNS = """
     scopes, claim_mapping, correlation_claim, group_claim_source,
     group_claim_name_key, hosted_domain, entra_tenant_id, is_enabled, is_default,
     require_platform_mfa, jit_provisioning, allow_email_linking, sign_out_at_idp,
+    show_on_login, github_allowed_orgs, apple_team_id, apple_key_id, apple_private_key_enc,
     created_by, created_at, updated_at
 """
 
@@ -200,6 +201,11 @@ def update_connection(
         "jit_provisioning",
         "allow_email_linking",
         "sign_out_at_idp",
+        "show_on_login",
+        "github_allowed_orgs",
+        "apple_team_id",
+        "apple_key_id",
+        "apple_private_key_enc",
     }
 
     # Fields that can be explicitly set to NULL (cleared).
@@ -219,6 +225,10 @@ def update_connection(
         "group_claim_name_key",
         "hosted_domain",
         "entra_tenant_id",
+        "github_allowed_orgs",
+        "apple_team_id",
+        "apple_key_id",
+        "apple_private_key_enc",
     }
 
     set_clauses = []

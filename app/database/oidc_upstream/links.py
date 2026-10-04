@@ -11,7 +11,7 @@ helpers.
 
 from database._core import TenantArg, execute, fetchall, fetchone
 
-_COLUMNS = "id, tenant_id, idp_id, sub, user_id, created_at"
+_COLUMNS = "id, tenant_id, idp_id, sub, user_id, created_at, last_used_at"
 
 
 def create_link(

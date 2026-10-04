@@ -66,6 +66,9 @@ nav:
       - OIDC Setup: admin-guide/identity-providers/oidc-setup.md
       - OIDC (Google Workspace): admin-guide/identity-providers/oidc-google.md
       - OIDC (Microsoft Entra ID): admin-guide/identity-providers/oidc-entra.md
+      - OIDC (Microsoft personal accounts): admin-guide/identity-providers/oidc-microsoft.md
+      - OIDC (LinkedIn): admin-guide/identity-providers/oidc-linkedin.md
+      - OIDC (GitLab): admin-guide/identity-providers/oidc-gitlab.md
       - Inbound SCIM Overview: admin-guide/identity-providers/inbound-scim.md
       - Inbound SCIM (Okta): admin-guide/identity-providers/inbound-scim-okta.md
       - Inbound SCIM (Entra): admin-guide/identity-providers/inbound-scim-entra.md

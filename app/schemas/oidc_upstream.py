@@ -12,7 +12,10 @@ from typing import Annotated
 from constants.user_attributes import ATTRIBUTE_KEYS
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-PROVIDER_TYPES = ("generic", "google", "entra")
+# The provider types an admin can create. The database accepts more (the
+# adapter-backed social providers), which are added here as they ship.
+PROVIDER_TYPES = ("generic", "google", "entra", "microsoft", "linkedin", "gitlab")
+_PROVIDER_TYPE_PATTERN = f"^({'|'.join(PROVIDER_TYPES)})$"
 
 DEFAULT_CLAIM_MAPPING = {
     "email": "email",
@@ -46,7 +49,7 @@ class OIDCConnectionCreate(BaseModel):
     """Request schema for creating an OIDC connection."""
 
     name: str = Field(..., min_length=1, max_length=120)
-    provider_type: str = Field(..., max_length=50, pattern="^(generic|google|entra)$")
+    provider_type: str = Field(..., max_length=50, pattern=_PROVIDER_TYPE_PATTERN)
     # issuer is optional at the schema level: the service layer composes it
     # from the preset (Google) or from ``entra_tenant_id`` (Entra) when the
     # caller does not supply one. Generic still requires an explicit issuer,
@@ -133,6 +136,7 @@ class OIDCConnectionConfig(BaseModel):
     id: str
     name: str
     provider_type: str
+    provider_label: str
     issuer: str
     discovery_url: str | None
     authorization_endpoint: str | None
@@ -172,6 +176,7 @@ class OIDCConnectionListItem(BaseModel):
     id: str
     name: str
     provider_type: str
+    provider_label: str
     is_enabled: bool
     is_default: bool
     discovery_url: str | None

@@ -6,13 +6,17 @@ The relying-party authorization-code flow with PKCE:
   a PKCE ``code_verifier`` (S256 challenge), stores all three in the session
   (namespaced per connection), builds the authorize URL, and redirects
   off-origin to the IdP.
-- ``GET /auth/oidc/{connection_id}/callback`` validates ``state``, exchanges
-  the code, validates the ID token, correlates the user, and completes login.
+- ``GET /auth/oidc/{connection_id}/callback`` validates ``state``, has the
+  provider adapter exchange the code and return the user's identity,
+  correlates the user, and completes login.
   The session's state/nonce/verifier are cleared on first use so a replayed
   callback fails.
 
 Security (cross-cutting requirements):
 
+- **Providers**: everything provider-specific (authorize URL, code exchange,
+  identity) lives in a provider adapter (``services.oidc_upstream.adapters``).
+  These routes never branch on the provider type.
 - **SSRF**: the token exchange, userinfo, and JWKS fetches all go through
   ``build_safe_client()`` (in the service helpers), never bare ``httpx``.
 - **Platform MFA**: when the connection has ``require_platform_mfa``, the
@@ -97,39 +101,31 @@ def oidc_login(
     if not connection.get("is_enabled"):
         return _error_response("idp_disabled")
 
-    # Pick up endpoint changes the IdP published since the last discovery
-    # (TTL-gated). A document WeftID now refuses stops the sign-in here,
-    # before the user is sent anywhere.
+    adapter = oidc_service.get_adapter(connection.get("provider_type"))
+
+    # Pick up provider configuration changes (for spec OIDC, endpoints the
+    # IdP published since the last discovery, TTL-gated). A document WeftID
+    # now refuses stops the sign-in here, before the user is sent anywhere.
     try:
-        connection = oidc_service.refresh_for_login(tenant_id, connection)
+        connection = adapter.prepare(tenant_id, connection)
     except oidc_service.DiscoveryError as exc:
         _log_failure(tenant_id, connection_id, connection, "discovery", str(exc))
         return _error_response("configuration_error")
-
-    authorization_endpoint = connection.get("authorization_endpoint")
-    client_id = connection.get("client_id")
-    if not authorization_endpoint or not client_id:
-        return _error_response("configuration_error")
-
-    # Build the callback URL on the tenant host.
-    callback_url = _callback_url(request, connection_id)
 
     state = oidc_service.generate_state()
     nonce = oidc_service.generate_nonce()
     code_verifier, code_challenge = oidc_service.generate_pkce_pair()
 
-    scopes = connection.get("scopes") or "openid profile email"
-
-    authorize_url = oidc_service.build_authorize_url(
-        authorization_endpoint=authorization_endpoint,
-        client_id=client_id,
-        redirect_uri=callback_url,
-        state=state,
-        nonce=nonce,
-        code_challenge=code_challenge,
-        scopes=scopes,
-        hosted_domain=connection.get("hosted_domain"),
-    )
+    try:
+        authorize_url = adapter.authorize_url(
+            connection,
+            redirect_uri=_callback_url(request, connection_id),
+            state=state,
+            nonce=nonce,
+            code_challenge=code_challenge,
+        )
+    except oidc_service.ProviderLoginError as exc:
+        return _error_response(exc.public_error)
 
     request.session[_session_key(connection_id, "state")] = state
     request.session[_session_key(connection_id, "nonce")] = nonce
@@ -156,8 +152,9 @@ def oidc_callback(
 ):
     """Handle the OIDC authorization-code callback.
 
-    Validates ``state``, exchanges the code, validates the ID token, correlates
-    the user, and completes login (or routes to ``/mfa/verify``).
+    Validates ``state``, has the provider adapter exchange the code for the
+    user's identity, correlates the user, and completes login (or routes to
+    ``/mfa/verify``).
     """
     client_ip = extract_remote_address(request) or "unknown"
     try:
@@ -203,93 +200,26 @@ def oidc_callback(
         _log_failure(tenant_id, connection_id, connection, "missing_verifier", None)
         return _error_response("auth_failed")
 
-    token_endpoint = connection.get("token_endpoint")
-    client_id = connection.get("client_id")
-    client_secret_enc = connection.get("client_secret_enc")
-    if not token_endpoint or not client_id or not client_secret_enc:
-        _log_failure(tenant_id, connection_id, connection, "configuration_error", None)
-        return _error_response("configuration_error")
-
-    callback_url = _callback_url(request, connection_id)
-
+    adapter = oidc_service.get_adapter(connection.get("provider_type"))
     try:
-        client_secret = oidc_service.decrypt_client_secret(client_secret_enc)
-        token_response = oidc_service.exchange_code(
-            token_endpoint=token_endpoint,
-            client_id=client_id,
-            client_secret=client_secret,
+        identity = adapter.complete(
+            tenant_id,
+            connection,
             code=code,
-            redirect_uri=callback_url,
+            redirect_uri=_callback_url(request, connection_id),
             code_verifier=code_verifier,
-        )
-    except oidc_service.TokenExchangeError as exc:
-        _log_failure(tenant_id, connection_id, connection, "token_exchange", str(exc))
-        return _error_response("auth_failed")
-
-    id_token = token_response.get("id_token")
-    if not id_token:
-        _log_failure(tenant_id, connection_id, connection, "missing_id_token", None)
-        return _error_response("auth_failed")
-
-    jwks_uri = connection.get("jwks_uri")
-    issuer = connection.get("issuer")
-    if not jwks_uri or not issuer:
-        _log_failure(tenant_id, connection_id, connection, "configuration_error", None)
-        return _error_response("configuration_error")
-
-    try:
-        claims = oidc_service.validate_id_token(
-            token=id_token,
-            tenant_id=tenant_id,
-            connection_id=connection_id,
-            issuer=issuer,
-            client_id=client_id,
-            jwks_uri=jwks_uri,
             nonce=expected_nonce,
         )
-    except oidc_service.IDTokenValidationError as exc:
-        _log_failure(tenant_id, connection_id, connection, "id_token", str(exc))
-        return _error_response("auth_failed")
-
-    # The upstream session this sign-in belongs to, read from the verified ID
-    # token itself (userinfo cannot speak for the session). Linked to the new
-    # WeftID session at login completion, so the IdP's back-channel logout can
-    # end it.
-    upstream_sub = claims.get("sub")
-    upstream_sid = claims.get("sid") if isinstance(claims.get("sid"), str) else None
-
-    # Optionally merge userinfo claims (email may live there for some IdPs).
-    userinfo_endpoint = connection.get("userinfo_endpoint")
-    access_token = token_response.get("access_token")
-    if userinfo_endpoint and access_token:
-        try:
-            userinfo = oidc_service.fetch_userinfo(
-                userinfo_endpoint=userinfo_endpoint,
-                access_token=access_token,
-                expected_sub=claims["sub"],
-            )
-            claims = {**userinfo, **claims}
-        except oidc_service.UserinfoError:
-            # Userinfo is optional; a failure here must not break login.
-            pass
-        except oidc_service.UserinfoSubjectMismatchError as exc:
-            # A response about another subject is not optional data to skip:
-            # the IdP (or something in between) is confused or lying.
-            _log_failure(tenant_id, connection_id, connection, "userinfo_sub_mismatch", str(exc))
-            return _error_response("auth_failed")
-
-    correlation_claim = connection.get("correlation_claim") or "sub"
-    sub = claims.get(correlation_claim)
-    if not sub or not isinstance(sub, str):
-        _log_failure(tenant_id, connection_id, connection, "missing_sub", None)
-        return _error_response("auth_failed")
+    except oidc_service.ProviderLoginError as exc:
+        _log_failure(tenant_id, connection_id, connection, exc.reason, exc.detail)
+        return _error_response(exc.public_error)
 
     try:
         user = oidc_service.authenticate_via_oidc(
             tenant_id=tenant_id,
             connection=connection,
-            sub=sub,
-            claims=claims,
+            sub=identity.subject,
+            claims=identity.claims,
         )
     except NotFoundError as exc:
         _log_failure(tenant_id, connection_id, connection, "user_not_found", str(exc))
@@ -301,7 +231,8 @@ def oidc_callback(
     user_id = str(user["id"])
     requires_mfa = oidc_service.oidc_connection_requires_platform_mfa(tenant_id, connection_id)
 
-    if isinstance(upstream_sub, str) and upstream_sub:
+    id_token = identity.id_token
+    if identity.upstream_sub:
         # Across the MFA detour the stash rides in the session cookie, so a
         # large ID token is left out there (logout then goes without
         # id_token_hint). Without MFA, login completes in this request.
@@ -309,10 +240,11 @@ def oidc_callback(
             request.session,
             connection_id=connection_id,
             user_id=user_id,
-            upstream_sub=upstream_sub,
-            upstream_sid=upstream_sid,
+            upstream_sub=identity.upstream_sub,
+            upstream_sid=identity.upstream_sid,
             id_token=id_token
-            if not requires_mfa or len(id_token) <= _MAX_COOKIE_STASHED_ID_TOKEN_LENGTH
+            if id_token
+            and (not requires_mfa or len(id_token) <= _MAX_COOKIE_STASHED_ID_TOKEN_LENGTH)
             else None,
         )
 
@@ -358,7 +290,7 @@ def _callback_url(request: Request, connection_id: str) -> str:
     """Build the callback URL on the tenant host (always HTTPS)."""
     from utils.urls import tenant_base_url
 
-    return f"{tenant_base_url(request)}/auth/oidc/{connection_id}/callback"
+    return oidc_service.callback_url(tenant_base_url(request), connection_id)
 
 
 def _log_failure(

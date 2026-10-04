@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import has_page_access
 from pydantic import ValidationError as PydanticValidationError
-from schemas.oidc_upstream import OIDCConnectionCreate, OIDCConnectionUpdate
+from schemas.oidc_upstream import PROVIDER_TYPES, OIDCConnectionCreate, OIDCConnectionUpdate
 from services import oidc_upstream as oidc_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.redirects import safe_redirect
@@ -57,7 +57,7 @@ def _preset_defaults() -> dict[str, dict]:
     """Return the preset defaults for the form's vendor picker."""
     return {
         provider_type: oidc_service.get_preset_defaults(provider_type)
-        for provider_type in ("generic", "google", "entra")
+        for provider_type in PROVIDER_TYPES
     }
 
 

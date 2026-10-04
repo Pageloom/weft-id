@@ -33,13 +33,25 @@ _ENTRA_SCOPES = "openid profile email User.Read"
 # preset; "common"/"organizations"/"consumers" are also valid tenant ids.
 _ENTRA_AUTHORITY_TEMPLATE = "https://login.microsoftonline.com/{tenant_id}/v2.0"
 
+# The issuer Microsoft publishes for the ``consumers`` authority: the fixed id
+# of the tenant that holds all personal Microsoft accounts.
+_MICROSOFT_CONSUMERS_ISSUER = (
+    "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"
+)
+
+# How the client authenticates at the token endpoint (RFC 6749 2.3.1).
+TOKEN_AUTH_BASIC = "client_secret_basic"
+TOKEN_AUTH_POST = "client_secret_post"
+
 
 @dataclass(frozen=True)
 class OIDCPreset:
     """Defaults for a provider preset.
 
     Attributes:
-        provider_type: One of ``generic``, ``google``, ``entra``.
+        provider_type: The ``provider_type`` value stored on the connection.
+        display_name: The provider's name as shown to admins (and, later, on
+            the login page button).
         issuer: The issuer/authority URL, or None when the admin must supply
             one (generic) or when it is composed from another field (entra).
         discovery_url: The discovery document URL, or None when the admin
@@ -50,19 +62,29 @@ class OIDCPreset:
             ``oid``).
         requires_entra_tenant_id: Whether the preset needs an
             ``entra_tenant_id`` to compose its authority.
+        token_auth_method: How the client secret is sent to the token
+            endpoint: ``client_secret_basic`` (HTTP Basic, the default) or
+            ``client_secret_post`` (form body).
+        issuer_overridable: Whether an admin may replace the preset issuer
+            with their own (a self-managed GitLab). The discovery URL then
+            follows the issuer instead of the preset.
     """
 
     provider_type: str
+    display_name: str
     issuer: str | None
     discovery_url: str | None
     scopes: str
     correlation_claim: str
     requires_entra_tenant_id: bool = False
+    token_auth_method: str = TOKEN_AUTH_BASIC
+    issuer_overridable: bool = False
 
 
 _PRESETS: dict[str, OIDCPreset] = {
     "generic": OIDCPreset(
         provider_type="generic",
+        display_name="Generic OIDC",
         issuer=None,
         discovery_url=None,
         scopes=_DEFAULT_SCOPES,
@@ -70,6 +92,7 @@ _PRESETS: dict[str, OIDCPreset] = {
     ),
     "google": OIDCPreset(
         provider_type="google",
+        display_name="Google",
         issuer="https://accounts.google.com",
         discovery_url="https://accounts.google.com/.well-known/openid-configuration",
         scopes=_DEFAULT_SCOPES,
@@ -77,11 +100,40 @@ _PRESETS: dict[str, OIDCPreset] = {
     ),
     "entra": OIDCPreset(
         provider_type="entra",
+        display_name="Entra ID",
         issuer=None,
         discovery_url=None,
         scopes=_ENTRA_SCOPES,
         correlation_claim="oid",
         requires_entra_tenant_id=True,
+    ),
+    "microsoft": OIDCPreset(
+        provider_type="microsoft",
+        display_name="Microsoft (personal accounts)",
+        issuer=_MICROSOFT_CONSUMERS_ISSUER,
+        discovery_url=(
+            "https://login.microsoftonline.com/consumers/v2.0/.well-known/openid-configuration"
+        ),
+        scopes=_DEFAULT_SCOPES,
+        correlation_claim="sub",
+    ),
+    "linkedin": OIDCPreset(
+        provider_type="linkedin",
+        display_name="LinkedIn",
+        issuer="https://www.linkedin.com/oauth",
+        discovery_url="https://www.linkedin.com/oauth/.well-known/openid-configuration",
+        scopes=_DEFAULT_SCOPES,
+        correlation_claim="sub",
+        token_auth_method=TOKEN_AUTH_POST,
+    ),
+    "gitlab": OIDCPreset(
+        provider_type="gitlab",
+        display_name="GitLab",
+        issuer="https://gitlab.com",
+        discovery_url="https://gitlab.com/.well-known/openid-configuration",
+        scopes=_DEFAULT_SCOPES,
+        correlation_claim="sub",
+        issuer_overridable=True,
     ),
 }
 
@@ -102,12 +154,30 @@ def get_preset_defaults(provider_type: str) -> dict:
         return {}
     return {
         "provider_type": preset.provider_type,
+        "display_name": preset.display_name,
         "issuer": preset.issuer,
         "discovery_url": preset.discovery_url,
         "scopes": preset.scopes,
         "correlation_claim": preset.correlation_claim,
         "requires_entra_tenant_id": preset.requires_entra_tenant_id,
+        "issuer_overridable": preset.issuer_overridable,
     }
+
+
+def provider_display_name(provider_type: str) -> str:
+    """Return the admin-facing name for a provider type.
+
+    Falls back to the raw value for a type with no preset, so a row written
+    by a newer release still renders.
+    """
+    preset = get_preset(provider_type)
+    return preset.display_name if preset else provider_type
+
+
+def token_auth_method(provider_type: str) -> str:
+    """Return how a provider type sends the client secret to the token endpoint."""
+    preset = get_preset(provider_type)
+    return preset.token_auth_method if preset else TOKEN_AUTH_BASIC
 
 
 def compose_entra_authority(entra_tenant_id: str) -> str:

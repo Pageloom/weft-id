@@ -63,9 +63,7 @@
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Provider Type</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
-                {% if connection.provider_type == 'google' %}Google
-                {% elif connection.provider_type == 'entra' %}Entra ID
-                {% else %}Generic OIDC{% endif %}
+                {{ connection.provider_label }}
             </dd>
         </div>
         <div>

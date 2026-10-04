@@ -108,7 +108,8 @@ class TestRegistry:
             ("linkedin", "LinkedIn"),
             ("discord", "Discord"),
             ("facebook", "Facebook"),
-            ("apple", "apple"),
+            ("apple", "Apple"),
+            ("nonexistent", "nonexistent"),
         ],
     )
     def test_provider_display_name(self, provider_type, label):

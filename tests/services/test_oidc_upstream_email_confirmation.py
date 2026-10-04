@@ -72,8 +72,9 @@ class TestRequiresConfirmedEmail:
             ("github", False),
             ("discord", False),
             ("generic", False),
+            ("apple", False),
             # No preset: fails closed, like email linking.
-            ("apple", True),
+            ("nonexistent", True),
             (None, True),
         ],
     )

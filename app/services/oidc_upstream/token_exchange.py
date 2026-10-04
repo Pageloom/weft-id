@@ -55,7 +55,7 @@ def exchange_code(
     client_secret: str,
     code: str,
     redirect_uri: str,
-    code_verifier: str,
+    code_verifier: str | None,
     auth_method: str = "client_secret_basic",
 ) -> dict:
     """Exchange an authorization code for tokens at the IdP's token endpoint.
@@ -70,7 +70,8 @@ def exchange_code(
         client_secret: The connection's decrypted client secret.
         code: The authorization code from the callback.
         redirect_uri: The callback URL (must match the authorize request).
-        code_verifier: The PKCE code verifier from the login flow.
+        code_verifier: The PKCE code verifier from the login flow, or None
+            for a provider that is not sent PKCE (Apple).
         auth_method: ``client_secret_basic`` or ``client_secret_post``.
 
     Returns:
@@ -83,8 +84,9 @@ def exchange_code(
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": redirect_uri,
-        "code_verifier": code_verifier,
     }
+    if code_verifier is not None:
+        data["code_verifier"] = code_verifier
     auth: tuple[str, str] | None = (client_id, client_secret)
     if auth_method == "client_secret_post":
         data["client_id"] = client_id

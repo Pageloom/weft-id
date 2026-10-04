@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "apple-fixture-key",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "tB5qmw-Y2ivi4CAWZUe1L5g3mHOq8zX-l0osm9nm-NhGLNjvgenpc_cOmNEFxbkW8Cr8VBJxhrPc3FB_uCCRYwlZlTpgvxFCKBq0YLN8rvME5_tCG3nGUCHAvCO1BYNOzCg4qJxW7V0T3fWeAGv5PzMZYklkM8jfni_dheAVdmA8kOllhAD2Q4OkIEQioRi0qEGJM5R2L5nghzt3FgY3IhlIB5f6ESdxSero8j61x_ECZzd1oA8Q-RCOh6hnfL1rz2YCIrQ2SKobowG1swFCNjZZJmtrNgNA9x1Go7TOUTvEqOgM12Kg51xX6Nyluu4Yk62HWsyNA9RyHEK37MJGWw",
+      "e": "AQAB"
+    }
+  ]
+}

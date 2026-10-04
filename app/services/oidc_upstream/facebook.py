@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from collections.abc import Mapping
 from typing import Any
 
 from services.oidc_upstream._oauth2 import (
@@ -139,6 +140,7 @@ class FacebookAdapter:
         redirect_uri: str,
         code_verifier: str,
         nonce: str | None,
+        callback_fields: Mapping[str, str] | None = None,
     ) -> UpstreamIdentity:
         # The app secret also signs the Graph call (appsecret_proof).
         credentials = resolve_client_credentials(connection)

@@ -72,6 +72,7 @@ nav:
       - GitHub: admin-guide/identity-providers/oidc-github.md
       - Discord: admin-guide/identity-providers/oidc-discord.md
       - Facebook: admin-guide/identity-providers/oidc-facebook.md
+      - Apple: admin-guide/identity-providers/oidc-apple.md
       - Sign-In Page Buttons: admin-guide/identity-providers/login-buttons.md
       - Account Linking: admin-guide/identity-providers/account-linking.md
       - Inbound SCIM Overview: admin-guide/identity-providers/inbound-scim.md

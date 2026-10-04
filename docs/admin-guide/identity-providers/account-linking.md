@@ -32,7 +32,7 @@ Email linking trusts the provider's statement that the user controls the email a
 
 For these providers the **Allow email linking** setting is unavailable in the admin UI, and the API rejects it. Users of these providers get a new account through JIT provisioning, or are refused. A new account must also [confirm its email address](#confirming-an-unverified-email-address) before its first sign-in completes.
 
-Every other provider links only when its token says `email_verified: true`. GitHub and Discord have no tokens of that kind: WeftID treats the account's email address as verified only when GitHub (for the primary address) or Discord reports it verified. See [Allow email linking](oidc-setup.md#allow-email-linking) for the security trade-off before turning it on.
+Every other provider links only when its token says `email_verified: true`. GitHub and Discord have no tokens of that kind: WeftID treats the account's email address as verified only when GitHub (for the primary address) or Discord reports it verified. Apple sends `email_verified` as the text `"true"`, which WeftID accepts; Apple private relay addresses are verified addresses too (see [Apple](oidc-apple.md#private-relay-email-addresses)). See [Allow email linking](oidc-setup.md#allow-email-linking) for the security trade-off before turning it on.
 
 ## Confirming an unverified email address
 

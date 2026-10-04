@@ -20,6 +20,7 @@ later: client credentials are resolved only through
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -128,8 +129,13 @@ class ProviderAdapter(Protocol):
         redirect_uri: str,
         code_verifier: str,
         nonce: str | None,
+        callback_fields: Mapping[str, str] | None = None,
     ) -> UpstreamIdentity:
         """Exchange the code and return the user's normalized identity.
+
+        ``callback_fields`` are the other fields the provider posted to the
+        callback (``form_post``), such as Apple's one-time ``user``; None for
+        a plain GET callback.
 
         Raises:
             ProviderLoginError: any step failed; carries the audit reason.
@@ -160,10 +166,16 @@ def resolve_client_credentials(connection: dict) -> ClientCredentials | None:
     """Return the credentials a connection presents to its provider.
 
     The single place credentials are read: today they are the connection's
-    own client id and decrypted secret. Returns None when the connection has
-    no client id or secret.
+    own client id and decrypted secret, or for Apple a client secret JWT
+    signed with the connection's private key. Returns None when the
+    connection has no client id or secret (for Apple: no usable key).
     """
     from services.oidc_upstream.connections import decrypt_client_secret
+
+    if connection.get("provider_type") == "apple":
+        from services.oidc_upstream.apple import apple_client_credentials
+
+        return apple_client_credentials(connection)
 
     client_id = connection.get("client_id")
     client_secret_enc = connection.get("client_secret_enc")
@@ -220,8 +232,9 @@ class SpecOIDCAdapter:
         *,
         code: str,
         redirect_uri: str,
-        code_verifier: str,
+        code_verifier: str | None,
         nonce: str | None,
+        callback_fields: Mapping[str, str] | None = None,
     ) -> UpstreamIdentity:
         # The helpers are looked up on the package at call time so a test
         # patch on ``services.oidc_upstream.<name>`` reaches them.
@@ -330,11 +343,13 @@ _SPEC_OIDC = SpecOIDCAdapter()
 
 def _adapters() -> dict[str, ProviderAdapter]:
     """Provider types with their own adapter. Every other type is spec OIDC."""
+    from services.oidc_upstream.apple import AppleAdapter
     from services.oidc_upstream.discord import DiscordAdapter
     from services.oidc_upstream.facebook import FacebookAdapter
     from services.oidc_upstream.github import GitHubAdapter
 
     return {
+        "apple": AppleAdapter(),
         "github": GitHubAdapter(),
         "discord": DiscordAdapter(),
         "facebook": FacebookAdapter(),

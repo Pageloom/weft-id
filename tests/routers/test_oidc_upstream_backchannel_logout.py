@@ -24,6 +24,7 @@ from starlette.requests import Request
 from utils.session import SESSION_ID_KEY
 
 from tests.fixtures.oidc import load_fixture, load_fixture_text
+from tests.fixtures.oidc_login import login_session
 
 JWKS_DOC = load_fixture("jwks")
 PRIVATE_KEY_PEM = load_fixture_text("private_key.pem")
@@ -128,13 +129,7 @@ def _id_token(**extra) -> str:
 
 
 def _sign_in_upstream(http, session_data, connection, id_token):
-    session_data.update(
-        {
-            f"oidc_auth:{connection['id']}:state": "state-1",
-            f"oidc_auth:{connection['id']}:nonce": "n-1",
-            f"oidc_auth:{connection['id']}:code_verifier": "verifier-1",
-        }
-    )
+    session_data.update(login_session(connection))
     with patch(
         "services.oidc_upstream.exchange_code",
         return_value={"access_token": "at", "id_token": id_token},

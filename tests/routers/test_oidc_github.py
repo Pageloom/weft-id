@@ -15,6 +15,7 @@ import pytest
 from main import app
 
 from tests.fixtures.github import github_api
+from tests.fixtures.oidc_login import login_session
 from tests.helpers.client import TestClient
 
 
@@ -141,12 +142,7 @@ class TestSignIn:
         )
 
     def _callback(self, tenant_client, conn, overrides=None):
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-            f"oidc_auth:{conn['id']}:entry": "login_button",
-        }
+        session = login_session(conn, entry="login_button")
         with (
             patch(
                 "starlette.requests.Request.session",

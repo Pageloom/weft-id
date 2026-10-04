@@ -76,6 +76,39 @@
 </div>
 {% endif %}
 
+{% if connection.provider_type == 'apple' %}
+{# Apple signs its client secret with the admin's key #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <div class="flex items-start justify-between">
+        <div class="min-w-0 flex-1">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Sign in with Apple Key</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Apple has no client secret to copy. WeftID signs one for each sign-in with the private key you created in your Apple developer account.
+            </p>
+            <dl id="apple-key-settings" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Team ID</dt>
+                    <dd class="mt-1 text-sm text-gray-{% if connection.apple_team_id %}900 dark:text-gray-100 font-mono{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.apple_team_id or 'Not configured' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Key ID</dt>
+                    <dd class="mt-1 text-sm text-gray-{% if connection.apple_key_id %}900 dark:text-gray-100 font-mono{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.apple_key_id or 'Not configured' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Private Key</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{% if connection.apple_private_key_set %}Configured{% else %}Not configured{% endif %}</dd>
+                </div>
+            </dl>
+        </div>
+        <button type="button" id="edit-apple-key-btn"
+                class="ml-2 mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                title="Edit Apple key">
+            {{ icon("pencil", class="w-4 h-4") }}
+        </button>
+    </div>
+</div>
+{% endif %}
+
 {# Connection Configuration #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <dl class="grid grid-cols-1 gap-4">
@@ -136,12 +169,14 @@
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client ID</dt>
             <dd class="mt-1 text-sm text-gray-{% if connection.client_id %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.client_id or 'Not configured' }}</dd>
         </div>
+        {% if connection.provider_type != 'apple' %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client Secret</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
                 {% if connection.client_secret_set %}Configured{% else %}Not configured{% endif %}
             </dd>
         </div>
+        {% endif %}
         {% if connection.uses_discovery %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Correlation Claim</dt>
@@ -194,6 +229,15 @@
                 <div class="ml-3">
                     <label for="show_on_login" class="text-sm font-medium text-gray-700 dark:text-gray-300">Show on Sign-In Page</label>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Add a "Continue with ..." button for this provider to the sign-in page while it is enabled.</p>
+                    {% if not connection.email_linking_trusted %}
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-1" id="login-email-code">
+                        New users must enter a code sent to their email address before their first sign-in completes, because {{ connection.provider_label }} does not verify email addresses.
+                    </p>
+                    {% elif connection.provider_type != 'generic' %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="login-email-verified">
+                        New users sign in without an extra step: {{ connection.provider_label }} only shares email addresses it has verified.
+                    </p>
+                    {% endif %}
                     {% if connection.show_on_login and not connection.is_enabled %}
                     <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
                         {{ icon("exclamation-triangle", class="w-3 h-3 inline-block mr-1 -mt-0.5") }}
@@ -288,7 +332,9 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Connection Testing</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        {% if connection.uses_discovery %}
+        {% if connection.provider_type == 'apple' %}
+        Fetch Apple's discovery document and signing keys, then check the Services ID, team ID, key ID and private key with Apple.
+        {% elif connection.uses_discovery %}
         Fetch the IdP's discovery document, validate the issuer and endpoints, and fetch the signing keys they point to.
         {% elif connection.provider_type == 'github' %}
         Check the client ID, client secret and callback URL with {{ connection.provider_label }}.
@@ -299,7 +345,7 @@
 
     {% if test == 'success' %}
     <div class="mb-4 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-        <p class="text-sm text-green-800 dark:text-green-300">{% if connection.uses_discovery %}Discovery and signing keys fetched. Endpoints updated.{% else %}{{ connection.provider_label }} accepted the client credentials.{% endif %}</p>
+        <p class="text-sm text-green-800 dark:text-green-300">{% if connection.provider_type == 'apple' %}Discovery and signing keys fetched. Apple accepted the client secret signed with your key.{% elif connection.uses_discovery %}Discovery and signing keys fetched. Endpoints updated.{% else %}{{ connection.provider_label }} accepted the client credentials.{% endif %}</p>
     </div>
     {% elif test == 'error' %}
     <div class="mb-4 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
@@ -359,6 +405,49 @@
             </div>
             <div class="flex justify-end space-x-3">
                 <button type="button" id="cancel-orgs-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{# Edit Apple Key Modal (Apple only) #}
+{% if connection.provider_type == 'apple' %}
+<div id="edit-apple-key-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Sign in with Apple Key</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            Leave a field blank to keep its current value. The private key is never displayed again.
+        </p>
+        <form method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-apple-key">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label for="edit-apple-team-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Team ID</label>
+                <input type="text" id="edit-apple-team-id" name="apple_team_id" maxlength="10" autocomplete="off"
+                       value="{{ connection.apple_team_id or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label for="edit-apple-key-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Key ID</label>
+                <input type="text" id="edit-apple-key-id" name="apple_key_id" maxlength="10" autocomplete="off"
+                       value="{{ connection.apple_key_id or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label for="edit-apple-private-key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Private Key (.p8)</label>
+                <textarea id="edit-apple-private-key" name="apple_private_key" rows="5" autocomplete="off"
+                          placeholder="{% if connection.apple_private_key_set %}Configured. Paste a new key to replace it.{% else %}-----BEGIN PRIVATE KEY-----{% endif %}"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"></textarea>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-apple-key-btn"
                         class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                     Cancel
                 </button>
@@ -445,6 +534,8 @@
     document.getElementById('cancel-endpoints-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-endpoints-modal'); });
     document.getElementById('edit-orgs-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-orgs-modal'); });
     document.getElementById('cancel-orgs-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-orgs-modal'); });
+    document.getElementById('edit-apple-key-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-apple-key-modal'); });
+    document.getElementById('cancel-apple-key-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-apple-key-modal'); });
 })();
 </script>
 {% endblock %}

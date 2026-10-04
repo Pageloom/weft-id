@@ -19,6 +19,7 @@ from tests.fixtures.discord import TOKEN_PATH as DISCORD_TOKEN_PATH
 from tests.fixtures.discord import USERS_ME_PATH, discord_api
 from tests.fixtures.facebook import ME_PATH, facebook_api
 from tests.fixtures.facebook import TOKEN_PATH as FACEBOOK_TOKEN_PATH
+from tests.fixtures.oidc_login import login_session
 from tests.helpers.client import TestClient
 
 PROVIDERS = {
@@ -118,12 +119,7 @@ def _last_event(tenant_id, event_type):
 
 
 def _callback(tenant_client, conn, overrides=None):
-    session = {
-        f"oidc_auth:{conn['id']}:state": "state-1",
-        f"oidc_auth:{conn['id']}:nonce": "n-1",
-        f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        f"oidc_auth:{conn['id']}:entry": "login_button",
-    }
+    session = login_session(conn, entry="login_button")
     api = PROVIDERS[conn["provider_type"]]["api"]
     with (
         patch(

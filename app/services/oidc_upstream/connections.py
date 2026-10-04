@@ -28,6 +28,7 @@ from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
 from services.oidc_upstream.adapters import ProviderCheckError, callback_url, get_adapter
+from services.oidc_upstream.apple import ApplePrivateKeyError, load_apple_private_key
 from services.oidc_upstream.presets import (
     compose_entra_authority,
     compose_entra_discovery_url,
@@ -116,6 +117,9 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         sign_out_at_idp=row["sign_out_at_idp"],
         show_on_login=row["show_on_login"],
         github_allowed_orgs=list(row.get("github_allowed_orgs") or []),
+        apple_team_id=row.get("apple_team_id"),
+        apple_key_id=row.get("apple_key_id"),
+        apple_private_key_set=bool(row.get("apple_private_key_enc")),
         callback_url=callback_url(base_url, connection_id),
         backchannel_logout_url=f"{base_url}/auth/oidc/{connection_id}/backchannel-logout",
         post_logout_redirect_uri=f"{base_url}{POST_LOGOUT_PATH}",
@@ -376,6 +380,52 @@ def _normalize_github_allowed_orgs(provider_type: str, orgs: list[str] | None) -
     return normalized or None
 
 
+_APPLE_FIELDS = ("apple_team_id", "apple_key_id", "apple_private_key")
+
+
+def _apple_settings(
+    provider_type: str, data: OIDCConnectionCreate | OIDCConnectionUpdate
+) -> dict[str, str]:
+    """Return the Apple key settings to store (the key encrypted).
+
+    Rejects them on a provider other than Apple, a client secret on Apple
+    (its secret is signed from the key), and a key that is not an EC P-256
+    private key in PEM form.
+    """
+    if provider_type != "apple":
+        if any(getattr(data, field, None) for field in _APPLE_FIELDS):
+            raise ValidationError(
+                message="Team ID, key ID and private key apply to Apple connections only",
+                code="oidc_setting_not_supported",
+            )
+        return {}
+    if data.client_secret:
+        raise ValidationError(
+            message=(
+                "Apple connections have no client secret; WeftID signs one with the private key"
+            ),
+            code="oidc_setting_not_supported",
+        )
+    stored: dict[str, str] = {}
+    if data.apple_team_id:
+        stored["apple_team_id"] = data.apple_team_id
+    if data.apple_key_id:
+        stored["apple_key_id"] = data.apple_key_id
+    if data.apple_private_key and data.apple_private_key.strip():
+        try:
+            load_apple_private_key(data.apple_private_key)
+        except ApplePrivateKeyError as exc:
+            raise ValidationError(
+                message=(
+                    "The private key must be the .p8 file Apple issued "
+                    "(an EC P-256 key in PEM form)"
+                ),
+                code="oidc_apple_private_key_invalid",
+            ) from exc
+        stored["apple_private_key_enc"] = _encrypt_secret(data.apple_private_key.strip())
+    return stored
+
+
 def create_connection(
     requesting_user: RequestingUser,
     data: OIDCConnectionCreate,
@@ -398,6 +448,7 @@ def create_connection(
     github_allowed_orgs = _normalize_github_allowed_orgs(
         data.provider_type, data.github_allowed_orgs
     )
+    apple_settings = _apple_settings(data.provider_type, data)
 
     # _apply_preset_defaults guarantees a non-None issuer (composed from the
     # preset or tenant id, or rejected for generic) and a non-None
@@ -441,6 +492,7 @@ def create_connection(
         sign_out_at_idp=data.sign_out_at_idp,
         show_on_login=data.show_on_login,
         github_allowed_orgs=github_allowed_orgs,
+        **apple_settings,
     )
 
     if row is None:
@@ -511,6 +563,7 @@ def update_connection(
     _validate_fixed_endpoint_fields(existing["provider_type"], data)
     _validate_manual_endpoints(data)
     _validate_email_linking(existing["provider_type"], data.allow_email_linking)
+    apple_settings = _apple_settings(existing["provider_type"], data)
 
     update_kwargs: dict[str, Any] = {}
     for field in [
@@ -560,6 +613,9 @@ def update_connection(
     # The client secret is handled separately: it is write-only and encrypted.
     if data.client_secret is not None:
         update_kwargs["client_secret_enc"] = _encrypt_secret(data.client_secret)
+
+    # Apple key settings: set when given, never cleared (the key is write-only).
+    update_kwargs.update(apple_settings)
 
     if not update_kwargs:
         return _row_to_config(existing, base_url)

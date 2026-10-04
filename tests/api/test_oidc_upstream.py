@@ -492,13 +492,11 @@ def test_create_self_managed_gitlab(client, test_tenant_host, oauth2_super_admin
     assert response.json()["discovery_url"] is None
 
 
-def test_create_unreleased_provider_type_rejected(
-    client, test_tenant_host, oauth2_super_admin_header
-):
+def test_create_unknown_provider_type_rejected(client, test_tenant_host, oauth2_super_admin_header):
     response = client.post(
         "/api/v1/oidc-upstream/connections",
         headers={"Host": test_tenant_host, **oauth2_super_admin_header},
-        json={"name": "Apple", "provider_type": "apple"},
+        json={"name": "MySpace", "provider_type": "myspace"},
     )
     assert response.status_code == 422
 

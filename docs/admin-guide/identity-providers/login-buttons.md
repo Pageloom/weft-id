@@ -27,6 +27,7 @@ Each button carries the provider's name and logo:
 * **GitHub**: "Continue with GitHub"
 * **Discord**: "Continue with Discord"
 * **Facebook**: "Continue with Facebook"
+* **Apple**: "Continue with Apple" (white with a black outline in light mode, black in dark mode, as Apple's guidelines require)
 * **Generic OIDC**: "Continue with" followed by the connection name, with no logo. Name the connection the way users know the provider.
 
 Buttons appear on the first step of sign-in only, not on the password step.
@@ -43,6 +44,16 @@ The button starts the same flow as email sign-in, and the provider sends the use
 So decide who may get in before adding a button. For open sign-up, turn on JIT provisioning. To let only existing users in, leave JIT off. Users assigned to a SAML identity provider are always refused and told to sign in with their email address.
 
 A button does not skip **Require two-step verification**, if the connection has it on.
+
+## Email verification for new users
+
+Whether a new user meets an extra step depends on the provider. The connection's **Show on Sign-In Page** setting tells you which applies.
+
+* **No extra step**: Google, Microsoft Entra ID, LinkedIn, GitLab, GitHub, Discord and Apple only share email addresses they have verified, so a new account's address counts as verified straight away.
+* **Code by email**: Facebook and Microsoft personal accounts do not prove that the user controls the address. A new user must enter a code WeftID sends to it before their first sign-in completes. Until they do, every sign-in through that provider asks for the code again.
+* **Generic OIDC**: no extra step. Whether the address was verified depends on the identity provider.
+
+Apple users may hide their address behind an Apple private relay address. WeftID treats it as verified. To deliver email to it (invitations, sign-in codes), register your sending domain with Apple. See [Apple](oidc-apple.md#private-relay-email-addresses).
 
 ## Event log
 

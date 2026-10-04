@@ -3,14 +3,19 @@
 The relying-party authorization-code flow with PKCE:
 
 - ``GET /auth/oidc/{connection_id}/login`` generates ``state``, ``nonce``, and
-  a PKCE ``code_verifier`` (S256 challenge), stores all three in the session
-  (namespaced per connection), builds the authorize URL, and redirects
-  off-origin to the IdP.
-- ``GET /auth/oidc/{connection_id}/callback`` validates ``state``, has the
-  provider adapter exchange the code and return the user's identity,
-  correlates the user, and completes login.
-  The session's state/nonce/verifier are cleared on first use so a replayed
-  callback fails.
+  a PKCE ``code_verifier`` (S256 challenge), stores them in the server-side
+  login state store (``services.oidc_upstream.login_state``) keyed by
+  ``state``, keeps ``state`` in the session (namespaced per connection) to
+  bind the sign-in to this browser, and redirects off-origin to the IdP.
+- ``POST /auth/oidc/{connection_id}/callback`` receives a ``form_post``
+  callback (Apple). It arrives cross-site without the SameSite=Lax session
+  cookie, so it only attaches the posted fields to the stored sign-in and
+  redirects to the GET callback, where the cookie is sent.
+- ``GET /auth/oidc/{connection_id}/callback`` checks ``state`` against the
+  session, takes the stored sign-in, has the provider adapter exchange the
+  code and return the user's identity, correlates the user, and completes
+  login. The session's state and the stored sign-in are removed on first use
+  so a replayed callback fails.
 
 Security (cross-cutting requirements):
 
@@ -31,10 +36,12 @@ Security (cross-cutting requirements):
   ``/auth/oidc/confirm-email`` until they enter a code mailed to it; the
   sign-in then resumes (MFA or completion) from where the callback left it.
 - **Audit**: started, completed, failed and refused events carry ``entry``
-  (``login_button`` or ``routed``), kept in the session across the hop.
+  (``login_button`` or ``routed``), kept in the login state store across
+  the hop.
 """
 
 from typing import Annotated
+from urllib.parse import urlencode
 
 import services.emails as emails_service
 import services.oidc_upstream as oidc_service
@@ -82,12 +89,6 @@ _POLICY_REFUSALS = {
 
 def _session_key(connection_id: str, name: str) -> str:
     return f"{_SESSION_PREFIX}:{connection_id}:{name}"
-
-
-def _clear_session_state(request: Request, connection_id: str) -> None:
-    """Clear the per-connection state/nonce/verifier from the session."""
-    for name in ("state", "nonce", "code_verifier", "entry"):
-        request.session.pop(_session_key(connection_id, name), None)
 
 
 def _error_response(error_type: str) -> RedirectResponse:
@@ -158,10 +159,17 @@ def oidc_login(
     except oidc_service.ProviderLoginError as exc:
         return _error_response(exc.public_error)
 
+    login_state = oidc_service.LoginState(
+        tenant_id=str(tenant_id),
+        connection_id=connection_id,
+        nonce=nonce,
+        code_verifier=code_verifier,
+        entry=entry,
+    )
+    if not oidc_service.save_login_state(state, login_state):
+        _log_failure(tenant_id, connection_id, connection, "state_store", None, entry)
+        return _error_response("auth_failed")
     request.session[_session_key(connection_id, "state")] = state
-    request.session[_session_key(connection_id, "nonce")] = nonce
-    request.session[_session_key(connection_id, "code_verifier")] = code_verifier
-    request.session[_session_key(connection_id, "entry")] = entry
 
     log_event(
         tenant_id=tenant_id,
@@ -207,30 +215,46 @@ def oidc_callback(
     if not connection.get("is_enabled"):
         return _error_response("idp_disabled")
 
-    # Single-use: pop the state/nonce/verifier on first use.
+    # Single-use: the session's state and the stored sign-in are removed on
+    # first use. The stored sign-in is only taken by the browser that
+    # started it (the session's state matches).
     expected_state = request.session.pop(_session_key(connection_id, "state"), None)
-    expected_nonce = request.session.pop(_session_key(connection_id, "nonce"), None)
-    code_verifier = request.session.pop(_session_key(connection_id, "code_verifier"), None)
-    entry = request.session.pop(_session_key(connection_id, "entry"), None)
-    if entry != oidc_service.ENTRY_LOGIN_BUTTON:
-        entry = oidc_service.ENTRY_ROUTED
+    state = request.query_params.get("state")
+    login_state = (
+        oidc_service.take_login_state(state)
+        if expected_state is not None and state == expected_state
+        else None
+    )
+    if login_state is not None and (
+        login_state.tenant_id != str(tenant_id) or login_state.connection_id != connection_id
+    ):
+        login_state = None
+    entry = (
+        oidc_service.ENTRY_LOGIN_BUTTON
+        if login_state is not None and login_state.entry == oidc_service.ENTRY_LOGIN_BUTTON
+        else oidc_service.ENTRY_ROUTED
+    )
 
-    error = request.query_params.get("error")
+    # A posted callback's fields were stored by the POST route; otherwise
+    # they are in the query string.
+    callback_fields = login_state.callback_fields if login_state is not None else None
+    fields = callback_fields if callback_fields is not None else request.query_params
+
+    error = fields.get("error")
     if error:
         _log_failure(tenant_id, connection_id, connection, "idp_error", error, entry)
         return _error_response("auth_failed")
 
-    state = request.query_params.get("state")
-    code = request.query_params.get("code")
-
-    if expected_state is None or state != expected_state:
+    if login_state is None:
         _log_failure(tenant_id, connection_id, connection, "state_mismatch", None, entry)
         return _error_response("auth_failed")
 
+    code = fields.get("code")
     if not code:
         _log_failure(tenant_id, connection_id, connection, "missing_code", None, entry)
         return _error_response("auth_failed")
 
+    code_verifier = login_state.code_verifier
     if not code_verifier:
         _log_failure(tenant_id, connection_id, connection, "missing_verifier", None, entry)
         return _error_response("auth_failed")
@@ -243,7 +267,8 @@ def oidc_callback(
             code=code,
             redirect_uri=_callback_url(request, connection_id),
             code_verifier=code_verifier,
-            nonce=expected_nonce,
+            nonce=login_state.nonce,
+            callback_fields=callback_fields,
         )
     except oidc_service.ProviderLoginError as exc:
         _log_failure(tenant_id, connection_id, connection, exc.reason, exc.detail, entry)
@@ -308,6 +333,63 @@ def oidc_callback(
         )
 
     return _finish_sign_in(request, tenant_id, user_id, mfa_method, requires_mfa=requires_mfa)
+
+
+@router.post("/auth/oidc/{connection_id}/callback")
+def oidc_callback_post(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    connection_id: str,
+    state: Annotated[str, Form(max_length=512)] = "",
+    code: Annotated[str, Form(max_length=4096)] = "",
+    error: Annotated[str, Form(max_length=255)] = "",
+    user: Annotated[str, Form(max_length=4096)] = "",
+):
+    """Receive a ``form_post`` callback and continue on the GET callback.
+
+    The provider posts from its own site, so the SameSite=Lax session cookie
+    is not sent and the session must not be touched here. The posted fields
+    are attached to the stored sign-in; the GET callback checks the browser
+    binding and finishes the sign-in. CSRF-exempt: the stored ``state`` is
+    what authenticates the post.
+    """
+    client_ip = extract_remote_address(request) or "unknown"
+    try:
+        ratelimit.prevent(
+            "oidc_callback_post:tenant:{tenant_id}:ip:{ip}",
+            limit=20,
+            timespan=MINUTE * 5,
+            tenant_id=tenant_id,
+            ip=client_ip,
+        )
+    except RateLimitError:
+        return _error_response("too_many_requests")
+
+    connection = _get_connection(tenant_id, connection_id)
+    if connection is None:
+        return _error_response("idp_not_found")
+
+    if not connection.get("is_enabled"):
+        return _error_response("idp_disabled")
+
+    login_state = oidc_service.load_login_state(state)
+    if (
+        login_state is None
+        or login_state.tenant_id != str(tenant_id)
+        or login_state.connection_id != connection_id
+        or not oidc_service.attach_callback_fields(
+            state, login_state, {"code": code, "error": error, "user": user}
+        )
+    ):
+        entry = (
+            login_state.entry
+            if login_state is not None and login_state.entry == oidc_service.ENTRY_LOGIN_BUTTON
+            else oidc_service.ENTRY_ROUTED
+        )
+        _log_failure(tenant_id, connection_id, connection, "state_mismatch", None, entry)
+        return _error_response("auth_failed")
+
+    return safe_redirect(f"/auth/oidc/{connection_id}/callback?{urlencode({'state': state})}")
 
 
 def _finish_sign_in(

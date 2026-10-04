@@ -135,8 +135,9 @@
             {# Social sign-in: one button per connection an admin put on the login page #}
             <div class="space-y-3" id="login-buttons">
                 {% for button in login_buttons %}
+                {# Apple's guidelines allow only a white (outlined) or black button: black in dark mode. #}
                 <a href="/auth/oidc/{{ button.connection_id }}/login?via=login_button"
-                   class="w-full flex items-center justify-center gap-3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium transition duration-150">
+                   class="w-full flex items-center justify-center gap-3 px-4 py-2 border rounded-md font-medium transition duration-150 {% if button.logo == 'apple' %}border-black dark:border-black bg-white dark:bg-black hover:bg-gray-50 dark:hover:bg-gray-900 text-black dark:text-white{% else %}border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100{% endif %}">
                     {{ provider_logo(button.logo, class="w-5 h-5 shrink-0") }}
                     <span>Continue with {{ button.label }}</span>
                 </a>

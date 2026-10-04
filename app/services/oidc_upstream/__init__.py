@@ -97,6 +97,13 @@ from services.oidc_upstream.links import (
     list_user_links,
     unlink_user_from_connection,
 )
+from services.oidc_upstream.login_state import (
+    LoginState,
+    attach_callback_fields,
+    load_login_state,
+    save_login_state,
+    take_login_state,
+)
 from services.oidc_upstream.logout import (
     BackchannelLogoutResult,
     build_upstream_logout_url,
@@ -127,6 +134,11 @@ from services.oidc_upstream.token_exchange import (
 )
 
 __all__ = [
+    "LoginState",
+    "attach_callback_fields",
+    "load_login_state",
+    "save_login_state",
+    "take_login_state",
     "confirm_sign_in_email",
     "pending_email_confirmation",
     "requires_confirmed_email",

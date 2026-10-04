@@ -15,6 +15,7 @@ from uuid import uuid4
 import pytest
 from main import app
 
+from tests.fixtures.oidc_login import login_session
 from tests.helpers.client import TestClient
 
 
@@ -187,11 +188,7 @@ class TestPkceRoundTrip:
             headers={"kid": "oidc-upstream-fixture-key"},
         )
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
+        session = login_session(conn)
 
         with patch(
             "starlette.requests.Request.session",
@@ -248,11 +245,7 @@ class TestMfaGate:
             headers={"kid": "oidc-upstream-fixture-key"},
         )
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
+        session = login_session(conn)
 
         with patch(
             "starlette.requests.Request.session",
@@ -393,11 +386,7 @@ class TestUserinfoSubject:
     def _callback(self, tenant_client, conn, userinfo_response):
         from tests.fixtures.oidc import load_fixture
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
+        session = login_session(conn)
         with (
             patch(
                 "starlette.requests.Request.session",
@@ -477,11 +466,7 @@ class TestCallbackFailures:
     def _callback(self, tenant_client, conn, *, query="state=state-1&code=code-1", **patches):
         from tests.fixtures.oidc import load_fixture
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
+        session = login_session(conn)
         exchange = patches.get(
             "exchange", {"return_value": {"access_token": "at", "id_token": _signed_id_token()}}
         )
@@ -655,11 +640,7 @@ class TestSocialPresetRoutes:
 
         from tests.fixtures.oidc import load_fixture
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
+        session = login_session(conn)
         with (
             patch(
                 "starlette.requests.Request.session",

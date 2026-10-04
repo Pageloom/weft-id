@@ -24,7 +24,12 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import has_page_access
 from pydantic import ValidationError as PydanticValidationError
-from schemas.oidc_upstream import PROVIDER_TYPES, OIDCConnectionCreate, OIDCConnectionUpdate
+from schemas.oidc_upstream import (
+    MAX_APPLE_PRIVATE_KEY_LENGTH,
+    PROVIDER_TYPES,
+    OIDCConnectionCreate,
+    OIDCConnectionUpdate,
+)
 from services import oidc_upstream as oidc_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.redirects import safe_redirect
@@ -158,6 +163,9 @@ def create_connection(
     allow_email_linking: Annotated[bool, Form()] = False,
     show_on_login: Annotated[bool, Form()] = False,
     github_allowed_orgs: Annotated[str, Form(max_length=4100)] = "",
+    apple_team_id: Annotated[str, Form(max_length=50)] = "",
+    apple_key_id: Annotated[str, Form(max_length=50)] = "",
+    apple_private_key: Annotated[str, Form(max_length=MAX_APPLE_PRIVATE_KEY_LENGTH)] = "",
 ):
     """Create a new OIDC upstream connection from the admin form."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -189,6 +197,9 @@ def create_connection(
             allow_email_linking=allow_email_linking,
             show_on_login=show_on_login,
             github_allowed_orgs=_parse_org_list(github_allowed_orgs) or None,
+            apple_team_id=apple_team_id.strip() or None,
+            apple_key_id=apple_key_id.strip() or None,
+            apple_private_key=apple_private_key.strip() or None,
         )
     except PydanticValidationError:
         # A malformed form value (bad provider type, empty issuer, over-length
@@ -606,6 +617,46 @@ def edit_connection_settings(
         return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={str(e)}")
 
     return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?success=settings_updated")
+
+
+@router.post(
+    "/identity-providers/oidc/{connection_id}/edit-apple-key",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_apple_key(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+    apple_team_id: Annotated[str, Form(max_length=50)] = "",
+    apple_key_id: Annotated[str, Form(max_length=50)] = "",
+    apple_private_key: Annotated[str, Form(max_length=MAX_APPLE_PRIVATE_KEY_LENGTH)] = "",
+):
+    """Set the Apple team ID, key ID and private key (blank leaves a value as is)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        data = OIDCConnectionUpdate(
+            apple_team_id=apple_team_id.strip() or None,
+            apple_key_id=apple_key_id.strip() or None,
+            apple_private_key=apple_private_key.strip() or None,
+        )
+    except PydanticValidationError:
+        message = quote("Team ID and key ID are 10 upper-case letters and digits.")
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={message}")
+
+    try:
+        oidc_service.update_connection(
+            requesting_user, connection_id, data, tenant_base_url(request)
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as e:
+        return safe_redirect(
+            f"{CONNECTION_LIST_URL}/{connection_id}/details?error={quote(e.message)}"
+        )
+
+    return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?success=apple_key_updated")
 
 
 @router.post(

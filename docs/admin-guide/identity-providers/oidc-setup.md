@@ -22,10 +22,10 @@ WeftID uses the authorization code flow with PKCE, and nothing else. There is no
 1. Navigate to **Identity Providers > OIDC**
 2. Click **Add Connection**
 3. Enter a display name
-4. Select the provider type (Generic, Google, Entra ID, Microsoft personal accounts, LinkedIn, GitLab, GitHub, Discord, or Facebook)
+4. Select the provider type (Generic, Google, Entra ID, Microsoft personal accounts, LinkedIn, GitLab, GitHub, Discord, Facebook, or Apple)
 5. Click **Create**
 
-Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), [GitLab](oidc-gitlab.md), [GitHub](oidc-github.md), [Discord](oidc-discord.md), and [Facebook](oidc-facebook.md). GitHub, Discord and Facebook are OAuth 2.0 rather than OpenID Connect, so they have no issuer, discovery or correlation settings; their walkthroughs explain the differences.
+Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), [GitLab](oidc-gitlab.md), [GitHub](oidc-github.md), [Discord](oidc-discord.md), [Facebook](oidc-facebook.md), and [Apple](oidc-apple.md). GitHub, Discord and Facebook are OAuth 2.0 rather than OpenID Connect, so they have no issuer, discovery or correlation settings; their walkthroughs explain the differences. Apple is OpenID Connect but signs its client secret with a private key you upload instead of a stored secret.
 
 ## Step 2: Register WeftID with your provider
 
@@ -189,7 +189,7 @@ Provider notes:
 * **Google Workspace**: no groups claim is available over OIDC.
 * **GitLab**: the `groups` claim carries group paths. See [OIDC with GitLab](oidc-gitlab.md#groups).
 * **GitHub**: enter `groups` to sync organizations and teams. See [Sign in with GitHub](oidc-github.md#groups).
-* **Microsoft personal accounts, LinkedIn, Discord and Facebook**: no groups claim.
+* **Microsoft personal accounts, LinkedIn, Discord, Facebook and Apple**: no groups claim.
 * **Keycloak, Auth0, Authentik and other generic providers**: add a mapper or action that puts the user's groups into a claim, then enter that claim's name here. Namespaced names such as `https://example.com/groups` work.
 
 ## Correlation claim

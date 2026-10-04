@@ -12,8 +12,7 @@ from typing import Annotated
 from constants.user_attributes import ATTRIBUTE_KEYS
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-# The provider types an admin can create. The database accepts more (the
-# adapter-backed social providers), which are added here as they ship.
+# The provider types an admin can create (the database CHECK lists the same).
 PROVIDER_TYPES = (
     "generic",
     "google",
@@ -24,6 +23,7 @@ PROVIDER_TYPES = (
     "github",
     "discord",
     "facebook",
+    "apple",
 )
 _PROVIDER_TYPE_PATTERN = f"^({'|'.join(PROVIDER_TYPES)})$"
 
@@ -31,6 +31,12 @@ _PROVIDER_TYPE_PATTERN = f"^({'|'.join(PROVIDER_TYPES)})$"
 # characters, not starting with a hyphen.
 GITHUB_ORG_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
 MAX_GITHUB_ALLOWED_ORGS = 100
+
+# Apple team and key ids: ten upper-case letters and digits.
+APPLE_ID_PATTERN = r"^[A-Z0-9]{10}$"
+
+# An Apple ``.p8`` key is about 250 characters; the column holds it encrypted.
+MAX_APPLE_PRIVATE_KEY_LENGTH = 2000
 
 GitHubOrgList = list[Annotated[str, Field(max_length=39, pattern=GITHUB_ORG_PATTERN)]]
 
@@ -111,6 +117,10 @@ class OIDCConnectionCreate(BaseModel):
     show_on_login: bool = False
     # GitHub only: organizations a user must belong to (one is enough).
     github_allowed_orgs: GitHubOrgList | None = Field(None, max_length=MAX_GITHUB_ALLOWED_ORGS)
+    # Apple only: the client secret is a JWT signed with this key (write-only).
+    apple_team_id: str | None = Field(None, max_length=10, pattern=APPLE_ID_PATTERN)
+    apple_key_id: str | None = Field(None, max_length=10, pattern=APPLE_ID_PATTERN)
+    apple_private_key: str | None = Field(None, max_length=MAX_APPLE_PRIVATE_KEY_LENGTH)
 
 
 class OIDCConnectionUpdate(BaseModel):
@@ -149,6 +159,10 @@ class OIDCConnectionUpdate(BaseModel):
     show_on_login: bool | None = None
     # An empty list clears the restriction; None leaves it unchanged.
     github_allowed_orgs: GitHubOrgList | None = Field(None, max_length=MAX_GITHUB_ALLOWED_ORGS)
+    # Apple only: the client secret is a JWT signed with this key (write-only).
+    apple_team_id: str | None = Field(None, max_length=10, pattern=APPLE_ID_PATTERN)
+    apple_key_id: str | None = Field(None, max_length=10, pattern=APPLE_ID_PATTERN)
+    apple_private_key: str | None = Field(None, max_length=MAX_APPLE_PRIVATE_KEY_LENGTH)
 
 
 class OIDCConnectionConfig(BaseModel):
@@ -188,6 +202,9 @@ class OIDCConnectionConfig(BaseModel):
     sign_out_at_idp: bool
     show_on_login: bool
     github_allowed_orgs: list[str]
+    apple_team_id: str | None
+    apple_key_id: str | None
+    apple_private_key_set: bool
     callback_url: str
     backchannel_logout_url: str
     post_logout_redirect_uri: str

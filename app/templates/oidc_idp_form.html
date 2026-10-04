@@ -86,9 +86,10 @@
                 <input type="text" id="client_id" name="client_id"
                        placeholder="your-client-id"
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p id="client-id-apple-hint" class="hidden mt-1 text-xs text-gray-500 dark:text-gray-400">For Apple, the Services ID identifier (for example <code>com.example.signin</code>).</p>
             </div>
 
-            <div>
+            <div id="client-secret-field">
                 <label for="client_secret" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Client Secret
                 </label>
@@ -124,6 +125,34 @@
                        placeholder="example.com"
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Restrict sign-in to a Google Workspace domain.</p>
+            </div>
+
+            <div id="apple-key-fields" class="hidden space-y-4">
+                <div>
+                    <label for="apple_team_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Team ID
+                    </label>
+                    <input type="text" id="apple_team_id" name="apple_team_id" maxlength="10"
+                           placeholder="ABCDE12345" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="apple_key_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Key ID
+                    </label>
+                    <input type="text" id="apple_key_id" name="apple_key_id" maxlength="10"
+                           placeholder="XYZ9876543" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="apple_private_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Private Key (.p8)
+                    </label>
+                    <textarea id="apple_private_key" name="apple_private_key" rows="5" autocomplete="off"
+                              placeholder="-----BEGIN PRIVATE KEY-----"
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs"></textarea>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Paste the whole file, including the BEGIN and END lines. WeftID signs a client secret with it for each sign-in. Encrypted at rest and never displayed again.</p>
+                </div>
             </div>
 
             <div id="github-orgs-field" class="hidden">
@@ -201,6 +230,12 @@
                     <div class="ml-3">
                         <label for="show_on_login" class="text-sm font-medium text-gray-700 dark:text-gray-300">Show on Sign-In Page</label>
                         <p class="text-xs text-gray-500 dark:text-gray-400">Add a "Continue with ..." button for this provider to the sign-in page once it is enabled.</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="login-email-verified">
+                            New users sign in without an extra step: this provider only shares email addresses it has verified.
+                        </p>
+                        <p class="hidden text-xs text-amber-600 dark:text-amber-400 mt-1" id="login-email-code">
+                            New users must enter a code sent to their email address before their first sign-in completes, because this provider does not verify email addresses.
+                        </p>
                     </div>
                 </div>
 
@@ -277,9 +312,15 @@
     const discoveryField = document.getElementById('discovery-field');
     const correlationField = document.getElementById('correlation-field');
     const githubOrgsField = document.getElementById('github-orgs-field');
+    const appleKeyFields = document.getElementById('apple-key-fields');
+    const clientSecretField = document.getElementById('client-secret-field');
+    const clientSecretInput = document.getElementById('client_secret');
+    const clientIdAppleHint = document.getElementById('client-id-apple-hint');
     const emailLinking = document.getElementById('allow_email_linking');
     const emailLinkingHint = document.getElementById('email-linking-unsupported');
     const jitConfirmationHint = document.getElementById('jit-email-confirmation');
+    const loginEmailVerified = document.getElementById('login-email-verified');
+    const loginEmailCode = document.getElementById('login-email-code');
     const manualSection = document.getElementById('manual-endpoints-section');
     const manualToggle = document.getElementById('manual-endpoints-toggle');
     const manualFields = document.getElementById('manual-endpoints-fields');
@@ -313,6 +354,14 @@
         discoveryField.classList.toggle('hidden', fixedEndpoints);
         correlationField.classList.toggle('hidden', fixedEndpoints);
         githubOrgsField.classList.toggle('hidden', type !== 'github');
+        // Apple has no client secret: WeftID signs one with the admin's key.
+        const isApple = type === 'apple';
+        appleKeyFields.classList.toggle('hidden', !isApple);
+        clientIdAppleHint.classList.toggle('hidden', !isApple);
+        clientSecretField.classList.toggle('hidden', isApple);
+        if (isApple) {
+            clientSecretInput.value = '';
+        }
         // The issuer is composed from the tenant id for Entra, so it is not
         // required there; every other preset needs an explicit issuer.
         issuerInput.required = type !== 'entra' && !fixedEndpoints;
@@ -327,6 +376,10 @@
         }
         emailLinkingHint.classList.toggle('hidden', linkingTrusted);
         jitConfirmationHint.classList.toggle('hidden', linkingTrusted);
+        // What a new user meets after the sign-in page button: a generic
+        // provider's behaviour depends on the IdP, so neither note is shown.
+        loginEmailVerified.classList.toggle('hidden', !linkingTrusted || type === 'generic');
+        loginEmailCode.classList.toggle('hidden', linkingTrusted);
         // Every preset publishes discovery; manual endpoints only make sense
         // for a generic provider.
         manualSection.classList.toggle('hidden', type !== 'generic');

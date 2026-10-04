@@ -13,6 +13,7 @@ from unittest.mock import patch
 import pytest
 from main import app
 
+from tests.fixtures.oidc_login import login_session
 from tests.helpers.client import TestClient
 
 
@@ -164,17 +165,26 @@ class TestButtonEntry:
         assert response.headers["location"].startswith("https://idp.example.com/authorize?")
         return session
 
+    @staticmethod
+    def _stored_entry(session, conn):
+        from services.oidc_upstream.login_state import load_login_state
+
+        login_state = load_login_state(session[f"oidc_auth:{conn['id']}:state"])
+        assert login_state is not None
+        assert set(session) == {f"oidc_auth:{conn['id']}:state"}
+        return login_state.entry
+
     def test_button_start_is_recorded(self, tenant_client, test_tenant, test_user):
         conn = _make_connection(test_tenant, test_user)
         session = self._start(tenant_client, conn, "?via=login_button")
-        assert session[f"oidc_auth:{conn['id']}:entry"] == "login_button"
+        assert self._stored_entry(session, conn) == "login_button"
         event = _last_event(test_tenant["id"], "oidc_login_started")
         assert event["metadata"]["entry"] == "login_button"
 
     def test_plain_start_is_routed(self, tenant_client, test_tenant, test_user):
         conn = _make_connection(test_tenant, test_user)
         session = self._start(tenant_client, conn)
-        assert session[f"oidc_auth:{conn['id']}:entry"] == "routed"
+        assert self._stored_entry(session, conn) == "routed"
         assert _last_event(test_tenant["id"], "oidc_login_started")["metadata"]["entry"] == (
             "routed"
         )
@@ -184,7 +194,7 @@ class TestButtonEntry:
     ):
         conn = _make_connection(test_tenant, test_user, show_on_login=False)
         session = self._start(tenant_client, conn, "?via=login_button")
-        assert session[f"oidc_auth:{conn['id']}:entry"] == "routed"
+        assert self._stored_entry(session, conn) == "routed"
 
     def test_button_start_is_rate_limited(self, tenant_client, test_tenant, test_user):
         from services.exceptions import RateLimitError
@@ -202,13 +212,7 @@ class TestButtonEntry:
     def _callback(self, tenant_client, conn, entry, query="state=state-1&code=code-1"):
         from tests.fixtures.oidc import load_fixture
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
-        if entry is not None:
-            session[f"oidc_auth:{conn['id']}:entry"] = entry
+        session = login_session(conn, entry=entry or "routed")
         with (
             patch(
                 "starlette.requests.Request.session",
@@ -223,7 +227,7 @@ class TestButtonEntry:
             response = tenant_client.get(
                 f"/auth/oidc/{conn['id']}/callback?{query}", follow_redirects=False
             )
-        assert f"oidc_auth:{conn['id']}:entry" not in session
+        assert f"oidc_auth:{conn['id']}:state" not in session
         return response
 
     def test_button_sign_in_jit_success(self, tenant_client, test_tenant, test_user):
@@ -251,13 +255,13 @@ class TestButtonEntry:
 
     def test_callback_without_entry_is_routed(self, tenant_client, test_tenant, test_user):
         conn = _make_connection(test_tenant, test_user)
-        self._callback(tenant_client, conn, None, query="error=access_denied")
+        self._callback(tenant_client, conn, None, query="state=state-1&error=access_denied")
         event = _last_event(test_tenant["id"], "oidc_login_failed")
         assert event["metadata"]["entry"] == "routed"
 
     def test_unknown_entry_value_is_routed(self, tenant_client, test_tenant, test_user):
         conn = _make_connection(test_tenant, test_user)
-        self._callback(tenant_client, conn, "forged", query="error=access_denied")
+        self._callback(tenant_client, conn, "forged", query="state=state-1&error=access_denied")
         assert _last_event(test_tenant["id"], "oidc_login_failed")["metadata"]["entry"] == "routed"
 
 

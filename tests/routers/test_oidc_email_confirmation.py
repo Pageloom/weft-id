@@ -15,6 +15,7 @@ import pytest
 from main import app
 
 from tests.fixtures.facebook import facebook_api
+from tests.fixtures.oidc_login import login_session
 from tests.helpers.client import TestClient
 
 CONFIRM = "/auth/oidc/confirm-email"
@@ -88,13 +89,7 @@ class _Flow:
 
     def callback(self):
         cid = self.conn["id"]
-        self.session.update(
-            {
-                f"oidc_auth:{cid}:state": "state-1",
-                f"oidc_auth:{cid}:nonce": "n-1",
-                f"oidc_auth:{cid}:code_verifier": "verifier-1",
-            }
-        )
+        self.session.update(login_session(self.conn))
         with facebook_api():
             return self.client.get(
                 f"/auth/oidc/{cid}/callback?state=state-1&code=code-1", follow_redirects=False

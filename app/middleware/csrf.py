@@ -66,10 +66,15 @@ CSRF_EXEMPT_EXACT_PATHS = frozenset(
 # Full-match patterns for exempt paths with a variable segment. The upstream
 # OIDC back-channel logout receiver takes a server-to-server POST from the IdP
 # (no session, no browser); the logout token's signature is the authority.
+# The upstream OIDC callback takes a cross-site form_post from the provider.
 # Dynamic client registration (RFC 7591) and the client configuration endpoint
 # (RFC 7592) are server-to-server JSON calls authorized by bearer tokens.
 CSRF_EXEMPT_PATTERNS = (
     re.compile(r"/auth/oidc/[^/]+/backchannel-logout"),
+    # A provider's form_post callback (Apple), posted from its own site. It
+    # only records the posted fields against a stored sign-in; the stored
+    # ``state`` authenticates it.
+    re.compile(r"/auth/oidc/[^/]+/callback"),
     re.compile(r"/oauth2/register(/[^/]+)?"),
 )
 

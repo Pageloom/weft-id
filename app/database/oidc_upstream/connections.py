@@ -119,6 +119,9 @@ def create_connection(
     sign_out_at_idp: bool = False,
     show_on_login: bool = False,
     github_allowed_orgs: list[str] | None = None,
+    apple_team_id: str | None = None,
+    apple_key_id: str | None = None,
+    apple_private_key_enc: str | None = None,
 ) -> dict | None:
     """Create a new OIDC connection.
 
@@ -141,7 +144,8 @@ def create_connection(
             correlation_claim, group_claim_source, group_claim_name_key, hosted_domain,
             entra_tenant_id, is_enabled, is_default, require_platform_mfa,
             jit_provisioning, allow_email_linking, sign_out_at_idp, show_on_login,
-            github_allowed_orgs, created_by
+            github_allowed_orgs, apple_team_id, apple_key_id, apple_private_key_enc,
+            created_by
         )
         values (
             :tenant_id, :name, :provider_type, :issuer, :discovery_url,
@@ -150,7 +154,8 @@ def create_connection(
             :correlation_claim, :group_claim_source, :group_claim_name_key, :hosted_domain,
             :entra_tenant_id, :is_enabled, :is_default, :require_platform_mfa,
             :jit_provisioning, :allow_email_linking, :sign_out_at_idp, :show_on_login,
-            :github_allowed_orgs, :created_by
+            :github_allowed_orgs, :apple_team_id, :apple_key_id, :apple_private_key_enc,
+            :created_by
         )
         returning {_COLUMNS}
         """,
@@ -182,6 +187,9 @@ def create_connection(
             "sign_out_at_idp": sign_out_at_idp,
             "show_on_login": show_on_login,
             "github_allowed_orgs": github_allowed_orgs,
+            "apple_team_id": apple_team_id,
+            "apple_key_id": apple_key_id,
+            "apple_private_key_enc": apple_private_key_enc,
             "created_by": created_by,
         },
     )

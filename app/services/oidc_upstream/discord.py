@@ -16,6 +16,7 @@ Discord has no groups to sync: guild membership is not requested.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from services.oidc_upstream._oauth2 import (
@@ -120,6 +121,7 @@ class DiscordAdapter:
         redirect_uri: str,
         code_verifier: str,
         nonce: str | None,
+        callback_fields: Mapping[str, str] | None = None,
     ) -> UpstreamIdentity:
         access_token = access_token_for_code(
             connection,

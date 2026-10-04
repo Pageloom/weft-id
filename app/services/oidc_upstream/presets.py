@@ -17,6 +17,9 @@ so a preset is purely a set of defaults.
 - **Discord** and **Facebook** are OAuth2 too, each with its own adapter
   (``services.oidc_upstream.discord`` / ``.facebook``). Facebook asserts no
   verified-email flag, so it never email-links.
+- **Apple** is OIDC with its own adapter (``services.oidc_upstream.apple``):
+  a client secret JWT signed with the admin's key, a posted callback, and a
+  name sent only on the first sign-in.
 - **Entra** composes its authority from the tenant id
   (``https://login.microsoftonline.com/<entra_tenant_id>/v2.0``), requests
   ``openid profile email User.Read``, and correlates on ``oid`` (Entra's
@@ -64,6 +67,11 @@ _DISCORD_SCOPES = "identify email"
 
 # Facebook: the public profile (id and names) and the email address.
 _FACEBOOK_SCOPES = "public_profile email"
+
+# Apple: a fixed issuer and discovery document; ``name`` and ``email`` are
+# Apple's scopes (there is no ``profile``).
+APPLE_ISSUER = "https://appleid.apple.com"
+_APPLE_SCOPES = "openid name email"
 
 # How the client authenticates at the token endpoint (RFC 6749 2.3.1).
 TOKEN_AUTH_BASIC = "client_secret_basic"
@@ -232,6 +240,21 @@ _PRESETS: dict[str, OIDCPreset] = {
         login_label="Facebook",
         logo="facebook",
         uses_discovery=False,
+    ),
+    "apple": OIDCPreset(
+        provider_type="apple",
+        display_name="Apple",
+        issuer=APPLE_ISSUER,
+        discovery_url=f"{APPLE_ISSUER}/.well-known/openid-configuration",
+        scopes=_APPLE_SCOPES,
+        correlation_claim="sub",
+        # The client secret is a JWT the adapter signs; Apple takes it in the
+        # form body.
+        token_auth_method=TOKEN_AUTH_POST,
+        # Apple asserts email_verified (private relay addresses included).
+        email_linking_trusted=True,
+        login_label="Apple",
+        logo="apple",
     ),
 }
 

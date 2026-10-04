@@ -223,6 +223,9 @@
                     <div class="ml-3">
                         <label for="jit_provisioning" class="text-sm font-medium text-gray-700 dark:text-gray-300">Just-in-Time Provisioning</label>
                         <p class="text-xs text-gray-500 dark:text-gray-400">Create accounts automatically on first OIDC sign-in.</p>
+                        <p class="hidden text-xs text-gray-500 dark:text-gray-400 mt-1" id="jit-email-confirmation">
+                            This provider does not verify email addresses, so new users confirm theirs with a code before their first sign-in completes.
+                        </p>
                     </div>
                 </div>
 
@@ -276,6 +279,7 @@
     const githubOrgsField = document.getElementById('github-orgs-field');
     const emailLinking = document.getElementById('allow_email_linking');
     const emailLinkingHint = document.getElementById('email-linking-unsupported');
+    const jitConfirmationHint = document.getElementById('jit-email-confirmation');
     const manualSection = document.getElementById('manual-endpoints-section');
     const manualToggle = document.getElementById('manual-endpoints-toggle');
     const manualFields = document.getElementById('manual-endpoints-fields');
@@ -322,6 +326,7 @@
             emailLinking.checked = false;
         }
         emailLinkingHint.classList.toggle('hidden', linkingTrusted);
+        jitConfirmationHint.classList.toggle('hidden', linkingTrusted);
         // Every preset publishes discovery; manual endpoints only make sense
         // for a generic provider.
         manualSection.classList.toggle('hidden', type !== 'generic');

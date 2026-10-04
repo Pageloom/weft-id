@@ -330,9 +330,15 @@ _SPEC_OIDC = SpecOIDCAdapter()
 
 def _adapters() -> dict[str, ProviderAdapter]:
     """Provider types with their own adapter. Every other type is spec OIDC."""
+    from services.oidc_upstream.discord import DiscordAdapter
+    from services.oidc_upstream.facebook import FacebookAdapter
     from services.oidc_upstream.github import GitHubAdapter
 
-    return {"github": GitHubAdapter()}
+    return {
+        "github": GitHubAdapter(),
+        "discord": DiscordAdapter(),
+        "facebook": FacebookAdapter(),
+    }
 
 
 _ADAPTERS: dict[str, ProviderAdapter] = _adapters()

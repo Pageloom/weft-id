@@ -30,6 +30,7 @@ import logging
 import database
 from services.event_log import log_event
 from services.exceptions import ForbiddenError, NotFoundError, ValidationError
+from services.oidc_upstream.email_confirmation import requires_confirmed_email
 from services.oidc_upstream.presets import email_linking_trusted
 from utils.validate import is_email_like
 
@@ -90,8 +91,9 @@ def jit_provision_user(
 ) -> dict:
     """Create a new user via JIT provisioning from OIDC claims.
 
-    Creates a user with a NULL password (OIDC-only authentication), a verified
-    email, an ``oidc_idp_user_links`` row, base-group membership, domain-group
+    Creates a user with a NULL password (OIDC-only authentication), an email
+    (verified, unless the provider's emails are untrusted: then the sign-in
+    must confirm it), an ``oidc_idp_user_links`` row, base-group membership, domain-group
     auto-assignment, and logs ``oidc_user_jit_provisioned``.
 
     Args:
@@ -150,12 +152,24 @@ def jit_provision_user(
 
     user_id = str(result["user_id"])
 
-    users_service.add_verified_email_with_nonce(
-        tenant_id=tenant_id,
-        user_id=user_id,
-        email=email,
-        is_primary=True,
-    )
+    # A provider that does not prove the address (Facebook, Microsoft
+    # personal) gets it stored unverified; the sign-in then asks the user to
+    # confirm it (services.oidc_upstream.email_confirmation).
+    unconfirmed = requires_confirmed_email(connection.get("provider_type"))
+    if unconfirmed:
+        users_service.add_unverified_email_with_nonce(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            email=email,
+            is_primary=True,
+        )
+    else:
+        users_service.add_verified_email_with_nonce(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            email=email,
+            is_primary=True,
+        )
 
     # Link the user to the (idp_id, sub) pair.
     database.oidc_upstream.create_link(
@@ -185,8 +199,10 @@ def jit_provision_user(
     # existing-link and email-link branches.
 
     # Auto-assign to domain-linked groups (protocol-agnostic, email-domain
-    # based, so it works for OIDC users unchanged).
-    settings_service.auto_assign_user_to_domain_groups(tenant_id, user_id, email, user_id)
+    # based, so it works for OIDC users unchanged). An unconfirmed address
+    # proves nothing about its domain: confirming it assigns them instead.
+    if not unconfirmed:
+        settings_service.auto_assign_user_to_domain_groups(tenant_id, user_id, email, user_id)
 
     log_event(
         tenant_id=tenant_id,
@@ -202,10 +218,15 @@ def jit_provision_user(
             "last_name": last_name,
             "sub": sub,
             "entry": entry,
+            "email_verified": not unconfirmed,
         },
     )
 
-    user = database.users.get_user_by_email_with_status(tenant_id, email)
+    # The usual lookup only sees verified addresses.
+    if unconfirmed:
+        user = database.users.get_user_by_email_for_saml(tenant_id, email)
+    else:
+        user = database.users.get_user_by_email_with_status(tenant_id, email)
     if not user:
         raise ValidationError(
             message="Failed to retrieve created user",

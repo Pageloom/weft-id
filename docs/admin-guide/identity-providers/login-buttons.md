@@ -25,6 +25,8 @@ Each button carries the provider's name and logo:
 * **LinkedIn**: "Continue with LinkedIn"
 * **GitLab**: "Continue with GitLab"
 * **GitHub**: "Continue with GitHub"
+* **Discord**: "Continue with Discord"
+* **Facebook**: "Continue with Facebook"
 * **Generic OIDC**: "Continue with" followed by the connection name, with no logo. Name the connection the way users know the provider.
 
 Buttons appear on the first step of sign-in only, not on the password step.
@@ -35,7 +37,7 @@ The button starts the same flow as email sign-in, and the provider sends the use
 
 * An account already linked to that provider account signs in.
 * With **Allow email linking** on, a verified email address can link the provider account to an existing WeftID account.
-* With **JIT provisioning** on, a new account is created.
+* With **JIT provisioning** on, a new account is created. For a provider that does not verify email addresses (Facebook, Microsoft personal accounts), the user first confirms their address with a code WeftID emails them.
 * Otherwise the sign-in is refused and the user is told no account was found.
 
 So decide who may get in before adding a button. For open sign-up, turn on JIT provisioning. To let only existing users in, leave JIT off. Users assigned to a SAML identity provider are always refused and told to sign in with their email address.

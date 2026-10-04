@@ -110,6 +110,7 @@ class TestAuthorize:
         assert params == {
             "client_id": ["Iv1.client"],
             "redirect_uri": [REDIRECT_URI],
+            "response_type": ["code"],
             "scope": ["read:user user:email read:org"],
             "state": ["state-1"],
             "code_challenge": ["challenge-1"],

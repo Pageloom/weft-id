@@ -84,11 +84,12 @@ def create_connection(
     Request body:
     - name: Display name for the connection (<=120 chars)
     - provider_type: One of generic, google, entra, microsoft (personal
-      Microsoft accounts), linkedin, gitlab, github. github is OAuth2 with
-      fixed endpoints: discovery_url, the manual endpoints, hosted_domain and
-      entra_tenant_id must be omitted, and issuer / correlation_claim must be
-      omitted or equal the preset values (https://github.com, sub); otherwise
-      400 oidc_setting_not_supported
+      Microsoft accounts), linkedin, gitlab, github, discord, facebook.
+      github, discord and facebook are OAuth2 with fixed endpoints:
+      discovery_url, the manual endpoints, hosted_domain and entra_tenant_id
+      must be omitted, and issuer / correlation_claim must be omitted or
+      equal the preset values (https://github.com, https://discord.com or
+      https://www.facebook.com; sub); otherwise 400 oidc_setting_not_supported
     - issuer: The IdP issuer URL (<=2048 chars). Filled from the preset when
       omitted (required for generic; composed from entra_tenant_id for
       entra). For gitlab, set it to a self-managed instance's URL
@@ -111,7 +112,10 @@ def create_connection(
     - entra_tenant_id: Entra tenant id for authority composition (<=100 chars)
     - is_enabled / is_default / require_platform_mfa / jit_provisioning /
       allow_email_linking: Behavior flags. allow_email_linking is rejected
-      (400) for providers without a trusted verified-email claim (microsoft)
+      (400) for providers without a trusted verified-email claim (microsoft,
+      facebook). For those providers, a user created by jit_provisioning
+      must confirm their email address with a code before the sign-in
+      completes
     - sign_out_at_idp: On WeftID sign-out, send the browser to the provider's
       end_session_endpoint so the provider session ends too (default false).
       Register the returned post_logout_redirect_uri at the provider first
@@ -125,7 +129,7 @@ def create_connection(
 
     Returns the created connection. The client secret is never returned.
     The response's uses_discovery is false for a provider with fixed
-    endpoints (github).
+    endpoints (github, discord, facebook).
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     base_url = _get_base_url(request)
@@ -187,10 +191,10 @@ def update_connection(
       github_allowed_orgs.
       An empty string for group_claim_source or group_claim_name_key clears
       the setting. allow_email_linking=true is rejected (400) for providers
-      without a trusted verified-email claim (microsoft). For github,
+      without a trusted verified-email claim (microsoft, facebook). For github,
       github_allowed_orgs replaces the list (an empty list removes the
-      restriction), and the discovery/endpoint fields are rejected as on
-      create
+      restriction). For github, discord and facebook the discovery/endpoint
+      fields are rejected as on create
 
     Returns the updated connection. The client secret is never returned.
     """
@@ -295,9 +299,12 @@ def test_connection(
     For an OIDC provider: fetches the IdP's discovery document (ignoring the
     refresh interval), checks its issuer and endpoints, stores the
     discovered endpoints, and fetches the JWKS from the discovered
-    ``jwks_uri``. For github: presents the client id, client secret and
-    callback URL to GitHub's token endpoint and reports whether GitHub
-    accepts them.
+    ``jwks_uri``. For github and discord: presents the client id, client
+    secret and callback URL to the provider's token endpoint with a made-up
+    code and reports whether the provider accepts the credentials (GitHub
+    also reports a callback URL mismatch). For facebook: requests an app
+    access token with the app id and secret (the callback URL is not
+    checked).
 
     Requires super_admin role.
 

@@ -816,10 +816,12 @@ def test_new_connection_form_offers_social_presets(super_admin_session, test_ten
         ("linkedin", "LinkedIn"),
         ("gitlab", "GitLab"),
         ("github", "GitHub"),
+        ("discord", "Discord"),
+        ("facebook", "Facebook"),
     ):
         assert f'<option value="{provider_type}">{label}</option>' in response.text
     # Adapter-backed providers are not offered until their adapter ships.
-    assert '<option value="discord"' not in response.text
+    assert '<option value="apple"' not in response.text
 
 
 @pytest.mark.parametrize(
@@ -888,7 +890,7 @@ def test_create_self_managed_gitlab(super_admin_session, test_tenant_host, test_
 def test_create_unreleased_provider_type_rejected(super_admin_session, test_tenant_host):
     response = super_admin_session.post(
         "/identity-providers/oidc/new",
-        data={"name": "Discord", "provider_type": "discord", "client_id": "client-123"},
+        data={"name": "Apple", "provider_type": "apple", "client_id": "client-123"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )

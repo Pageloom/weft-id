@@ -29,21 +29,22 @@ Every call goes through :func:`utils.safe_http.build_safe_client`.
 
 from __future__ import annotations
 
-import json
 from typing import Any
-from urllib.parse import urlencode
 
-from services.oidc_upstream._http import SAFE_CLIENT_OPTIONS, read_capped
+from services.oidc_upstream._oauth2 import (
+    ProviderAPIError,
+    access_token_for_code,
+    api_get,
+    build_authorize_url,
+    split_name,
+)
 from services.oidc_upstream.adapters import (
     ProviderCheckError,
     ProviderLoginError,
     UpstreamIdentity,
     resolve_client_credentials,
 )
-from services.oidc_upstream.errors import OIDCUpstreamError
-from services.oidc_upstream.presets import get_preset
 from services.oidc_upstream.token_exchange import TokenExchangeError, exchange_code
-from utils.safe_http import build_safe_client
 
 AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 TOKEN_URL = "https://github.com/login/oauth/access_token"
@@ -66,27 +67,15 @@ _API_HEADERS = {
 # client credentials before the code, so the error tells them apart.
 _CHECK_CODE = "weftid-connection-test"
 
-
-class GitHubAPIError(OIDCUpstreamError):
-    """A GitHub REST API call failed."""
+# Kept as the GitHub name for the shared API error.
+GitHubAPIError = ProviderAPIError
 
 
 def _api_get(access_token: str, path: str, params: dict | None = None) -> Any:
     """GET a GitHub REST API path and return the parsed JSON body."""
-    headers = {**_API_HEADERS, "Authorization": f"Bearer {access_token}"}
-    with build_safe_client(**SAFE_CLIENT_OPTIONS) as client:
-        try:
-            status, body = read_capped(
-                client, "GET", f"{API_BASE_URL}{path}", headers=headers, params=params
-            )
-        except Exception as exc:  # noqa: BLE001
-            raise GitHubAPIError(f"{path} failed: {exc}") from exc
-    if status != 200:
-        raise GitHubAPIError(f"{path} returned HTTP {status}")
-    try:
-        return json.loads(body)
-    except ValueError as exc:
-        raise GitHubAPIError(f"{path} returned invalid JSON") from exc
+    return api_get(
+        f"{API_BASE_URL}{path}", access_token=access_token, headers=_API_HEADERS, params=params
+    )
 
 
 def _api_get_list(access_token: str, path: str) -> list:
@@ -118,17 +107,6 @@ def primary_verified_email(emails: Any) -> str | None:
         ):
             return email
     return None
-
-
-def _split_name(name: Any, login: str) -> tuple[str, str | None]:
-    """Split GitHub's single display name into given and family names.
-
-    No display name: the login stands in for the given name.
-    """
-    if isinstance(name, str) and name.strip():
-        parts = name.strip().split(None, 1)
-        return parts[0], parts[1] if len(parts) > 1 else None
-    return login, None
 
 
 def _org_logins(orgs: list) -> list[str]:
@@ -171,7 +149,7 @@ def build_identity(
     subject = str(user_id)
 
     email = primary_verified_email(_api_get(access_token, "/user/emails"))
-    given_name, family_name = _split_name(user.get("name"), login)
+    given_name, family_name = split_name(user.get("name"), login)
 
     claims: dict[str, Any] = {
         "sub": subject,
@@ -225,22 +203,13 @@ class GitHubAdapter:
         nonce: str,
         code_challenge: str,
     ) -> str:
-        client_id = connection.get("client_id")
-        if not client_id:
-            raise ProviderLoginError("configuration_error", public_error="configuration_error")
-        preset = get_preset("github")
-        scopes = connection.get("scopes") or (preset.scopes if preset else "")
-        # GitHub has no nonce: there is no ID token to bind it to. PKCE and
-        # state protect the code.
-        params = {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "scope": scopes,
-            "state": state,
-            "code_challenge": code_challenge,
-            "code_challenge_method": "S256",
-        }
-        return f"{AUTHORIZE_URL}?{urlencode(params)}"
+        return build_authorize_url(
+            AUTHORIZE_URL,
+            connection,
+            redirect_uri=redirect_uri,
+            state=state,
+            code_challenge=code_challenge,
+        )
 
     def complete(
         self,
@@ -252,26 +221,13 @@ class GitHubAdapter:
         code_verifier: str,
         nonce: str | None,
     ) -> UpstreamIdentity:
-        credentials = resolve_client_credentials(connection)
-        if credentials is None:
-            raise ProviderLoginError("configuration_error", public_error="configuration_error")
-
-        try:
-            token_response = exchange_code(
-                token_endpoint=TOKEN_URL,
-                client_id=credentials.client_id,
-                client_secret=credentials.client_secret,
-                code=code,
-                redirect_uri=redirect_uri,
-                code_verifier=code_verifier,
-                auth_method=credentials.token_auth_method,
-            )
-        except TokenExchangeError as exc:
-            raise ProviderLoginError("token_exchange", str(exc)) from exc
-
-        access_token = token_response.get("access_token")
-        if not isinstance(access_token, str) or not access_token:
-            raise ProviderLoginError("token_exchange", "GitHub returned no access token")
+        access_token = access_token_for_code(
+            connection,
+            token_url=TOKEN_URL,
+            code=code,
+            redirect_uri=redirect_uri,
+            code_verifier=code_verifier,
+        )
 
         try:
             return build_identity(

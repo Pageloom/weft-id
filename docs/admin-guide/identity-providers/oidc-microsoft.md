@@ -40,7 +40,7 @@ Client secrets expire (the portal defaults to six months). When a secret expires
 
 ## Email linking
 
-Personal-account tokens do not include `email_verified`, and the account's email address need not be one the user controls. WeftID therefore never [links by email](account-linking.md#which-providers-can-link-by-email) on this connection, and the **Allow email linking** setting is unavailable for it. New users are provisioned (with JIT on) or refused.
+Personal-account tokens do not include `email_verified`, and the account's email address need not be one the user controls. WeftID therefore never [links by email](account-linking.md#which-providers-can-link-by-email) on this connection, and the **Allow email linking** setting is unavailable for it. New users are provisioned (with JIT on) or refused. A provisioned user confirms their email address with a code WeftID emails them before their first sign-in completes (see [Confirming an unverified email address](account-linking.md#confirming-an-unverified-email-address)).
 
 ## Groups
 

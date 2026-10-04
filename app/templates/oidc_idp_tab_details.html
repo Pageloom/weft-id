@@ -224,6 +224,11 @@
                 <div class="ml-3">
                     <label for="jit_provisioning" class="text-sm font-medium text-gray-700 dark:text-gray-300">Just-in-Time Provisioning</label>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Create accounts automatically on first OIDC sign-in.</p>
+                    {% if not connection.email_linking_trusted %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="jit-email-confirmation">
+                        {{ connection.provider_label }} does not verify email addresses, so new users confirm theirs with a code before their first sign-in completes.
+                    </p>
+                    {% endif %}
                 </div>
             </div>
 
@@ -285,8 +290,10 @@
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
         {% if connection.uses_discovery %}
         Fetch the IdP's discovery document, validate the issuer and endpoints, and fetch the signing keys they point to.
-        {% else %}
+        {% elif connection.provider_type == 'github' %}
         Check the client ID, client secret and callback URL with {{ connection.provider_label }}.
+        {% else %}
+        Check the client ID and client secret with {{ connection.provider_label }}.
         {% endif %}
     </p>
 

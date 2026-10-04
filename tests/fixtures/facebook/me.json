@@ -1,0 +1,15 @@
+{
+  "id": "10158000000000001",
+  "name": "Ada Lovelace",
+  "first_name": "Ada",
+  "last_name": "Lovelace",
+  "email": "ada@example.com",
+  "picture": {
+    "data": {
+      "height": 50,
+      "is_silhouette": false,
+      "url": "https://platform-lookaside.fbsbx.com/platform/profilepic/?asid=10158000000000001&height=50&width=50&ext=1&hash=AbC",
+      "width": 50
+    }
+  }
+}

@@ -58,6 +58,11 @@ from services.oidc_upstream.domains import (
     rebind_domain_to_connection,
     unbind_domain_from_connection,
 )
+from services.oidc_upstream.email_confirmation import (
+    confirm_sign_in_email,
+    pending_email_confirmation,
+    requires_confirmed_email,
+)
 from services.oidc_upstream.errors import (
     DiscoveryError,
     DiscoveryInsecureEndpointError,
@@ -122,6 +127,9 @@ from services.oidc_upstream.token_exchange import (
 )
 
 __all__ = [
+    "confirm_sign_in_email",
+    "pending_email_confirmation",
+    "requires_confirmed_email",
     "ClientCredentials",
     "ProviderAdapter",
     "ProviderCheckError",

@@ -390,7 +390,7 @@ class TestEmailLinkingTrustRule:
     def test_unknown_provider_type_fails_closed(self):
         from services.oidc_upstream.presets import email_linking_trusted
 
-        assert email_linking_trusted("discord") is False
+        assert email_linking_trusted("apple") is False
         assert email_linking_trusted("nonexistent") is False
 
     @pytest.mark.parametrize(

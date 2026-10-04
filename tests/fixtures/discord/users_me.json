@@ -1,0 +1,14 @@
+{
+  "id": "80351110224678912",
+  "username": "nelly",
+  "discriminator": "0",
+  "global_name": "Nelly Banks",
+  "avatar": "8342729096ea3675442027381ff50dfe",
+  "email": "nelly@example.com",
+  "verified": true,
+  "locale": "en-US",
+  "mfa_enabled": true,
+  "flags": 64,
+  "premium_type": 1,
+  "public_flags": 64
+}

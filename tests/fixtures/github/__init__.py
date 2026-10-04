@@ -6,27 +6,26 @@ Response bodies follow the shapes in GitHub's REST API documentation
 GitHub sign-in cannot be recorded in CI (no test account), so these stand in.
 
 :func:`github_api` serves them through an ``httpx.MockTransport`` patched in
-for ``build_safe_client`` in the GitHub adapter and the token exchange, so
+for ``build_safe_client`` in the OAuth2 adapter plumbing and the token exchange, so
 tests exercise the real request code without a network.
 """
 
 from __future__ import annotations
 
-import json
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import patch
 
 import httpx
+
+from tests.fixtures.oauth2_api import load_json, mock_provider_api
 
 FIXTURES_ROOT = Path(__file__).parent
 
 
 def load(name: str):
     """Load a fixture by filename (no .json)."""
-    with (FIXTURES_ROOT / f"{name}.json").open() as fh:
-        return json.load(fh)
+    return load_json(FIXTURES_ROOT, name)
 
 
 # Path -> fixture served by default.
@@ -51,28 +50,5 @@ def github_api(
     """
     routes: dict[str, object] = {path: load(name) for path, name in _DEFAULT_ROUTES.items()}
     routes.update(overrides or {})
-    requests: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
-        route = routes.get(request.url.path)
-        if route is None:
-            return httpx.Response(404, json={"message": "Not Found"})
-        if isinstance(route, httpx.Response):
-            return route
-        if callable(route):
-            responder: Callable[[httpx.Request], httpx.Response] = route
-            return responder(request)
-        return httpx.Response(200, json=route)
-
-    def client_factory(**kwargs) -> httpx.Client:
-        return httpx.Client(transport=httpx.MockTransport(handler))
-
-    with (
-        patch("services.oidc_upstream.github.build_safe_client", side_effect=client_factory),
-        patch(
-            "services.oidc_upstream.token_exchange.build_safe_client",
-            side_effect=client_factory,
-        ),
-    ):
+    with mock_provider_api(routes) as requests:
         yield requests

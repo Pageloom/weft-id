@@ -435,3 +435,69 @@ def test_test_connection_as_admin_forbidden(
         headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
     )
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("provider_type", "issuer", "label"),
+    [
+        (
+            "microsoft",
+            "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
+            "Microsoft (personal accounts)",
+        ),
+        ("linkedin", "https://www.linkedin.com/oauth", "LinkedIn"),
+        ("gitlab", "https://gitlab.com", "GitLab"),
+    ],
+)
+def test_create_social_preset_connection(
+    client, test_tenant_host, oauth2_super_admin_header, provider_type, issuer, label
+):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": f"{provider_type} sign-in",
+            "provider_type": provider_type,
+            "client_id": "client-123",
+            "client_secret": "super-secret-value",
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["provider_type"] == provider_type
+    assert data["provider_label"] == label
+    assert data["issuer"] == issuer
+    assert data["correlation_claim"] == "sub"
+    assert data["scopes"] == "openid profile email"
+
+    listing = client.get(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    ).json()
+    item = next(i for i in listing["items"] if i["id"] == data["id"])
+    assert item["provider_label"] == label
+
+
+def test_create_self_managed_gitlab(client, test_tenant_host, oauth2_super_admin_header):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": "Acme GitLab",
+            "provider_type": "gitlab",
+            "issuer": "https://gitlab.acme.example",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["discovery_url"] is None
+
+
+def test_create_unreleased_provider_type_rejected(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"name": "GitHub", "provider_type": "github"},
+    )
+    assert response.status_code == 422

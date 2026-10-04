@@ -583,3 +583,69 @@ class TestCallbackFailures:
         self._assert_failed(
             response, test_tenant, conn, "configuration_error", error="configuration_error"
         )
+
+
+class TestSocialPresetRoutes:
+    """The spec OIDC presets for consumer providers go through the same routes."""
+
+    def test_linkedin_login_and_callback(self, tenant_client, test_tenant, test_user):
+        import database
+
+        conn = _make_connection(test_tenant, test_user, jit_provisioning=True)
+        database.execute(
+            test_tenant["id"],
+            "update oidc_idp_connections set provider_type = 'linkedin' where id = :id",
+            {"id": conn["id"]},
+        )
+
+        login = tenant_client.get(f"/auth/oidc/{conn['id']}/login", follow_redirects=False)
+        assert login.status_code == 303
+        location = login.headers["location"]
+        assert location.startswith("https://idp.example.com/authorize?")
+        assert f"%2Fauth%2Foidc%2F{conn['id']}%2Fcallback" in location
+
+        from tests.fixtures.oidc import load_fixture
+
+        session = {
+            f"oidc_auth:{conn['id']}:state": "state-1",
+            f"oidc_auth:{conn['id']}:nonce": "n-1",
+            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
+        }
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: session),
+            ),
+            patch(
+                "services.oidc_upstream.exchange_code",
+                return_value={"access_token": "at", "id_token": _signed_id_token()},
+            ) as exchange,
+            patch("services.oidc_upstream.jwks._fetch_jwks", return_value=load_fixture("jwks")),
+        ):
+            response = tenant_client.get(
+                f"/auth/oidc/{conn['id']}/callback?state=state-1&code=code-1",
+                follow_redirects=False,
+            )
+        assert response.status_code == 303
+        assert "error=" not in response.headers["location"]
+        # LinkedIn only accepts the client credentials in the request body.
+        assert exchange.call_args.kwargs["auth_method"] == "client_secret_post"
+        assert database.oidc_upstream.get_user_id_by_sub(
+            test_tenant["id"], str(conn["id"]), "subject-123"
+        )
+
+    def test_login_without_authorization_endpoint(self, tenant_client, test_tenant, test_user):
+        import routers.oidc_upstream.authentication as auth_router
+
+        conn = _make_connection(test_tenant, test_user)
+        real = auth_router._get_connection
+
+        def unconfigured(tenant_id, connection_id):
+            return {**real(tenant_id, connection_id), "authorization_endpoint": None}
+
+        with (
+            patch.object(auth_router, "_get_connection", side_effect=unconfigured),
+            patch("services.oidc_upstream.refresh_for_login", side_effect=lambda t, c: c),
+        ):
+            response = tenant_client.get(f"/auth/oidc/{conn['id']}/login", follow_redirects=False)
+        assert response.headers["location"].endswith("/login?error=configuration_error")

@@ -46,11 +46,13 @@ def exchange_code(
     code: str,
     redirect_uri: str,
     code_verifier: str,
+    auth_method: str = "client_secret_basic",
 ) -> dict:
     """Exchange an authorization code for tokens at the IdP's token endpoint.
 
     Uses the authorization-code grant with PKCE (S256). The client secret is
-    sent via HTTP Basic auth (the standard confidential-client form).
+    sent via HTTP Basic auth (the standard confidential-client form), or in
+    the form body for a provider that only accepts ``client_secret_post``.
 
     Args:
         token_endpoint: The IdP token endpoint URL.
@@ -59,6 +61,7 @@ def exchange_code(
         code: The authorization code from the callback.
         redirect_uri: The callback URL (must match the authorize request).
         code_verifier: The PKCE code verifier from the login flow.
+        auth_method: ``client_secret_basic`` or ``client_secret_post``.
 
     Returns:
         The parsed token response dict (access_token, id_token, ...).
@@ -72,6 +75,11 @@ def exchange_code(
         "redirect_uri": redirect_uri,
         "code_verifier": code_verifier,
     }
+    auth: tuple[str, str] | None = (client_id, client_secret)
+    if auth_method == "client_secret_post":
+        data["client_id"] = client_id
+        data["client_secret"] = client_secret
+        auth = None
 
     with build_safe_client(**SAFE_CLIENT_OPTIONS) as client:
         try:
@@ -80,7 +88,7 @@ def exchange_code(
                 "POST",
                 token_endpoint,
                 data=data,
-                auth=(client_id, client_secret),
+                auth=auth,
             )
         except Exception as exc:  # noqa: BLE001
             raise TokenExchangeError(f"Token exchange failed: {exc}") from exc

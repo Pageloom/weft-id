@@ -12,6 +12,16 @@ All functions follow the service layer pattern:
 - Log events for all writes
 """
 
+from services.oidc_upstream.adapters import (
+    ClientCredentials,
+    ProviderAdapter,
+    ProviderLoginError,
+    SpecOIDCAdapter,
+    UpstreamIdentity,
+    callback_url,
+    get_adapter,
+    resolve_client_credentials,
+)
 from services.oidc_upstream.attributes import (
     apply_oidc_idp_attributes,
     scrub_oidc_canonical_matches_mirror,
@@ -91,6 +101,7 @@ from services.oidc_upstream.presets import (
     compose_entra_discovery_url,
     get_preset,
     get_preset_defaults,
+    provider_display_name,
 )
 from services.oidc_upstream.provisioning import (
     authenticate_via_oidc,
@@ -105,6 +116,15 @@ from services.oidc_upstream.token_exchange import (
 )
 
 __all__ = [
+    "ClientCredentials",
+    "ProviderAdapter",
+    "ProviderLoginError",
+    "SpecOIDCAdapter",
+    "UpstreamIdentity",
+    "callback_url",
+    "get_adapter",
+    "resolve_client_credentials",
+    "provider_display_name",
     "list_connections",
     "get_connection",
     "get_connection_row",

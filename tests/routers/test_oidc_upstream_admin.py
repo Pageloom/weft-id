@@ -42,6 +42,7 @@ def _make_connection(test_tenant, test_super_admin_user, **overrides):
     import database
 
     kwargs = {
+        "provider_type": "generic",
         "issuer": "https://idp.example.com",
         "client_id": "client-123",
         "is_enabled": False,
@@ -51,7 +52,6 @@ def _make_connection(test_tenant, test_super_admin_user, **overrides):
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
         name="Test OIDC",
-        provider_type="generic",
         created_by=str(test_super_admin_user["id"]),
         **kwargs,
     )
@@ -797,3 +797,114 @@ def test_edit_group_claim_as_admin_forbidden(
         follow_redirects=False,
     )
     assert response.status_code in (303, 403)
+
+
+# =============================================================================
+# Social presets (Microsoft personal, LinkedIn, GitLab)
+# =============================================================================
+
+
+def test_new_connection_form_offers_social_presets(super_admin_session, test_tenant_host):
+    response = super_admin_session.get(
+        "/identity-providers/oidc/new",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    for provider_type, label in (
+        ("microsoft", "Microsoft (personal accounts)"),
+        ("linkedin", "LinkedIn"),
+        ("gitlab", "GitLab"),
+    ):
+        assert f'<option value="{provider_type}">{label}</option>' in response.text
+    # Adapter-backed providers are not offered until their adapter ships.
+    assert '<option value="github"' not in response.text
+
+
+@pytest.mark.parametrize(
+    ("provider_type", "issuer"),
+    [
+        (
+            "microsoft",
+            "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
+        ),
+        ("linkedin", "https://www.linkedin.com/oauth"),
+        ("gitlab", "https://gitlab.com"),
+    ],
+)
+def test_create_social_preset_connection(
+    super_admin_session, test_tenant_host, test_tenant, provider_type, issuer
+):
+    import database
+
+    response = super_admin_session.post(
+        "/identity-providers/oidc/new",
+        data={
+            "name": f"{provider_type} sign-in",
+            "provider_type": provider_type,
+            "client_id": "client-123",
+            "client_secret": "super-secret-value",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=created" in response.headers["location"]
+    row = next(
+        c
+        for c in database.oidc_upstream.list_connections(test_tenant["id"])
+        if c["name"] == f"{provider_type} sign-in"
+    )
+    assert row["provider_type"] == provider_type
+    assert row["issuer"] == issuer
+    assert row["correlation_claim"] == "sub"
+
+
+def test_create_self_managed_gitlab(super_admin_session, test_tenant_host, test_tenant):
+    import database
+
+    response = super_admin_session.post(
+        "/identity-providers/oidc/new",
+        data={
+            "name": "Acme GitLab",
+            "provider_type": "gitlab",
+            "issuer": "https://gitlab.acme.example",
+            "client_id": "client-123",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    row = next(
+        c
+        for c in database.oidc_upstream.list_connections(test_tenant["id"])
+        if c["name"] == "Acme GitLab"
+    )
+    assert row["issuer"] == "https://gitlab.acme.example"
+    assert row["discovery_url"] is None
+
+
+def test_create_unreleased_provider_type_rejected(super_admin_session, test_tenant_host):
+    response = super_admin_session.post(
+        "/identity-providers/oidc/new",
+        data={"name": "GitHub", "provider_type": "github", "client_id": "client-123"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=invalid_input" in response.headers["location"]
+
+
+def test_list_and_details_show_provider_label(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(test_tenant, test_super_admin_user, provider_type="linkedin")
+    listing = super_admin_session.get(
+        "/identity-providers/oidc", headers={"Host": test_tenant_host}
+    )
+    assert "LinkedIn" in listing.text
+    details = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/details", headers={"Host": test_tenant_host}
+    )
+    assert details.status_code == 200
+    assert "LinkedIn" in details.text

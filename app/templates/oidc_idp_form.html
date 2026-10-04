@@ -43,9 +43,9 @@
                 </label>
                 <select id="provider_type" name="provider_type" required
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="generic" selected>Generic OIDC</option>
-                    <option value="google">Google</option>
-                    <option value="entra">Entra ID</option>
+                    {% for provider_type, preset in presets.items() %}
+                    <option value="{{ provider_type }}"{% if provider_type == 'generic' %} selected{% endif %}>{{ preset.display_name }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -66,6 +66,7 @@
                 <input type="url" id="issuer" name="issuer"
                        placeholder="https://accounts.google.com"
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p id="issuer-override-hint" class="hidden mt-1 text-xs text-gray-500 dark:text-gray-400">For a self-managed instance, replace this with your instance's URL.</p>
             </div>
 
             <div>
@@ -244,6 +245,7 @@
     const correlationInput = document.getElementById('correlation_claim');
     const entraField = document.getElementById('entra-tenant-field');
     const hostedField = document.getElementById('hosted-domain-field');
+    const issuerHint = document.getElementById('issuer-override-hint');
     const manualSection = document.getElementById('manual-endpoints-section');
     const manualToggle = document.getElementById('manual-endpoints-toggle');
     const manualFields = document.getElementById('manual-endpoints-fields');
@@ -257,7 +259,9 @@
         } else if (type !== 'entra') {
             issuerInput.value = '';
         }
-        if (preset.discovery_url) {
+        // An overridable issuer discovers from its own well-known path, so
+        // the preset discovery URL is left for the server to fill in.
+        if (preset.discovery_url && !preset.issuer_overridable) {
             discoveryInput.value = preset.discovery_url;
         } else {
             discoveryInput.value = '';
@@ -272,9 +276,10 @@
         // required there; every other preset needs an explicit issuer.
         issuerInput.required = type !== 'entra';
         entraField.classList.toggle('hidden', type !== 'entra');
+        issuerHint.classList.toggle('hidden', !preset.issuer_overridable);
         hostedField.classList.toggle('hidden', type !== 'google');
-        // Google and Entra always publish discovery; manual endpoints only
-        // make sense for a generic provider.
+        // Every preset publishes discovery; manual endpoints only make sense
+        // for a generic provider.
         manualSection.classList.toggle('hidden', type !== 'generic');
     }
 

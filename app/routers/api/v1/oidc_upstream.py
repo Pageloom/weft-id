@@ -55,7 +55,8 @@ def list_connections(
     Requires super_admin role.
 
     Returns a list of connections with basic info (id, name, provider_type,
-    enabled/default status).
+    provider_label, enabled/default status). provider_label is the
+    provider's display name (e.g. "LinkedIn").
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
@@ -82,9 +83,13 @@ def create_connection(
 
     Request body:
     - name: Display name for the connection (<=120 chars)
-    - provider_type: One of generic, google, entra
-    - issuer: The IdP issuer URL (<=2048 chars)
-    - discovery_url: Optional discovery document URL (<=2048 chars)
+    - provider_type: One of generic, google, entra, microsoft (personal
+      Microsoft accounts), linkedin, gitlab
+    - issuer: The IdP issuer URL (<=2048 chars). Filled from the preset when
+      omitted (required for generic; composed from entra_tenant_id for
+      entra). For gitlab, set it to a self-managed instance's URL
+    - discovery_url: Optional discovery document URL (<=2048 chars). Filled
+      from the preset only when the issuer is the preset's issuer
     - authorization_endpoint / token_endpoint / userinfo_endpoint / jwks_uri /
       end_session_endpoint: Optional manual endpoint overrides (<=2048 chars
       each; discovery fills them when the provider publishes a document)

@@ -1,0 +1,12 @@
+{
+  "sub": "li-subject-123",
+  "email": "linkedin-user@example.com",
+  "email_verified": true,
+  "given_name": "Linked",
+  "family_name": "User",
+  "name": "Linked User",
+  "locale": {
+    "country": "US",
+    "language": "en"
+  }
+}

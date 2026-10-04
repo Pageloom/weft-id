@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "oidc-upstream-linkedin-key",
+      "n": "q_H16r18PUd7SJHeI_rDCvhHKnVvfXryIvOeEYK8_TZP-hMP7410cp97T3sDFTIROy7C3_2VhlTSUsEhc2HUHgZEqwlPoqs45E5Q-GprOMm8g15anQdzuMZHkfLBlS-GWZnSQ7iCwSVRwaIvuMNc447S7iYDfHdCXK6Vad8RwRNxW_ptRYQDzAl5TCtCOTpZ43twMKrXugkm5hfa1pozCDNC6UK2O-7TfWIc13oSDYxpCX69nWcX3EPpLuiGm4fJPbXZt7AhM_d5s-lqHX721_FmpBum7s7TI1UbdYs5e8bHguo3A6n9cwQNHeALFONaCjJ0z9CZ0xQSEadsBpZj4w",
+      "e": "AQAB"
+    }
+  ]
+}

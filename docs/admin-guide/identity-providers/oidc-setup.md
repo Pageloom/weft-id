@@ -22,10 +22,10 @@ WeftID uses the authorization code flow with PKCE, and nothing else. There is no
 1. Navigate to **Identity Providers > OIDC**
 2. Click **Add Connection**
 3. Enter a display name
-4. Select the provider type (Generic, Google, or Entra)
+4. Select the provider type (Generic, Google, Entra ID, Microsoft personal accounts, LinkedIn, or GitLab)
 5. Click **Create**
 
-Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. See [Google Workspace](oidc-google.md) and [Microsoft Entra ID](oidc-entra.md) for the vendor walkthroughs.
+Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), and [GitLab](oidc-gitlab.md).
 
 ## Step 2: Register WeftID with your provider
 
@@ -108,7 +108,7 @@ The same applies when an app signs a user out through WeftID's own end session e
 
 ## Providers without discovery
 
-A provider that does not publish `/.well-known/openid-configuration` can still be used by entering its endpoints by hand. This applies to the Generic provider type only. Google and Entra always publish discovery, so the manual fields are not shown for them.
+A provider that does not publish `/.well-known/openid-configuration` can still be used by entering its endpoints by hand. This applies to the Generic provider type only. Every other preset publishes discovery, so the manual fields are not shown for them.
 
 * **When creating a connection**, expand **Advanced: manual endpoints** on the form and fill in the authorization endpoint, token endpoint, userinfo endpoint, and JWKS URI. The end session endpoint is optional and only used by **Sign Out at the Provider**.
 * **On an existing connection**, open the **Details** tab and click the pencil next to **Endpoints**. A blank field keeps its current value.
@@ -184,11 +184,13 @@ Provider notes:
 * **Okta**: add a `groups` claim to the authorization server (**Security > API > Authorization Servers > Claims**), include it in the ID token, and use the claim's group filter to limit which groups are released. Add `groups` to the connection's scopes if the claim is scoped to it.
 * **Microsoft Entra ID**: enable the groups claim on the app registration. The claim carries group object IDs, not names, so synced groups are named by GUID. See [OIDC with Microsoft Entra ID](oidc-entra.md#groups).
 * **Google Workspace**: no groups claim is available over OIDC.
+* **GitLab**: the `groups` claim carries group paths. See [OIDC with GitLab](oidc-gitlab.md#groups).
+* **Microsoft personal accounts and LinkedIn**: no groups claim.
 * **Keycloak, Auth0, Authentik and other generic providers**: add a mapper or action that puts the user's groups into a claim, then enter that claim's name here. Namespaced names such as `https://example.com/groups` work.
 
 ## Correlation claim
 
-Most providers use `sub` as the stable subject. Entra is the exception: its `sub` is unique per application, so the Entra preset correlates on `oid` instead, per Microsoft's guidance.
+Most providers use `sub` as the stable subject. Entra is the exception: its `sub` is unique per application, so the Entra preset correlates on `oid` instead, per Microsoft's guidance. Personal Microsoft accounts carry no `oid`, so that preset uses `sub`.
 
 Changing the correlation claim on a connection that already has linked users will orphan those links, and affected users will be treated as new subjects on their next sign-in. Change it before the connection goes into use, not after.
 

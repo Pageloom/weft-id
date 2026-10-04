@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "oidc-upstream-gitlab-key",
+      "n": "xlqkuthAwzjoXcJNoKTa6HcJjo69JtR5MJ-zBhDVtchzEaixRQ1CsmJhzVg-Xg9Rsgn_KpK2bFmhXf2BHoefKjDf8jEbfcRgKvODZ8LFB4nWqZMl91MyNN4mGhtklVqCYxvkDyLHt0RUDmaJilRmOs8vfxA6ipNgeAji5EL4iQnILrwZjsjjTbfMH_K1sH1hCUXbz_UUBdmLgJAm1oPAc0ilPdtNE26JZ9u5sdAVdSER85KyECxonG4x-ug4tG2YQ1GPr_uGWttxw_K55QEzVd8uTB5jYkjB7gapEgzGMEDUQa8JlZ4Gudfiag_GnWrpqYbWWkrkFG0DZe6D6h2rBw",
+      "e": "AQAB"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "oidc-upstream-microsoft-key",
+      "n": "y-l1n9AXxCWmi7MJKWePpVzsWUqlfV8rqOdUCXhUcsM5GB3xtsgfiXr0qFPtVF6HX_9LtPS95Kbd37IGdvSeXLcdL_1WK5W2UD922lYcvw4vh5DQAyYmPDpHQLSXLKh9sxCilfZALwjasFwIRhhemLySO1euxgGDUXzWXu-yRQjDnX4BYgaNK4DRDKqa77lO5xUDOdNr32DO8cLimmMMtKP3Rjl-ABI_wI_yzaH8WjC34v6b273K6bn5ZpA1UUJ27fdt_U3H6Ao_35SAf2-SqdV5F1x_tIBuidmu4Mad78UplVLxbiYnXprEYkNeo51gFkTzhjPxqp67U7qvczji7w",
+      "e": "AQAB"
+    }
+  ]
+}

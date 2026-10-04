@@ -33,6 +33,12 @@ from services.exceptions import ForbiddenError, NotFoundError, ValidationError
 from services.oidc_upstream.presets import email_linking_trusted
 from utils.validate import is_email_like
 
+# How a user reached the provider, recorded on sign-in audit events: a
+# "Continue with ..." button on the sign-in page, or any other route (email-
+# first routing, the default connection, a direct link).
+ENTRY_LOGIN_BUTTON = "login_button"
+ENTRY_ROUTED = "routed"
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,6 +86,7 @@ def jit_provision_user(
     connection: dict,
     sub: str,
     claims: dict,
+    entry: str = ENTRY_ROUTED,
 ) -> dict:
     """Create a new user via JIT provisioning from OIDC claims.
 
@@ -92,6 +99,7 @@ def jit_provision_user(
         connection: The OIDC connection row (dict).
         sub: The correlation subject (the ``correlation_claim`` value).
         claims: The validated ID-token claims (plus any userinfo claims).
+        entry: How the user reached the provider, recorded on the event.
 
     Returns:
         The created user dict (for session creation).
@@ -193,6 +201,7 @@ def jit_provision_user(
             "first_name": first_name,
             "last_name": last_name,
             "sub": sub,
+            "entry": entry,
         },
     )
 
@@ -211,6 +220,7 @@ def authenticate_via_oidc(
     connection: dict,
     sub: str,
     claims: dict,
+    entry: str = ENTRY_ROUTED,
 ) -> dict:
     """Complete OIDC authentication and return the user.
 
@@ -233,6 +243,8 @@ def authenticate_via_oidc(
         connection: The OIDC connection row (dict).
         sub: The correlation subject.
         claims: The validated ID-token claims.
+        entry: How the user reached the provider (``ENTRY_LOGIN_BUTTON`` or
+            ``ENTRY_ROUTED``), recorded on the sign-in and refusal events.
 
     Returns:
         The user dict for session creation.
@@ -258,11 +270,11 @@ def authenticate_via_oidc(
                 message="User account is inactivated",
                 code="user_inactivated",
             )
-        _refuse_saml_assigned(tenant_id, user, connection, sub)
+        _refuse_saml_assigned(tenant_id, user, connection, sub, entry)
         _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
         _sync_groups(tenant_id, str(user["id"]), connection, claims, user)
         database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
-        _log_sign_in(tenant_id, str(user["id"]), connection, sub, claims)
+        _log_sign_in(tenant_id, str(user["id"]), connection, sub, entry)
         return user
 
     # 2. Email linking (opt-in, gated on email_verified).
@@ -280,10 +292,10 @@ def authenticate_via_oidc(
                         message="User account is inactivated",
                         code="user_inactivated",
                     )
-                _refuse_saml_assigned(tenant_id, existing, connection, sub)
+                _refuse_saml_assigned(tenant_id, existing, connection, sub, entry)
                 user_id = str(existing["id"])
                 if database.oidc_upstream.get_link_for_user_idp(tenant_id, user_id, connection_id):
-                    _log_refusal(tenant_id, user_id, connection, sub, "already_linked")
+                    _log_refusal(tenant_id, user_id, connection, sub, "already_linked", entry)
                     raise ForbiddenError(
                         message="User is already linked to this connection",
                         code="oidc_connection_already_linked",
@@ -326,12 +338,13 @@ def authenticate_via_oidc(
                 _apply_oidc_idp_attributes_safe(tenant_id, user_id, connection, claims)
                 _sync_groups(tenant_id, user_id, connection, claims, existing)
                 database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
-                _log_sign_in(tenant_id, user_id, connection, sub, claims)
+                _log_sign_in(tenant_id, user_id, connection, sub, entry)
                 return existing
 
     # 3. JIT provisioning.
     if connection.get("jit_provisioning"):
-        user = jit_provision_user(tenant_id, connection, sub, claims)
+        # Recorded by oidc_user_jit_provisioned alone, mirroring SAML JIT.
+        user = jit_provision_user(tenant_id, connection, sub, claims, entry)
         _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
         _sync_groups(tenant_id, str(user["id"]), connection, claims, user)
         database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
@@ -350,12 +363,13 @@ def _refuse_saml_assigned(
     user: dict,
     connection: dict,
     sub: str,
+    entry: str,
 ) -> None:
     """Refuse an OIDC sign-in for a user assigned to a SAML IdP."""
     if not user.get("saml_idp_id"):
         return
     user_id = str(user["id"])
-    _log_refusal(tenant_id, user_id, connection, sub, "saml_assigned_user")
+    _log_refusal(tenant_id, user_id, connection, sub, "saml_assigned_user", entry)
     raise ForbiddenError(
         message="User signs in through a SAML identity provider",
         code="saml_assigned_user",
@@ -368,6 +382,7 @@ def _log_refusal(
     connection: dict,
     sub: str,
     reason: str,
+    entry: str,
 ) -> None:
     """Log ``oidc_login_refused`` for a known user turned away by policy."""
     log_event(
@@ -381,6 +396,7 @@ def _log_refusal(
             "idp_name": connection["name"],
             "sub": sub,
             "reason": reason,
+            "entry": entry,
         },
     )
 
@@ -465,9 +481,9 @@ def _log_sign_in(
     user_id: str,
     connection: dict,
     sub: str,
-    claims: dict,
+    entry: str,
 ) -> None:
-    """Log the ``oidc_login_completed`` event for an existing user."""
+    """Log the ``oidc_login_completed`` event."""
     log_event(
         tenant_id=tenant_id,
         actor_user_id=user_id,
@@ -478,5 +494,6 @@ def _log_sign_in(
             "idp_id": str(connection["id"]),
             "idp_name": connection["name"],
             "sub": sub,
+            "entry": entry,
         },
     )

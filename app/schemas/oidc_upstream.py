@@ -91,6 +91,7 @@ class OIDCConnectionCreate(BaseModel):
     jit_provisioning: bool = False
     allow_email_linking: bool = False
     sign_out_at_idp: bool = False
+    show_on_login: bool = False
 
 
 class OIDCConnectionUpdate(BaseModel):
@@ -126,6 +127,7 @@ class OIDCConnectionUpdate(BaseModel):
     jit_provisioning: bool | None = None
     allow_email_linking: bool | None = None
     sign_out_at_idp: bool | None = None
+    show_on_login: bool | None = None
 
 
 class OIDCConnectionConfig(BaseModel):
@@ -162,6 +164,7 @@ class OIDCConnectionConfig(BaseModel):
     jit_provisioning: bool
     allow_email_linking: bool
     sign_out_at_idp: bool
+    show_on_login: bool
     callback_url: str
     backchannel_logout_url: str
     post_logout_redirect_uri: str
@@ -180,6 +183,7 @@ class OIDCConnectionListItem(BaseModel):
     provider_label: str
     is_enabled: bool
     is_default: bool
+    show_on_login: bool
     discovery_url: str | None
     discovery_fetched_at: datetime | None
     discovery_error: str | None
@@ -191,6 +195,15 @@ class OIDCConnectionListResponse(BaseModel):
 
     items: list[OIDCConnectionListItem]
     total: int
+
+
+class OIDCLoginButton(BaseModel):
+    """A "Continue with ..." button on the sign-in page."""
+
+    connection_id: str
+    provider_type: str
+    label: str
+    logo: str | None
 
 
 class OIDCUserLink(BaseModel):

@@ -40,6 +40,23 @@ def list_connections(tenant_id: TenantArg) -> list[dict]:
     )
 
 
+def list_login_page_connections(tenant_id: TenantArg) -> list[dict]:
+    """List the enabled connections an admin has put on the login page.
+
+    Ordered by name so the buttons keep a stable order.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select id, name, provider_type
+        from oidc_idp_connections
+        where is_enabled and show_on_login
+        order by lower(name), created_at
+        """,
+        {},
+    )
+
+
 def get_connection(tenant_id: TenantArg, connection_id: str) -> dict | None:
     """Get an OIDC connection by ID, or None if not found."""
     return fetchone(
@@ -100,6 +117,7 @@ def create_connection(
     jit_provisioning: bool = False,
     allow_email_linking: bool = False,
     sign_out_at_idp: bool = False,
+    show_on_login: bool = False,
 ) -> dict | None:
     """Create a new OIDC connection.
 
@@ -121,7 +139,8 @@ def create_connection(
             end_session_endpoint, client_id, client_secret_enc, scopes, claim_mapping,
             correlation_claim, group_claim_source, group_claim_name_key, hosted_domain,
             entra_tenant_id, is_enabled, is_default, require_platform_mfa,
-            jit_provisioning, allow_email_linking, sign_out_at_idp, created_by
+            jit_provisioning, allow_email_linking, sign_out_at_idp, show_on_login,
+            created_by
         )
         values (
             :tenant_id, :name, :provider_type, :issuer, :discovery_url,
@@ -129,7 +148,8 @@ def create_connection(
             :end_session_endpoint, :client_id, :client_secret_enc, :scopes, :claim_mapping,
             :correlation_claim, :group_claim_source, :group_claim_name_key, :hosted_domain,
             :entra_tenant_id, :is_enabled, :is_default, :require_platform_mfa,
-            :jit_provisioning, :allow_email_linking, :sign_out_at_idp, :created_by
+            :jit_provisioning, :allow_email_linking, :sign_out_at_idp, :show_on_login,
+            :created_by
         )
         returning {_COLUMNS}
         """,
@@ -159,6 +179,7 @@ def create_connection(
             "jit_provisioning": jit_provisioning,
             "allow_email_linking": allow_email_linking,
             "sign_out_at_idp": sign_out_at_idp,
+            "show_on_login": show_on_login,
             "created_by": created_by,
         },
     )

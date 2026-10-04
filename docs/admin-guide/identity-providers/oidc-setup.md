@@ -10,8 +10,8 @@ WeftID acts as a relying party here, consuming an upstream provider. That is the
 
 WeftID uses the authorization code flow with PKCE, and nothing else. There is no implicit flow and no hybrid flow.
 
-1. A user arrives at the login page and enters their email address.
-2. WeftID routes them to the connection, either because they are already linked to it, because their email domain is bound to it, or because it is the tenant default. A user linked to several connections goes to the one they used most recently (see [Account linking](account-linking.md)).
+1. A user arrives at the login page and enters their email address, or clicks the connection's **Continue with ...** button if it has one (see [Sign-in page buttons](login-buttons.md)).
+2. After an email address, WeftID routes them to the connection, either because they are already linked to it, because their email domain is bound to it, or because it is the tenant default. A user linked to several connections goes to the one they used most recently (see [Account linking](account-linking.md)).
 3. WeftID redirects to the provider's authorization endpoint with a `state`, a `nonce`, and a PKCE challenge.
 4. The provider authenticates the user and redirects back to WeftID's callback.
 5. WeftID exchanges the code for an ID token, verifies its signature against the provider's JWKS, and checks the issuer, audience, nonce, and expiry.
@@ -129,6 +129,7 @@ Entering endpoints by hand stops the hourly refresh at sign-in, so your values s
 
 * **Enabled**: whether users can sign in through this connection. A disabled connection blocks its linked users from authenticating.
 * **Default connection**: new users with no other route are sent here. One connection per tenant can be the default.
+* **Show on sign-in page**: put a **Continue with ...** button for this connection on the sign-in page while it is enabled. See [Sign-in page buttons](login-buttons.md).
 * **JIT provisioning**: create a WeftID account on first successful sign-in. Without it, only users who already exist and are already linked can sign in.
 * **Require two-step verification**: after the provider authenticates the user, WeftID additionally requires its own two-step verification before the session is established. Use this when you do not want to rely solely on the upstream provider's authentication.
 * **Allow email linking**: see below.

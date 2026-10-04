@@ -153,6 +153,24 @@
 
             <div class="flex items-start">
                 <div class="flex items-center h-5">
+                    <input type="checkbox" id="show_on_login" name="show_on_login"
+                           {% if connection.show_on_login %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="show_on_login" class="text-sm font-medium text-gray-700 dark:text-gray-300">Show on Sign-In Page</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Add a "Continue with ..." button for this provider to the sign-in page while it is enabled.</p>
+                    {% if connection.show_on_login and not connection.is_enabled %}
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        {{ icon("exclamation-triangle", class="w-3 h-3 inline-block mr-1 -mt-0.5") }}
+                        The provider is disabled, so the button is not shown.
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
                     <input type="checkbox" id="require_platform_mfa" name="require_platform_mfa"
                            {% if connection.require_platform_mfa %}checked{% endif %}
                            class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">

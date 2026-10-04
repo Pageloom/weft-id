@@ -44,6 +44,12 @@ On your first sign-in with this flow (or when your trust cookie has expired), yo
 
 Once your trust cookie is set, future sign-ins skip step 2 and you only enter one code.
 
+## Continue with a provider
+
+Your organization may put **Continue with ...** buttons above the email field, such as **Continue with Google**. Click one to sign in with your account at that provider. You do not enter your email address first.
+
+The first time you use a button, WeftID either finds your existing account, creates one, or tells you no account was found, depending on how your organization set it up. If your account signs in through your organization's single sign-on, use your email address instead.
+
 ## Passkey sign-in
 
 If you have a passkey registered, WeftID offers a passkey prompt after you enter your email. Approve with your fingerprint, PIN, or security key tap, and you go straight to the dashboard. No password, no verification code.

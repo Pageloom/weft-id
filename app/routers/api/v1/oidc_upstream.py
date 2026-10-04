@@ -111,6 +111,9 @@ def create_connection(
     - sign_out_at_idp: On WeftID sign-out, send the browser to the provider's
       end_session_endpoint so the provider session ends too (default false).
       Register the returned post_logout_redirect_uri at the provider first
+    - show_on_login: Put a "Continue with <provider>" button for this
+      connection on the sign-in page (default false). Shown only while the
+      connection is enabled
 
     Returns the created connection. The client secret is never returned.
     """
@@ -170,7 +173,7 @@ def update_connection(
       client_secret, scopes, claim_mapping, correlation_claim,
       group_claim_source, group_claim_name_key, hosted_domain,
       entra_tenant_id, require_platform_mfa, jit_provisioning,
-      allow_email_linking, sign_out_at_idp.
+      allow_email_linking, sign_out_at_idp, show_on_login.
       An empty string for group_claim_source or group_claim_name_key clears
       the setting. allow_email_linking=true is rejected (400) for providers
       without a trusted verified-email claim (microsoft)

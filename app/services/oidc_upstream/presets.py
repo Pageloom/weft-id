@@ -50,8 +50,7 @@ class OIDCPreset:
 
     Attributes:
         provider_type: The ``provider_type`` value stored on the connection.
-        display_name: The provider's name as shown to admins (and, later, on
-            the login page button).
+        display_name: The provider's name as shown to admins.
         issuer: The issuer/authority URL, or None when the admin must supply
             one (generic) or when it is composed from another field (entra).
         discovery_url: The discovery document URL, or None when the admin
@@ -73,6 +72,10 @@ class OIDCPreset:
             account by email. False for providers that assert no verified
             flag, or one that does not prove the user controls the address;
             such connections never email-link.
+        login_label: The name on the sign-in page button ("Continue with
+            <login_label>"), or None to use the connection's own name.
+        logo: The brand logo file (``templates/provider_logos/<logo>.svg``)
+            shown on the button, or None for no logo.
     """
 
     provider_type: str
@@ -85,6 +88,8 @@ class OIDCPreset:
     token_auth_method: str = TOKEN_AUTH_BASIC
     issuer_overridable: bool = False
     email_linking_trusted: bool = True
+    login_label: str | None = None
+    logo: str | None = None
 
 
 _PRESETS: dict[str, OIDCPreset] = {
@@ -103,6 +108,8 @@ _PRESETS: dict[str, OIDCPreset] = {
         discovery_url="https://accounts.google.com/.well-known/openid-configuration",
         scopes=_DEFAULT_SCOPES,
         correlation_claim="sub",
+        login_label="Google",
+        logo="google",
     ),
     "entra": OIDCPreset(
         provider_type="entra",
@@ -112,6 +119,8 @@ _PRESETS: dict[str, OIDCPreset] = {
         scopes=_ENTRA_SCOPES,
         correlation_claim="oid",
         requires_entra_tenant_id=True,
+        login_label="Microsoft",
+        logo="microsoft",
     ),
     "microsoft": OIDCPreset(
         provider_type="microsoft",
@@ -125,6 +134,8 @@ _PRESETS: dict[str, OIDCPreset] = {
         # Personal Microsoft accounts carry no email_verified claim, and the
         # account's email need not be one the user controls.
         email_linking_trusted=False,
+        login_label="Microsoft",
+        logo="microsoft",
     ),
     "linkedin": OIDCPreset(
         provider_type="linkedin",
@@ -134,6 +145,8 @@ _PRESETS: dict[str, OIDCPreset] = {
         scopes=_DEFAULT_SCOPES,
         correlation_claim="sub",
         token_auth_method=TOKEN_AUTH_POST,
+        login_label="LinkedIn",
+        logo="linkedin",
     ),
     "gitlab": OIDCPreset(
         provider_type="gitlab",
@@ -143,6 +156,8 @@ _PRESETS: dict[str, OIDCPreset] = {
         scopes=_DEFAULT_SCOPES,
         correlation_claim="sub",
         issuer_overridable=True,
+        login_label="GitLab",
+        logo="gitlab",
     ),
 }
 
@@ -182,6 +197,18 @@ def provider_display_name(provider_type: str) -> str:
     """
     preset = get_preset(provider_type)
     return preset.display_name if preset else provider_type
+
+
+def login_button_style(provider_type: str) -> tuple[str | None, str | None]:
+    """Return the sign-in button's ``(label, logo)`` for a provider type.
+
+    Either may be None: no label means "use the connection name", no logo
+    means a text-only button. A type with no preset gets neither.
+    """
+    preset = get_preset(provider_type)
+    if preset is None:
+        return None, None
+    return preset.login_label, preset.logo
 
 
 def token_auth_method(provider_type: str) -> str:

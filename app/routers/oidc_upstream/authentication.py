@@ -24,6 +24,10 @@ Security (cross-cutting requirements):
   redirects to ``/mfa/verify`` instead of calling
   ``complete_authenticated_login`` -- exactly as the SAML ACS does.
 - **Rate limiting**: both routes are rate-limited via ``ratelimit.prevent``.
+  The login route is public and is what the sign-in page's "Continue with
+  ..." buttons link to (``?via=login_button``), so that limit covers them.
+- **Audit**: started, completed, failed and refused events carry ``entry``
+  (``login_button`` or ``routed``), kept in the session across the hop.
 """
 
 from typing import Annotated
@@ -69,7 +73,7 @@ def _session_key(connection_id: str, name: str) -> str:
 
 def _clear_session_state(request: Request, connection_id: str) -> None:
     """Clear the per-connection state/nonce/verifier from the session."""
-    for name in ("state", "nonce", "code_verifier"):
+    for name in ("state", "nonce", "code_verifier", "entry"):
         request.session.pop(_session_key(connection_id, name), None)
 
 
@@ -107,6 +111,14 @@ def oidc_login(
     if not connection.get("is_enabled"):
         return _error_response("idp_disabled")
 
+    # Only a connection that is on the sign-in page can be entered by button;
+    # the query parameter alone must not relabel other sign-ins in the log.
+    entry = (
+        oidc_service.ENTRY_LOGIN_BUTTON
+        if request.query_params.get("via") == "login_button" and connection.get("show_on_login")
+        else oidc_service.ENTRY_ROUTED
+    )
+
     adapter = oidc_service.get_adapter(connection.get("provider_type"))
 
     # Pick up provider configuration changes (for spec OIDC, endpoints the
@@ -115,7 +127,7 @@ def oidc_login(
     try:
         connection = adapter.prepare(tenant_id, connection)
     except oidc_service.DiscoveryError as exc:
-        _log_failure(tenant_id, connection_id, connection, "discovery", str(exc))
+        _log_failure(tenant_id, connection_id, connection, "discovery", str(exc), entry)
         return _error_response("configuration_error")
 
     state = oidc_service.generate_state()
@@ -136,6 +148,7 @@ def oidc_login(
     request.session[_session_key(connection_id, "state")] = state
     request.session[_session_key(connection_id, "nonce")] = nonce
     request.session[_session_key(connection_id, "code_verifier")] = code_verifier
+    request.session[_session_key(connection_id, "entry")] = entry
 
     log_event(
         tenant_id=tenant_id,
@@ -143,7 +156,7 @@ def oidc_login(
         artifact_type="oidc_idp_connection",
         artifact_id=connection_id,
         event_type="oidc_login_started",
-        metadata={"idp_name": connection.get("name")},
+        metadata={"idp_name": connection.get("name"), "entry": entry},
     )
 
     # redirect-ok: deliberate off-origin hop to the IdP's authorization endpoint
@@ -185,25 +198,28 @@ def oidc_callback(
     expected_state = request.session.pop(_session_key(connection_id, "state"), None)
     expected_nonce = request.session.pop(_session_key(connection_id, "nonce"), None)
     code_verifier = request.session.pop(_session_key(connection_id, "code_verifier"), None)
+    entry = request.session.pop(_session_key(connection_id, "entry"), None)
+    if entry != oidc_service.ENTRY_LOGIN_BUTTON:
+        entry = oidc_service.ENTRY_ROUTED
 
     error = request.query_params.get("error")
     if error:
-        _log_failure(tenant_id, connection_id, connection, "idp_error", error)
+        _log_failure(tenant_id, connection_id, connection, "idp_error", error, entry)
         return _error_response("auth_failed")
 
     state = request.query_params.get("state")
     code = request.query_params.get("code")
 
     if expected_state is None or state != expected_state:
-        _log_failure(tenant_id, connection_id, connection, "state_mismatch", None)
+        _log_failure(tenant_id, connection_id, connection, "state_mismatch", None, entry)
         return _error_response("auth_failed")
 
     if not code:
-        _log_failure(tenant_id, connection_id, connection, "missing_code", None)
+        _log_failure(tenant_id, connection_id, connection, "missing_code", None, entry)
         return _error_response("auth_failed")
 
     if not code_verifier:
-        _log_failure(tenant_id, connection_id, connection, "missing_verifier", None)
+        _log_failure(tenant_id, connection_id, connection, "missing_verifier", None, entry)
         return _error_response("auth_failed")
 
     adapter = oidc_service.get_adapter(connection.get("provider_type"))
@@ -217,7 +233,7 @@ def oidc_callback(
             nonce=expected_nonce,
         )
     except oidc_service.ProviderLoginError as exc:
-        _log_failure(tenant_id, connection_id, connection, exc.reason, exc.detail)
+        _log_failure(tenant_id, connection_id, connection, exc.reason, exc.detail, entry)
         return _error_response(exc.public_error)
 
     try:
@@ -226,9 +242,10 @@ def oidc_callback(
             connection=connection,
             sub=identity.subject,
             claims=identity.claims,
+            entry=entry,
         )
     except NotFoundError as exc:
-        _log_failure(tenant_id, connection_id, connection, "user_not_found", str(exc))
+        _log_failure(tenant_id, connection_id, connection, "user_not_found", str(exc), entry)
         return _error_response("user_not_found")
     except ForbiddenError as exc:
         # Account-linking policy refusals are audited by the service
@@ -236,10 +253,10 @@ def oidc_callback(
         refusal = _POLICY_REFUSALS.get(exc.code)
         if refusal:
             return _error_response(refusal)
-        _log_failure(tenant_id, connection_id, connection, "auth_failed", str(exc))
+        _log_failure(tenant_id, connection_id, connection, "auth_failed", str(exc), entry)
         return _error_response("auth_failed")
     except Exception as exc:  # noqa: BLE001 - ForbiddenError and others
-        _log_failure(tenant_id, connection_id, connection, "auth_failed", str(exc))
+        _log_failure(tenant_id, connection_id, connection, "auth_failed", str(exc), entry)
         return _error_response("auth_failed")
 
     user_id = str(user["id"])
@@ -313,6 +330,7 @@ def _log_failure(
     connection: dict,
     reason: str,
     detail: str | None,
+    entry: str,
 ) -> None:
     """Log an ``oidc_login_failed`` event (best-effort)."""
     try:
@@ -326,6 +344,7 @@ def _log_failure(
                 "idp_name": connection.get("name"),
                 "reason": reason,
                 "detail": detail,
+                "entry": entry,
             },
         )
     except Exception:  # noqa: BLE001 - audit logging must not break the flow

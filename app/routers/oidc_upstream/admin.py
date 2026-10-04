@@ -10,6 +10,7 @@ rendered back into any template.
 """
 
 import logging
+import re
 from typing import Annotated
 from urllib.parse import quote
 
@@ -51,6 +52,11 @@ def _load_connection_common(request: Request, tenant_id: str, user: dict, connec
         requesting_user, connection_id, tenant_base_url(request)
     )
     return connection, requesting_user
+
+
+def _parse_org_list(value: str) -> list[str]:
+    """Split a free-text organization list (commas, spaces or new lines)."""
+    return [org for org in re.split(r"[\s,]+", value) if org]
 
 
 def _preset_defaults() -> dict[str, dict]:
@@ -151,6 +157,7 @@ def create_connection(
     jit_provisioning: Annotated[bool, Form()] = False,
     allow_email_linking: Annotated[bool, Form()] = False,
     show_on_login: Annotated[bool, Form()] = False,
+    github_allowed_orgs: Annotated[str, Form(max_length=4100)] = "",
 ):
     """Create a new OIDC upstream connection from the admin form."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -181,6 +188,7 @@ def create_connection(
             jit_provisioning=jit_provisioning,
             allow_email_linking=allow_email_linking,
             show_on_login=show_on_login,
+            github_allowed_orgs=_parse_org_list(github_allowed_orgs) or None,
         )
     except PydanticValidationError:
         # A malformed form value (bad provider type, empty issuer, over-length
@@ -598,6 +606,41 @@ def edit_connection_settings(
         return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={str(e)}")
 
     return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?success=settings_updated")
+
+
+@router.post(
+    "/identity-providers/oidc/{connection_id}/edit-github-orgs",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_github_allowed_orgs(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+    github_allowed_orgs: Annotated[str, Form(max_length=4100)] = "",
+):
+    """Set the GitHub organizations a user must belong to (blank clears it)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        data = OIDCConnectionUpdate(github_allowed_orgs=_parse_org_list(github_allowed_orgs))
+    except PydanticValidationError:
+        message = quote(
+            "Organization names may hold only letters, digits and hyphens (up to 39 "
+            "characters), and at most 100 organizations."
+        )
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={message}")
+
+    try:
+        oidc_service.update_connection(
+            requesting_user, connection_id, data, tenant_base_url(request)
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as e:
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={str(e)}")
+
+    return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?success=orgs_updated")
 
 
 @router.post(

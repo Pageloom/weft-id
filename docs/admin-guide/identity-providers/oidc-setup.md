@@ -22,10 +22,10 @@ WeftID uses the authorization code flow with PKCE, and nothing else. There is no
 1. Navigate to **Identity Providers > OIDC**
 2. Click **Add Connection**
 3. Enter a display name
-4. Select the provider type (Generic, Google, Entra ID, Microsoft personal accounts, LinkedIn, or GitLab)
+4. Select the provider type (Generic, Google, Entra ID, Microsoft personal accounts, LinkedIn, GitLab, or GitHub)
 5. Click **Create**
 
-Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), and [GitLab](oidc-gitlab.md).
+Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), [GitLab](oidc-gitlab.md), and [GitHub](oidc-github.md). GitHub is OAuth 2.0 rather than OpenID Connect, so it has no issuer, discovery or correlation settings; its walkthrough explains the differences.
 
 ## Step 2: Register WeftID with your provider
 
@@ -188,6 +188,7 @@ Provider notes:
 * **Microsoft Entra ID**: enable the groups claim on the app registration. The claim carries group object IDs, not names, so synced groups are named by GUID. See [OIDC with Microsoft Entra ID](oidc-entra.md#groups).
 * **Google Workspace**: no groups claim is available over OIDC.
 * **GitLab**: the `groups` claim carries group paths. See [OIDC with GitLab](oidc-gitlab.md#groups).
+* **GitHub**: enter `groups` to sync organizations and teams. See [Sign in with GitHub](oidc-github.md#groups).
 * **Microsoft personal accounts and LinkedIn**: no groups claim.
 * **Keycloak, Auth0, Authentik and other generic providers**: add a mapper or action that puts the user's groups into a claim, then enter that claim's name here. Namespaced names such as `https://example.com/groups` work.
 

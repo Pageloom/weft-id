@@ -58,6 +58,8 @@
                 This account signs in through your organization's single sign-on. Enter your email address to continue.
                 {% elif error == 'account_already_linked' %}
                 Your account is already linked to a different account at this provider. Sign in with that account, or contact your administrator.
+                {% elif error == 'github_org_not_allowed' %}
+                Your GitHub account is not a member of an organization that can sign in here. Contact your administrator.
                 {% else %}
                 {{ error }}
                 {% endif %}

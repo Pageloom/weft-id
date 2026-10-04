@@ -23,7 +23,17 @@ logger = logging.getLogger(__name__)
 
 
 class TokenExchangeError(OIDCUpstreamError):
-    """The token endpoint rejected the authorization-code exchange."""
+    """The token endpoint rejected the authorization-code exchange.
+
+    Attributes:
+        error: The OAuth ``error`` code from the response body, when the
+            endpoint returned one (``invalid_grant``,
+            ``incorrect_client_credentials``, ...).
+    """
+
+    def __init__(self, message: str, *, error: str | None = None) -> None:
+        super().__init__(message)
+        self.error = error
 
 
 class UserinfoError(OIDCUpstreamError):
@@ -89,6 +99,8 @@ def exchange_code(
                 token_endpoint,
                 data=data,
                 auth=auth,
+                # GitHub answers in form encoding unless asked for JSON.
+                headers={"Accept": "application/json"},
             )
         except Exception as exc:  # noqa: BLE001
             raise TokenExchangeError(f"Token exchange failed: {exc}") from exc
@@ -105,7 +117,11 @@ def exchange_code(
         raise TokenExchangeError("Token response is not a JSON object")
 
     if "error" in payload:
-        raise TokenExchangeError(f"Token endpoint returned an error: {payload.get('error')}")
+        error = payload.get("error")
+        raise TokenExchangeError(
+            f"Token endpoint returned an error: {error}",
+            error=error if isinstance(error, str) else None,
+        )
 
     return payload
 

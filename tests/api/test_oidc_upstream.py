@@ -498,7 +498,7 @@ def test_create_unreleased_provider_type_rejected(
     response = client.post(
         "/api/v1/oidc-upstream/connections",
         headers={"Host": test_tenant_host, **oauth2_super_admin_header},
-        json={"name": "GitHub", "provider_type": "github"},
+        json={"name": "Discord", "provider_type": "discord"},
     )
     assert response.status_code == 422
 

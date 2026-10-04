@@ -106,7 +106,7 @@ class TestRegistry:
             ("google", "Google"),
             ("entra", "Entra ID"),
             ("linkedin", "LinkedIn"),
-            ("github", "github"),
+            ("discord", "discord"),
         ],
     )
     def test_provider_display_name(self, provider_type, label):

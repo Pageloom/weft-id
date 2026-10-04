@@ -16,6 +16,7 @@
     </div>
 </div>
 
+{% if connection.uses_discovery %}
 {# Back-channel logout URL to paste into the IdP console #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Back-Channel Logout URL</h2>
@@ -45,6 +46,35 @@
         </button>
     </div>
 </div>
+{% endif %}
+
+{% if connection.provider_type == 'github' %}
+{# GitHub organizations a user must belong to #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <div class="flex items-start justify-between">
+        <div class="min-w-0 flex-1">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Allowed Organizations</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Users must belong to at least one of these GitHub organizations. With none listed, any GitHub account can sign in.
+            </p>
+            {% if connection.github_allowed_orgs %}
+            <ul id="github-orgs-list" class="flex flex-wrap gap-2">
+                {% for org in connection.github_allowed_orgs %}
+                <li class="px-2 py-0.5 text-sm font-mono rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100">{{ org }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p id="github-orgs-list" class="text-sm text-gray-500 dark:text-gray-400 italic">Any GitHub account</p>
+            {% endif %}
+        </div>
+        <button type="button" id="edit-orgs-btn"
+                class="ml-2 mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                title="Edit allowed organizations">
+            {{ icon("pencil", class="w-4 h-4") }}
+        </button>
+    </div>
+</div>
+{% endif %}
 
 {# Connection Configuration #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
@@ -66,6 +96,7 @@
                 {{ connection.provider_label }}
             </dd>
         </div>
+        {% if connection.uses_discovery %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Issuer</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ connection.issuer }}</dd>
@@ -100,6 +131,7 @@
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">End Session Endpoint</dt>
             <dd class="mt-1 text-sm text-gray-{% if connection.end_session_endpoint %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.end_session_endpoint or 'Not published' }}</dd>
         </div>
+        {% endif %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client ID</dt>
             <dd class="mt-1 text-sm text-gray-{% if connection.client_id %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.client_id or 'Not configured' }}</dd>
@@ -110,10 +142,12 @@
                 {% if connection.client_secret_set %}Configured{% else %}Not configured{% endif %}
             </dd>
         </div>
+        {% if connection.uses_discovery %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Correlation Claim</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">{{ connection.correlation_claim }}</dd>
         </div>
+        {% endif %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ fmt_datetime(connection.created_at) }}</dd>
@@ -216,6 +250,7 @@
                 </div>
             </div>
 
+            {% if connection.uses_discovery %}
             <div class="flex items-start">
                 <div class="flex items-center h-5">
                     <input type="checkbox" id="sign_out_at_idp" name="sign_out_at_idp"
@@ -233,6 +268,7 @@
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
         </div>
         <div class="flex justify-end mt-6">
             <button type="submit"
@@ -247,12 +283,16 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Connection Testing</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        {% if connection.uses_discovery %}
         Fetch the IdP's discovery document, validate the issuer and endpoints, and fetch the signing keys they point to.
+        {% else %}
+        Check the client ID, client secret and callback URL with {{ connection.provider_label }}.
+        {% endif %}
     </p>
 
     {% if test == 'success' %}
     <div class="mb-4 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-        <p class="text-sm text-green-800 dark:text-green-300">Discovery and signing keys fetched. Endpoints updated.</p>
+        <p class="text-sm text-green-800 dark:text-green-300">{% if connection.uses_discovery %}Discovery and signing keys fetched. Endpoints updated.{% else %}{{ connection.provider_label }} accepted the client credentials.{% endif %}</p>
     </div>
     {% elif test == 'error' %}
     <div class="mb-4 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
@@ -294,6 +334,36 @@
         </form>
     </div>
 </div>
+
+{# Edit Allowed Organizations Modal (GitHub only) #}
+{% if connection.provider_type == 'github' %}
+<div id="edit-orgs-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Allowed Organizations</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            GitHub organization names, separated by commas or new lines. Leave blank to let any GitHub account sign in.
+        </p>
+        <form method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-github-orgs">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label for="edit-github-orgs" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organizations</label>
+                <textarea id="edit-github-orgs" name="github_allowed_orgs" rows="4"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">{{ connection.github_allowed_orgs | join('\n') }}</textarea>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-orgs-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 {# Edit Endpoints Modal (generic providers only) #}
 {% if connection.provider_type == 'generic' %}
@@ -366,6 +436,8 @@
     document.getElementById('cancel-name-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-name-modal'); });
     document.getElementById('edit-endpoints-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-endpoints-modal'); });
     document.getElementById('cancel-endpoints-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-endpoints-modal'); });
+    document.getElementById('edit-orgs-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-orgs-modal'); });
+    document.getElementById('cancel-orgs-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-orgs-modal'); });
 })();
 </script>
 {% endblock %}

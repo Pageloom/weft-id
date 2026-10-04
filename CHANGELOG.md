@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-04
+
+A self-hosting fix release. Earlier releases could not be installed by
+following the [self-hosting guide](docs/self-hosting/index.md): the image
+could not be pulled without GitHub credentials, and several bugs stopped a
+fresh install before the first tenant existed. Hosted deployments were not
+affected.
+
+### Added
+
+- **Unattended installs.** `install.sh` accepts `WEFT_NONINTERACTIVE=1` and
+  reads its settings from environment variables (`BASE_DOMAIN`, the SMTP
+  settings, and `WEFT_VERSION` to install a specific release) instead of
+  prompting, so installs can be scripted. See "Unattended install" in the
+  self-hosting guide.
+
+### Fixed
+
+- **The release image can be pulled anonymously.** `ghcr.io/pageloom/weft-id`
+  is now public, and `latest` points to the newest release again. Releases
+  before 2.0.0 have been removed from the registry, since none of them could
+  be pulled.
+- **Fresh installs no longer fail at the migrate step.** Setting
+  `APPUSER_PASSWORD`, which the installer always does, crashed the migration
+  runner on every start.
+- **Generated database passwords no longer break the connection.** Passwords
+  containing `/`, `+` or `=` (about half of those the installer generates)
+  corrupted the database URL, so the app and worker could not reach the
+  database.
+- **Tenant provisioning works in the production image.**
+  `cli.provision_tenant` depended on development code that the image does not
+  include, so the first tenant could not be created.
+- **The documented CLI commands work.** The self-hosting guide used
+  `python -m app.cli.…`, which does not exist in the container. The commands
+  are now `python -m cli.provision_tenant`, `python -m cli.verify_email` and
+  `python -m cli.reactivate_user`.
+- **The database survives `docker compose down`.** PostgreSQL 18 keeps its
+  data under `/var/lib/postgresql/18/docker`, outside the volume the compose
+  file mounted, so removing the containers erased the database. The `dbdata`
+  volume now mounts at `/var/lib/postgresql`. If you run your own compose
+  file on PostgreSQL 18, check that its volume covers that path.
+- **CLI commands exit cleanly.** `cli.provision_tenant` and
+  `cli.reactivate_user` no longer print a connection-pool traceback after
+  finishing.
+- **End session docs.** The OIDC provider setup page now describes when the
+  end session endpoint also signs the user out at the upstream identity
+  provider, which changed in 2.0.0.
+
 ## [2.0.0] - 2026-10-03
 
 A major release because existing OAuth2 / OIDC apps and SAML identity

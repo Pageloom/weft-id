@@ -14,7 +14,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # The provider types an admin can create. The database accepts more (the
 # adapter-backed social providers), which are added here as they ship.
-PROVIDER_TYPES = ("generic", "google", "entra", "microsoft", "linkedin", "gitlab", "github")
+PROVIDER_TYPES = (
+    "generic",
+    "google",
+    "entra",
+    "microsoft",
+    "linkedin",
+    "gitlab",
+    "github",
+    "discord",
+    "facebook",
+)
 _PROVIDER_TYPE_PATTERN = f"^({'|'.join(PROVIDER_TYPES)})$"
 
 # A GitHub organization login: alphanumerics and single hyphens, up to 39

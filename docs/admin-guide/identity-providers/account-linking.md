@@ -28,10 +28,20 @@ If the user is already linked to that connection under a different provider acco
 Email linking trusts the provider's statement that the user controls the email address. Some providers do not make that statement reliably, so WeftID never links by email on them, whatever the connection's setting:
 
 * **Microsoft personal accounts**: tokens carry no `email_verified` claim, and the account's email address does not have to be one the user controls.
+* **Facebook**: the Graph API reports an email address but not whether it is verified.
 
-For these providers the **Allow email linking** setting is unavailable in the admin UI, and the API rejects it. Users of these providers get a new account through JIT provisioning, or are refused.
+For these providers the **Allow email linking** setting is unavailable in the admin UI, and the API rejects it. Users of these providers get a new account through JIT provisioning, or are refused. A new account must also [confirm its email address](#confirming-an-unverified-email-address) before its first sign-in completes.
 
-Every other provider links only when its token says `email_verified: true`. GitHub has no tokens of that kind: WeftID treats the account's primary email address as verified only when GitHub reports it verified. See [Allow email linking](oidc-setup.md#allow-email-linking) for the security trade-off before turning it on.
+Every other provider links only when its token says `email_verified: true`. GitHub and Discord have no tokens of that kind: WeftID treats the account's email address as verified only when GitHub (for the primary address) or Discord reports it verified. See [Allow email linking](oidc-setup.md#allow-email-linking) for the security trade-off before turning it on.
+
+## Confirming an unverified email address
+
+On the providers above, JIT provisioning cannot take the reported email address on trust. WeftID creates the account with the address marked unverified, then asks the user to confirm it before the sign-in completes:
+
+1. After the provider sends the user back, WeftID emails a six-digit code to the address and shows a page asking for it.
+2. When the user enters the code, the address is marked verified, the account joins the groups linked to the address's domain (see [Domain Routing](privileged-domains.md)), and the sign-in continues, through platform two-step verification if the connection requires it.
+
+Until the address is confirmed, the account is not added to domain-linked groups, and every sign-in through such a provider asks for the code again. The confirmation is recorded in the event log as an email verification by the user.
 
 ## Signing in with an email address
 

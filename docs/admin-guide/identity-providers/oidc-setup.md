@@ -22,10 +22,10 @@ WeftID uses the authorization code flow with PKCE, and nothing else. There is no
 1. Navigate to **Identity Providers > OIDC**
 2. Click **Add Connection**
 3. Enter a display name
-4. Select the provider type (Generic, Google, Entra ID, Microsoft personal accounts, LinkedIn, GitLab, or GitHub)
+4. Select the provider type (Generic, Google, Entra ID, Microsoft personal accounts, LinkedIn, GitLab, GitHub, Discord, or Facebook)
 5. Click **Create**
 
-Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), [GitLab](oidc-gitlab.md), and [GitHub](oidc-github.md). GitHub is OAuth 2.0 rather than OpenID Connect, so it has no issuer, discovery or correlation settings; its walkthrough explains the differences.
+Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), [GitLab](oidc-gitlab.md), [GitHub](oidc-github.md), [Discord](oidc-discord.md), and [Facebook](oidc-facebook.md). GitHub, Discord and Facebook are OAuth 2.0 rather than OpenID Connect, so they have no issuer, discovery or correlation settings; their walkthroughs explain the differences.
 
 ## Step 2: Register WeftID with your provider
 
@@ -130,7 +130,7 @@ Entering endpoints by hand stops the hourly refresh at sign-in, so your values s
 * **Enabled**: whether users can sign in through this connection. A disabled connection blocks its linked users from authenticating.
 * **Default connection**: new users with no other route are sent here. One connection per tenant can be the default.
 * **Show on sign-in page**: put a **Continue with ...** button for this connection on the sign-in page while it is enabled. See [Sign-in page buttons](login-buttons.md).
-* **JIT provisioning**: create a WeftID account on first successful sign-in. Without it, only users who already exist and are already linked can sign in.
+* **JIT provisioning**: create a WeftID account on first successful sign-in. Without it, only users who already exist and are already linked can sign in. For a provider that does not verify email addresses (Facebook, Microsoft personal accounts), the new user confirms their address with an emailed code before the sign-in completes. See [Account linking](account-linking.md#confirming-an-unverified-email-address).
 * **Require two-step verification**: after the provider authenticates the user, WeftID additionally requires its own two-step verification before the session is established. Use this when you do not want to rely solely on the upstream provider's authentication.
 * **Allow email linking**: see below.
 * **Sign out at the provider**: see [Sign-out at the provider](#sign-out-at-the-provider).
@@ -189,7 +189,7 @@ Provider notes:
 * **Google Workspace**: no groups claim is available over OIDC.
 * **GitLab**: the `groups` claim carries group paths. See [OIDC with GitLab](oidc-gitlab.md#groups).
 * **GitHub**: enter `groups` to sync organizations and teams. See [Sign in with GitHub](oidc-github.md#groups).
-* **Microsoft personal accounts and LinkedIn**: no groups claim.
+* **Microsoft personal accounts, LinkedIn, Discord and Facebook**: no groups claim.
 * **Keycloak, Auth0, Authentik and other generic providers**: add a mapper or action that puts the user's groups into a claim, then enter that claim's name here. Namespaced names such as `https://example.com/groups` work.
 
 ## Correlation claim

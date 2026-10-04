@@ -101,12 +101,17 @@ def exchange_code(
                 auth=auth,
                 # GitHub answers in form encoding unless asked for JSON.
                 headers={"Accept": "application/json"},
+                # RFC 6749 5.2 errors come with a 400/401 and a JSON body
+                # naming the error; keep it for the caller.
+                error_body=True,
             )
         except Exception as exc:  # noqa: BLE001
             raise TokenExchangeError(f"Token exchange failed: {exc}") from exc
 
     if status != 200:
-        raise TokenExchangeError(f"Token endpoint returned HTTP {status}")
+        raise TokenExchangeError(
+            f"Token endpoint returned HTTP {status}", error=_oauth_error_code(body)
+        )
 
     try:
         payload = json.loads(body)
@@ -124,6 +129,16 @@ def exchange_code(
         )
 
     return payload
+
+
+def _oauth_error_code(body: bytes) -> str | None:
+    """Return the ``error`` code of an RFC 6749 error response, if it has one."""
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return None
+    error = payload.get("error") if isinstance(payload, dict) else None
+    return error if isinstance(error, str) else None
 
 
 def fetch_userinfo(*, userinfo_endpoint: str, access_token: str, expected_sub: str) -> dict:

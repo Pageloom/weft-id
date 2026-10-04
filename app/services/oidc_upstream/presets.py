@@ -14,6 +14,9 @@ so a preset is purely a set of defaults.
 - **GitHub** is OAuth2, not OIDC: no discovery and no ID token. Its adapter
   (``services.oidc_upstream.github``) fixes the endpoints; the preset only
   supplies the scopes and button style.
+- **Discord** and **Facebook** are OAuth2 too, each with its own adapter
+  (``services.oidc_upstream.discord`` / ``.facebook``). Facebook asserts no
+  verified-email flag, so it never email-links.
 - **Entra** composes its authority from the tenant id
   (``https://login.microsoftonline.com/<entra_tenant_id>/v2.0``), requests
   ``openid profile email User.Read``, and correlates on ``oid`` (Entra's
@@ -50,6 +53,17 @@ GITHUB_ISSUER = "https://github.com"
 # verified one), and organization and team membership (allowed organizations
 # and group sync).
 _GITHUB_SCOPES = "read:user user:email read:org"
+
+# Discord and Facebook have no OIDC issuer either; these fixed values fill the
+# issuer column.
+DISCORD_ISSUER = "https://discord.com"
+FACEBOOK_ISSUER = "https://www.facebook.com"
+
+# Discord: the account (``identify``) and its email address (``email``).
+_DISCORD_SCOPES = "identify email"
+
+# Facebook: the public profile (id and names) and the email address.
+_FACEBOOK_SCOPES = "public_profile email"
 
 # How the client authenticates at the token endpoint (RFC 6749 2.3.1).
 TOKEN_AUTH_BASIC = "client_secret_basic"
@@ -190,6 +204,33 @@ _PRESETS: dict[str, OIDCPreset] = {
         email_linking_trusted=True,
         login_label="GitHub",
         logo="github",
+        uses_discovery=False,
+    ),
+    "discord": OIDCPreset(
+        provider_type="discord",
+        display_name="Discord",
+        issuer=DISCORD_ISSUER,
+        discovery_url=None,
+        scopes=_DISCORD_SCOPES,
+        correlation_claim="sub",
+        # The adapter only asserts an email Discord has verified.
+        email_linking_trusted=True,
+        login_label="Discord",
+        logo="discord",
+        uses_discovery=False,
+    ),
+    "facebook": OIDCPreset(
+        provider_type="facebook",
+        display_name="Facebook",
+        issuer=FACEBOOK_ISSUER,
+        discovery_url=None,
+        scopes=_FACEBOOK_SCOPES,
+        correlation_claim="sub",
+        token_auth_method=TOKEN_AUTH_POST,
+        # The Graph API says nothing about whether the email is verified.
+        email_linking_trusted=False,
+        login_label="Facebook",
+        logo="facebook",
         uses_discovery=False,
     ),
 }

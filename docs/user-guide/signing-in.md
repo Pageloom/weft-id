@@ -50,6 +50,8 @@ Your organization may put **Continue with ...** buttons above the email field, s
 
 The first time you use a button, WeftID either finds your existing account, creates one, or tells you no account was found, depending on how your organization set it up. If your account signs in through your organization's single sign-on, use your email address instead.
 
+Some providers, such as Facebook, do not confirm that your email address is yours. When such a provider creates your account, WeftID emails a code to the address and asks for it before you are signed in. Enter it to finish. You only do this once.
+
 ## Passkey sign-in
 
 If you have a passkey registered, WeftID offers a passkey prompt after you enter your email. Approve with your fingerprint, PIN, or security key tap, and you go straight to the dashboard. No password, no verification code.

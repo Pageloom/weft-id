@@ -215,8 +215,6 @@ def test_rate_limit_cooldown_shown_to_user(client, test_tenant_host):
             follow_redirects=True,  # Follow redirect to see error page
         )
 
-        # Should show error about rate limit
-        # The actual error display depends on template implementation
+        # The login page explains the rate limit
         assert response.status_code == 200
-        # Check that some error feedback is present
-        assert "too_many" in response.text.lower() or "rate" in response.text.lower()
+        assert "Too many attempts. Wait a few minutes and try again." in response.text

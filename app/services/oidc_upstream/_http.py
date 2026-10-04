@@ -39,16 +39,24 @@ class ResponseTooLargeError(Exception):
     """The IdP's response body exceeded ``MAX_RESPONSE_BYTES``."""
 
 
-def read_capped(client: httpx.Client, method: str, url: str, **kwargs: Any) -> tuple[int, bytes]:
+def read_capped(
+    client: httpx.Client,
+    method: str,
+    url: str,
+    *,
+    error_body: bool = False,
+    **kwargs: Any,
+) -> tuple[int, bytes]:
     """Send one request and return ``(status, body)``, the body bounded in size.
 
-    The body is read only for a 200; any other status returns ``b""``.
+    The body is read only for a 200 unless ``error_body`` is set; otherwise
+    any other status returns ``b""``.
 
     Raises:
         ResponseTooLargeError: if the body exceeds ``MAX_RESPONSE_BYTES``.
     """
     with client.stream(method, url, **kwargs) as response:
-        if response.status_code != 200:
+        if response.status_code != 200 and not error_body:
             return response.status_code, b""
         body = b""
         for chunk in response.iter_bytes():

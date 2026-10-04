@@ -26,6 +26,10 @@ Security (cross-cutting requirements):
 - **Rate limiting**: both routes are rate-limited via ``ratelimit.prevent``.
   The login route is public and is what the sign-in page's "Continue with
   ..." buttons link to (``?via=login_button``), so that limit covers them.
+- **Email confirmation**: a provider that does not prove the user's email
+  address (Facebook, Microsoft personal) sends the user to
+  ``/auth/oidc/confirm-email`` until they enter a code mailed to it; the
+  sign-in then resumes (MFA or completion) from where the callback left it.
 - **Audit**: started, completed, failed and refused events carry ``entry``
   (``login_button`` or ``routed``), kept in the session across the hop.
 """
@@ -34,20 +38,29 @@ from typing import Annotated
 
 import services.emails as emails_service
 import services.oidc_upstream as oidc_service
+import settings
 from dependencies import get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Cookie, Depends, Form, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
+from middleware.csrf import make_csrf_token_func
 from routers.auth._login_completion import (
     complete_authenticated_login,
     stash_upstream_oidc_session,
 )
 from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import ForbiddenError, NotFoundError, RateLimitError
-from utils.email import send_mfa_code_email
+from utils.csp_nonce import get_csp_nonce
+from utils.email import send_email_possession_code, send_mfa_code_email
+from utils.email_verification import (
+    create_verification_cookie,
+    generate_verification_code,
+    validate_verification_cookie,
+)
 from utils.mfa import create_email_otp
 from utils.ratelimit import MINUTE, ratelimit
 from utils.redirects import safe_redirect
 from utils.request_metadata import extract_remote_address
+from utils.templates import templates
 
 router = APIRouter()
 
@@ -260,13 +273,19 @@ def oidc_callback(
         return _error_response("auth_failed")
 
     user_id = str(user["id"])
+    mfa_method = user.get("mfa_method") or "email"
     requires_mfa = oidc_service.oidc_connection_requires_platform_mfa(tenant_id, connection_id)
+    # A provider that does not prove the user's address (Facebook, Microsoft
+    # personal) cannot complete a sign-in until the user confirms it.
+    pending_email = oidc_service.pending_email_confirmation(tenant_id, connection, user_id)
+    detour = requires_mfa or pending_email is not None
 
     id_token = identity.id_token
     if identity.upstream_sub:
-        # Across the MFA detour the stash rides in the session cookie, so a
-        # large ID token is left out there (logout then goes without
-        # id_token_hint). Without MFA, login completes in this request.
+        # Across a detour (email confirmation, MFA) the stash rides in the
+        # session cookie, so a large ID token is left out there (logout then
+        # goes without id_token_hint). Without one, login completes in this
+        # request.
         stash_upstream_oidc_session(
             request.session,
             connection_id=connection_id,
@@ -274,14 +293,34 @@ def oidc_callback(
             upstream_sub=identity.upstream_sub,
             upstream_sid=identity.upstream_sid,
             id_token=id_token
-            if id_token
-            and (not requires_mfa or len(id_token) <= _MAX_COOKIE_STASHED_ID_TOKEN_LENGTH)
+            if id_token and (not detour or len(id_token) <= _MAX_COOKIE_STASHED_ID_TOKEN_LENGTH)
             else None,
         )
 
+    if pending_email is not None:
+        return _start_email_confirmation(
+            request,
+            tenant_id,
+            connection_id=connection_id,
+            user_id=user_id,
+            mfa_method=mfa_method,
+            pending_email=pending_email,
+        )
+
+    return _finish_sign_in(request, tenant_id, user_id, mfa_method, requires_mfa=requires_mfa)
+
+
+def _finish_sign_in(
+    request: Request,
+    tenant_id: str,
+    user_id: str,
+    mfa_method: str,
+    *,
+    requires_mfa: bool,
+) -> Response:
+    """Complete the sign-in, through the platform MFA step when required."""
     # Platform MFA gate (mirrors the SAML ACS).
     if requires_mfa:
-        mfa_method = user.get("mfa_method") or "email"
         request.session["pending_mfa_user_id"] = user_id
         request.session["pending_mfa_method"] = mfa_method
 
@@ -293,12 +332,205 @@ def oidc_callback(
 
         return RedirectResponse(url="/mfa/verify", status_code=303)
 
-    return complete_authenticated_login(
+    return complete_authenticated_login(request, tenant_id, user_id, mfa_method=mfa_method)
+
+
+# --- Email confirmation (untrusted-email providers) -------------------------
+#
+# The callback parks the authenticated user in the session and sends a code to
+# their unconfirmed address; the code itself is held, hashed and encrypted, in
+# a short-lived cookie (the same mechanism as the sign-in page's email check).
+# Entering it confirms the address and resumes the sign-in where the callback
+# left off.
+
+_CONFIRM_SESSION_KEY = "pending_oidc_email_confirmation"
+_CONFIRM_COOKIE = "oidc_email_confirm"
+_CONFIRM_PATH = "/auth/oidc/confirm-email"
+
+
+def _set_confirm_cookie(response: Response, email: str, tenant_id: str) -> None:
+    code = generate_verification_code()
+    send_email_possession_code(email, code, tenant_id=tenant_id)
+    response.set_cookie(
+        key=_CONFIRM_COOKIE,
+        value=create_verification_cookie(email, code, tenant_id),
+        max_age=settings.VERIFICATION_CODE_EXPIRY_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=not settings.IS_DEV,
+    )
+
+
+def _start_email_confirmation(
+    request: Request,
+    tenant_id: str,
+    *,
+    connection_id: str,
+    user_id: str,
+    mfa_method: str,
+    pending_email: dict,
+) -> Response:
+    """Send a code to the user's unconfirmed address and ask for it."""
+    try:
+        ratelimit.prevent(
+            "oidc_email_confirm_send:email:{email}",
+            limit=5,
+            timespan=MINUTE * 10,
+            email=pending_email["email"],
+        )
+    except RateLimitError:
+        return _error_response("too_many_requests")
+
+    request.session[_CONFIRM_SESSION_KEY] = {
+        "user_id": user_id,
+        "connection_id": connection_id,
+        "email_id": pending_email["email_id"],
+        "mfa_method": mfa_method,
+    }
+    response = RedirectResponse(url="/auth/oidc/confirm-email", status_code=303)
+    _set_confirm_cookie(response, pending_email["email"], tenant_id)
+    return response
+
+
+def _pending_confirmation(request: Request, tenant_id: str) -> tuple[dict, dict] | None:
+    """Return ``(parked sign-in, address)`` while a confirmation is pending.
+
+    None when nothing is parked, the connection is gone or disabled, or the
+    address is no longer the user's unconfirmed primary one.
+    """
+    parked = request.session.get(_CONFIRM_SESSION_KEY)
+    if not isinstance(parked, dict):
+        return None
+    connection_id = parked.get("connection_id")
+    user_id = parked.get("user_id")
+    if not isinstance(connection_id, str) or not isinstance(user_id, str):
+        return None
+    connection = _get_connection(tenant_id, connection_id)
+    if connection is None or not connection.get("is_enabled"):
+        return None
+    pending_email = oidc_service.pending_email_confirmation(tenant_id, connection, user_id)
+    if pending_email is None or pending_email["email_id"] != parked.get("email_id"):
+        return None
+    return parked, pending_email
+
+
+def _abandon_confirmation(request: Request, error: str) -> Response:
+    request.session.pop(_CONFIRM_SESSION_KEY, None)
+    response = _error_response(error)
+    response.delete_cookie(_CONFIRM_COOKIE)
+    return response
+
+
+@router.get(_CONFIRM_PATH, response_class=HTMLResponse)
+def confirm_email_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    oidc_email_confirm: Annotated[str | None, Cookie()] = None,
+):
+    """Ask for the code sent to the address an untrusted provider reported."""
+    pending = _pending_confirmation(request, tenant_id)
+    if pending is None or not oidc_email_confirm:
+        return _abandon_confirmation(request, "session_expired")
+    _, pending_email = pending
+
+    return templates.TemplateResponse(
+        request,
+        "email_verification.html",
+        {
+            "request": request,
+            "email": pending_email["email"],
+            "intro": "Confirm your email address to finish signing in.",
+            "verify_action": _CONFIRM_PATH,
+            "resend_action": f"{_CONFIRM_PATH}/resend",
+            "back_label": "Back to sign in",
+            "error": request.query_params.get("error"),
+            "success": request.query_params.get("success"),
+            "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
+        },
+    )
+
+
+@router.post(_CONFIRM_PATH)
+def confirm_email(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    code: Annotated[str, Form(max_length=100)],
+    oidc_email_confirm: Annotated[str | None, Cookie()] = None,
+):
+    """Check the code, confirm the address, and resume the sign-in."""
+    pending = _pending_confirmation(request, tenant_id)
+    if pending is None or not oidc_email_confirm:
+        return _abandon_confirmation(request, "session_expired")
+    parked, pending_email = pending
+
+    client_ip = extract_remote_address(request) or "unknown"
+    try:
+        ratelimit.prevent(
+            "oidc_email_confirm:ip:{ip}:user:{user_id}",
+            limit=5,
+            timespan=MINUTE * 5,
+            ip=client_ip,
+            user_id=parked["user_id"],
+        )
+    except RateLimitError:
+        return RedirectResponse(
+            url="/auth/oidc/confirm-email?error=too_many_attempts", status_code=303
+        )
+
+    is_valid, _, cookie_tenant_id = validate_verification_cookie(
+        oidc_email_confirm, code.strip(), expected_email=pending_email["email"]
+    )
+    if not is_valid or cookie_tenant_id != str(tenant_id):
+        return RedirectResponse(url="/auth/oidc/confirm-email?error=invalid_code", status_code=303)
+
+    oidc_service.confirm_sign_in_email(
+        tenant_id, parked["user_id"], pending_email["email_id"], parked["connection_id"]
+    )
+    request.session.pop(_CONFIRM_SESSION_KEY, None)
+    response = _finish_sign_in(
         request,
         tenant_id,
-        user_id,
-        mfa_method=user.get("mfa_method") or "email",
+        parked["user_id"],
+        parked.get("mfa_method") or "email",
+        requires_mfa=oidc_service.oidc_connection_requires_platform_mfa(
+            tenant_id, parked["connection_id"]
+        ),
     )
+    response.delete_cookie(_CONFIRM_COOKIE)
+    return response
+
+
+@router.post(f"{_CONFIRM_PATH}/resend")
+def resend_confirmation_code(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+):
+    """Send a new code to the address being confirmed."""
+    pending = _pending_confirmation(request, tenant_id)
+    if pending is None:
+        return _abandon_confirmation(request, "session_expired")
+    _, pending_email = pending
+
+    client_ip = extract_remote_address(request) or "unknown"
+    try:
+        ratelimit.prevent(
+            "oidc_email_confirm_resend:ip:{ip}", limit=5, timespan=MINUTE * 10, ip=client_ip
+        )
+        ratelimit.prevent(
+            "oidc_email_confirm_send:email:{email}",
+            limit=5,
+            timespan=MINUTE * 10,
+            email=pending_email["email"],
+        )
+    except RateLimitError:
+        return RedirectResponse(
+            url="/auth/oidc/confirm-email?error=too_many_requests", status_code=303
+        )
+
+    response = RedirectResponse(url="/auth/oidc/confirm-email?success=code_sent", status_code=303)
+    _set_confirm_cookie(response, pending_email["email"], tenant_id)
+    return response
 
 
 def _get_connection(tenant_id: str, connection_id: str) -> dict | None:

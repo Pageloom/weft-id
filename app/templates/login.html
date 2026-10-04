@@ -60,6 +60,10 @@
                 Your account is already linked to a different account at this provider. Sign in with that account, or contact your administrator.
                 {% elif error == 'github_org_not_allowed' %}
                 Your GitHub account is not a member of an organization that can sign in here. Contact your administrator.
+                {% elif error == 'session_expired' %}
+                Your sign-in expired. Start again.
+                {% elif error == 'too_many_requests' %}
+                Too many attempts. Wait a few minutes and try again.
                 {% else %}
                 {{ error }}
                 {% endif %}

@@ -116,6 +116,31 @@ class TestExchangeCode:
                     code_verifier="verifier",
                 )
 
+    @pytest.mark.parametrize(
+        ("status", "body", "error"),
+        [
+            (400, {"error": "invalid_grant"}, "invalid_grant"),
+            (401, {"error": "invalid_client"}, "invalid_client"),
+            # Facebook's Graph error object is not an RFC 6749 code.
+            (400, {"error": {"code": 100}}, None),
+            (400, ["error"], None),
+            (500, None, None),
+        ],
+    )
+    def test_http_error_keeps_oauth_error_code(self, status, body, error):
+        with _patch_client(_FakeResponse(status, body)):
+            with pytest.raises(te.TokenExchangeError) as exc:
+                te.exchange_code(
+                    token_endpoint="https://idp.example.com/token",
+                    client_id="cid",
+                    client_secret="secret",
+                    code="code",
+                    redirect_uri="https://rp.example.com/cb",
+                    code_verifier="verifier",
+                )
+        assert str(exc.value) == f"Token endpoint returned HTTP {status}"
+        assert exc.value.error == error
+
 
 class TestSsrFGuard:
     def test_exchange_code_private_address_refused(self):

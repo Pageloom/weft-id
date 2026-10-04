@@ -32,6 +32,8 @@
             User anonymized. Personal data permanently removed.
             {% elif success == 'idp_updated' %}
             User's IdP assignment updated.
+            {% elif success == 'oidc_link_removed' %}
+            Linked sign-in account removed.
             {% elif success == 'mfa_reset' %}
             User's two-step verification has been reset. Any TOTP secret and backup codes are cleared. Registered passkeys are not affected.
             {% elif success == 'group_added' %}
@@ -102,6 +104,10 @@
             User is already anonymized.
             {% elif error == 'idp_not_found' %}
             Selected identity provider not found.
+            {% elif error == 'oidc_user_link_not_found' %}
+            This user is not linked to that sign-in provider.
+            {% elif error == 'oidc_connection_not_found' %}
+            Sign-in provider not found.
             {% elif error == 'already_member' %}
             User is already a member of this group.
             {% elif error == 'not_a_member' %}

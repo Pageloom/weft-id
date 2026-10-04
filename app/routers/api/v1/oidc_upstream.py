@@ -106,7 +106,8 @@ def create_connection(
     - hosted_domain: Google `hd` restriction (<=253 chars)
     - entra_tenant_id: Entra tenant id for authority composition (<=100 chars)
     - is_enabled / is_default / require_platform_mfa / jit_provisioning /
-      allow_email_linking: Behavior flags
+      allow_email_linking: Behavior flags. allow_email_linking is rejected
+      (400) for providers without a trusted verified-email claim (microsoft)
     - sign_out_at_idp: On WeftID sign-out, send the browser to the provider's
       end_session_endpoint so the provider session ends too (default false).
       Register the returned post_logout_redirect_uri at the provider first
@@ -171,7 +172,8 @@ def update_connection(
       entra_tenant_id, require_platform_mfa, jit_provisioning,
       allow_email_linking, sign_out_at_idp.
       An empty string for group_claim_source or group_claim_name_key clears
-      the setting
+      the setting. allow_email_linking=true is rejected (400) for providers
+      without a trusted verified-email claim (microsoft)
 
     Returns the updated connection. The client secret is never returned.
     """
@@ -535,10 +537,12 @@ def unlink_user_from_connection(
 
     Requires super_admin role.
 
-    Removes the user's ``(idp_id, sub)`` link, scrubs canonical attributes
-    still matching the connection's last-mirrored snapshot, drops the mirror
-    rows, and inactivates the user + unverifies their emails (mirroring SAML
-    disconnect semantics).
+    Removes the user's link to the connection, scrubs canonical attributes
+    still matching the connection's last-mirrored snapshot, and drops the
+    mirror rows. When it was the user's last OIDC link, the user is also
+    deactivated, their emails unverified and their tokens revoked (mirroring
+    SAML disconnect semantics). A user with other links keeps signing in
+    through them.
 
     Path parameters:
     - connection_id: UUID of the connection

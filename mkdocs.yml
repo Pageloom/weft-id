@@ -69,6 +69,7 @@ nav:
       - OIDC (Microsoft personal accounts): admin-guide/identity-providers/oidc-microsoft.md
       - OIDC (LinkedIn): admin-guide/identity-providers/oidc-linkedin.md
       - OIDC (GitLab): admin-guide/identity-providers/oidc-gitlab.md
+      - Account Linking: admin-guide/identity-providers/account-linking.md
       - Inbound SCIM Overview: admin-guide/identity-providers/inbound-scim.md
       - Inbound SCIM (Okta): admin-guide/identity-providers/inbound-scim-okta.md
       - Inbound SCIM (Entra): admin-guide/identity-providers/inbound-scim-entra.md

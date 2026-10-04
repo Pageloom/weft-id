@@ -11,7 +11,8 @@ Resolution order is explicit and tested:
 2. Known user:
    - inactivated → ``inactivated``
    - SAML IdP assigned → ``idp`` / ``idp_disabled``
-   - OIDC link → ``idp_oidc`` / ``idp_oidc_disabled``
+   - OIDC links → ``idp_oidc`` (most recently used enabled link) /
+     ``idp_oidc_disabled`` (every linked connection disabled)
    - password → ``password``
    - otherwise → ``no_auth_method``
 3. Unknown user (JIT routes):
@@ -23,7 +24,7 @@ Resolution order is explicit and tested:
 
 SAML and OIDC identity are mutually exclusive per user: a user with
 ``saml_idp_id`` set is routed to SAML before any OIDC link is consulted, and
-vice versa. A user cannot resolve to both.
+the OIDC callback refuses such a user. A user cannot resolve to both.
 """
 
 import database
@@ -73,17 +74,19 @@ def determine_auth_route(
                 )
             return AuthRouteResult(route_type="idp_disabled", user_id=user_id)
 
-        # OIDC link: a user with an oidc_idp_user_links row is an OIDC user.
-        oidc_link = database.oidc_upstream.get_link_for_user(tenant_id, user_id)
-        if oidc_link is not None:
-            connection = database.oidc_upstream.get_connection(tenant_id, str(oidc_link["idp_id"]))
-            if connection and connection.get("is_enabled"):
-                return AuthRouteResult(
-                    route_type="idp_oidc",
-                    idp_id=str(connection["id"]),
-                    idp_name=connection["name"],
-                    user_id=user_id,
-                )
+        # OIDC links: a user with oidc_idp_user_links rows is an OIDC user. A
+        # user may hold several; route to the most recently used link whose
+        # connection is enabled.
+        oidc_links = database.oidc_upstream.list_links_for_user(tenant_id, user_id)
+        if oidc_links:
+            for link in oidc_links:
+                if link.get("connection_enabled"):
+                    return AuthRouteResult(
+                        route_type="idp_oidc",
+                        idp_id=str(link["idp_id"]),
+                        idp_name=link["connection_name"],
+                        user_id=user_id,
+                    )
             return AuthRouteResult(route_type="idp_oidc_disabled", user_id=user_id)
 
         if user.get("has_password"):

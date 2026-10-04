@@ -68,6 +68,11 @@ class OIDCPreset:
         issuer_overridable: Whether an admin may replace the preset issuer
             with their own (a self-managed GitLab). The discovery URL then
             follows the issuer instead of the preset.
+        email_linking_trusted: Whether the provider's ``email_verified``
+            claim is reliable enough to attach a sign-in to an existing
+            account by email. False for providers that assert no verified
+            flag, or one that does not prove the user controls the address;
+            such connections never email-link.
     """
 
     provider_type: str
@@ -79,6 +84,7 @@ class OIDCPreset:
     requires_entra_tenant_id: bool = False
     token_auth_method: str = TOKEN_AUTH_BASIC
     issuer_overridable: bool = False
+    email_linking_trusted: bool = True
 
 
 _PRESETS: dict[str, OIDCPreset] = {
@@ -116,6 +122,9 @@ _PRESETS: dict[str, OIDCPreset] = {
         ),
         scopes=_DEFAULT_SCOPES,
         correlation_claim="sub",
+        # Personal Microsoft accounts carry no email_verified claim, and the
+        # account's email need not be one the user controls.
+        email_linking_trusted=False,
     ),
     "linkedin": OIDCPreset(
         provider_type="linkedin",
@@ -161,6 +170,7 @@ def get_preset_defaults(provider_type: str) -> dict:
         "correlation_claim": preset.correlation_claim,
         "requires_entra_tenant_id": preset.requires_entra_tenant_id,
         "issuer_overridable": preset.issuer_overridable,
+        "email_linking_trusted": preset.email_linking_trusted,
     }
 
 
@@ -178,6 +188,15 @@ def token_auth_method(provider_type: str) -> str:
     """Return how a provider type sends the client secret to the token endpoint."""
     preset = get_preset(provider_type)
     return preset.token_auth_method if preset else TOKEN_AUTH_BASIC
+
+
+def email_linking_trusted(provider_type: str) -> bool:
+    """Return whether a provider type may link sign-ins to accounts by email.
+
+    A type with no preset fails closed (False).
+    """
+    preset = get_preset(provider_type)
+    return preset.email_linking_trusted if preset else False
 
 
 def compose_entra_authority(entra_tenant_id: str) -> str:

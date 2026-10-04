@@ -87,6 +87,7 @@ from services.oidc_upstream.jwks import (
 )
 from services.oidc_upstream.links import (
     list_connection_linked_users,
+    list_user_links,
     unlink_user_from_connection,
 )
 from services.oidc_upstream.logout import (
@@ -99,6 +100,7 @@ from services.oidc_upstream.logout import (
 from services.oidc_upstream.presets import (
     compose_entra_authority,
     compose_entra_discovery_url,
+    email_linking_trusted,
     get_preset,
     get_preset_defaults,
     provider_display_name,
@@ -125,6 +127,7 @@ __all__ = [
     "get_adapter",
     "resolve_client_credentials",
     "provider_display_name",
+    "email_linking_trusted",
     "list_connections",
     "get_connection",
     "get_connection_row",
@@ -149,6 +152,7 @@ __all__ = [
     "sync_groups_from_claims",
     "unlink_user_from_connection",
     "list_connection_linked_users",
+    "list_user_links",
     "apply_oidc_idp_attributes",
     "scrub_oidc_canonical_matches_mirror",
     "list_domain_bindings",

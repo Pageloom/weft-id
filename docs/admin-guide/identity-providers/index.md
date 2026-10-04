@@ -11,6 +11,7 @@ SAML and OIDC are peers. A tenant can run connections of both kinds at the same 
 - [OIDC with Microsoft personal accounts](oidc-microsoft.md) — Step-by-step setup for Outlook.com and other personal Microsoft accounts
 - [OIDC with LinkedIn](oidc-linkedin.md) — Step-by-step setup for LinkedIn as an OIDC provider
 - [OIDC with GitLab](oidc-gitlab.md) — Step-by-step setup for gitlab.com or a self-managed GitLab
+- [Account linking](account-linking.md) — How one account links to several OIDC providers, and what WeftID refuses
 - [Inbound SCIM Overview](inbound-scim.md) — Let the upstream IdP push user and group changes into WeftID over SCIM 2.0
 - [Inbound SCIM (Okta)](inbound-scim-okta.md) — Step-by-step setup for Okta as the SCIM client
 - [Inbound SCIM (Entra)](inbound-scim-entra.md) — Step-by-step setup for Microsoft Entra ID as the SCIM client

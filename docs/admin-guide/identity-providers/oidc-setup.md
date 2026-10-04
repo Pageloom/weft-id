@@ -11,7 +11,7 @@ WeftID acts as a relying party here, consuming an upstream provider. That is the
 WeftID uses the authorization code flow with PKCE, and nothing else. There is no implicit flow and no hybrid flow.
 
 1. A user arrives at the login page and enters their email address.
-2. WeftID routes them to the connection, either because they are already linked to it, because their email domain is bound to it, or because it is the tenant default.
+2. WeftID routes them to the connection, either because they are already linked to it, because their email domain is bound to it, or because it is the tenant default. A user linked to several connections goes to the one they used most recently (see [Account linking](account-linking.md)).
 3. WeftID redirects to the provider's authorization endpoint with a `state`, a `nonce`, and a PKCE challenge.
 4. The provider authenticates the user and redirects back to WeftID's callback.
 5. WeftID exchanges the code for an ID token, verifies its signature against the provider's JWKS, and checks the issuer, audience, nonce, and expiry.
@@ -145,6 +145,8 @@ The first time a subject appears, WeftID has nothing to match it against. With e
 
 That is convenient when migrating existing users onto a new provider. It also means anyone who can obtain a token from that provider carrying a given verified email can take over the matching WeftID account. Only enable it for a provider you trust to verify email addresses properly, and consider turning it off again once migration is done.
 
+Email linking is unavailable for providers that do not reliably verify email addresses (currently Microsoft personal accounts). It never attaches a second provider account to a user already linked to the same connection, and it never links a user who is assigned to a SAML identity provider. See [Account linking](account-linking.md) for the full policy.
+
 ## Claim mapping
 
 The **Claim mapping** tab maps claims from the provider onto WeftID's standard user attributes. The default mapping is:
@@ -196,7 +198,7 @@ Changing the correlation claim on a connection that already has linked users wil
 
 ## Disconnecting a user
 
-The **Danger** tab lists users linked to the connection and can unlink them individually. Unlinking removes the subject link and scrubs mirrored attribute values that still match what the provider supplied, leaving anything the user set themselves. The account itself is not deleted.
+The **Danger** tab lists users linked to the connection and can unlink them individually. A user's own **Profile** tab lists all of their links, across connections, with the same action. Unlinking removes the subject link and scrubs mirrored attribute values that still match what the provider supplied, leaving anything the user set themselves. The account itself is not deleted. If it was the user's last link, the account is deactivated (see [Account linking](account-linking.md#viewing-and-removing-links)).
 
 ## Deleting a connection
 

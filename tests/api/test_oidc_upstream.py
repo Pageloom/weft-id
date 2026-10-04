@@ -501,3 +501,35 @@ def test_create_unreleased_provider_type_rejected(
         json={"name": "GitHub", "provider_type": "github"},
     )
     assert response.status_code == 422
+
+
+def test_create_connection_with_show_on_login(
+    client, test_tenant_host, oauth2_super_admin_header, sample_connection_data
+):
+    headers = {"Host": test_tenant_host, **oauth2_super_admin_header}
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers=headers,
+        json={**sample_connection_data, "show_on_login": True},
+    )
+    assert response.status_code == 201
+    assert response.json()["show_on_login"] is True
+
+    listed = client.get("/api/v1/oidc-upstream/connections", headers=headers).json()
+    assert listed["items"][0]["show_on_login"] is True
+
+
+def test_show_on_login_defaults_off_and_patches(
+    client, test_tenant_host, oauth2_super_admin_header, created_connection
+):
+    assert created_connection["show_on_login"] is False
+    url = f"/api/v1/oidc-upstream/connections/{created_connection['id']}"
+    headers = {"Host": test_tenant_host, **oauth2_super_admin_header}
+
+    on = client.patch(url, headers=headers, json={"show_on_login": True})
+    assert on.status_code == 200
+    assert on.json()["show_on_login"] is True
+    assert client.get(url, headers=headers).json()["show_on_login"] is True
+
+    off = client.patch(url, headers=headers, json={"show_on_login": False})
+    assert off.json()["show_on_login"] is False

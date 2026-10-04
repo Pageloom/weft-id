@@ -41,6 +41,7 @@ from services.oidc_upstream.connections import (
     get_connection,
     get_connection_row,
     list_connections,
+    list_login_buttons,
     oidc_connection_requires_platform_mfa,
     set_connection_default,
     set_connection_enabled,
@@ -106,6 +107,8 @@ from services.oidc_upstream.presets import (
     provider_display_name,
 )
 from services.oidc_upstream.provisioning import (
+    ENTRY_LOGIN_BUTTON,
+    ENTRY_ROUTED,
     authenticate_via_oidc,
     jit_provision_user,
 )
@@ -131,6 +134,7 @@ __all__ = [
     "list_connections",
     "get_connection",
     "get_connection_row",
+    "list_login_buttons",
     "create_connection",
     "update_connection",
     "get_claim_mapping",
@@ -145,6 +149,8 @@ __all__ = [
     "generate_state",
     "generate_nonce",
     "build_authorize_url",
+    "ENTRY_LOGIN_BUTTON",
+    "ENTRY_ROUTED",
     "authenticate_via_oidc",
     "jit_provision_user",
     "extract_group_names",

@@ -21,6 +21,7 @@ from schemas.oidc_upstream import (
     OIDCConnectionListItem,
     OIDCConnectionListResponse,
     OIDCConnectionUpdate,
+    OIDCLoginButton,
 )
 from services.activity import track_activity
 from services.auth import require_super_admin
@@ -32,6 +33,7 @@ from services.oidc_upstream.presets import (
     compose_entra_discovery_url,
     email_linking_trusted,
     get_preset_defaults,
+    login_button_style,
     provider_display_name,
 )
 from services.types import RequestingUser
@@ -109,6 +111,7 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         jit_provisioning=row["jit_provisioning"],
         allow_email_linking=row["allow_email_linking"],
         sign_out_at_idp=row["sign_out_at_idp"],
+        show_on_login=row["show_on_login"],
         callback_url=callback_url(base_url, connection_id),
         backchannel_logout_url=f"{base_url}/auth/oidc/{connection_id}/backchannel-logout",
         post_logout_redirect_uri=f"{base_url}{POST_LOGOUT_PATH}",
@@ -126,6 +129,7 @@ def _row_to_list_item(row: dict) -> OIDCConnectionListItem:
         provider_label=provider_display_name(row["provider_type"]),
         is_enabled=row["is_enabled"],
         is_default=row["is_default"],
+        show_on_login=row["show_on_login"],
         discovery_url=row.get("discovery_url"),
         discovery_fetched_at=row.get("discovery_fetched_at"),
         discovery_error=row.get("discovery_error"),
@@ -211,6 +215,30 @@ def get_connection_row(tenant_id: str, connection_id: str) -> dict | None:
     ``None``) so the router never touches the database layer directly.
     """
     return database.oidc_upstream.get_connection(tenant_id, connection_id)
+
+
+def list_login_buttons(tenant_id: str) -> list[OIDCLoginButton]:
+    """List the "Continue with ..." buttons for the sign-in page.
+
+    One per enabled connection an admin has marked "show on login". The label
+    and logo come from the preset; a generic provider has neither, so its
+    button carries the connection name.
+
+    No authorization check: the sign-in page is public and this exposes only
+    what the page itself shows.
+    """
+    buttons = []
+    for row in database.oidc_upstream.list_login_page_connections(tenant_id):
+        label, logo = login_button_style(row["provider_type"])
+        buttons.append(
+            OIDCLoginButton(
+                connection_id=str(row["id"]),
+                provider_type=row["provider_type"],
+                label=label or row["name"],
+                logo=logo,
+            )
+        )
+    return buttons
 
 
 def oidc_connection_requires_platform_mfa(tenant_id: str, connection_id: str) -> bool:
@@ -349,6 +377,7 @@ def create_connection(
         jit_provisioning=data.jit_provisioning,
         allow_email_linking=data.allow_email_linking,
         sign_out_at_idp=data.sign_out_at_idp,
+        show_on_login=data.show_on_login,
     )
 
     if row is None:
@@ -369,6 +398,7 @@ def create_connection(
             "name": data.name,
             "provider_type": data.provider_type,
             "issuer": data.issuer,
+            "show_on_login": data.show_on_login,
         },
     )
 
@@ -440,6 +470,7 @@ def update_connection(
         "jit_provisioning",
         "allow_email_linking",
         "sign_out_at_idp",
+        "show_on_login",
     ]:
         value = getattr(data, field, None)
         if value is None:

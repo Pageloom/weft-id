@@ -125,6 +125,24 @@
                 </div>
             </form>
             {% else %}
+            {% if login_buttons %}
+            {# Social sign-in: one button per connection an admin put on the login page #}
+            <div class="space-y-3" id="login-buttons">
+                {% for button in login_buttons %}
+                <a href="/auth/oidc/{{ button.connection_id }}/login?via=login_button"
+                   class="w-full flex items-center justify-center gap-3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium transition duration-150">
+                    {{ provider_logo(button.logo, class="w-5 h-5 shrink-0") }}
+                    <span>Continue with {{ button.label }}</span>
+                </a>
+                {% endfor %}
+            </div>
+            <div class="flex items-center my-6" aria-hidden="true">
+                <div class="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
+                <span class="px-3 text-sm text-gray-500 dark:text-gray-400">or</span>
+                <div class="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
+            </div>
+            {% endif %}
+
             {# Step 1: Email entry form (email-first flow with verification) #}
             <form method="post" action="/login/send-code" id="emailForm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

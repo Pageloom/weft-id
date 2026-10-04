@@ -21,6 +21,7 @@ from database.oidc_upstream.connections import (
     get_default_connection,
     get_enabled_connections,
     list_connections,
+    list_login_page_connections,
     set_connection_default,
     set_connection_enabled,
     update_connection,
@@ -68,6 +69,7 @@ __all__ = [
     "delete_connection",
     "get_enabled_connections",
     "get_default_connection",
+    "list_login_page_connections",
     # links
     "create_link",
     "get_link",

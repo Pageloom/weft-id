@@ -150,6 +150,7 @@ def create_connection(
     require_platform_mfa: Annotated[bool, Form()] = False,
     jit_provisioning: Annotated[bool, Form()] = False,
     allow_email_linking: Annotated[bool, Form()] = False,
+    show_on_login: Annotated[bool, Form()] = False,
 ):
     """Create a new OIDC upstream connection from the admin form."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -179,6 +180,7 @@ def create_connection(
             require_platform_mfa=require_platform_mfa,
             jit_provisioning=jit_provisioning,
             allow_email_linking=allow_email_linking,
+            show_on_login=show_on_login,
         )
     except PydanticValidationError:
         # A malformed form value (bad provider type, empty issuer, over-length
@@ -560,8 +562,10 @@ def edit_connection_settings(
     jit_provisioning: Annotated[bool, Form()] = False,
     allow_email_linking: Annotated[bool, Form()] = False,
     sign_out_at_idp: Annotated[bool, Form()] = False,
+    show_on_login: Annotated[bool, Form()] = False,
 ):
-    """Update connection settings (enabled, default, MFA, JIT, email linking, sign-out)."""
+    """Update connection settings (enabled, default, MFA, JIT, email linking,
+    sign-out, login page button)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
     base_url = tenant_base_url(request)
 
@@ -584,6 +588,7 @@ def edit_connection_settings(
                 jit_provisioning=jit_provisioning,
                 allow_email_linking=allow_email_linking,
                 sign_out_at_idp=sign_out_at_idp,
+                show_on_login=show_on_login,
             ),
             base_url,
         )

@@ -1,0 +1,79 @@
+name: Self-Hosting Smoke Test
+
+# Installs WeftID the documented way (non-interactive installer, anonymous
+# ghcr.io pulls) on clean runners and checks it works. See
+# dev/selfhost-smoke.sh for what is covered.
+#
+# - Called by publish.yml for each release, before the GitHub Release exists
+# - Manually: pick a released version, or "local" to build this ref's image
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Release version to test (e.g. 2.1.0)"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 2.1.0), or "local" to build this ref'
+        required: true
+        default: local
+
+permissions:
+  contents: read
+
+jobs:
+  fresh-install:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install and verify
+        run: dev/selfhost-smoke.sh "${{ inputs.version }}"
+
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Find the previous release
+        id: previous
+        env:
+          VERSION: ${{ inputs.version }}
+          # Releases before this cannot be installed fresh, so they cannot be
+          # an upgrade starting point either
+          MIN_UPGRADE_FROM: 2.0.1
+        run: |
+          version_lt() {
+            [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]
+          }
+
+          # Newest release below the target ("local": the newest release)
+          PREVIOUS=""
+          for tag in $(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | sed 's/^v//'); do
+            if [ "$VERSION" = local ] || version_lt "$tag" "$VERSION"; then
+              PREVIOUS="$tag"
+              break
+            fi
+          done
+
+          if [ -z "$PREVIOUS" ] || version_lt "$PREVIOUS" "$MIN_UPGRADE_FROM"; then
+            echo "::notice::No installable release before ${VERSION}; skipping the upgrade test"
+          elif ! docker manifest inspect "ghcr.io/pageloom/weft-id:${PREVIOUS}" > /dev/null 2>&1; then
+            echo "::error::Previous release ${PREVIOUS} is not pullable from ghcr.io"
+            exit 1
+          else
+            echo "version=${PREVIOUS}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upgrade and verify
+        if: steps.previous.outputs.version != ''
+        run: dev/selfhost-smoke.sh "${{ inputs.version }}" --upgrade-from "${{ steps.previous.outputs.version }}"

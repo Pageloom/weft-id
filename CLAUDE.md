@@ -87,12 +87,14 @@ Request → Router → Service → Database → PostgreSQL
 | `deploy/.env.example` | Production environment template with generation instructions |
 | `deploy/install.sh` | Self-hosting install script (downloads files, generates secrets, writes .env) |
 | `.github/workflows/publish.yml` | GHCR publish workflow (triggers on `v*.*.*` tags) |
-| `app/cli/provision_tenant.py` | CLI to provision a tenant and super admin (`python -m app.cli.provision_tenant`) |
+| `app/cli/provision_tenant.py` | CLI to provision a tenant and super admin (`python -m cli.provision_tenant`) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
 | `dev/scim-testbed.sh` | Bootstraps a local Authentik SCIM receiver outside the repo for outbound-SCIM testing |
 | `dev/scim-testbed.md` | SCIM testbed walkthrough (wire-up, lifecycle, what it exercises) |
 | `dev/oidc-conformance.md` | OpenID Foundation conformance suite walkthrough (`make oidc-conformance`) |
 | `dev/oidc_conformance_report.py` | Turns a conformance export into the results table (`make oidc-conformance-report`) |
+| `dev/selfhost-smoke.sh` | Self-hosting smoke test: installs the documented way and verifies it (`make selfhost-smoke`) |
+| `.github/workflows/selfhost-smoke.yml` | Runs the smoke test on amd64 and arm64 for each release (called by `publish.yml`) |
 | `.github/workflows/oidc-conformance.yml` | Conformance CI (E2E triggers), uploads results, writes the run summary |
 | `docs/conformance/oidc.md` | Public OIDC conformance results, deviations, how to rerun |
 | `mkdocs.yml` | Zensical documentation site configuration |
@@ -104,7 +106,7 @@ Request → Router → Service → Database → PostgreSQL
 
 ```
 app/
-├── cli/              # CLI management commands (run via python -m app.cli.<command>)
+├── cli/              # CLI management commands (run via python -m cli.<command>)
 ├── routers/          # HTTP layer (imports services only)
 │   ├── api/v1/       # RESTful API endpoints
 │   ├── auth/         # Login, logout, onboarding (package)
@@ -340,7 +342,7 @@ static assets, or the app directory structure.
 the app connects as `appuser` (created by `schema.sql`) to preserve RLS enforcement. `deploy/install.sh`
 automates first-time setup (downloads files, generates secrets, prompts for domain/SMTP, writes `.env`).
 After install, provision the first tenant and super admin via CLI:
-`docker compose exec app python -m app.cli.provision_tenant --subdomain <sub> --tenant-name <name> --email <email> --first-name <first> --last-name <last>`.
+`docker compose exec app python -m cli.provision_tenant --subdomain <sub> --tenant-name <name> --email <email> --first-name <first> --last-name <last>`.
 The super admin receives an invitation email and goes through the standard onboarding flow.
 
 **Release flow:** bump version in `pyproject.toml`, push main, run `make release-tag` (derives `v1.2.3` from `pyproject.toml`, local only), push the tag. The GHCR

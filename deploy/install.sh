@@ -8,6 +8,15 @@
 #   # or
 #   ./deploy/install.sh
 #
+# Non-interactive (automation, CI): set WEFT_NONINTERACTIVE=1 and pass the
+# settings as environment variables instead of answering prompts:
+#   curl -sSL .../install.sh | WEFT_NONINTERACTIVE=1 BASE_DOMAIN=id.example.com bash
+#
+# Recognised variables (any mode; a preset value skips its prompt):
+#   WEFT_VERSION   Release to install, e.g. 2.0.0 (default: latest release)
+#   BASE_DOMAIN    Required
+#   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_TLS, FROM_EMAIL
+#
 # Prerequisites: curl, openssl, POSIX shell
 # Works on Linux and macOS.
 
@@ -21,7 +30,15 @@ API_URL="https://api.github.com/repos/${REPO}"
 
 die() { printf "Error: %s\n" "$1" >&2; exit 1; }
 
+is_noninteractive() {
+    case "${WEFT_NONINTERACTIVE:-}" in
+        1|true|yes) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 prompt() {
+    is_noninteractive && die "Cannot prompt for input in non-interactive mode: $1"
     # Read from /dev/tty so the script works when piped via curl | bash
     printf "%s" "$1" >/dev/tty
     read -r REPLY </dev/tty
@@ -36,6 +53,11 @@ check_prereqs() {
 # --- Resolve release -------------------------------------------------------
 
 get_ref() {
+    # An explicitly requested version wins (2.0.0 or v2.0.0 -> v2.0.0)
+    if [ -n "${WEFT_VERSION:-}" ]; then
+        echo "v${WEFT_VERSION#v}"
+        return
+    fi
     # Try the latest GitHub release tag. Fall back to main if none exists.
     tag=$(curl -fsSL "${API_URL}/releases/latest" 2>/dev/null \
         | grep '"tag_name"' | head -1 | sed 's/.*: *"//;s/".*//') || true
@@ -76,6 +98,10 @@ download_files() {
 # --- Interactive prompts ----------------------------------------------------
 
 prompt_domain() {
+    if [ -n "$BASE_DOMAIN" ]; then
+        return
+    fi
+    is_noninteractive && die "BASE_DOMAIN is required in non-interactive mode."
     echo "" >/dev/tty
     echo "Domain (required)" >/dev/tty
     echo "  Tenants are accessed via subdomains (e.g., acme.id.example.com)." >/dev/tty
@@ -89,6 +115,17 @@ prompt_domain() {
 }
 
 prompt_smtp() {
+    # Preset SMTP settings (or non-interactive mode) skip the prompts
+    if [ -n "$SMTP_HOST" ] || is_noninteractive; then
+        if [ -n "$SMTP_HOST" ]; then
+            SMTP_PORT="${SMTP_PORT:-587}"
+            FROM_EMAIL="${FROM_EMAIL:-no-reply@${BASE_DOMAIN}}"
+        else
+            SMTP_PORT="587"
+        fi
+        return
+    fi
+
     echo "" >/dev/tty
     echo "Email / SMTP (press Enter to skip, configure later in .env)" >/dev/tty
     echo "" >/dev/tty
@@ -141,7 +178,7 @@ SMTP_HOST=${SMTP_HOST}
 SMTP_PORT=${SMTP_PORT}
 SMTP_USER=${SMTP_USER}
 SMTP_PASS=${SMTP_PASS}
-SMTP_TLS=true
+SMTP_TLS=${SMTP_TLS:-true}
 FROM_EMAIL=${FROM_EMAIL}
 
 # Optional
@@ -164,11 +201,17 @@ main() {
 
     # Guard against overwriting an existing .env
     if [ -f .env ]; then
+        is_noninteractive && die "An existing .env file was found. Remove it first to reinstall."
         prompt "An existing .env file was found. Overwrite? [y/N] "
         case "$REPLY" in
             [yY]*) ;;
             *) echo "Aborted." >/dev/tty; exit 0 ;;
         esac
+    fi
+
+    # Fail before downloading anything if non-interactive input is incomplete
+    if is_noninteractive && [ -z "$BASE_DOMAIN" ]; then
+        die "BASE_DOMAIN is required in non-interactive mode."
     fi
 
     # Resolve version and download

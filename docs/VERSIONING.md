@@ -59,4 +59,7 @@ Self-hosters can pin to their preferred level of update granularity.
    on a clean `main` that equals `origin/main` and `CHANGELOG.md` has a section for the
    version.
 5. Push the tag with the command it prints. The publish workflow checks that the tag matches
-   `pyproject.toml`.
+   `pyproject.toml`, that the image can be pulled anonymously, and runs the self-hosting smoke
+   test (fresh install on amd64 and arm64, plus an upgrade from the previous release). The
+   GitHub Release is only created when all of them pass. Run `make selfhost-smoke` beforehand
+   to catch problems before tagging.

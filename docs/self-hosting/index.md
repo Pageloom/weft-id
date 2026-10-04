@@ -53,6 +53,28 @@ The script asks for your domain and SMTP settings interactively. If you use Send
 instead of SMTP, press Enter to skip the SMTP prompts. Then edit `.env` to configure your
 email backend (see [Email configuration](#email)).
 
+??? note "Unattended install"
+    For automation (provisioning tools, CI), set `WEFT_NONINTERACTIVE=1` and pass the settings
+    as environment variables. The script then never prompts, and it fails with a clear error if
+    `BASE_DOMAIN` is missing or a `.env` already exists:
+
+    ```bash
+    curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/install.sh \
+      | WEFT_NONINTERACTIVE=1 \
+        BASE_DOMAIN=id.example.com \
+        SMTP_HOST=smtp.example.com SMTP_USER=apikey SMTP_PASS=secret \
+        bash
+    ```
+
+    Recognised variables:
+
+    * `BASE_DOMAIN` (required)
+    * `WEFT_VERSION` to install a specific release (e.g. `2.1.0`); defaults to the latest release
+    * `SMTP_HOST`, `SMTP_PORT` (default `587`), `SMTP_USER`, `SMTP_PASS`, `SMTP_TLS` (default `true`)
+    * `FROM_EMAIL` (default `no-reply@<BASE_DOMAIN>` when `SMTP_HOST` is set)
+
+    The same variables also skip their prompts in interactive mode.
+
 ??? note "Manual install"
     If you prefer not to pipe a script, download the files yourself:
 

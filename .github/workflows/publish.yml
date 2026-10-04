@@ -109,8 +109,14 @@ jobs:
             exit 1
           fi
 
+  selfhost-smoke:
+    needs: [validate, verify-public]
+    uses: ./.github/workflows/selfhost-smoke.yml
+    with:
+      version: ${{ needs.validate.outputs.version }}
+
   release:
-    needs: [validate, build-and-push, verify-public]
+    needs: [validate, build-and-push, verify-public, selfhost-smoke]
     runs-on: ubuntu-latest
     permissions:
       contents: write

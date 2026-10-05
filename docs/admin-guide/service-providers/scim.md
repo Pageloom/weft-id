@@ -13,8 +13,8 @@ troubleshooting tips.
 ## What outbound SCIM does
 
 WeftID is a SCIM 2.0 *client*: it pushes resource changes to the SP's
-SCIM endpoint. WeftID is not a SCIM server -- inbound provisioning is a
-separate feature.
+SCIM endpoint. In this direction WeftID is not a SCIM server. Inbound
+provisioning is a separate feature.
 
 Outbound SCIM closes the gap that pure SAML cannot. A user removed from
 WeftID still retains access to downstream SaaS until SCIM tells those
@@ -25,16 +25,16 @@ and group change in WeftID is replicated to the SP within seconds.
 
 The following changes enqueue work for the per-tenant SCIM worker:
 
-* **User creation, activation, deactivation** -- pushed as a SCIM
+* **User creation, activation, deactivation**: pushed as a SCIM
   User create or update.
-* **User profile attribute change** -- pushed as a SCIM User PUT.
-* **Group creation, rename, delete** -- pushed as a SCIM Group
+* **User profile attribute change**: pushed as a SCIM User PUT.
+* **Group creation, rename, delete**: pushed as a SCIM Group
   create, update, or delete.
-* **Group membership change** -- enqueues both the group itself and
+* **Group membership change**: enqueues both the group itself and
   every affected user, individually (eager fan-out at trigger time).
   This keeps queue depth a meaningful "work remaining" metric and
   lets per-user retries fail in isolation.
-* **Group-to-SP grant change** -- granting or revoking a group's
+* **Group-to-SP grant change**: granting or revoking a group's
   access re-evaluates scope for every member: those who gain access
   are pushed, those who lose their last grant are deprovisioned.
 
@@ -49,25 +49,25 @@ the worker translates this into a SCIM `DELETE` or a SCIM PUT with
 SCIM lives on its own tab on each SP's detail page. Open the SP, click
 **SCIM**, and fill in the configuration.
 
-* **Enable outbound SCIM** -- master switch. The worker only picks up
+* **Enable outbound SCIM**: master switch. The worker only picks up
   work for SPs with this checkbox set.
-* **Target URL** -- the SCIM 2.0 base URL of the downstream
+* **Target URL**: the SCIM 2.0 base URL of the downstream
   application. WeftID appends `/Users`, `/Groups`, and resource IDs
   as needed. Vendor-specific base URLs are listed in the vendor
   sections below. **Target URL is required before you can enable
   SCIM**: the service rejects the save with a validation error if
   you check **Enable outbound SCIM** without first supplying a URL.
-* **Application type** -- the vendor preset. Selecting Slack,
+* **Application type**: the vendor preset. Selecting Slack,
   GitHub, Atlassian, or GitLab applies known compatibility
   transforms. Use **Generic SCIM 2.0** for spec-correct providers
   (most other vendors).
-* **Group membership mode** -- *Effective* (default) flattens
+* **Group membership mode**: *Effective* (default) flattens
   subgroup membership: a user in a child group is reported as a
   member of every ancestor group granted access to the SP.
   *Direct members only* reports only the users explicitly listed in
   the group. Use Effective unless your downstream app cannot
   reconcile inheritance for you.
-* **Sync activity retention** -- how long detailed per-row push
+* **Sync activity retention**: how long detailed per-row push
   history is kept in `scim_sync_log`. Choose 3, 6, 12, 24 months, or
   **Forever**. Older rows are deleted nightly. Admin audit events
   (token created, rotated, revoked; config changes) are kept
@@ -177,30 +177,30 @@ Revocation cannot be undone. Create a fresh token after revoking.
 The Sync activity panel at the bottom of the SCIM tab summarizes
 queue depth and the most recent push attempts.
 
-* **Pending** -- queue rows the worker has not yet picked up.
+* **Pending**: queue rows the worker has not yet picked up.
   Should stay near zero in steady state.
-* **Dead-lettered** -- queue rows that exhausted their retry budget.
+* **Dead-lettered**: queue rows that exhausted their retry budget.
   Always investigate before clicking **Retry dead-lettered**: a
   dead-lettered row usually points to a real configuration problem
   (wrong target URL, revoked token, vendor schema mismatch).
-* **Sync log table** -- per-row history of recent pushes. Each row
+* **Sync log table**: per-row history of recent pushes. Each row
   shows the resource type (User or Group), resource ID, status,
   attempt number, started and completed timestamps, and the
   truncated error string.
 
 ### Status meanings
 
-* `pending` -- enqueued, waiting for the worker.
-* `running` -- worker is currently pushing this row.
-* `done` -- push succeeded.
-* `done` with an amber **Skipped** badge -- the resource was already
+* `pending`: enqueued, waiting for the worker.
+* `running`: worker is currently pushing this row.
+* `done`: push succeeded.
+* `done` with an amber **Skipped** badge: the resource was already
   absent at the receiver (typically a 404 on `DELETE`). The queue row
   drained without an actual push; the **Error** column carries the
   `already_absent` marker. This is benign and common when
   deprovisioning a user the receiver never saw.
-* `failed` -- push failed; the row is scheduled for retry with
+* `failed`: push failed; the row is scheduled for retry with
   exponential backoff.
-* `dead_letter` -- retry budget exhausted. No further attempts
+* `dead_letter`: retry budget exhausted. No further attempts
   until the admin clicks **Retry dead-lettered**.
 
 > TODO: screenshot - sync activity panel showing a mix of done / failed / dead_letter rows
@@ -211,40 +211,40 @@ The **Error** column shows a compact, machine-readable reason slug
 followed by extra context. The slugs are stable so admins (and grep)
 can spot patterns at a glance. The most common ones:
 
-* `no_credential_source: outbound SCIM credential is not configured for this SP`
-   -- No active bearer token exists for this SP. Mint one on the
+* `no_credential_source: outbound SCIM credential is not configured for this SP`:
+   no active bearer token exists for this SP. Mint one on the
    SCIM tab and paste it into the downstream app.
-* `credential_decrypt_failed: credential <id> ciphertext could not be decrypted (check SECRET_KEY rotation)`
-   -- A bearer-token row exists but Fernet rejected its ciphertext.
+* `credential_decrypt_failed: credential <id> ciphertext could not be decrypted (check SECRET_KEY rotation)`:
+   a bearer-token row exists but Fernet rejected its ciphertext.
    The usual cause is a `SECRET_KEY` rotation that did not re-encrypt
    existing rows. Mint a fresh token (the new one is encrypted with
    the current key) and revoke the broken row.
-* `scim_target_missing` / `scim_disabled_or_no_target` -- the SP was
+* `scim_target_missing` / `scim_disabled_or_no_target`: the SP was
    deleted, SCIM was disabled on it, or the target URL was cleared
    between enqueue and drain. The queue row is discarded; the next
    config change re-enqueues if needed.
-* `unknown_resource_type: '<value>'` -- a queue row carries a
+* `unknown_resource_type: '<value>'`: a queue row carries a
    resource type the worker does not know (currently only `user`
    and `group` are valid). Indicates a bad enqueue call upstream;
    file a bug.
-* `worker_exception: <ExceptionType>: <message>` -- the worker
+* `worker_exception: <ExceptionType>: <message>`: the worker
    raised an uncaught exception while building the payload or
    scoping the resource. Retryable, bounded by the attempts counter
    so a code-fix redeploy gets a clean second chance.
-* `permanent http=<code> <body excerpt>` -- the downstream SP
+* `permanent http=<code> <body excerpt>`: the downstream SP
    returned a non-retryable status (typically a 4xx other than 429).
    The row dead-letters immediately. Inspect the body excerpt for
    the SP's error message (`401 Unauthorized`, `400 invalidValue`,
    etc.).
-* `retryable http=<code> <body excerpt>` -- a retryable failure
+* `retryable http=<code> <body excerpt>`: a retryable failure
    (5xx, 429, or a vendor-specific retryable code). The row is
    scheduled with exponential backoff (1m / 5m / 30m / 2h /
    dead-letter).
-* `already_absent: ...` -- the resource was already gone at the
+* `already_absent: ...`: the resource was already gone at the
   receiver when the worker tried to update or delete it. Surfaces
   with status `done` and the amber **Skipped** badge. No retry; the
   queue row drains.
-* `remote_id_invalidated (HTTP 404; next attempt will POST)` -- the
+* `remote_id_invalidated (HTTP 404; next attempt will POST)`: the
   receiver returned 404 for a resource WeftID thought it had
   previously created. The recorded id is cleared automatically and
   the next worker pass POSTs the resource again, recapturing a fresh
@@ -260,31 +260,31 @@ id rather than WeftID's internal UUID. This matters for any
 spec-compliant receiver (most of them) where group `members[].value`
 must reference the receiver's id, not the externalId.
 
-* **When a mapping is created** -- on the first successful `POST` of
+* **When a mapping is created**: on the first successful `POST` of
   a User or Group to an SP, the worker captures the `id` from the
   response body and stores it. The `scim_remote_id_mapped` audit
   event records the mapping.
-* **When a mapping is used** -- every subsequent `PUT` / `PATCH` /
+* **When a mapping is used**: every subsequent `PUT` / `PATCH` /
   `DELETE` against the same WeftID resource for the same SP uses
   the stored id. Group payloads also use stored ids for member
   `value` and `$ref` so the receiver can resolve members.
-* **When a mapping is cleared** -- if the receiver returns 404 for a
+* **When a mapping is cleared**: if the receiver returns 404 for a
   `PUT`, `PATCH`, or `DELETE` against the stored id, the worker
   clears the mapping and reclassifies the outcome as retryable. The
   next pass `POST`s the resource and re-captures a fresh id. A
   `scim_remote_id_invalidated` audit event records the clear.
-* **Backwards compatibility** -- rows that pre-date the mapping
+* **Backwards compatibility**: rows that pre-date the mapping
   table (or any resource that has not yet been successfully
   `POST`ed) fall back to using WeftID's UUID. Receivers that key on
   `externalId` continue to work unchanged; spec-compliant receivers
   re-mint and start mapping on the next push.
-* **Group members without a mapping** -- when a Group is pushed and
+* **Group members without a mapping**: when a Group is pushed and
   some of its members have not yet been `POST`ed (no recorded id),
   those members are SKIPPED from the Group payload with a warning
   in the worker log. The next push (after the members are
   individually pushed) includes them. Emitting a WeftID UUID where
   the receiver expects its own id would silently drop the member at
-  the receiver's resolver -- the skip is the safe alternative.
+  the receiver's resolver, so the skip is the safe alternative.
 
 The mapping table is purely additive: removing it (or starting from
 an empty one after a migration) is safe. The worker self-heals via
@@ -425,9 +425,8 @@ sends unmodified, spec-correct payloads and uses the spec's
 
 Use Generic for vendors not in the list above (Zoom, Notion, Linear,
 PagerDuty, Datadog, Vercel, etc.). If a vendor's SCIM diverges from
-the spec in a way that breaks pushes, log a backlog item -- a new
-quirk module is the right fix, not a workaround in the generic
-path.
+the spec in a way that breaks pushes, report it. A new quirk module
+is the right fix, not a workaround in the generic path.
 
 ## Troubleshooting
 
@@ -436,14 +435,14 @@ path.
 1. Open the SP's SCIM tab and read the **Sync activity** panel.
 2. Inspect the most recent failed rows. The error column gives a
    truncated reason. Common causes:
-   * `401 Unauthorized` -- the bearer token is invalid (expired,
+   * `401 Unauthorized`: the bearer token is invalid (expired,
      revoked, or not yet pasted into the downstream app).
-   * `404 Not Found` on a User PUT -- the user was deleted in the
+   * `404 Not Found` on a User PUT: the user was deleted in the
      downstream app. WeftID will create on the next attempt if
      the user is still in scope.
-   * `400 invalidValue` -- the downstream app rejected a field.
+   * `400 invalidValue`: the downstream app rejected a field.
      For Atlassian, this is usually a missing `displayName`.
-   * `429 Too Many Requests` -- transient; the worker backs off.
+   * `429 Too Many Requests`: transient; the worker backs off.
 3. If a row is `dead_letter`, do **not** click **Retry
    dead-lettered** without first fixing the underlying cause.
    Re-attempting the same broken push wastes the backoff budget.

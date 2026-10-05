@@ -68,6 +68,6 @@ A link with the code already filled in (`verification_uri_complete`) only fills 
 
 ## Audit events
 
-* **Device sign-in started by an application** -- the device asked for a code (operational).
-* **User approved a device sign-in** and **User denied a device sign-in** -- the user's decision.
-* **Device sign-in completed; tokens issued to the device** -- the device collected its tokens.
+* **Device sign-in started by an application**: the device asked for a code (operational).
+* **User approved a device sign-in** and **User denied a device sign-in**: the user's decision.
+* **Device sign-in completed; tokens issued to the device**: the device collected its tokens.

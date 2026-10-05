@@ -56,7 +56,7 @@
                             "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                             "commands": [
                                 ["wait", "id", "client-logo", 10],
-                                ["wait", "xpath", "//*", 10, "requesting access", "update-image-placeholder"]
+                                ["wait", "id", "consent-prompt", 10, "\\S", "update-image-placeholder"]
                             ]
                         }
                     ]
@@ -110,7 +110,7 @@
                             "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                             "commands": [
                                 ["wait", "id", "client-policy", 10],
-                                ["wait", "xpath", "//*", 10, "requesting access", "update-image-placeholder"]
+                                ["wait", "id", "consent-prompt", 10, "\\S", "update-image-placeholder"]
                             ]
                         }
                     ]
@@ -164,7 +164,7 @@
                             "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                             "commands": [
                                 ["wait", "id", "client-tos", 10],
-                                ["wait", "xpath", "//*", 10, "requesting access", "update-image-placeholder"]
+                                ["wait", "id", "consent-prompt", 10, "\\S", "update-image-placeholder"]
                             ]
                         }
                     ]

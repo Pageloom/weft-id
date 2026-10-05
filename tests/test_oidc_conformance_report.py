@@ -417,6 +417,15 @@ class TestRenderMarkdown:
         assert md.count("oidcc-scope-profile") == 1
         assert "Not accounted for" not in md
 
+    def test_bullets_end_with_a_full_stop(self, report):
+        md = report.render_markdown(self._reports(report), "1.0.0")
+
+        # Bullets that give a reason; the review list names modules only.
+        bullets = [line for line in md.splitlines() if line.startswith("* `") and "): " in line]
+        assert bullets
+        assert all(line.endswith((".", "!", "?")) for line in bullets)
+        assert not any(line.endswith("..") for line in bullets)
+
     def test_empty_sections_are_omitted(self, report):
         run = _run(report, [_module_log("oidcc-discovery", "PASSED")], "Config OP", CONFIG)
         md = report.render_markdown([report.classify(run, [], [])], "1.0.0")

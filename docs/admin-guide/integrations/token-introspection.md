@@ -2,8 +2,8 @@
 
 WeftID access and refresh tokens are opaque strings. Nothing can be read from the token itself, so a service that receives one asks WeftID about it. WeftID offers two standard endpoints for this:
 
-* **Introspection** (RFC 7662) -- `POST https://<your-tenant-host>/oauth2/introspect`. Is this token valid, and whose is it?
-* **Revocation** (RFC 7009) -- `POST https://<your-tenant-host>/oauth2/revoke`. Stop this token working now.
+* **Introspection** (RFC 7662): `POST https://<your-tenant-host>/oauth2/introspect`. Is this token valid, and whose is it?
+* **Revocation** (RFC 7009): `POST https://<your-tenant-host>/oauth2/revoke`. Stop this token working now.
 
 Both are advertised in the discovery document as `introspection_endpoint` and `revocation_endpoint`.
 
@@ -17,9 +17,9 @@ The typical caller of the introspection endpoint is a **resource server**: an AP
 
 Use the same methods the token endpoint accepts:
 
-* **HTTP Basic** (`client_secret_basic`) -- `Authorization: Basic base64(client_id:client_secret)`
-* **Form fields** (`client_secret_post`) -- `client_id` and `client_secret` in the request body
-* **Signed assertion** (`private_key_jwt`) -- `client_assertion_type` and `client_assertion`, for a client set to [private key JWT](private-key-jwt.md)
+* **HTTP Basic** (`client_secret_basic`): `Authorization: Basic base64(client_id:client_secret)`
+* **Form fields** (`client_secret_post`): `client_id` and `client_secret` in the request body
+* **Signed assertion** (`private_key_jwt`): `client_assertion_type` and `client_assertion`, for a client set to [private key JWT](private-key-jwt.md)
 
 Use one method per request, not both. A wrong secret, an unknown client, or a deactivated client gets HTTP 401 with `{"error": "invalid_client"}`. At the revocation endpoint, a public client sends `client_id` with no secret (`none`).
 
@@ -50,10 +50,10 @@ A valid token the caller may see returns:
 }
 ```
 
-* `client_id` -- the app the token was issued to
-* `sub` -- the user's ID as the token's app knows it: the same value as the `sub` claim in that app's ID tokens and UserInfo (a [pairwise identifier](pairwise-subjects.md) when the app uses them). For a service account token it is the service user's ID.
-* `scope` -- left out when the token carries no scopes
-* `token_type` -- present for access tokens only
+* `client_id`: the app the token was issued to
+* `sub`: the user's ID as the token's app knows it: the same value as the `sub` claim in that app's ID tokens and UserInfo (a [pairwise identifier](pairwise-subjects.md) when the app uses them). For a service account token it is the service user's ID.
+* `scope`: left out when the token carries no scopes
+* `token_type`: present for access tokens only
 
 Anything else returns only `{"active": false}`: an unknown, expired, or revoked token, or a token the caller is not allowed to see. The response does not say which. Responses are marked `Cache-Control: no-store`.
 
@@ -81,8 +81,8 @@ Content-Type: application/x-www-form-urlencoded
 token=<the access or refresh token>
 ```
 
-* **Refresh token** -- the refresh token stops working, and so does every access token issued from it.
-* **Access token** -- only that access token stops working. Its refresh token keeps working.
+* **Refresh token**: the refresh token stops working, and so does every access token issued from it.
+* **Access token**: only that access token stops working. Its refresh token keeps working.
 
 A client can revoke only its own tokens, even if it may introspect all tenant tokens.
 
@@ -94,8 +94,8 @@ Call the revocation endpoint when a user signs out of your app, so its tokens do
 
 Errors use the same format as the token endpoint: a JSON object with `error` and `error_description`.
 
-* `invalid_client` (HTTP 401) -- missing, wrong, or conflicting client credentials, or a deactivated client
-* `invalid_request` (HTTP 400) -- the `token` parameter is missing or longer than 255 characters
+* `invalid_client` (HTTP 401): missing, wrong, or conflicting client credentials, or a deactivated client
+* `invalid_request` (HTTP 400): the `token` parameter is missing or longer than 255 characters
 
 ## Logging
 

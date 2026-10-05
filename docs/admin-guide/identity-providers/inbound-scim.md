@@ -200,18 +200,18 @@ This means:
 Every inbound SCIM write emits an audit event. The events visible
 in the WeftID audit log are:
 
-* `scim_inbound_token_created` -- a bearer token was minted (super
+* `scim_inbound_token_created`: a bearer token was minted (super
   admin action).
-* `scim_inbound_token_revoked` -- a bearer token was revoked.
-* `scim_user_received` -- a new user was created via SCIM POST.
-* `scim_user_updated` -- a user was modified via SCIM PUT or PATCH.
-* `scim_user_deactivated` -- a user was deactivated via SCIM DELETE
+* `scim_inbound_token_revoked`: a bearer token was revoked.
+* `scim_user_received`: a new user was created via SCIM POST.
+* `scim_user_updated`: a user was modified via SCIM PUT or PATCH.
+* `scim_user_deactivated`: a user was deactivated via SCIM DELETE
   or via PUT or PATCH that set `active` to false.
-* `scim_group_received` -- a new IdP group was created via SCIM
+* `scim_group_received`: a new IdP group was created via SCIM
   POST.
-* `scim_group_updated` -- a group was modified via SCIM PUT or
+* `scim_group_updated`: a group was modified via SCIM PUT or
   PATCH.
-* `scim_group_deleted` -- a group was deleted via SCIM DELETE.
+* `scim_group_deleted`: a group was deleted via SCIM DELETE.
 * Per-member events `idp_group_member_added` and
   `idp_group_member_removed` fire for every group membership
   change, the same as SAML-driven membership sync.

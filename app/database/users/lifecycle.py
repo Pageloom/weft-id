@@ -1,6 +1,6 @@
 """User account lifecycle database operations (inactivation, anonymization)."""
 
-from database._core import TenantArg, execute, fetchall
+from database._core import TenantArg, execute, fetchall, session
 
 
 def inactivate_user(tenant_id: TenantArg, user_id: str) -> int:
@@ -94,6 +94,48 @@ def anonymize_user(tenant_id: TenantArg, user_id: str) -> int:
         """,
         {"user_id": user_id},
     )
+
+
+# Per-user rows that identify the person, deleted on anonymization. Each is
+# keyed by user_id and holds a provider identifier, a copied attribute value,
+# a credential, or a pseudonymous identifier given to a downstream app.
+_ANONYMIZATION_ERASED_TABLES = (
+    "oidc_idp_user_links",  # upstream provider subject
+    "user_oidc_idp_attributes",  # claims mirrored from OIDC / social sign-in
+    "user_idp_attributes",  # attributes mirrored from SAML
+    "user_attributes",  # profile attributes
+    "oidc_idp_sessions",  # upstream sign-ins, with the provider's ID token
+    "webauthn_credentials",  # passkeys (names, credential ids)
+    "sp_nameid_mappings",  # persistent NameIDs given to service providers
+)
+
+
+def erase_user_identity_data(tenant_id: TenantArg, user_id: str) -> dict[str, int]:
+    """
+    Delete the identifying data an anonymization must not leave behind.
+
+    Removes the user's rows in every table of ``_ANONYMIZATION_ERASED_TABLES``
+    and clears the password-derived breach-check values on the user record,
+    in one transaction. Kept on purpose: SCIM remote ids (the deprovisioning
+    push needs them), event logs, group memberships and activity.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID being anonymized
+
+    Returns:
+        Rows deleted per table name
+    """
+    deleted: dict[str, int] = {}
+    with session(tenant_id=tenant_id) as cur:
+        for table in _ANONYMIZATION_ERASED_TABLES:
+            cur.execute(f"delete from {table} where user_id = %(user_id)s", {"user_id": user_id})
+            deleted[table] = int(cur.rowcount)
+        cur.execute(
+            "update users set hibp_prefix = null, hibp_check_hmac = null where id = %(user_id)s",
+            {"user_id": user_id},
+        )
+    return deleted
 
 
 def set_reactivation_denied(tenant_id: TenantArg, user_id: str) -> int:

@@ -14,16 +14,23 @@ For example:
 
 ## Managing relationships
 
-From a group's detail page, the **Relationships** tab shows the group's parents and children.
+From a group's detail page, the **Relationships** tab lists the group's parents and children next to a graph of its neighborhood.
 
-- **Add parent** -- Attach this group under another group
-- **Add child** -- Attach another group under this one
-- **Remove relationship** -- Detach a parent-child link without deleting either group
+- **Parent Groups**: Select a group and click **Add** to attach this group under it
+- **Child Groups**: Select a group and click **Add** to attach it under this group
+- **Remove**: Detach a parent-child link without deleting either group
 
-## Graph visualization
+Members of a child group are inherited members of every ancestor. See [Membership Management](membership-management.md#inherited-membership).
 
-The group list and detail pages include an interactive graph view. The graph shows the full hierarchy with parent-child connections.
+Groups synced from an identity provider are attached under that provider's umbrella group automatically.
 
-**Rearranging nodes.** Drag any node to reposition it. Hold **Shift** while dragging to move the node and all its descendants together, preserving relative positions. Your arrangement is saved automatically.
+## Graph view
 
-**Tooltips.** Hover over a node to see group details. Tooltips reposition automatically to avoid overlapping connected nodes and edges.
+Click **Graph** on **Directory > Groups** to see the full hierarchy. Click a group to highlight its parent and child edges. Double-click to open it.
+
+The toolbar edits the hierarchy directly:
+
+- **Add relationship**: Click a group and drag it to its new parent
+- **Cut relationship**: Click a relationship line to remove it
+- **Add group**: Create a group without leaving the graph
+- **Edit layout**: Drag groups to reposition them. Hold **Shift** to move a group with its children. Click **Save layout** to keep the arrangement, or **Reset layout** to start over

@@ -1,14 +1,14 @@
 # Connecting an Identity Provider
 
-WeftID can stand alone as your identity provider, or federate with an external SAML identity provider (Okta, Entra ID, Google Workspace, or any SAML 2.0 IdP) so users sign in with their existing credentials. This page covers the federation setup. Skip it if WeftID is your only IdP.
+WeftID can stand alone as your identity provider, or federate with an external SAML identity provider (Okta, Entra ID, Google Workspace, or any SAML 2.0 IdP) so users sign in with their existing credentials. This page covers SAML federation. Skip it if WeftID is your only IdP. To connect an OpenID Connect provider or a social sign-in (Google, Microsoft, GitHub, Apple, and others), see [OIDC Setup](../admin-guide/identity-providers/oidc-setup.md).
 
 ## Create the connection
 
 1. Navigate to **Identity Providers > SAML**
-2. Click **Add Identity Provider**
+2. Click **Add SAML Provider**
 3. Enter a display name (e.g., "Corporate Okta")
-4. Select the provider type: Okta, Azure AD, Google Workspace, or Generic SAML
-5. Click **Create**
+4. Select the provider type: Okta, Entra ID (Azure AD), Google Workspace, or Generic SAML
+5. Click **Create SAML Provider**
 
 ## Share WeftID's metadata with your IdP
 
@@ -16,19 +16,19 @@ After creation, WeftID generates a metadata URL for your new connection. This UR
 
 Copy the metadata URL and configure it in your identity provider's admin console. Each provider has a different setup process:
 
-- **Okta** -- Create a new SAML application and paste the metadata URL
-- **Entra ID** -- Register an enterprise application with the SAML metadata
-- **Google Workspace** -- Configure a custom SAML app with the metadata URL
+- **Okta**: Create a new SAML application and paste the metadata URL
+- **Entra ID**: Register an enterprise application with the SAML metadata
+- **Google Workspace**: Configure a custom SAML app with the metadata URL
 
 ## Establish trust
 
 Once your IdP is configured, return to WeftID and complete the trust relationship. You can do this in three ways:
 
-- **Metadata URL** -- Paste your IdP's metadata URL. WeftID fetches the certificate, SSO URL, and entity ID automatically.
-- **Metadata XML** -- Paste the full SAML metadata XML from your IdP.
-- **Manual entry** -- Enter the entity ID and SSO URL, and upload the IdP's signing certificate.
+- **Metadata URL**: Paste your IdP's metadata URL. WeftID fetches the certificate, SSO URL, and entity ID automatically.
+- **Metadata XML**: Paste the full SAML metadata XML from your IdP.
+- **Manual entry**: Enter the entity ID and SSO URL, and upload the IdP's signing certificate.
 
-After trust is established, users can sign in through this identity provider.
+After trust is established, enable the IdP on its **Details** tab. Users can then sign in through it.
 
 ## Optional: Bind email domains
 

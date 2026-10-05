@@ -126,7 +126,7 @@
             {% if idp.provider_type != 'generic' %}
             <span class="text-gray-300 dark:text-gray-600">&middot;</span>
             <a href="#" id="load-presets-btn" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                Load {{ idp.provider_type | capitalize if idp.provider_type != 'azure_ad' else 'Azure AD' }} presets
+                Load {{ idp.provider_type | capitalize if idp.provider_type != 'azure_ad' else 'Entra ID' }} presets
             </a>
             {% endif %}
         </div>
@@ -151,7 +151,7 @@
     const { providerType } = JSON.parse(document.getElementById('page-data').textContent);
     const providerNames = {
         'okta': 'Okta',
-        'azure_ad': 'Azure AD',
+        'azure_ad': 'Entra ID',
         'google': 'Google Workspace',
         'generic': 'Generic SAML'
     };

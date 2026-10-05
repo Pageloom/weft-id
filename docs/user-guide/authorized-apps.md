@@ -2,7 +2,7 @@
 
 When you sign in to an application through WeftID for the first time, WeftID shows a consent screen: the application's name, the account you are signed in with, and what the application is asking for (your profile, your email address, your groups, and so on). If you click **Allow**, WeftID remembers your choice. The next time that application sends you to WeftID, you are signed in without seeing the screen again.
 
-The **Authorized Apps** page under User Settings lists every application you have allowed, with the scopes you granted and when you first allowed it.
+The **Authorized Apps** page under User Settings lists every application you have allowed, with the scopes you granted and when you first allowed it. Approving a [device sign-in](signing-in.md#signing-in-on-a-device) also adds the application here. A device sign-in always asks for approval, even for an application you allowed before.
 
 ## When the consent screen appears
 

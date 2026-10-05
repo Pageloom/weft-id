@@ -1,6 +1,6 @@
 # Profile
 
-Edit your personal information and preferences from the profile page at **Account > Profile**.
+Edit your personal information and preferences from the profile page at **User Settings > Profile**.
 
 ## Name
 
@@ -33,7 +33,7 @@ Your timezone and locale are detected automatically from your browser. Click **U
 
 ## Email addresses
 
-View your email addresses at **Account > Emails**. Your primary email is used for sign-in and SAML assertions. Email changes (adding, removing, or promoting) are managed by your administrator.
+View your email addresses at **User Settings > Email Addresses**. Your primary email is used for sign-in and SAML assertions. Email changes (adding, removing, or promoting) are managed by your administrator.
 
 ## Account information
 

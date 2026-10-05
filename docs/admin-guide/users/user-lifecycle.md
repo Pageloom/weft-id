@@ -14,7 +14,13 @@ Deactivated users cannot sign in. All their data is preserved, and they can be r
 
 - Their session is terminated immediately
 - All OAuth2 tokens are revoked (API access is cut off)
-- They cannot request reactivation if a previous request was denied
+
+A user is deactivated when:
+
+- An admin clicks **Deactivate User** on the user's **Danger** tab, or deactivates them in bulk
+- They are inactive for longer than the [automatic deactivation](#automatic-deactivation) threshold
+- An identity provider sends `active=false` or a delete over [inbound SCIM](../identity-providers/inbound-scim.md)
+- An admin unlinks their last [linked sign-in account](../identity-providers/account-linking.md)
 
 An admin can deactivate any user except themselves, service users (linked to OAuth2 clients), or the last super admin.
 
@@ -27,7 +33,7 @@ Admins can deactivate or reactivate multiple users at once from the user list:
 3. A preview shows which users are eligible and which will be skipped (with reasons).
 4. Confirm to start a background job that processes each user individually.
 
-Skipped users include those already in the target state, service users, the last super admin, and anonymized users. Per-user errors do not fail the entire job.
+Skipped users include yourself, users already in the target state, service users, the last super admin, and anonymized users. Per-user errors do not fail the entire job.
 
 ### Reactivation
 
@@ -58,9 +64,9 @@ When the daily job deactivates at least one user, every active admin and super a
 
 Any authenticated action counts as activity: signing in, triggering an SSO flow, viewing pages, or making API calls.
 
-### IdP-assigned user onboarding
+### SAML-assigned user onboarding
 
-Users created via SAML JIT provisioning skip the password-setting step during onboarding. After verifying their email address, they are redirected to sign in through their identity provider instead of being prompted to create a password.
+Users assigned to a SAML identity provider skip the password-setting step during onboarding. After verifying their email address, they are redirected to sign in through their identity provider instead of being prompted to create a password.
 
 ## Forced profile completion
 
@@ -86,9 +92,10 @@ detail page instead.
 
 Anonymization is a permanent, irreversible operation for GDPR right-to-be-forgotten requests. Only super admins can anonymize a user. When a user is anonymized:
 
-- Their name is replaced with "[Anonymized] User"
+- Their name is replaced with "[Anonymized] User" (shown as "[Anonymized User]" in the event log)
 - All email addresses are anonymized
 - Two-step verification data is deleted (TOTP secret, backup codes, and all passkeys)
 - Password is cleared
+- OAuth2 tokens and app consents are revoked, and OIDC sessions at downstream apps are ended
 
 The user's ID and audit trail are preserved for compliance, but all personally identifiable information is removed.

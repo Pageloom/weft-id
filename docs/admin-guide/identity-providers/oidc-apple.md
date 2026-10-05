@@ -52,7 +52,7 @@ If the first sign-in did not create an account (for example, JIT provisioning wa
 
 ## Email addresses
 
-Apple only shares email addresses it has verified, so a new account's address counts as verified straight away and **Allow email linking** is available. See [Account linking](account-linking.md).
+Apple only shares email addresses it has verified, so a new account's address counts as verified straight away and **Allow Email Linking** is available. See [Account linking](account-linking.md).
 
 ### Private relay email addresses
 

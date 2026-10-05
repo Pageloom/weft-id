@@ -8,13 +8,13 @@
         <h1 class="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Protected Domains</h1>
 
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            Register a DNS domain you want to protect with forward auth (for example
-            <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">acme-corp.com</code>),
-            so WeftID can gate HTTP apps behind it. You prove control of the domain with a
-            DNS-TXT record, and point a portal host (e.g. <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">auth.acme-corp.com</code>)
-            at WeftID. This is separate from
+            DNS domains whose web apps WeftID gates with forward auth (for example
+            <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">acme-corp.com</code>).
+            Prove control with a DNS TXT record, then point a portal host (for example
+            <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">auth.acme-corp.com</code>) at WeftID.
+            Not to be confused with
             <a href="/identity-providers/domain-routing" class="text-blue-600 dark:text-blue-400 hover:underline">privileged (email) domains</a>,
-            which route user identity by email address and do not protect web apps.
+            which route users by email address.
         </p>
 
         {% if success %}
@@ -101,7 +101,7 @@
                     <input type="text" name="portal_host" id="portal_host" placeholder="auth.acme-corp.com"
                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                            required maxlength="253">
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">A hostname under that domain, pointed at WeftID (must be the domain itself or a subdomain of it).</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The domain itself or a subdomain of it, pointed at WeftID.</p>
                 </div>
                 <button type="submit"
                         class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">

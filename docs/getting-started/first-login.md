@@ -1,10 +1,10 @@
-# First Login
+# First Sign-in
 
 When your WeftID instance is first set up, you receive an invitation email with a verification link.
 
 ## Verify your email
 
-Click the link in the invitation email. This confirms your email address and takes you to the password setup page. The link is one-time use. If you need a new one, ask your administrator to resend the invitation.
+Click the link in the invitation email. This confirms your email address and takes you to the password setup page. The link is one-time use. If you need a new one, ask your administrator to resend the invitation. On a self-hosted instance, the first super admin's invitation comes from the `provision_tenant` command, which prints the verification URL if the email cannot be sent (see [Self-Hosting](../self-hosting/index.md#6-provision-your-first-tenant)).
 
 ## Set your password
 
@@ -17,12 +17,12 @@ Use a password manager to generate a strong, unique password. Do not reuse a pas
 The dashboard shows your name, email, role, and last sign-in time. As a super admin, you have access to all
 administrative sections of the navigation bar:
 
-- **Directory** -- Users, groups, pending requests, the profile attribute catalog, and user exports
-- **Identity Providers** -- Connect upstream SAML and OIDC identity providers, and route users to them by email domain
-- **Applications** -- Register downstream applications for SSO: SAML, OAuth2/OIDC, forward auth, and service accounts
-- **Security** -- Sessions, certificates, passwords, permissions, and authentication policy
-- **Audit** -- Event log and SAML debug log
-- **Settings** -- Branding and tenant display settings
+- **Directory**: Users, groups, pending requests, the profile attribute catalog, and user exports
+- **Identity Providers**: Connect upstream SAML and OIDC identity providers, and route users to them by email domain
+- **Applications**: Register downstream applications for SSO: SAML, OAuth2/OIDC, forward auth, and service accounts
+- **Security**: Sessions, certificates, passwords, permissions, and authentication policy
+- **Audit**: Event log and SAML debug log
+- **Settings**: Branding and tenant display settings
 
 Look for the information icon in the top-right corner of the navigation bar. It links to the documentation page for whichever screen you're on.
 

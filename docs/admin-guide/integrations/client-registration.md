@@ -1,6 +1,6 @@
 # Client Registration
 
-Normally an admin creates each OAuth2 / OIDC app by hand on **Applications > OAuth2 / OIDC**. With client registration turned on, an application can register itself instead. It sends its details to WeftID and receives a client ID and secret in the response. This is OpenID Connect Dynamic Client Registration (RFC 7591), with client configuration management (RFC 7592).
+Normally an admin creates each OAuth2 / OIDC app by hand on **Applications > OAuth2 / OIDC**. With client registration turned on, an application can register itself instead. It sends its details to WeftID and receives a client ID and secret in the response. This is Dynamic Client Registration (RFC 7591 and OpenID Connect Dynamic Client Registration 1.0), with client configuration management (RFC 7592).
 
 Use it when software you do not control needs to sign users in through WeftID and knows how to register itself, or when you onboard many apps and want a partner to do it without an admin in the loop.
 
@@ -10,7 +10,7 @@ Client registration is off by default. Turn it on under **Applications > Client 
 
 * **No one** (default). The registration endpoint is closed and does not appear in discovery.
 * **Applications with an initial access token.** An application must present a token you issue on the same page. This is the recommended setting.
-* **Anyone.** Any application that can reach your tenant can register. Use this only if you understand the risk: anyone can create an app that asks your users to sign in. The other safeguards below still apply.
+* **Anyone.** Any application that can reach your tenant can register. This is risky: anyone can create an app that asks your users to sign in. The other safeguards below still apply.
 
 While registration is on, the discovery document advertises the endpoint as `registration_endpoint`: `https://<your-tenant-host>/oauth2/register`.
 
@@ -23,7 +23,7 @@ This applies to apps registered after you change it. Users always see the consen
 
 ## Initial access tokens
 
-Create a token under **Initial access tokens**, give it a name that says who it is for, and optionally an expiry (1 to 365 days). WeftID shows the token once. Copy it and pass it to whoever runs the registering application. They send it as `Authorization: Bearer <token>` when registering.
+Click **Create Token** under **Initial Access Tokens**, give it a name that says who it is for, and optionally an expiry (1 to 365 days). WeftID shows the token once. Copy it and pass it to whoever runs the registering application. They send it as `Authorization: Bearer <token>` when registering.
 
 A token can register any number of apps until it expires or you revoke it. The list shows when each token was last used and how many apps it registered. Revoking a token stops new registrations with it; apps it already registered keep working.
 

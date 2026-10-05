@@ -27,7 +27,7 @@ An application can belong to a user, a group, or (on a self-managed instance) th
     * **Instance** (self-managed): **Admin area > Applications**
     * **User**: **Edit profile > Applications**
 2. Click **Add new application** and give it a name
-3. Under **Redirect URI**, paste the redirect URI from your WeftID connection's Details tab
+3. Under **Redirect URI**, paste the callback URL from your WeftID connection's Details tab (you can create the WeftID connection first and fill this in afterwards)
 4. Leave **Confidential** checked
 5. Under **Scopes**, select `openid`, `profile`, and `email`
 6. Click **Save application** and copy the **Application ID** and **Secret**
@@ -37,7 +37,7 @@ An application can belong to a user, a group, or (on a self-managed instance) th
 1. In WeftID, go to **Identity Providers > OIDC** and create a connection with provider type **GitLab**
 2. For a self-managed instance, replace the issuer (see above)
 3. Paste the application ID as the client ID, and the secret as the client secret
-4. Click **Test connection**, then enable it
+4. Click **Test Connection**, then enable the connection
 
 ## Email linking
 

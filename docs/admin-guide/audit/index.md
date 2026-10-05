@@ -23,7 +23,7 @@ Each event's tier is shown as a colored badge in both the list and detail views.
 
 ### Filtering
 
-Filter the event log by date range, event type, actor (who performed the action), artifact type, and artifact ID.
+Filter by tier with the toggles above the list. The [API](../../api/index.md) (`GET /api/v1/events`) accepts the same `tiers` parameter.
 
 ### Event detail
 
@@ -45,9 +45,9 @@ Export a comprehensive snapshot of all users, group memberships, and application
 
 The export produces a password-encrypted XLSX workbook with three sheets:
 
-* **Users** -- role, status, auth method, two-step verification, last sign-in, app count, and more
-* **Group Memberships** -- one row per user-group pair, with group name, type, and membership date
-* **App Access** -- one row per user-application pair, with last authentication date and how access is granted (group names or "All users")
+* **Users**: role, status, auth method, two-step verification, last sign-in, app count, and more
+* **Group Memberships**: one row per user-group pair, with group name, type, and membership date
+* **App Access**: one row per user-application pair, with last authentication date and how access is granted (group names or "All users")
 
 The export runs as a background job, same as event log exports. See [Background Jobs](../../user-guide/background-jobs.md) for downloading and file passwords.
 
@@ -66,14 +66,20 @@ Events cover all areas of the platform:
 | Category | Examples |
 |----------|---------|
 | Authentication | Sign-in, sign-out, password changes, password resets, breach detection, passkey sign-in |
-| Users | Created, updated, deactivated, reactivated, anonymized, profile updated |
+| Users | Created, updated, deactivated (manually, in bulk, or for inactivity), reactivated, anonymized, profile updated |
 | User attributes | Tenant attribute settings changed, IdP attribute values mirrored at sign-in, mirrored values scrubbed on IdP delete |
-| Groups | Created, deleted, members added/removed, relationships changed |
-| Identity providers | Created, updated, trust established, deleted |
-| Service providers | Created, updated, deleted, SSO assertions issued |
-| Outbound SCIM | Configuration updated, bearer token created, rotated, revoked |
-| Inbound SCIM | Bearer token created/revoked, user received/updated/deactivated/rebound, group received/updated/deleted |
-| Certificates | Created, rotated |
+| Groups | Created, deleted, members added/removed, relationships changed, IdP groups discovered or renamed |
+| SAML identity providers | Created, updated, trust established, deleted, domains bound, sign-in received or failed |
+| OIDC and social sign-in providers | Connection created, updated, tested, deleted; domains bound; sign-in started, completed, failed, or refused by the account-linking policy; JIT provisioning |
+| Account linking | Sign-in account linked to or unlinked from a user |
+| SAML service providers | Created, updated, deleted, group access changed, SSO assertions issued |
+| OAuth2 / OIDC apps | Created, updated, client authentication or subject type changed, OIDC enabled, group access changed, access denied, ID token issued |
+| Client registration | Client registered, updated, or deleted itself; initial access tokens issued or revoked; settings changed |
+| Consent and tokens | Consent granted, widened, or revoked; token revoked; authorization code reused; device sign-in approved or denied; pushed authorization request (PAR) |
+| Forward auth | Protected domain registered, verified, or deleted; proxy app changed; group grant added or removed; access granted or denied |
+| Outbound SCIM | Configuration updated, bearer token created, imported, rotated, revoked |
+| Inbound SCIM | Bearer token created/revoked, user received/updated/deactivated/reactivated/rebound, group received/updated/deleted |
+| Certificates and keys | SAML certificates created or rotated, OIDC signing key rotated |
 | Settings | Session, certificate, permission, branding, and group assertion scope changes |
 | Two-step verification | Method changed, backup codes regenerated, admin resets, passkey registered/deleted/renamed |
 | Authentication policy | Tenant authentication strength changed, user enhanced-auth enrollment completed |

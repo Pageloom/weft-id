@@ -1,6 +1,6 @@
 # Password
 
-Manage your password from **Account > Password**.
+Manage your password from **User Settings > Password**.
 
 ## Changing your password
 

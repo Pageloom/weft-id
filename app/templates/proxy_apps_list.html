@@ -8,11 +8,10 @@
         <h1 class="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Proxy Apps</h1>
 
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            Register an HTTP app behind a
-            <a href="/applications/forward-auth/domains" class="text-blue-600 dark:text-blue-400 hover:underline">verified protected domain</a>
-            so WeftID can gate it with forward auth. WeftID answers your reverse proxy's auth
-            subrequest and injects <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">X-Forwarded-*</code>
-            identity headers on allow.
+            Protect an HTTP app on a
+            <a href="/applications/forward-auth/domains" class="text-blue-600 dark:text-blue-400 hover:underline">verified protected domain</a>.
+            Your reverse proxy checks each request with WeftID, which passes the user's identity in
+            <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">X-Forwarded-*</code> headers.
         </p>
 
         {% if success %}
@@ -104,7 +103,7 @@
                     <label for="external_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">External URL</label>
                     <input type="text" name="external_url" id="external_url" placeholder="https://grafana.acme-corp.com" required maxlength="2048"
                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The app's public https address. Its host must be under the protected domain.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The app's public https address, under the protected domain.</p>
                 </div>
                 <div>
                     <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description (optional)</label>

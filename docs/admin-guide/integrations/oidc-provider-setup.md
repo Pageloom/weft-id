@@ -12,7 +12,7 @@ This page covers registering a downstream app as an OIDC relying party. For the 
 Enabling OIDC changes two behaviors:
 
 * The token endpoint issues a signed RS256 **ID token** whenever the request includes the `openid` scope.
-* **Group-based access control** is enforced at login. A user who is not granted access is denied at the authorize step (they never receive a code or token).
+* **Group-based access control** is enforced at sign-in. A user who is not granted access is denied at the authorize step (they never receive a code or token).
 
 Plain OAuth2 apps (OIDC disabled) are unaffected by both changes.
 
@@ -30,6 +30,7 @@ Once OIDC is enabled, the app detail page shows the read-only **endpoint URLs** 
 * **Introspection endpoint** -- `https://<your-tenant-host>/oauth2/introspect` (see [Token Introspection and Revocation](token-introspection.md))
 * **Revocation endpoint** -- `https://<your-tenant-host>/oauth2/revoke`
 * **Device authorization endpoint** -- `https://<your-tenant-host>/oauth2/device_authorization` (see [Device Sign-In](device-sign-in.md))
+* **Pushed authorization request endpoint** -- `https://<your-tenant-host>/oauth2/par` (see [Pushed authorization requests](#pushed-authorization-requests))
 
 The issuer and every endpoint are scoped to your tenant host. A relying party configured against one tenant's issuer can never receive another tenant's keys or claims.
 
@@ -47,6 +48,18 @@ An OIDC app can appear in users' **My Apps** list on the dashboard, like a SAML 
 * WeftID sends no `login_hint` and no `target_link_uri`. The app lands the user wherever it normally does after sign-in.
 
 Through the API, set `initiate_login_uri` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}` (an empty string clears it). An app that registers itself can send `initiate_login_uri` in its registration (see [Client Registration](client-registration.md)).
+
+## Asking the user to sign in again
+
+An app can make a user who is already signed in to WeftID sign in again:
+
+* `prompt=login` (or `prompt=select_account`) on the authorization request.
+* `max_age`, when the user's sign-in is older than that many seconds.
+* An `id_token_hint` that names a different user than the one signed in.
+
+WeftID first shows a **Sign in again?** page naming the app. This stops a link on another website from signing the user out. If the user continues, WeftID ends their current session and they sign in to WeftID again (password, then two-step verification per policy). The authorization request then carries on as usual. If they cancel, the app receives `access_denied`. With `prompt=none`, WeftID shows no page and answers `login_required` instead.
+
+Ending the session this way triggers [front-channel](#front-channel-logout) and [back-channel](#back-channel-logout) logout for the user's other apps, but not for the app that asked. The new sign-in happens in WeftID only. It is not passed on to the upstream identity provider the user originally signed in with.
 
 ## Signing out
 
@@ -92,7 +105,7 @@ Front-channel logout depends on the user's browser. Back-channel logout does not
 * As with front-channel logout, the app that asked WeftID to sign the user in again is not sent a logout token.
 * Deactivating, anonymizing or deleting a user also sends a logout token for each session the user holds with the app, whoever or whatever deactivated them (an admin, SCIM, the inactivity policy, or removal from an identity provider). No browser is involved, so front-channel logout does not apply here.
 
-The app's detail page lists the most recent deliveries under **Back-channel Logout Deliveries**: who they were for, whether they were delivered, how many attempts were made, and the last error. "Address not allowed or not found" means the URI's host did not resolve, or resolved to an address WeftID refuses to call. Deliveries are kept for 30 days after they finish.
+The app's detail page lists the most recent deliveries under **Back-Channel Logout Deliveries**: who they were for, whether they were delivered, how many attempts were made, and the last error. "Address not allowed or not found" means the URI's host did not resolve, or resolved to an address WeftID refuses to call. Deliveries are kept for 30 days after they finish.
 
 Through the API, set `backchannel_logout_uri` and `backchannel_logout_session_required` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`, and list deliveries with `GET /api/v1/oauth2/clients/{client_id}/backchannel-logout-deliveries` (`status`, `page` and `limit` query parameters).
 
@@ -121,7 +134,7 @@ When the `groups` scope is granted, the UserInfo response includes a `groups` cl
 
 ## Controlling who can sign in
 
-OIDC-enabled apps enforce access control at login, mirroring the [SAML service provider](../service-providers/index.md) model:
+OIDC-enabled apps enforce access control at sign-in, mirroring the [SAML service provider](../service-providers/index.md) model:
 
 * **Group-based access** (default) -- Only members of assigned groups, and members of their descendant groups, can sign in. Assign groups in the **Assigned Groups** panel on the app detail page.
 * **Available to all users** -- Every active tenant user can sign in. Toggle this in the **Access Mode** panel. Group assignments remain visible but are organizational only.

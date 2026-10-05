@@ -1,14 +1,14 @@
 # WeftID Documentation
 
-WeftID is an identity provider and access management platform. It authenticates users, manages their lifecycle, and provides single sign-on to your applications via SAML 2.0, OpenID Connect, or forward auth for a reverse proxy. Organizations that already use Okta, Entra ID, Google Workspace, or other identity management systems can be federated into WeftID over SAML or OIDC for seamless, unified sign-in.
+WeftID is an identity provider and access management platform. It authenticates users, manages their lifecycle, and provides single sign-on to your applications via SAML 2.0, OpenID Connect, or forward auth at a reverse proxy. Users sign in with a password or passkey, through your organization's identity provider (Okta, Entra ID, Google Workspace, or any SAML or OIDC provider), or with a social account such as Google, GitHub, or Apple.
 
 ## For administrators
 
-The [Admin Guide](admin-guide/index.md) covers user management, group hierarchies, identity provider configuration, service provider registration, security settings, and audit logging.
+The [Admin Guide](admin-guide/index.md) covers users and groups, identity providers and social sign-in, applications (SAML, OAuth2 / OIDC, forward auth, service accounts), security settings, and the audit log.
 
 ## For end users
 
-The [User Guide](user-guide/index.md) covers your dashboard, profile settings, and two-step verification.
+The [User Guide](user-guide/index.md) covers signing in, your dashboard and profile, two-step verification, passkeys, and the apps you have authorized.
 
 ## For developers
 

@@ -2,7 +2,7 @@
 
 ## Adding members
 
-There are two ways to add members to a group.
+There are three ways to add members to a group.
 
 **From the group's members page.** The **Members** tab on a group's detail page lists current members with search, filtering, and pagination.
 
@@ -11,9 +11,9 @@ There are two ways to add members to a group.
 3. Select one or more users
 4. Click **Add**
 
-Small batches are processed immediately. The page shows how many members were added.
+Members are added immediately. The page shows how many were added.
 
-**From the user list.** Select users from the main user list, then click **Add to Group** in the action bar.
+**From the user list.**
 
 1. Select users using the checkboxes
 2. Click **Add to Group**
@@ -21,7 +21,9 @@ Small batches are processed immediately. The page shows how many members were ad
 4. A preview shows eligible users and any that will be skipped (already members)
 5. Confirm to start a background job
 
-The job result is available under **Account > Background Jobs**.
+The job result is available under **User Settings > Background Jobs**.
+
+**From a user's detail page.** On the user's **Groups** tab, pick a group under **Add to Group** and click **Add**. To add the user to several groups at once, select them in the second list and click **Bulk Add**.
 
 ## Removing members
 
@@ -33,4 +35,8 @@ Members of IdP-type groups are managed automatically by the identity provider. M
 
 ## Inherited membership
 
-Group membership is explicit. A user who is a member of a parent group is not automatically a member of its children. However, access to service providers can be controlled at any level in the hierarchy. See [Group-Based Access](group-based-access.md).
+Membership flows up the hierarchy. Members of a child group are inherited members of every ancestor group. The **Members** tab lists direct members first, then inherited members under **Inherited via child groups**. The member count shows both.
+
+Membership does not flow down. A member of a parent group is not a member of its children.
+
+Access to applications follows inherited membership. See [Group-Based Access](group-based-access.md).

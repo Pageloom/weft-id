@@ -677,7 +677,7 @@ WeftUtils.listManager({
             callback: (selectedIds) => {
                 const userIds = _collectUserIds(selectedIds);
                 _previewAndConfirm('/api/v1/users/bulk-ops/inactivate/preview', userIds, {
-                    action: 'Inactivate',
+                    action: 'Deactivate',
                     consequence: 'OAuth tokens will be revoked and affected users will lose sign-in access.',
                     destructive: true,
                     formId: 'bulk-inactivate-form',

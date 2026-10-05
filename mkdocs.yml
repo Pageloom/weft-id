@@ -40,7 +40,7 @@ nav:
   - Home: index.md
   - Getting Started:
     - getting-started/index.md
-    - First Login: getting-started/first-login.md
+    - First Sign-In: getting-started/first-login.md
     - Connecting an Identity Provider: getting-started/connecting-an-idp.md
     - Adding an Application: getting-started/adding-an-application.md
   - Admin Guide:
@@ -63,6 +63,9 @@ nav:
     - Identity Providers:
       - admin-guide/identity-providers/index.md
       - SAML Setup: admin-guide/identity-providers/saml-setup.md
+      - Inbound SCIM Overview: admin-guide/identity-providers/inbound-scim.md
+      - Inbound SCIM (Okta): admin-guide/identity-providers/inbound-scim-okta.md
+      - Inbound SCIM (Entra): admin-guide/identity-providers/inbound-scim-entra.md
       - OIDC Setup: admin-guide/identity-providers/oidc-setup.md
       - OIDC (Google Workspace): admin-guide/identity-providers/oidc-google.md
       - OIDC (Microsoft Entra ID): admin-guide/identity-providers/oidc-entra.md
@@ -73,11 +76,8 @@ nav:
       - Sign in with Discord: admin-guide/identity-providers/oidc-discord.md
       - Sign in with Facebook: admin-guide/identity-providers/oidc-facebook.md
       - Sign in with Apple: admin-guide/identity-providers/oidc-apple.md
-      - Sign-in page buttons: admin-guide/identity-providers/login-buttons.md
+      - Sign-In Page Buttons: admin-guide/identity-providers/login-buttons.md
       - Account Linking: admin-guide/identity-providers/account-linking.md
-      - Inbound SCIM Overview: admin-guide/identity-providers/inbound-scim.md
-      - Inbound SCIM (Okta): admin-guide/identity-providers/inbound-scim-okta.md
-      - Inbound SCIM (Entra): admin-guide/identity-providers/inbound-scim-entra.md
       - Domain Routing: admin-guide/identity-providers/privileged-domains.md
     - Applications:
       - admin-guide/applications/index.md
@@ -101,24 +101,24 @@ nav:
       - Service Accounts: admin-guide/integrations/b2b.md
     - Security:
       - admin-guide/security/index.md
-      - Passwords: admin-guide/security/passwords.md
       - Sessions: admin-guide/security/sessions.md
       - Certificates: admin-guide/security/certificates.md
+      - Passwords: admin-guide/security/passwords.md
       - Permissions: admin-guide/security/permissions.md
-      - Two-Step Verification: admin-guide/security/two-step-verification.md
       - Authentication Policy: admin-guide/security/authentication-policy.md
+      - Two-Step Verification: admin-guide/security/two-step-verification.md
     - Audit:
       - admin-guide/audit/index.md
     - Settings:
       - Branding: admin-guide/branding/index.md
   - User Guide:
     - user-guide/index.md
+    - Signing In: user-guide/signing-in.md
     - Dashboard: user-guide/dashboard.md
     - Profile: user-guide/profile.md
     - Password: user-guide/password.md
     - Two-Step Verification: user-guide/two-step-verification.md
     - Passkeys: user-guide/passkeys.md
-    - Signing In: user-guide/signing-in.md
     - Authorized Apps: user-guide/authorized-apps.md
     - Background Jobs: user-guide/background-jobs.md
   - API:

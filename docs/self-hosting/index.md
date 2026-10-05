@@ -8,6 +8,8 @@ Deploy WeftID on your own infrastructure with Docker Compose and Caddy.
 * A domain name with DNS access (you will create an A record and a wildcard record)
 * A server with ports 80 and 443 open (for HTTPS via Let's Encrypt)
 * An SMTP server or email API service (Resend, SendGrid) for invitations and verification codes
+* `curl` and `openssl` on the server (used by the install script)
+* WeftID 2.0.1 or later. Earlier releases cannot be installed with this guide.
 
 ## 1. Set up DNS
 
@@ -45,9 +47,11 @@ curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/install
 
 This creates three files in the current directory:
 
-* `docker-compose.yml` -- service definitions (downloaded from `deploy/docker-compose.yml` in the repo)
-* `Caddyfile` -- reverse proxy with automatic HTTPS
-* `.env` -- your configuration (secrets, domain, SMTP)
+* `docker-compose.yml`: service definitions (downloaded from `deploy/docker-compose.yml` in the repo)
+* `Caddyfile`: reverse proxy with automatic HTTPS
+* `.env`: your configuration (secrets, domain, SMTP)
+
+The script installs the latest release and pins it in `.env` as `WEFT_VERSION`.
 
 The script asks for your domain and SMTP settings interactively. If you use SendGrid or Resend
 instead of SMTP, press Enter to skip the SMTP prompts. Then edit `.env` to configure your
@@ -66,10 +70,10 @@ email backend (see [Email configuration](#email)).
         bash
     ```
 
-    Recognised variables:
+    Recognized variables:
 
     * `BASE_DOMAIN` (required)
-    * `WEFT_VERSION` to install a specific release (e.g. `2.1.0`); defaults to the latest release
+    * `WEFT_VERSION` to install a specific release (e.g. `2.0.1`); defaults to the latest release
     * `SMTP_HOST`, `SMTP_PORT` (default `587`), `SMTP_USER`, `SMTP_PASS`, `SMTP_TLS` (default `true`)
     * `FROM_EMAIL` (default `no-reply@<BASE_DOMAIN>` when `SMTP_HOST` is set)
 
@@ -79,16 +83,21 @@ email backend (see [Email configuration](#email)).
     If you prefer not to pipe a script, download the files yourself:
 
     ```bash
+    # Use the release you want to run
+    VERSION=2.0.1
+    BASE=https://raw.githubusercontent.com/pageloom/weft-id/v${VERSION}/deploy
+
     # Download production compose file and rename so docker compose finds it by default
-    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/docker-compose.yml \
-      -o docker-compose.yml
-    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/Caddyfile -o Caddyfile
+    curl -fsSL "$BASE/docker-compose.yml" -o docker-compose.yml
+    curl -fsSL "$BASE/Caddyfile" -o Caddyfile
 
     # Copy and edit .env
-    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/deploy/.env.example -o .env
+    curl -fsSL "$BASE/.env.example" -o .env
+    chmod 600 .env
     ```
 
-    Then edit `.env` to fill in all required values. Generate secrets with `openssl rand -base64 32`.
+    Then edit `.env` to fill in all required values, and set `WEFT_VERSION` to the same release.
+    Generate secrets with `openssl rand -base64 32`.
 
 ## 3. Configure email {: #email }
 
@@ -215,7 +224,16 @@ patch, minor, and major releases.
 
 ### Upgrade procedure
 
-1. Edit `.env` and set `WEFT_VERSION` to the target version (e.g., `1.8.0`).
+1. Edit `.env` and set `WEFT_VERSION` to the target version (e.g., `2.0.1`).
+
+    If the release notes mention changes to `docker-compose.yml` or `Caddyfile`, download
+    both files for the target release too (back up any local edits first):
+
+    ```bash
+    BASE=https://raw.githubusercontent.com/pageloom/weft-id/v2.0.1/deploy
+    curl -fsSL "$BASE/docker-compose.yml" -o docker-compose.yml
+    curl -fsSL "$BASE/Caddyfile" -o Caddyfile
+    ```
 
 2. Pull the new image and restart:
 
@@ -256,7 +274,7 @@ created before upgrading.
     docker volume rm "$(docker volume ls -q --filter name=_dbdata | head -1)"
     ```
 
-3. Edit `.env` and set `WEFT_VERSION` back to the previous version (e.g., `1.7.1`).
+3. Edit `.env` and set `WEFT_VERSION` back to the previous version (e.g., `2.0.0`).
 
 4. Start the database and wait for it to be ready:
 
@@ -342,14 +360,28 @@ database password locks you out of the database.
 Store a copy of `.env` somewhere secure outside the server (for example, in a password manager
 or an encrypted vault). Do not commit it to version control.
 
+## Recovering a locked-out super admin
+
+If every super admin has been deactivated (for example by
+[automatic deactivation](../admin-guide/security/sessions.md#automatic-deactivation)), no one can approve reactivation
+in the web interface. Reactivate an account from the server instead:
+
+```bash
+docker compose exec app python -m cli.reactivate_user \
+  --subdomain acme \
+  --email admin@acme.com
+```
+
+The user can then sign in again. The reactivation is recorded in the audit log.
+
 ## Monitoring
 
 ### Health check
 
 The app exposes a health endpoint at `/healthz` that returns:
 
-* **200** -- app is healthy and the database is reachable
-* **503** -- database is unreachable
+* **200**: app is healthy and the database is reachable
+* **503**: database is unreachable
 
 This endpoint bypasses tenant resolution (no subdomain required) and needs no authentication.
 Use it for load balancer probes or uptime monitoring:
@@ -406,7 +438,8 @@ run as a non-root user for defense in depth.
 
 ### Docker image
 
-Production images are published to GitHub Container Registry:
+Production images are published to GitHub Container Registry for `linux/amd64` and
+`linux/arm64`. They can be pulled without credentials:
 
 ```
 ghcr.io/pageloom/weft-id
@@ -414,10 +447,10 @@ ghcr.io/pageloom/weft-id
 
 Available tags:
 
-* `1.8.0` -- exact version (recommended for production)
-* `1.8` -- latest patch for a minor version
-* `1` -- latest minor for a major version
-* `latest` -- newest stable release
+* `2.0.1`: exact version (recommended for production)
+* `2.0`: latest patch for a minor version
+* `2`: latest minor for a major version
+* `latest`: newest stable release
 
 ### Configuration reference
 
@@ -428,7 +461,7 @@ can copy `deploy/.env.example` and edit it manually.
 
 | Variable | Description |
 |----------|-------------|
-| `WEFT_VERSION` | Image tag to run (e.g., `1.8.0`). Pin to a specific version for stability. |
+| `WEFT_VERSION` | Image tag to run (e.g., `2.0.1`). Pin to a specific version for stability. |
 | `BASE_DOMAIN` | Root domain for tenant subdomains (e.g., `id.example.com`) |
 | `SECRET_KEY` | Master encryption key. Session signing, two-step verification secrets, SAML key encryption, and email verification tokens are all derived from this value via HKDF. Generate with `openssl rand -base64 32`. |
 | `POSTGRES_PASSWORD` | Password for the PostgreSQL superuser. Generate with `openssl rand -base64 32`. |
@@ -472,10 +505,14 @@ which means it obtains a separate certificate for each tenant subdomain on first
 is not a wildcard certificate. The wildcard DNS record (see [Set up DNS](#1-set-up-dns)) handles
 routing only. No DNS provider API integration is needed.
 
-Before issuing a certificate, Caddy validates the requested subdomain against WeftID's tenant
-registry. Only direct subdomains of the base domain that correspond to an existing tenant are
-allowed. This prevents abuse of the on-demand TLS feature (e.g., an attacker triggering
-certificate requests for arbitrary subdomains).
+Before issuing a certificate, Caddy asks WeftID whether the host is allowed. WeftID admits:
+
+* the base domain itself
+* direct subdomains of the base domain that correspond to an existing tenant
+* portal hosts of [verified forward-auth protected domains](../admin-guide/service-providers/forward-auth.md#on-demand-tls)
+
+Everything else is refused. This prevents abuse of the on-demand TLS feature (e.g., an attacker
+triggering certificate requests for arbitrary subdomains).
 
 Requirements for automatic HTTPS:
 

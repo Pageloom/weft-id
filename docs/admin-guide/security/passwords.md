@@ -14,8 +14,8 @@ Super admins always require at least 14 characters, regardless of this setting.
 
 Passwords are scored by pattern analysis that detects dictionary words, keyboard patterns, repetition, and dates. Two levels are available:
 
-* **Strong (score 3)** -- Default. Rejects passwords with obvious patterns.
-* **Very strong (score 4)** -- Requires more complex passwords.
+* **Strong (score 3)**: Default. Rejects passwords with obvious patterns.
+* **Very strong (score 4)**: Requires more complex passwords.
 
 Users see a real-time strength meter as they type, showing the score, estimated crack time, and suggestions for improvement.
 
@@ -49,7 +49,7 @@ Forced resets revoke the user's OAuth2 tokens immediately. The user's browser se
 
 ## Password change
 
-Users can change their own password at any time from **Account > Password**. They must enter their current password and choose a new one. The new password cannot be the same as the current password.
+Users can change their own password at any time from **User Settings > Password**. They must enter their current password and choose a new one. The new password cannot be the same as the current password.
 
 See the [User Guide > Password](../../user-guide/password.md) for the user-facing documentation.
 
@@ -57,9 +57,9 @@ See the [User Guide > Password](../../user-guide/password.md) for the user-facin
 
 All password operations are logged in the [event log](../audit/index.md):
 
-* `password_changed` -- User changed their own password
-* `password_reset_forced` -- Admin forced a password reset
-* `password_reset_completed` -- User completed a forced reset
-* `password_reset_requested` -- User requested a self-service reset link
-* `password_self_reset_completed` -- User completed a self-service reset
-* `password_breach_detected` -- Weekly check found a compromised password
+* `password_changed`: User changed their own password
+* `password_reset_forced`: Admin forced a password reset
+* `password_reset_completed`: User completed a forced reset
+* `password_reset_requested`: User requested a self-service reset link
+* `password_self_reset_completed`: User completed a self-service reset
+* `password_breach_detected`: Weekly check found a compromised password

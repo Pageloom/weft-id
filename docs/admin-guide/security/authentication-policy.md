@@ -1,6 +1,6 @@
 # Authentication Policy
 
-The tenant authentication policy controls how strong a second factor WeftID requires. It is a super-admin setting on the tenant security page.
+The tenant authentication policy controls how strong a second factor WeftID requires. It is a super admin setting.
 
 ## What the policy controls
 

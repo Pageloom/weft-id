@@ -1,32 +1,30 @@
 # Group-Based Access
 
-Groups control which users can access which service providers.
+Groups control which users can access which applications. The same model applies to SAML service providers, OIDC-enabled apps, and forward-auth apps.
 
 ## How it works
 
-Each service provider can be restricted to specific groups. During SSO, WeftID checks whether the user belongs to any assigned group, or to a descendant of one. If not, access is denied.
+Each application is either **Available to all** or restricted to assigned groups. For a restricted application, WeftID checks at sign-in whether the user belongs to an assigned group, directly or through a descendant group. If not, access is denied and the attempt is logged.
 
-If a service provider is set to **Available to all**, group assignments are bypassed and all active users can access it.
+Plain OAuth2 apps (OIDC disabled) are not gated by groups.
 
-## Assigning groups to a service provider
+## Assigning groups
 
-1. Go to the service provider's detail page
-2. Open the **Groups** tab
-3. Click **Assign Groups**
-4. Select one or more groups
-5. Click **Assign**
+- **SAML service provider**: Open the SP and select the **Groups** tab. Choose a group and click **Assign**.
+- **OIDC app**: Open the app under **Applications > OAuth2 / OIDC**. Under **Access Mode**, switch to group-based access, then assign groups.
+- **Forward-auth app**: Open the app under **Applications > Forward Auth > Apps**. Under **Group Grants**, choose a group to grant.
 
-Multiple groups can be assigned to one SP. A user needs to be in at least one of them.
+Repeat to assign more groups. A user needs to be in at least one of them.
 
-## Viewing assignments from a group
-
-From a group's detail page, you can see which service providers are assigned to that group.
+From a group's **Applications** tab you can also assign an application to the group and see what it inherits from its parents.
 
 ## Access and the hierarchy
 
-Access assignments apply to the assigned group and every group beneath it. When a service provider is assigned to a group, its members can access the SP, and so can the members of any descendant group, resolved through the [group hierarchy](group-hierarchy.md). Assigning an SP to a parent group is the way to grant a whole branch at once.
+An assignment grants access to the group's members and to the members of every descendant group. Assigning an application to a parent group grants a whole branch at once.
 
-Membership itself does not flow downward: a user in a child group is not automatically a member of the parent. It is the access grant that flows down the hierarchy, not the membership.
+The reverse does not hold. A member of a parent group gets nothing assigned only to its children.
+
+To see everything a user can reach and why, open the user's **Apps** tab.
 
 ## Groups in assertions
 

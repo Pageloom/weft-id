@@ -6,10 +6,9 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6 border border-gray-200 dark:border-gray-700">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Linked Users</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Users linked to this provider. Unlinking a user removes their link and
-        clears attributes mirrored from this provider. If it was their last linked
-        sign-in account, the account is also deactivated. Give them a password or
-        another connection before reactivating.
+        Unlinking a user removes their link and clears attributes mirrored from this
+        provider. If it was their last linked sign-in account, the account is also
+        deactivated. Give them a password or another connection before reactivating.
     </p>
     <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-md">
         <table class="min-w-full text-sm">
@@ -61,13 +60,13 @@
     </button>
     {% else %}
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
-        Removes the connection configuration and any cached keys. Cannot be undone.
+        Removes the connection, its synced groups, and its domain bindings. Unlink all users first. Cannot be undone.
     </p>
     <form method="post" action="/identity-providers/oidc/{{ connection.id }}/delete" class="mt-2">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit"
                 class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                data-confirm="Delete {{ connection.name }}?&#10;&#10;This will remove all configuration. This cannot be undone."
+                data-confirm="Delete {{ connection.name }}?&#10;&#10;This removes the connection, its synced groups, and its domain bindings. This cannot be undone."
                 data-destructive="true">
             Delete OIDC Provider
         </button>

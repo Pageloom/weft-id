@@ -1,5 +1,75 @@
 # Tech Writer Log
 
+## 2026-10-05 - Copy + Docs for OIDC/OAuth2, Social Sign-in, Forward Auth, 2.0.x
+
+**Starting commit:** f5f4f2e
+**Ending commit:** b8cf66c4 (social-sign-in branch, uncommitted review changes on top)
+**Mode:** Both (copy review + documentation)
+
+### Changes Since Last Session
+
+199 commits. Themes: WeftID as OAuth2/OIDC provider (RP-initiated, front- and back-channel
+logout, DCR, device grant, PAR, signed request objects, private_key_jwt, pairwise subjects,
+introspection/revocation, third-party-initiated login, conformance page), upstream OIDC
+connections + social sign-in presets (Microsoft, LinkedIn, GitLab, GitHub, Discord, Facebook,
+Apple), account linking, sign-in page buttons, forward-auth proxy apps + protected domains,
+releases 2.0.0/2.0.1, unattended installer + self-host smoke test. Most docs landed inline
+with features; this pass verified them against code. Run as four parallel area agents.
+
+### Copy changes (templates)
+
+~40 templates. Highlights: "B2B" renamed to "Service Accounts" everywhere in its UI to match
+nav; OIDC connection form/details/claim-mapping/danger tabs tightened, `mirror_from_idp`
+column name replaced with the real label, wrong "authority" field reference removed; Default
+Provider/Default IdP hints now say what they do (JIT routing for unrecognized addresses);
+protected domains and Domain Routing copy de-jargoned; remaining "Inactivate" UI strings and
+the idle-deactivation/reactivation emails flipped to "deactivate"; "Azure AD" to "Entra ID"
+in SAML provider labels; settings heading capitalization; consent, device, logout and
+reauthenticate pages shortened. Strings asserted by tests or matched by the conformance
+runner were restored and logged as issues instead.
+
+The 2026-06-11 follow-up (raw "inactivated" enum in group member filters and job output) is
+fixed via the `display_status()` template global.
+
+### Docs updates
+
+Rewritten or substantially corrected: oidc-setup (real create flow, credentials only via API),
+privileged-domains (SAML vs OIDC binding semantics, cascades), forward-auth (identity headers,
+public path rules), integrations/apps + b2b (now "Service Accounts"), oidc-provider-setup
+(PAR endpoint, "Asking the user to sign in again"), audit/index (filtering was wrong; event
+table expanded for OIDC/social/forward auth), group-based-access, group-hierarchy,
+membership-management, roles-and-permissions, user-lifecycle, sessions (wrong defaults:
+session length is Indefinitely, auto-deactivation is Disabled), user-attributes,
+saml-setup (delete preconditions; mirrored-value clearing is on by default),
+self-hosting (2.0.1 examples, minimum installable release, TLS admit rules, new
+"Recovering a locked-out super admin"), api/index (pagination is `limit`), glossary (new:
+social sign-in, OIDC connection, account linking, forward auth, service account, DCR),
+user-guide signing-in (provider routing, app-triggered sign-out and "Sign in again?").
+"Account >" paths changed to "User Settings >". mkdocs.yml nav reordered to mirror the app;
+"First Login" is now "First Sign-In". No new pages.
+
+### Issues filed
+
+#177 OIDC credentials not editable in UI (medium), #178 Default Provider can't be unset
+(medium), #179 Auth Method filter ignores OIDC (medium), #180 OIDC Delete enabled with linked
+users, #181 Domain Routing cross-protocol bind, #182 heading/nav title mismatches, #183 copy
+fixes blocked by Python/tests, #184 app detail section order, #185 description max length
+mismatch, #186 SP list `page_size`, #187 docs separator sweep + conformance copy coupling.
+
+Two security-sensitive findings were filed as private draft security advisories.
+
+### Screenshots Requested
+
+None received. Useful candidates: Add OIDC Provider form, sign-in page with provider buttons,
+Domain Routing with bindings, Linked sign-in accounts, app detail with OIDC enabled, Client
+Registration, consent screen, device confirm, proxy app detail, groups graph toolbar.
+
+### Not reviewed
+
+E2E suite not run. "Login initiation URI" label kept (spec term) pending a decision.
+
+---
+
 ## 2026-06-11 - Copy + Docs for Inbound SCIM, Idle-Inactivation Email, 1.8.0
 
 **Starting commit:** 32040ad

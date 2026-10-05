@@ -21,7 +21,7 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Back-Channel Logout URL</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-        Optional. Register this as the back-channel logout URI in your IdP console. When a user signs out at the IdP, WeftID signs them out of the sessions that sign-in started.
+        Optional. Register this as the back-channel logout URI in your IdP console. When a user signs out at the IdP, WeftID ends the sessions that IdP sign-in started.
     </p>
     <div class="flex items-center gap-2">
         <code id="backchannel-logout-url" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ connection.backchannel_logout_url }}</code>
@@ -216,7 +216,7 @@
                 </div>
                 <div class="ml-3">
                     <label for="is_default" class="text-sm font-medium text-gray-700 dark:text-gray-300">Default Provider</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Default provider for OIDC sign-in.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Unrecognized email addresses with no domain binding sign up through this provider when Just-in-Time Provisioning is on. A default SAML IdP takes precedence.</p>
                 </div>
             </div>
 
@@ -228,14 +228,14 @@
                 </div>
                 <div class="ml-3">
                     <label for="show_on_login" class="text-sm font-medium text-gray-700 dark:text-gray-300">Show on Sign-In Page</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Add a "Continue with ..." button for this provider to the sign-in page while enabled.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Adds a "Continue with ..." button to the sign-in page while the provider is enabled.</p>
                     {% if not connection.email_linking_trusted %}
                     <p class="text-xs text-amber-600 dark:text-amber-400 mt-1" id="login-email-code">
-                        New users must enter a code sent to their email address before their first sign-in completes, because {{ connection.provider_label }} does not verify email addresses.
+                        {{ connection.provider_label }} does not verify email addresses. New users enter an emailed code before their first sign-in completes.
                     </p>
                     {% elif connection.provider_type != 'generic' %}
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="login-email-verified">
-                        New users sign in without an extra step: WeftID treats email addresses from {{ connection.provider_label }} as verified.
+                        Email addresses from {{ connection.provider_label }} count as verified, so new users sign in without an extra step.
                     </p>
                     {% endif %}
                     {% if connection.show_on_login and not connection.is_enabled %}
@@ -270,7 +270,7 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400">Create accounts automatically on first OIDC sign-in.</p>
                     {% if not connection.email_linking_trusted %}
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="jit-email-confirmation">
-                        {{ connection.provider_label }} does not verify email addresses, so new users confirm theirs with a code before their first sign-in completes.
+                        New users confirm their email address with a code first, because {{ connection.provider_label }} does not verify it.
                     </p>
                     {% endif %}
                 </div>
@@ -287,9 +287,9 @@
                     <label for="allow_email_linking" class="text-sm font-medium text-gray-700 dark:text-gray-300">Allow Email Linking</label>
                     <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
                         {{ icon("exclamation-triangle", class="w-3 h-3 inline-block mr-1 -mt-0.5") }}
-                        Attaches an unrecognized subject to an existing account on an email match
-                        (requires <code>email_verified: true</code>). Leave off unless you trust the
-                        IdP to verify emails.
+                        Links an unrecognized provider account to an existing account with the same
+                        email address (requires <code>email_verified: true</code>). Leave off unless
+                        you trust the IdP to verify email addresses.
                     </p>
                     {% if not connection.email_linking_trusted %}
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="email-linking-unsupported">

@@ -5,10 +5,10 @@ Connect a SAML 2.0 identity provider to WeftID. This enables users to sign in wi
 ## Step 1: Create the connection
 
 1. Navigate to **Identity Providers > SAML**
-2. Click **Add Identity Provider**
+2. Click **Add SAML Provider**
 3. Enter a display name
 4. Select the provider type (Okta, Azure AD, Google Workspace, or Generic SAML)
-5. Click **Create**
+5. Click **Create SAML Provider**
 
 Selecting a provider type pre-fills attribute mappings for known providers.
 
@@ -111,14 +111,18 @@ To enable logging for successful assertions (for temporary debugging), toggle **
 
 ## Deleting an IdP
 
-An IdP cannot be deleted while it has email domain bindings. Remove all domain bindings first, then delete. Any IdP-synced groups will be marked as invalid but preserved for audit purposes.
+Delete an IdP from its **Disable/Delete** tab. Deletion is blocked until:
 
-### Scrubbing mirrored attributes
+* The IdP is disabled
+* No users are assigned to it (move them to another IdP or to password sign-in)
+* No email domains are bound to it
 
-When you delete an IdP, user profile values that were mirrored from it are left in place. Most of the time this is what you want: the user still has a valid display name, job title, etc. even though the source IdP is gone.
+IdP-synced groups are marked invalid but kept for audit purposes.
 
-For the cases where you want a clean slate (compliance off-boarding, swapping an IdP that mirrored sensitive fields), the delete dialog has a **Scrub mirrored attributes** checkbox. When ticked, WeftID clears any canonical user profile values that still match the IdP's last-mirrored snapshot. Values that the user or an admin has since changed are preserved.
+### Clearing mirrored attributes
 
-The scrubbed keys per user are recorded in the audit log via `user_profile_updated` events. The `saml_idp_deleted` event records `scrubbed: true` and the total user count.
+The delete dialog has a **Clear user profile values mirrored from this IdP** checkbox, checked by default. WeftID clears canonical profile values that still match the IdP's last-mirrored snapshot. Values the user or an admin has since changed are kept. Uncheck it to keep all mirrored values, for example a display name or job title the user still needs.
 
-The same option is available via the API: `DELETE /api/v1/saml/idps/{id}?scrub_mirrored_attributes=true`.
+Cleared keys per user are recorded in `user_profile_updated` events. The `saml_idp_deleted` event records `scrubbed: true` and the user count.
+
+The API does the same by default. To keep mirrored values, call `DELETE /api/v1/saml/idps/{id}?scrub_mirrored_attributes=false`.

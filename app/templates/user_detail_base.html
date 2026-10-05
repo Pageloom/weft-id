@@ -35,7 +35,7 @@
             {% elif success == 'oidc_link_removed' %}
             Sign-in account unlinked.
             {% elif success == 'mfa_reset' %}
-            User's two-step verification has been reset. Any TOTP secret and backup codes are cleared. Registered passkeys are not affected.
+            Two-step verification reset. Authenticator and backup codes cleared. Passkeys are not affected.
             {% elif success == 'group_added' %}
             User added to group.
             {% elif success == 'groups_bulk_added' %}
@@ -93,7 +93,7 @@
             {% elif error == 'last_super_admin' %}
             Cannot deactivate or anonymize the last super admin.
             {% elif error == 'anonymized_user' %}
-            Cannot reactivate anonymized user - anonymization is irreversible.
+            Cannot reactivate an anonymized user. Anonymization is irreversible.
             {% elif error == 'not_inactivated' %}
             User is not currently deactivated.
             {% elif error == 'self_anonymization' %}

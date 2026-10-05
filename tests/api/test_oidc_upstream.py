@@ -136,6 +136,24 @@ def test_create_connection_invalid_provider_type(
     assert response.status_code == 422
 
 
+def test_create_connection_multi_tenant_entra_refused(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": "Entra",
+            "provider_type": "entra",
+            "entra_tenant_id": "organizations",
+            "client_id": "client-123",
+            "client_secret": "secret",
+        },
+    )
+    assert response.status_code == 400
+    assert "Multi-tenant Entra authorities" in response.text
+
+
 def test_create_connection_missing_required_field(
     client, test_tenant_host, oauth2_super_admin_header
 ):

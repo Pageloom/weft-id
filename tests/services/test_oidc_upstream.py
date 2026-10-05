@@ -188,6 +188,90 @@ class TestPresetDefaults:
         assert conn.correlation_claim == "sub"
 
 
+class TestMultiTenantEntraRefused:
+    """common / organizations / consumers accept any directory: refused on save."""
+
+    @pytest.mark.parametrize("tenant_value", ["common", "organizations", "consumers", " Common "])
+    def test_create_entra_with_multi_tenant_id(
+        self, tenant_value, test_tenant, test_super_admin_user
+    ):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        with pytest.raises(ValidationError) as exc_info:
+            svc.create_connection(
+                ru,
+                OIDCConnectionCreate(
+                    name="Entra", provider_type="entra", entra_tenant_id=tenant_value
+                ),
+                BASE_URL,
+            )
+        assert exc_info.value.code == "oidc_entra_multi_tenant_not_supported"
+
+    @pytest.mark.parametrize("provider_type", ["entra", "generic"])
+    def test_create_with_hand_entered_multi_tenant_issuer(
+        self, provider_type, test_tenant, test_super_admin_user
+    ):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        with pytest.raises(ValidationError) as exc_info:
+            svc.create_connection(
+                ru,
+                _create_data(
+                    provider_type=provider_type,
+                    issuer="https://login.microsoftonline.com/organizations/v2.0",
+                    entra_tenant_id="contoso.onmicrosoft.com" if provider_type == "entra" else None,
+                ),
+                BASE_URL,
+            )
+        assert exc_info.value.code == "oidc_entra_multi_tenant_not_supported"
+
+    def test_single_tenant_guid_accepted(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        tenant_guid = "72f988bf-86f1-41af-91ab-2d7cd011db47"
+        conn = svc.create_connection(
+            ru,
+            OIDCConnectionCreate(name="Entra", provider_type="entra", entra_tenant_id=tenant_guid),
+            BASE_URL,
+        )
+        assert conn.issuer == f"https://login.microsoftonline.com/{tenant_guid}/v2.0"
+
+    def test_microsoft_personal_preset_unaffected(self, test_tenant, test_super_admin_user):
+        """Personal accounts have their own type, with the fixed consumers issuer."""
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(
+            ru, OIDCConnectionCreate(name="MSA", provider_type="microsoft"), BASE_URL
+        )
+        assert "9188040d-6c67-4c5b-b112-36a304b66dad" in conn.issuer
+
+    def test_update_to_multi_tenant_refused(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru,
+            OIDCConnectionCreate(
+                name="Entra", provider_type="entra", entra_tenant_id="contoso.onmicrosoft.com"
+            ),
+            BASE_URL,
+        )
+        for update in (
+            OIDCConnectionUpdate(entra_tenant_id="organizations"),
+            OIDCConnectionUpdate(issuer="https://login.microsoftonline.com/common/v2.0"),
+        ):
+            with pytest.raises(ValidationError) as exc_info:
+                svc.update_connection(ru, created.id, update, BASE_URL)
+            assert exc_info.value.code == "oidc_entra_multi_tenant_not_supported"
+
+
 class TestGetAndList:
     def test_get_returns_config_without_secret(self, test_tenant, test_super_admin_user):
         from services import oidc_upstream as svc

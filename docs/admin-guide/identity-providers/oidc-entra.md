@@ -38,7 +38,7 @@ Note that Entra shows both a secret **value** and a secret **ID**. WeftID needs 
 3. Paste the client ID and the client secret value
 4. Click **Test Connection**, then enable the connection
 
-The tenant ID field also accepts `organizations` (any work or school account) or `common` (work, school, or personal Microsoft accounts). Use your specific directory ID unless you deliberately want a multi-tenant application, since the broader values allow sign-ins from directories you do not control.
+The tenant ID field also accepts one of your directory's verified domains. The multi-tenant values `common`, `organizations` and `consumers` are refused: they would accept sign-ins from directories you do not control, whose email addresses WeftID cannot trust. To let people sign in with personal Microsoft accounts, use a [Microsoft](oidc-microsoft.md) connection instead.
 
 ## Client secret expiry
 

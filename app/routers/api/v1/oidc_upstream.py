@@ -112,7 +112,9 @@ def create_connection(
     - group_claim_name_key: Key holding the group name when the claim is a
       list of objects (<=100 chars, default 'name')
     - hosted_domain: Google `hd` restriction (<=253 chars)
-    - entra_tenant_id: Entra tenant id for authority composition (<=100 chars)
+    - entra_tenant_id: Entra tenant id for authority composition (<=100 chars):
+      a directory GUID or verified domain. common, organizations and consumers
+      (or an issuer built on them) are rejected (400)
     - is_enabled / is_default / require_platform_mfa / jit_provisioning /
       allow_email_linking: Behavior flags. allow_email_linking is rejected
       (400) for providers without a trusted verified-email claim (microsoft,

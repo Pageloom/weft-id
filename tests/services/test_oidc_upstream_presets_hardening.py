@@ -227,6 +227,62 @@ class TestIdTokenValidationPerPreset:
         assert claims["sub"] != "entra-oid-123"
 
 
+class TestMultiTenantEntraFailsClosed:
+    """A multi-tenant authority cannot sign anyone in, even on a legacy row.
+
+    Saving one is refused (``connections._validate_single_tenant_authority``).
+    These pin the second line: the exact issuer checks.
+    """
+
+    def test_discovery_issuer_template_rejected(self, test_tenant):
+        conn = _make_connection(
+            test_tenant,
+            issuer="https://login.microsoftonline.com/organizations/v2.0",
+            discovery_url=(
+                "https://login.microsoftonline.com/organizations/v2.0"
+                "/.well-known/openid-configuration"
+            ),
+        )
+        doc = dict(ENTRA_DISCOVERY, issuer="https://login.microsoftonline.com/{tenantid}/v2.0")
+        with _patch_discovery_client(_FakeResponse(200, doc)):
+            with pytest.raises(DiscoveryIssuerMismatchError):
+                discovery_service.run_discovery(test_tenant["id"], str(conn["id"]))
+
+    def test_id_token_from_another_directory_rejected(self):
+        import time
+
+        import jwt
+
+        now = int(time.time())
+        token = jwt.encode(
+            {
+                "iss": "https://login.microsoftonline.com/attacker-directory-id/v2.0",
+                "aud": "entra-client-123",
+                "sub": "s",
+                "oid": "o",
+                "email": "someone@victim.example.com",
+                "nonce": "n",
+                "iat": now,
+                "exp": now + 300,
+            },
+            ENTRA_KEY_PEM,
+            algorithm="RS256",
+            headers={"kid": "oidc-upstream-entra-key"},
+        )
+        jwks_service.clear_jwks_cache("t1", "c1")
+        with patch("services.oidc_upstream.jwks._fetch_jwks", return_value=ENTRA_JWKS):
+            with pytest.raises(id_token_service.IDTokenIssuerError):
+                id_token_service.validate_id_token(
+                    token=token,
+                    tenant_id="t1",
+                    connection_id="c1",
+                    issuer="https://login.microsoftonline.com/organizations/v2.0",
+                    client_id="entra-client-123",
+                    jwks_uri="https://login.microsoftonline.com/organizations/discovery/v2.0/keys",
+                    nonce="n",
+                )
+
+
 class TestCorrelationSubjectSelection:
     def test_google_correlates_on_sub(self):
         """Google uses ``sub`` directly as the correlation subject."""

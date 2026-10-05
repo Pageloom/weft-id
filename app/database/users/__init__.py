@@ -47,6 +47,7 @@ from database.users.core import (
 from database.users.lifecycle import (
     anonymize_user,
     clear_reactivation_denied,
+    erase_user_identity_data,
     get_idle_users_for_tenant,
     inactivate_user,
     reactivate_user,
@@ -107,6 +108,7 @@ __all__ = [
     "inactivate_user",
     "reactivate_user",
     "anonymize_user",
+    "erase_user_identity_data",
     "set_reactivation_denied",
     "clear_reactivation_denied",
     "get_idle_users_for_tenant",

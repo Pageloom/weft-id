@@ -95,7 +95,10 @@ Anonymization is a permanent, irreversible operation for GDPR right-to-be-forgot
 - Their name is replaced with "[Anonymized] User" (shown as "[Anonymized User]" in the event log)
 - All email addresses are anonymized
 - Two-step verification data is deleted (TOTP secret, backup codes, and all passkeys)
-- Password is cleared
+- Password is cleared, along with the values kept to check it against known breaches
+- Linked sign-in accounts at OIDC and social providers are removed, with the attribute values mirrored from them and from SAML identity providers
+- Profile attributes (department, phone, and so on) are deleted
+- The persistent NameIDs sent to SAML service providers are deleted, so an app's records can't be tied back to the user
 - OAuth2 tokens and app consents are revoked, and OIDC sessions at downstream apps are ended
 
 The user's ID and audit trail are preserved for compliance, but all personally identifiable information is removed.

@@ -188,8 +188,10 @@ def anonymize_user(
     This is IRREVERSIBLE. Scrubs all PII:
     - User name becomes "[Anonymized] User"
     - Email addresses are anonymized
-    - MFA data is deleted
-    - Password is cleared
+    - MFA data and passkeys are deleted
+    - Password and its breach-check values are cleared
+    - Upstream provider links, mirrored and profile attributes, and the
+      NameIDs given to service providers are deleted
 
     The user record is preserved for audit log integrity.
 
@@ -270,6 +272,11 @@ def anonymize_user(
     database.oauth2.delete_consent_grants_for_user(tenant_id, user_id)
     end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
 
+    # 5. Erase what still identifies the person: provider links and mirrored
+    # attributes, profile attributes, passkeys, NameIDs given to service
+    # providers. Before the event, so its SCIM push carries none of it.
+    erased = database.users.erase_user_identity_data(tenant_id, user_id)
+
     # Log the event (with pre-anonymization info for audit trail)
     log_event(
         tenant_id=tenant_id,
@@ -281,6 +288,7 @@ def anonymize_user(
             "anonymized_user_name": f"{user['first_name']} {user['last_name']}",
             "anonymized_user_email": user_email,
             "anonymized_user_role": user["role"],
+            "erased": {table: count for table, count in erased.items() if count},
         },
     )
 

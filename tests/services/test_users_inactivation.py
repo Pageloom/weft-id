@@ -231,6 +231,52 @@ def test_anonymize_user_by_super_admin(test_tenant, test_super_admin_user, test_
     assert result.last_name == "User"
 
 
+def test_anonymize_user_erases_identifying_data(test_tenant, test_super_admin_user, test_user):
+    """Provider links, mirrored and profile attributes, passkeys, NameIDs go."""
+    import database
+    from services import users as users_service
+
+    from tests.fixtures.identity_data import (
+        ERASED_TABLES,
+        count_rows,
+        hibp_values,
+        seed_identity_data,
+    )
+
+    tid = str(test_tenant["id"])
+    seed_identity_data(tid, test_user["id"], test_super_admin_user["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    users_service.anonymize_user(requesting_user, str(test_user["id"]))
+
+    assert count_rows(tid, test_user["id"]) == dict.fromkeys(ERASED_TABLES, 0)
+    assert hibp_values(tid, test_user["id"]) == (None, None)
+    event = next(
+        e
+        for e in database.event_log.list_events(tid, limit=50)
+        if e["event_type"] == "user_anonymized" and str(e["artifact_id"]) == str(test_user["id"])
+    )
+    assert event["metadata"]["erased"] == dict.fromkeys(ERASED_TABLES, 1)
+
+
+def test_anonymize_user_without_identifying_data_records_nothing_erased(
+    test_tenant, test_super_admin_user, test_user
+):
+    import database
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    users_service.anonymize_user(requesting_user, str(test_user["id"]))
+
+    event = next(
+        e
+        for e in database.event_log.list_events(str(test_tenant["id"]), limit=50)
+        if e["event_type"] == "user_anonymized"
+    )
+    assert event["metadata"]["erased"] == {}
+
+
 def test_anonymize_user_by_admin_fails(test_tenant, test_admin_user, test_user):
     """Test that an admin cannot anonymize a user."""
     from services import users as users_service

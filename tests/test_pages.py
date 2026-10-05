@@ -519,7 +519,7 @@ def test_oauth_moved_from_admin_integrations_apps_and_renamed():
 
 
 def test_forward_auth_tabs_domains_and_apps():
-    """Protected Domains and Proxy Apps render as Domains | Apps tabs."""
+    """Protected Domains and Proxy Apps render as tabs named like their pages."""
     assert get_page_by_path("/admin/settings/protected-domains") is None
     assert get_page_by_path("/admin/settings/proxy-apps") is None
 
@@ -537,8 +537,8 @@ def test_forward_auth_tabs_domains_and_apps():
 
     domains = get_page_by_path("/applications/forward-auth/domains")
     apps = get_page_by_path("/applications/forward-auth/apps")
-    assert domains is not None and domains.title == "Domains"
-    assert apps is not None and apps.title == "Apps"
+    assert domains is not None and domains.title == "Protected Domains"
+    assert apps is not None and apps.title == "Proxy Apps"
     assert domains.permission == PagePermission.SUPER_ADMIN
     assert apps.permission == PagePermission.SUPER_ADMIN
 
@@ -869,7 +869,7 @@ def test_oidc_moved_from_admin_settings_keeps_super_admin_permission():
 
 
 def test_oidc_connection_detail_children_keep_super_admin_permission():
-    """Add, Details, Claim Mapping, Disable/Delete all stay SUPER_ADMIN."""
+    """Add, Details, Claim Mapping, Delete all stay SUPER_ADMIN."""
     for path in (
         "/identity-providers/oidc/new",
         "/identity-providers/oidc/connection/details",

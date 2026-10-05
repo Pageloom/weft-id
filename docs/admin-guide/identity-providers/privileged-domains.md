@@ -8,7 +8,7 @@ Domain Routing manages your tenant's privileged domains: email domains your orga
     domain proven with a TXT record so WeftID can gate web apps behind it with forward
     auth. The same name can be registered as both, and the two are independent.
     Privileged domains are under **Identity Providers > Domain Routing**. Protected
-    domains are under **Applications > Forward Auth > Domains**.
+    domains are under **Applications > Forward Auth > Protected Domains**.
 
 Admins can add and remove domains and link groups. Binding a domain to an identity provider requires a super admin.
 

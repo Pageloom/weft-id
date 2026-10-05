@@ -1729,22 +1729,39 @@ def _edit_form(client_row: dict, **extra: str) -> dict:
     return data
 
 
-def test_app_edit_saves_post_logout_redirect_uris(
+def _uris_form(**extra: str) -> dict:
+    data = {"csrf_token": "test-token"}
+    data.update(extra)
+    return data
+
+
+def _uris_url(client_row: dict) -> str:
+    return f"/applications/oauth/{client_row['client_id']}/oidc/uris"
+
+
+def _enable_oidc(tenant: dict, client_row: dict) -> None:
+    import database
+
+    database.oauth2.update_client_oidc_settings(
+        tenant["id"], client_row["client_id"], oidc_enabled=True
+    )
+
+
+def test_app_oidc_uris_saves_post_logout_redirect_uris(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
 
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(
-            normal_oauth2_client,
-            post_logout_redirect_uris="https://rp.example/bye\n\n  https://rp.example/bye2  \n",
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(
+            post_logout_redirect_uris="https://rp.example/bye\n\n  https://rp.example/bye2  \n"
         ),
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "success=updated" in response.headers["location"]
+    assert "success=oidc_updated" in response.headers["location"]
     saved = database.oauth2.get_client_by_client_id(
         test_tenant["id"], normal_oauth2_client["client_id"]
     )
@@ -1754,7 +1771,7 @@ def test_app_edit_saves_post_logout_redirect_uris(
     ]
 
 
-def test_app_edit_blank_post_logout_field_clears_them(
+def test_app_oidc_uris_blank_post_logout_field_clears_them(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
@@ -1766,8 +1783,8 @@ def test_app_edit_blank_post_logout_field_clears_them(
     )
     override_auth(test_admin_user, level="admin")
     TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(normal_oauth2_client, post_logout_redirect_uris=""),
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(post_logout_redirect_uris=""),
         follow_redirects=False,
     )
     saved = database.oauth2.get_client_by_client_id(
@@ -1776,15 +1793,15 @@ def test_app_edit_blank_post_logout_field_clears_them(
     assert saved["post_logout_redirect_uris"] == []
 
 
-def test_app_edit_invalid_post_logout_uri_shows_error(
+def test_app_oidc_uris_invalid_post_logout_uri_shows_error(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
 
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(normal_oauth2_client, post_logout_redirect_uris="not-a-uri"),
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(post_logout_redirect_uris="not-a-uri"),
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -1821,23 +1838,22 @@ def test_app_detail_renders_post_logout_uris_and_end_session_url(
 # =============================================================================
 
 
-def test_app_edit_saves_frontchannel_logout(
+def test_app_oidc_uris_saves_frontchannel_logout(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
 
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(
-            normal_oauth2_client,
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(
             frontchannel_logout_uri="  http://localhost:3000/fc  ",
             frontchannel_logout_session_required="true",
         ),
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "success=updated" in response.headers["location"]
+    assert "success=oidc_updated" in response.headers["location"]
     saved = database.oauth2.get_client_by_client_id(
         test_tenant["id"], normal_oauth2_client["client_id"]
     )
@@ -1845,7 +1861,7 @@ def test_app_edit_saves_frontchannel_logout(
     assert saved["frontchannel_logout_session_required"] is True
 
 
-def test_app_edit_unchecked_box_and_blank_uri_clear_frontchannel_logout(
+def test_app_oidc_uris_unchecked_box_and_blank_uri_clear_frontchannel_logout(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
@@ -1858,8 +1874,8 @@ def test_app_edit_unchecked_box_and_blank_uri_clear_frontchannel_logout(
     )
     override_auth(test_admin_user, level="admin")
     TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(normal_oauth2_client),
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(),
         follow_redirects=False,
     )
     saved = database.oauth2.get_client_by_client_id(
@@ -1869,15 +1885,15 @@ def test_app_edit_unchecked_box_and_blank_uri_clear_frontchannel_logout(
     assert saved["frontchannel_logout_session_required"] is False
 
 
-def test_app_edit_cross_origin_frontchannel_uri_shows_error(
+def test_app_oidc_uris_cross_origin_frontchannel_uri_shows_error(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
 
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(normal_oauth2_client, frontchannel_logout_uri="https://evil.example/fc"),
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(frontchannel_logout_uri="https://evil.example/fc"),
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -1899,6 +1915,7 @@ def test_app_detail_renders_frontchannel_logout_settings(
         frontchannel_logout_uri="http://localhost:3000/fc",
         frontchannel_logout_session_required=True,
     )
+    _enable_oidc(test_tenant, normal_oauth2_client)
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
     assert response.status_code == 200
@@ -1924,23 +1941,22 @@ def test_app_detail_error_banner_for_frontchannel_uri(
 # =============================================================================
 
 
-def test_app_edit_saves_backchannel_logout(
+def test_app_oidc_uris_saves_backchannel_logout(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
 
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(
-            normal_oauth2_client,
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(
             backchannel_logout_uri="  https://api.rp.example/bc  ",
             backchannel_logout_session_required="true",
         ),
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "success=updated" in response.headers["location"]
+    assert "success=oidc_updated" in response.headers["location"]
     saved = database.oauth2.get_client_by_client_id(
         test_tenant["id"], normal_oauth2_client["client_id"]
     )
@@ -1948,7 +1964,7 @@ def test_app_edit_saves_backchannel_logout(
     assert saved["backchannel_logout_session_required"] is True
 
 
-def test_app_edit_unchecked_box_and_blank_uri_clear_backchannel_logout(
+def test_app_oidc_uris_unchecked_box_and_blank_uri_clear_backchannel_logout(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
@@ -1961,8 +1977,8 @@ def test_app_edit_unchecked_box_and_blank_uri_clear_backchannel_logout(
     )
     override_auth(test_admin_user, level="admin")
     TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(normal_oauth2_client),
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(),
         follow_redirects=False,
     )
     saved = database.oauth2.get_client_by_client_id(
@@ -1972,15 +1988,15 @@ def test_app_edit_unchecked_box_and_blank_uri_clear_backchannel_logout(
     assert saved["backchannel_logout_session_required"] is False
 
 
-def test_app_edit_bad_backchannel_uri_shows_error(
+def test_app_oidc_uris_bad_backchannel_uri_shows_error(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
 
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(normal_oauth2_client, backchannel_logout_uri="https://rp.example/bc#x"),
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(backchannel_logout_uri="https://rp.example/bc#x"),
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -2002,6 +2018,7 @@ def test_app_detail_renders_backchannel_logout_settings(
         backchannel_logout_uri="https://api.rp.example/bc",
         backchannel_logout_session_required=True,
     )
+    _enable_oidc(test_tenant, normal_oauth2_client)
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}")
     assert response.status_code == 200
@@ -2121,41 +2138,41 @@ def test_app_detail_backchannel_shows_most_recent_only(
 # =============================================================================
 
 
-def test_app_edit_saves_and_clears_initiate_login_uri(
+def test_app_oidc_uris_saves_and_clears_initiate_login_uri(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
 
     override_auth(test_admin_user, level="admin")
-    url = f"/applications/oauth/{normal_oauth2_client['client_id']}/edit"
+    url = _uris_url(normal_oauth2_client)
     response = TestClient(app).post(
         url,
-        data=_edit_form(normal_oauth2_client, initiate_login_uri="  https://rp.example/login  "),
+        data=_uris_form(initiate_login_uri="  https://rp.example/login  "),
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "success=updated" in response.headers["location"]
+    assert "success=oidc_updated" in response.headers["location"]
     saved = database.oauth2.get_client_by_client_id(
         test_tenant["id"], normal_oauth2_client["client_id"]
     )
     assert saved["initiate_login_uri"] == "https://rp.example/login"
 
-    TestClient(app).post(url, data=_edit_form(normal_oauth2_client), follow_redirects=False)
+    TestClient(app).post(url, data=_uris_form(), follow_redirects=False)
     saved = database.oauth2.get_client_by_client_id(
         test_tenant["id"], normal_oauth2_client["client_id"]
     )
     assert saved["initiate_login_uri"] is None
 
 
-def test_app_edit_http_initiate_login_uri_shows_error(
+def test_app_oidc_uris_http_initiate_login_uri_shows_error(
     test_tenant, test_admin_user, override_auth, normal_oauth2_client
 ):
     import database
 
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(normal_oauth2_client, initiate_login_uri="http://rp.example/login"),
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(initiate_login_uri="http://rp.example/login"),
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -2166,17 +2183,17 @@ def test_app_edit_http_initiate_login_uri_shows_error(
     assert saved["initiate_login_uri"] is None
 
 
-def test_app_edit_initiate_login_uri_member_blocked(
+def test_app_oidc_uris_initiate_login_uri_member_blocked(
     test_tenant, test_user, override_auth, normal_oauth2_client
 ):
     import database
 
-    # The edit route reads get_current_user; a member gets through auth and is
+    # The route reads get_current_user; a member gets through auth and is
     # stopped by the page check.
     override_auth(test_user, level="admin")
     response = TestClient(app).post(
-        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
-        data=_edit_form(normal_oauth2_client, initiate_login_uri="https://rp.example/login"),
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(initiate_login_uri="https://rp.example/login"),
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -2197,6 +2214,7 @@ def test_app_detail_renders_initiate_login_uri_and_error(
         normal_oauth2_client["client_id"],
         initiate_login_uri="https://rp.example/login",
     )
+    _enable_oidc(test_tenant, normal_oauth2_client)
     override_auth(test_admin_user, level="admin")
     page = f"/applications/oauth/{normal_oauth2_client['client_id']}"
     response = TestClient(app).get(page)
@@ -2260,7 +2278,7 @@ def test_app_detail_renders_device_grant_checkbox_and_endpoint(
         r'id="device_grant_enabled" name="device_grant_enabled" value="true"\s+checked',
         response.text,
     )
-    assert re.search(r'id="oidc-device"[^>]*>[^<]*/oauth2/device_authorization<', response.text)
+    assert re.search(r'id="endpoint-device"[^>]*>[^<]*/oauth2/device_authorization<', response.text)
 
 
 # =============================================================================
@@ -2328,7 +2346,8 @@ def test_apps_create_public_client_does_not_need_redirect_uris(
     assert mock_create.call_args.kwargs["redirect_uris"] == []
 
 
-def test_app_detail_public_client(test_admin_user, override_auth, public_app):
+def test_app_detail_public_client(test_tenant, test_admin_user, override_auth, public_app):
+    _enable_oidc(test_tenant, public_app)
     override_auth(test_admin_user, level="admin")
     response = TestClient(app).get(f"/applications/oauth/{public_app['client_id']}?success=created")
     assert response.status_code == 200
@@ -2344,6 +2363,11 @@ def test_app_detail_public_client(test_admin_user, override_auth, public_app):
     assert "/introspection" not in text
     # Back-channel logout stays.
     assert 'id="backchannel_logout_uri"' in text
+    assert ">Sign-out</h3>" in text
+    # Endpoints a public client can't use are not listed.
+    assert 'id="endpoint-authz"' not in text
+    assert 'id="endpoint-par"' not in text
+    assert 'id="endpoint-device"' in text
 
 
 def test_app_detail_confidential_client_unchanged(
@@ -2366,10 +2390,8 @@ def test_app_edit_public_client(test_tenant, test_admin_user, override_auth, pub
         data={
             "name": "Living Room TV",
             "description": "Lounge",
-            "backchannel_logout_uri": "https://rp.example/bc",
             # Fields the public form does not have are ignored, not saved.
             "redirect_uris": "https://evil.example/cb",
-            "initiate_login_uri": "https://evil.example/login",
             "csrf_token": "test-token",
         },
         follow_redirects=False,
@@ -2378,11 +2400,31 @@ def test_app_edit_public_client(test_tenant, test_admin_user, override_auth, pub
     assert "success=updated" in response.headers["location"]
     saved = database.oauth2.get_client_by_client_id(test_tenant["id"], public_app["client_id"])
     assert saved["name"] == "Living Room TV"
-    assert saved["backchannel_logout_uri"] == "https://rp.example/bc"
     assert saved["redirect_uris"] == []
-    assert saved["initiate_login_uri"] is None
     # The form has no device checkbox; the grant stays on.
     assert saved["device_grant_enabled"] is True
+
+
+def test_app_oidc_uris_public_client(test_tenant, test_admin_user, override_auth, public_app):
+    import database
+
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        _uris_url(public_app),
+        data=_uris_form(
+            backchannel_logout_uri="https://rp.example/bc",
+            # Fields the public form does not have are ignored, not saved.
+            initiate_login_uri="https://evil.example/login",
+            frontchannel_logout_uri="https://evil.example/fc",
+        ),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=oidc_updated" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(test_tenant["id"], public_app["client_id"])
+    assert saved["backchannel_logout_uri"] == "https://rp.example/bc"
+    assert saved["initiate_login_uri"] is None
+    assert saved["frontchannel_logout_uri"] is None
 
 
 def test_app_regenerate_secret_public_client(
@@ -2455,3 +2497,184 @@ def test_description_over_500_rejected_before_service(
     create_normal.assert_not_called()
     create_b2b.assert_not_called()
     update.assert_not_called()
+
+
+# =============================================================================
+# App detail layout: General vs OpenID Connect settings (real database)
+# =============================================================================
+
+
+def test_app_edit_leaves_sign_in_and_sign_out_settings_alone(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        post_logout_redirect_uris=["https://rp.example/bye"],
+        backchannel_logout_uri="https://rp.example/bc",
+        initiate_login_uri="https://rp.example/login",
+    )
+    override_auth(test_admin_user, level="admin")
+    response = TestClient(app).post(
+        f"/applications/oauth/{normal_oauth2_client['client_id']}/edit",
+        data=_edit_form(normal_oauth2_client, name="Renamed"),
+        follow_redirects=False,
+    )
+    assert "success=updated" in response.headers["location"]
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["name"] == "Renamed"
+    assert saved["post_logout_redirect_uris"] == ["https://rp.example/bye"]
+    assert saved["backchannel_logout_uri"] == "https://rp.example/bc"
+    assert saved["initiate_login_uri"] == "https://rp.example/login"
+
+
+def test_app_oidc_uris_leaves_general_settings_alone(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    database.oauth2.update_client(
+        test_tenant["id"], normal_oauth2_client["client_id"], device_grant_enabled=True
+    )
+    override_auth(test_admin_user, level="admin")
+    TestClient(app).post(
+        _uris_url(normal_oauth2_client),
+        data=_uris_form(backchannel_logout_uri="https://rp.example/bc"),
+        follow_redirects=False,
+    )
+    saved = database.oauth2.get_client_by_client_id(
+        test_tenant["id"], normal_oauth2_client["client_id"]
+    )
+    assert saved["name"] == normal_oauth2_client["name"]
+    assert saved["redirect_uris"] == normal_oauth2_client["redirect_uris"]
+    assert saved["device_grant_enabled"] is True
+    assert saved["backchannel_logout_uri"] == "https://rp.example/bc"
+
+
+@pytest.mark.parametrize("found", [None, {"client_type": "b2b"}])
+def test_app_oidc_uris_not_found(test_admin_user, override_auth, mocker, found):
+    override_auth(test_admin_user, level="admin")
+    mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id").return_value = found
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
+    response = TestClient(app).post(
+        "/applications/oauth/weft-id_client_x/oidc/uris",
+        data=_uris_form(),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
+    mock_update.assert_not_called()
+
+
+def test_app_oidc_uris_update_returns_none(test_admin_user, override_auth, mocker):
+    override_auth(test_admin_user, level="admin")
+    mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id").return_value = {
+        "client_type": "normal"
+    }
+    mocker.patch(f"{SERVICES_OAUTH2}.update_client").return_value = None
+    response = TestClient(app).post(
+        "/applications/oauth/weft-id_client_x/oidc/uris",
+        data=_uris_form(),
+        follow_redirects=False,
+    )
+    assert "error=not_found" in response.headers["location"]
+
+
+@pytest.mark.parametrize(
+    ("code", "error"),
+    [
+        ("invalid_initiate_login_uri", "invalid_initiate_login_uri"),
+        ("invalid_sector_identifier_uri", "pairwise_redirect_uris"),
+        ("something_else", "update_failed"),
+    ],
+)
+def test_app_oidc_uris_service_errors(test_admin_user, override_auth, mocker, code, error):
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+    mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id").return_value = {
+        "client_type": "normal"
+    }
+    mocker.patch(f"{SERVICES_OAUTH2}.update_client").side_effect = ServiceError("bad", code=code)
+    response = TestClient(app).post(
+        "/applications/oauth/weft-id_client_x/oidc/uris",
+        data=_uris_form(),
+        follow_redirects=False,
+    )
+    assert response.headers["location"].endswith(f"?error={error}")
+
+
+def test_app_detail_endpoints_shown_without_oidc(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    override_auth(test_admin_user, level="admin")
+    page = f"/applications/oauth/{normal_oauth2_client['client_id']}"
+    text = TestClient(app).get(page).text
+    for field in ("authz", "token", "introspect", "revoke", "par"):
+        assert f'id="endpoint-{field}"' in text
+    for field in ("issuer", "discovery", "jwks", "userinfo", "end-session", "device"):
+        assert f'id="endpoint-{field}"' not in text
+    # The sign-in and sign-out settings belong to OIDC.
+    assert 'id="backchannel_logout_uri"' not in text
+
+    _enable_oidc(test_tenant, normal_oauth2_client)
+    text = TestClient(app).get(page).text
+    for field in ("issuer", "discovery", "jwks", "userinfo", "end-session"):
+        assert f'id="endpoint-{field}"' in text
+    assert 'action="/applications/oauth/' in text and '/oidc/uris"' in text
+
+
+@pytest.mark.parametrize("available_to_all", [True, False])
+def test_app_detail_access_mode_radios(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client, available_to_all
+):
+    import database
+
+    database.oauth2.update_client_oidc_settings(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        oidc_enabled=True,
+        available_to_all=available_to_all,
+    )
+    override_auth(test_admin_user, level="admin")
+    text = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}").text
+    checked = "true" if available_to_all else "false"
+    unchecked = "false" if available_to_all else "true"
+    assert re.search(rf'name="available_to_all" value="{checked}"[^>]*checked', text)
+    assert not re.search(rf'name="available_to_all" value="{unchecked}"[^>]*checked', text)
+
+
+def test_app_detail_sections_in_task_order(
+    test_tenant, test_admin_user, override_auth, normal_oauth2_client
+):
+    import database
+
+    _enable_oidc(test_tenant, normal_oauth2_client)
+    database.oauth2.update_client(
+        test_tenant["id"],
+        normal_oauth2_client["client_id"],
+        backchannel_logout_uri="https://rp.example/bc",
+    )
+    override_auth(test_admin_user, level="admin")
+    text = TestClient(app).get(f"/applications/oauth/{normal_oauth2_client['client_id']}").text
+    headings = [
+        ">General</h2>",
+        ">Endpoint URLs</h2>",
+        "Client Authentication",
+        ">OpenID Connect</h2>",
+        ">Access Mode</h3>",
+        "Subject Identifiers",
+        "Assigned Groups",
+        ">Sign-in and Sign-out</h3>",
+        ">Token Introspection</h2>",
+        "User Consents (",
+        ">Back-Channel Logout Deliveries</h2>",
+        ">Client Information</h2>",
+        ">Actions</h2>",
+    ]
+    positions = [text.index(h) for h in headings]
+    assert positions == sorted(positions)

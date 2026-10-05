@@ -18,7 +18,7 @@ Plain OAuth2 apps (OIDC disabled) are unaffected by both changes.
 
 ## Discovery URL and endpoints
 
-Once OIDC is enabled, the app detail page shows the read-only **endpoint URLs** for your tenant. Copy these into your downstream application. Most OIDC client libraries need only the discovery URL and will fetch the rest automatically.
+Once OIDC is enabled, the **Endpoint URLs** section of the app detail page adds the issuer, discovery URL, JWKS URI, UserInfo endpoint and end session endpoint to the OAuth2 endpoints it always lists. Copy these into your downstream application. Most OIDC client libraries need only the discovery URL and will fetch the rest automatically.
 
 * **Issuer**: `https://<your-tenant-host>`
 * **Discovery URL**: `https://<your-tenant-host>/.well-known/openid-configuration`
@@ -40,7 +40,7 @@ OIDC uses the same **Redirect URIs** as the app's OAuth2 configuration. Add each
 
 ## Launching from My Apps
 
-An OIDC app can appear in users' **My Apps** list on the dashboard, like a SAML application. Set the app's **Login initiation URI** on its edit form: the address in the app that starts a sign-in with WeftID. This is OpenID Connect third-party-initiated login.
+An OIDC app can appear in users' **My Apps** list on the dashboard, like a SAML application. Set the app's **Login initiation URI** in the **Sign-in and Sign-out** panel of the app's **OpenID Connect** section: the address in the app that starts a sign-in with WeftID. This is OpenID Connect third-party-initiated login.
 
 * The URI must be an absolute `https` URL without a fragment. It may have a query.
 * The app appears in My Apps for every user who can access it (see [Controlling who can sign in](#controlling-who-can-sign-in)), as long as OIDC is turned on for the app and the app is active.
@@ -81,11 +81,11 @@ Signing out through the end session endpoint also ends the user's sessions at SA
 
 ### Post-logout redirect URIs
 
-Add each address your app may return to after sign-out in the **Post-logout redirect URIs** box on the app's edit form, one per line. Each must be an absolute `http` or `https` URL without a fragment, and WeftID compares them exactly. Leave the box empty if your app does not need to be sent back. Through the API, set `post_logout_redirect_uris` with `PATCH /api/v1/oauth2/clients/{client_id}`.
+Add each address your app may return to after sign-out in the **Post-logout redirect URIs** box in the **Sign-in and Sign-out** panel of the app's **OpenID Connect** section, one per line. Each must be an absolute `http` or `https` URL without a fragment, and WeftID compares them exactly. Leave the box empty if your app does not need to be sent back. Through the API, set `post_logout_redirect_uris` with `PATCH /api/v1/oauth2/clients/{client_id}`.
 
 ### Front-channel logout
 
-An app can also ask to be told when the user's WeftID session ends, however it ends: through the end session endpoint, the WeftID sign-out button, or WeftID asking the user to sign in again (`prompt=login` or an expired `max_age`). This is OpenID Connect Front-Channel Logout. Set the app's **Front-channel logout URI** on its edit form. When the session ends, WeftID shows a short "Signing you out" page that loads that URI in a hidden frame for every app that received an ID token during the session, and then continues on its way.
+An app can also ask to be told when the user's WeftID session ends, however it ends: through the end session endpoint, the WeftID sign-out button, or WeftID asking the user to sign in again (`prompt=login` or an expired `max_age`). This is OpenID Connect Front-Channel Logout. Set the app's **Front-channel logout URI** in the **Sign-in and Sign-out** panel of the app's **OpenID Connect** section. When the session ends, WeftID shows a short "Signing you out" page that loads that URI in a hidden frame for every app that received an ID token during the session, and then continues on its way.
 
 * The URI must be an absolute `http` or `https` URL without a fragment, on the same scheme, host and port as one of the app's redirect URIs. It may have a query.
 * By default WeftID adds `iss` and `sid` to the request (**Send the issuer and session ID**, on for new apps). The `sid` matches the `sid` claim in the ID tokens the app received, so the app can find the session to end. Browsers that block third-party cookies do not send the app's own cookies to a hidden frame, so most apps need these parameters. Untick the box only if the app requires a bare request.
@@ -96,7 +96,7 @@ Through the API, set `frontchannel_logout_uri` and `frontchannel_logout_session_
 
 ### Back-channel logout
 
-Front-channel logout depends on the user's browser. Back-channel logout does not: when the session ends (the same three ways), WeftID sends a signed logout token straight to the app's server. This is OpenID Connect Back-Channel Logout. Set the app's **Back-channel logout URI** on its edit form.
+Front-channel logout depends on the user's browser. Back-channel logout does not: when the session ends (the same three ways), WeftID sends a signed logout token straight to the app's server. This is OpenID Connect Back-Channel Logout. Set the app's **Back-channel logout URI** in the **Sign-in and Sign-out** panel of the app's **OpenID Connect** section.
 
 * The URI must be an absolute `http` or `https` URL without a fragment. Unlike the front-channel URI it may be on any host, for example an internal API. WeftID refuses to call private or reserved network addresses.
 * WeftID `POST`s a form with one field, `logout_token`: a JWT signed with the same key as the ID tokens (check it against the JWKS). It carries `iss`, `aud` (the app's client ID), `iat`, `exp`, `jti`, `events`, `sub`, and `sid` unless you untick **Include the session ID** (on for new apps). It never carries a `nonce`.
@@ -137,7 +137,7 @@ When the `groups` scope is granted, the UserInfo response includes a `groups` cl
 OIDC-enabled apps enforce access control at sign-in, mirroring the [SAML service provider](../service-providers/index.md) model:
 
 * **Group-based access** (default): Only members of assigned groups, and members of their descendant groups, can sign in. Assign groups in the **Assigned Groups** panel on the app detail page.
-* **Available to all users**: Every active tenant user can sign in. Toggle this in the **Access Mode** panel. Group assignments remain visible but are organizational only.
+* **Available to all users**: Every active tenant user can sign in. Choose it in the **Access Mode** panel and save. Group assignments remain visible but are organizational only.
 
 A denied user sees an access-denied error instead of the consent screen and is never issued a code or token. Denials are recorded in the audit log.
 

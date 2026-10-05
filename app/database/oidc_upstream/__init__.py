@@ -51,6 +51,7 @@ from database.oidc_upstream.sessions import (
     consume_logout_token_jti,
     delete_idp_session,
     find_idp_sessions,
+    find_user_idp_sessions,
     get_idp_session,
     purge_expired_logout_token_jtis,
     record_idp_session,
@@ -98,6 +99,7 @@ __all__ = [
     # upstream sessions
     "record_idp_session",
     "find_idp_sessions",
+    "find_user_idp_sessions",
     "get_idp_session",
     "delete_idp_session",
     "sweep_stale_idp_sessions",

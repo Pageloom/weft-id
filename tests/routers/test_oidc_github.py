@@ -171,8 +171,15 @@ class TestSignIn:
         event = _last_event(test_tenant["id"], "oidc_user_jit_provisioned")
         assert event["metadata"]["email"] == "octocat@example.com"
         assert event["metadata"]["entry"] == "login_button"
-        # No ID token, so nothing stashed for upstream logout.
-        assert not any(key.startswith("upstream_oidc") for key in session)
+        # No ID token: the session is recorded under the linked subject, so
+        # unlinking this identity can end it, with nothing for logout to use.
+        row = database.oidc_upstream.get_idp_session(test_tenant["id"], session["sid"])
+        assert str(row["idp_id"]) == str(conn["id"])
+        assert str(row["user_id"]) == str(user_id)
+        assert row["upstream_sub"] == "583231"
+        assert row["upstream_sid"] is None
+        assert row["id_token"] is None
+        assert "pending_upstream_oidc_session" not in session
 
     def test_callback_org_not_allowed(self, tenant_client, test_tenant, test_user):
         conn = _make_github(

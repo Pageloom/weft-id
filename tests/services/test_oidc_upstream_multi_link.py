@@ -613,6 +613,108 @@ class TestUnlinkOneOfSeveral:
         assert exc_info.value.code == "oidc_connection_not_found"
 
 
+class TestUnlinkEndsTheIdentitysSessions:
+    """Unlinking one identity ends what it signed in, not the other links' sessions."""
+
+    def _session(self, test_tenant, connection, user, sid, sub):
+        import database
+
+        tid = str(test_tenant["id"])
+        database.oidc_upstream.record_idp_session(
+            tid,
+            tid,
+            sid=sid,
+            idp_id=str(connection["id"]),
+            user_id=str(user["id"]),
+            upstream_sub=sub,
+            upstream_sid=None,
+        )
+
+    def _backchannel_app(self, test_tenant, created_by):
+        import database
+
+        client = database.oauth2.create_normal_client(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            name="BC App",
+            redirect_uris=["https://rp.example/cb"],
+            created_by=str(created_by["id"]),
+            backchannel_logout_uri="https://rp.example/bc",
+        )
+        database.oauth2.update_client_oidc_settings(
+            test_tenant["id"], client["client_id"], oidc_enabled=True
+        )
+        return client
+
+    def test_unlink_ends_only_that_identitys_sessions(
+        self, test_tenant, test_super_admin_user, test_user
+    ):
+        import database
+        from services import oidc_upstream as svc
+
+        tid = str(test_tenant["id"])
+        user_id = str(test_user["id"])
+        a = _make_connection(test_tenant, test_super_admin_user, name="A")
+        b = _make_connection(test_tenant, test_super_admin_user, name="B", provider_type="github")
+        _link(test_tenant, a, test_user, sub="a-sub")
+        _link(test_tenant, b, test_user, sub="b-sub")
+        self._session(test_tenant, a, test_user, "sid-a1", "a-sub")
+        self._session(test_tenant, a, test_user, "sid-a2", "a-sub")
+        self._session(test_tenant, b, test_user, "sid-b", "b-sub")
+        app = self._backchannel_app(test_tenant, test_super_admin_user)
+        for sid in ("sid-a1", "sid-b"):
+            database.oauth2.upsert_session_client(
+                tid, tid, sid=sid, client_id=str(app["id"]), user_id=user_id
+            )
+        _, refresh_id = database.oauth2.create_refresh_token(
+            tenant_id=tid, tenant_id_value=tid, client_id=str(app["id"]), user_id=user_id
+        )
+        access = database.oauth2.create_access_token(
+            tenant_id=tid,
+            tenant_id_value=tid,
+            client_id=str(app["id"]),
+            user_id=user_id,
+            parent_token_id=refresh_id,
+        )
+
+        requesting = _requesting(test_super_admin_user, test_tenant["id"])
+        svc.unlink_user_from_connection(requesting, user_id, str(a["id"]))
+
+        assert database.revoked_sessions.is_session_revoked(tid, "sid-a1")
+        assert database.revoked_sessions.is_session_revoked(tid, "sid-a2")
+        # The other link's session keeps working, and its records stay.
+        assert not database.revoked_sessions.is_session_revoked(tid, "sid-b")
+        assert database.oidc_upstream.get_idp_session(tid, "sid-b") is not None
+        assert database.oidc_upstream.get_idp_session(tid, "sid-a1") is None
+        deliveries = database.fetchall(tid, "select sid from oidc_backchannel_logout_deliveries")
+        assert [d["sid"] for d in deliveries] == ["sid-a1"]
+        # Downstream tokens are not tied to an identity: all of them end.
+        assert database.oauth2.validate_token(access, tid) is None
+
+        user = database.users.get_user_by_id(tid, user_id)
+        assert user["is_inactivated"] is False
+        metadata = _events(test_tenant, "user_oidc_idp_unlinked", user_id)[0]["metadata"]
+        assert metadata["sessions_ended"] == 2
+        assert metadata["backchannel_logout_count"] == 1
+        assert metadata["tokens_revoked"] == 2
+
+    def test_unlink_without_sessions(self, test_tenant, test_super_admin_user, test_user):
+        from services import oidc_upstream as svc
+
+        a = _make_connection(test_tenant, test_super_admin_user, name="A")
+        b = _make_connection(test_tenant, test_super_admin_user, name="B")
+        _link(test_tenant, a, test_user, sub="a-sub")
+        _link(test_tenant, b, test_user, sub="b-sub")
+
+        requesting = _requesting(test_super_admin_user, test_tenant["id"])
+        svc.unlink_user_from_connection(requesting, str(test_user["id"]), str(a["id"]))
+
+        metadata = _events(test_tenant, "user_oidc_idp_unlinked", test_user["id"])[0]["metadata"]
+        assert metadata["sessions_ended"] == 0
+        assert metadata["backchannel_logout_count"] == 0
+        assert metadata["tokens_revoked"] == 0
+
+
 # =============================================================================
 # Email linking onto an unconfirmed address (pre-hijacking)
 # =============================================================================

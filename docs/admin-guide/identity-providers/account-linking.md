@@ -61,10 +61,10 @@ Each refusal is recorded in the event log as **OIDC upstream sign-in refused by 
 
 Super admins see a user's links on the user's **Profile** tab, under **Authentication Method > Linked sign-in accounts**. The list shows each connection, the provider account's subject, when the link was made, and when it was last used.
 
-**Unlink** removes one link and clears the attribute values that still match what that provider supplied. What happens to the account depends on what is left:
+**Unlink** removes one link and clears the attribute values that still match what that provider supplied. It also signs the user out of every WeftID session they started with that provider account, and revokes the user's app tokens, so apps must sign the user in again. What happens to the account depends on what is left:
 
-* **Other links remain**: the user keeps signing in through them. Nothing else changes.
-* **It was the last link**: the account is also deactivated, its email addresses are marked unverified, and its tokens are revoked. This mirrors disconnecting a user from a SAML identity provider. Give the user a password or another connection before reactivating them.
+* **Other links remain**: the user keeps signing in through them. Sessions started with another link stay signed in.
+* **It was the last link**: the account is also deactivated and its email addresses are marked unverified. This mirrors disconnecting a user from a SAML identity provider. Give the user a password or another connection before reactivating them.
 
 The same list and action are available from the connection's **Delete** tab (all users of one connection) and through the API:
 

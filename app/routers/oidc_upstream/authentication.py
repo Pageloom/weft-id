@@ -306,21 +306,23 @@ def oidc_callback(
     detour = requires_mfa or pending_email is not None
 
     id_token = identity.id_token
-    if identity.upstream_sub:
-        # Across a detour (email confirmation, MFA) the stash rides in the
-        # session cookie, so a large ID token is left out there (logout then
-        # goes without id_token_hint). Without one, login completes in this
-        # request.
-        stash_upstream_oidc_session(
-            request.session,
-            connection_id=connection_id,
-            user_id=user_id,
-            upstream_sub=identity.upstream_sub,
-            upstream_sid=identity.upstream_sid,
-            id_token=id_token
-            if id_token and (not detour or len(id_token) <= _MAX_COOKIE_STASHED_ID_TOKEN_LENGTH)
-            else None,
-        )
+    # Every sign-in is recorded against the session it creates, so unlinking
+    # this identity can end that session. A provider without ID tokens (GitHub,
+    # Discord, Facebook) is recorded under the linked subject; it has no
+    # end-session endpoint or logout tokens, so the record changes nothing at
+    # logout. Across a detour (email confirmation, MFA) the stash rides in the
+    # session cookie, so a large ID token is left out there (logout then goes
+    # without id_token_hint). Without one, login completes in this request.
+    stash_upstream_oidc_session(
+        request.session,
+        connection_id=connection_id,
+        user_id=user_id,
+        upstream_sub=identity.upstream_sub or identity.subject,
+        upstream_sid=identity.upstream_sid,
+        id_token=id_token
+        if id_token and (not detour or len(id_token) <= _MAX_COOKIE_STASHED_ID_TOKEN_LENGTH)
+        else None,
+    )
 
     if pending_email is not None:
         return _start_email_confirmation(

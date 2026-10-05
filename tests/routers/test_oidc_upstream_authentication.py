@@ -763,7 +763,7 @@ class TestRefusalMessages:
         ("error", "text"),
         [
             ("sso_required", "signs in through your organization's single sign-on"),
-            ("account_already_linked", "already linked to a different account at this provider"),
+            ("account_already_linked", "Your account here is already linked to a different"),
             ("account_unconfirmed", "hasn't been confirmed yet"),
             ("account_inactivated", "Account deactivated"),
             ("auth_failed", "Sign-in didn't complete. Try again."),

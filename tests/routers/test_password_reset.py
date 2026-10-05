@@ -275,7 +275,7 @@ class TestAccountRecovery:
         response = client.get("/account-recovery/valid-token")
 
         assert response.status_code == 200
-        assert "Account Inactivated" in response.text
+        assert "Account Deactivated" in response.text
         assert "Request Reactivation" in response.text
 
     def test_get_inactivated_super_admin_shows_reactivation_request(self, mocker):
@@ -296,7 +296,7 @@ class TestAccountRecovery:
         response = client.get("/account-recovery/valid-token")
 
         assert response.status_code == 200
-        assert "Account Inactivated" in response.text
+        assert "Account Deactivated" in response.text
         assert "Request Reactivation" in response.text
 
     def test_get_invalid_token(self, mocker):

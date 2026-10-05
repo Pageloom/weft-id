@@ -1,6 +1,6 @@
 """Tests for linked OIDC identities on the admin user profile tab.
 
-Covers the "Linked sign-in accounts" table, the OIDC auth-method badge, the
+Covers the "Linked Sign-In Accounts" table, the OIDC auth-method badge, the
 per-link Unlink POST, and the email-linking checkbox on the connection forms.
 """
 
@@ -83,7 +83,7 @@ class TestProfileTab:
         )
         assert response.status_code == 200
         html = response.text
-        assert "Linked sign-in accounts" in html
+        assert "Linked Sign-In Accounts" in html
         assert "google-sub-1" in html and "generic-sub-2" in html
         assert "Team Google" in html and "Old Generic" in html
         assert f"/users/{test_user['id']}/oidc-links/{a['id']}/unlink" in html
@@ -110,7 +110,7 @@ class TestProfileTab:
             f"/users/{test_user['id']}/profile", headers={"Host": test_tenant_host}
         )
         assert response.status_code == 200
-        assert "Linked sign-in accounts" not in response.text
+        assert "Linked Sign-In Accounts" not in response.text
 
     def test_admin_does_not_see_links(
         self, admin_session, test_tenant_host, test_tenant, test_super_admin_user, test_user

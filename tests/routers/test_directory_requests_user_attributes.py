@@ -45,7 +45,7 @@ def test_admin_todo_user_attributes_page_renders(test_admin_user, override_auth,
     client = TestClient(app)
     response = client.get("/directory/requests/user-attributes")
     assert response.status_code == 200
-    assert "Incomplete user profiles" in response.text
+    assert "Profile Completion" in response.text
     assert "job_title" in response.text
 
 

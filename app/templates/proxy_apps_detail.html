@@ -51,7 +51,7 @@
                           placeholder="/health&#10;/public/*"
                           class="w-full px-3 py-2 font-mono text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">{% for p in app.public_paths %}{{ p }}
 {% endfor %}</textarea>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">One per line. Rooted relative patterns that bypass auth (e.g. <code>/health</code>, <code>/public/*</code>).</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">One per line. These paths skip sign-in. End with <code>*</code> to match a prefix (e.g. <code>/health</code>, <code>/public/*</code>).</p>
             </div>
             <div>
                 <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Forwarded identity headers</span>
@@ -71,7 +71,7 @@
             </label>
             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input type="checkbox" name="enabled" {% if app.enabled %}checked{% endif %} class="rounded border-gray-300 dark:border-gray-600">
-                Enabled (forward auth active)
+                Enabled
             </label>
             <button type="submit" class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
                 Save Changes
@@ -137,7 +137,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Reverse-Proxy Configuration</h2>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            Configure your reverse proxy to forward auth subrequests to WeftID at the portal host
+            Send your reverse proxy's auth subrequests to the portal host
             <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">{{ portal_host }}</code>.
         </p>
         <div class="relative">

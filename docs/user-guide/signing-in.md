@@ -7,7 +7,7 @@ WeftID supports two sign-in flows. Your organization chooses which one is active
 1. Enter your email address.
 2. WeftID routes you immediately to your sign-in method:
     - **Password users** see the password prompt.
-    - **IdP users** are redirected to their organization's sign-in page (Okta, Entra ID, Google Workspace, etc.).
+    - **IdP users** are redirected to their identity provider's sign-in page (Okta, Entra ID, Google, GitHub, etc.). If you sign in with more than one provider, you go to the one you used last.
 3. After authenticating, complete two-step verification if required (see step 3 below).
 
 Unknown emails and deactivated accounts are shown the password form with no indication of account status. This prevents information disclosure while keeping the flow fast.
@@ -50,6 +50,8 @@ Your organization may put **Continue with ...** buttons above the email field, s
 
 The first time you use a button, WeftID either finds your existing account, creates one, or tells you no account was found, depending on how your organization set it up. If your account signs in through your organization's single sign-on, use your email address instead.
 
+Once your account is linked to a provider, you can use its button or your email address. Both reach the same account.
+
 Some providers, such as Facebook, do not confirm that your email address is yours. When such a provider creates your account, WeftID emails a code to the address and asks for it before you are signed in. Enter it to finish. You only do this once. If you enter a wrong code too many times, or wait too long, you are sent back to the sign-in page to start again.
 
 If the sign-in page says **Too many attempts**, wait a few minutes and try again.
@@ -86,6 +88,16 @@ The device signs in a few seconds later. Only allow a code you got from a device
 
 Click **Sign Out** in the navigation bar. WeftID terminates your session and notifies each application you accessed during the session so they can end their sessions too. This is called Single Logout (SLO).
 
-If you signed in through an identity provider that supports SLO, WeftID also redirects you to the identity provider's sign-out page so your IdP session is terminated.
+If you signed in through an identity provider, WeftID may also sign you out there, depending on how your organization set up the provider.
 
 Logout propagation to applications is best-effort. If an application is unreachable, your WeftID session is still terminated and you are returned to the sign-in page.
+
+### When an application signs you out
+
+Signing out of an application can also sign you out of WeftID. If WeftID needs your confirmation, it shows a **Sign out?** page with the account you're signed in as. Choose **Sign out** to end your session, or **Stay signed in** to keep it.
+
+If WeftID can't verify the application's request, the page says so, and you are not sent back to the application.
+
+### When an application asks you to sign in again
+
+Some applications require a fresh sign-in, for example before a sensitive action. WeftID shows a **Sign in again?** page. **Sign in again** signs you out of your current session and back to the sign-in page. **Cancel** returns you to the application without signing in.

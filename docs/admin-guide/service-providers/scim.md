@@ -342,7 +342,7 @@ GitHub's Enterprise SCIM API is documented at
   * GitHub's SCIM is tied to SAML: a user's SAML NameID **must**
     match the SCIM `externalId`. If your IdP NameID format
     diverges from what GitHub expects, users will be
-    SCIM-provisioned but unable to log in. The WeftID IdP setup
+    SCIM-provisioned but unable to sign in. The WeftID IdP setup
     guide notes how to align NameID with `externalId`.
   * Group `members` removes use the filter-path PATCH form
     (`path: members[value eq "<id>"]`) instead of a values list.

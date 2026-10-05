@@ -38,8 +38,8 @@ WeftID auto-detects the application's requested attributes, NameID format, and [
 
 New service providers have no users assigned. Choose an access mode:
 
-- **Group-based access** -- Assign specific groups on the SP's **Groups** tab. Only users in those groups can access the application.
-- **Available to all** -- Enable this setting to allow all active users to access the application.
+- **Group-based access**: Assign specific groups on the SP's **Groups** tab. Only users in those groups can access the application.
+- **Available to all**: Enable this setting to allow all active users to access the application.
 
 The SP list shows a **Users** column so you can see how many users can access each application. SPs set to "Available to all" show a blue badge. Group-based SPs show the count of unique active users across all assigned groups (including users in descendant groups).
 
@@ -65,4 +65,4 @@ To remove a logo, click **Remove Logo** on the SP's detail page.
 
 ## Deleting a service provider
 
-Remove all group assignments before deleting an SP.
+Disable the SP first, on its **Disable/Delete** tab. Deleting removes its configuration, certificates, and group assignments, and cannot be undone.

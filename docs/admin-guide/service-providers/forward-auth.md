@@ -9,12 +9,11 @@ This works through **forward auth** (also called external authentication or
 `auth_request`). On every request to a protected app, your reverse proxy makes a
 small subrequest to WeftID's `/forward-auth/check` endpoint. WeftID answers:
 
-- **200 OK** — allow the request. WeftID adds `X-Forwarded-User`,
-  `X-Forwarded-Email`, `X-Forwarded-Groups`, and `X-Forwarded-Display-Name`
-  identity headers, which your proxy passes upstream to the app.
-- **302 Found** — the user has no valid session for this domain. The proxy
+- **200 OK**: allow the request. WeftID adds identity headers, which your proxy
+  passes upstream to the app (see [Identity headers](#identity-headers)).
+- **302 Found**: the user has no valid session for this domain. The proxy
   redirects the browser into the sign-in handshake.
-- **403 Forbidden** — the user is signed in but not authorized for this app.
+- **403 Forbidden**: the user is signed in but not authorized for this app.
 
 ## The multi-domain model
 
@@ -64,11 +63,9 @@ not a defect.
     infrastructure (portal host, cookies, TLS), proven with a DNS-TXT challenge.
     It is unrelated to a [privileged domain](../identity-providers/privileged-domains.md),
     which is an **email** domain used for identity routing. The same string can be
-    registered as both; they are independent concepts. The two live in different
-    top-level sections of the app -- protected domains are the **Domains** tab
-    under **Applications > Forward Auth**; privileged domains are under
-    **Identity Providers > Domain Routing** -- so they no longer sit side by side
-    in the navigation, but the names are still easy to mix up in conversation.
+    registered as both; they are independent concepts. Protected domains are under
+    **Applications > Forward Auth > Domains**. Privileged domains are under
+    **Identity Providers > Domain Routing**.
 
 ## Setup
 
@@ -80,7 +77,8 @@ DNS-TXT challenge:
 
 - Add a TXT record at `_weftid-challenge.acme-corp.com` with the value
   `weftid-domain-verification=<token>` shown in the UI.
-- Click **Verify**. WeftID checks the record and marks the domain verified.
+- Open the domain and click **Verify DNS Record**. WeftID checks the record and
+  marks the domain verified.
 
 Only verified domains can serve forward-auth cookies or receive TLS certificates.
 
@@ -92,19 +90,33 @@ WeftID instance's public IP. WeftID obtains a TLS certificate for it on demand
 
 ### 3. Create the proxy app
 
-In **Applications > Forward Auth > Apps**, create an app under the verified domain:
+In **Applications > Forward Auth > Apps**, add an app under the verified domain
+with a name and its **External URL**: the app's public `https` address, under the
+protected domain (`https://grafana.acme-corp.com`). Then open the app to configure:
 
-- **External URL** — where the app actually runs, under the protected domain
-  (`https://grafana.acme-corp.com`).
-- **Public paths** — paths that bypass auth entirely (health checks, login assets,
-  webhook receivers). Rooted relative patterns, for example `/healthz` or
-  `/static/*`.
-- **Forwarded headers** — which `X-Forwarded-*` identity headers to send upstream
-  (`user`, `email`, `groups`, `display_name`).
-- **Available to all** / **group grants** — who may access the app, using the same
-  group model as SAML service providers.
+- **Public paths**: paths that skip sign-in entirely (health checks, static
+  assets, webhook receivers). One per line, each starting with `/`. A pattern
+  ending in `*` matches by prefix (`/static/*`); anything else must match exactly
+  (`/healthz`). A path containing `..` is never public.
+- **Forwarded identity headers**: which `X-Forwarded-*` headers to send upstream
+  (see [Identity headers](#identity-headers)).
+- **Available to all authenticated users** or **Group Grants**: who may access
+  the app, using the same group model as SAML service providers. Members of a
+  granted group and its descendant groups have access.
+- **Enabled**: uncheck to stop admitting users to the app.
 
-The proxy app's detail page shows a copy-paste reverse-proxy snippet.
+The app's detail page also shows a copy-paste Caddy snippet.
+
+#### Identity headers
+
+On a 200, WeftID sets only the headers enabled for the app. A new app has none
+enabled, so turn on the ones your app needs:
+
+- `X-Forwarded-User`: the user's WeftID user ID.
+- `X-Forwarded-Email`: the user's primary email address.
+- `X-Forwarded-Display-Name`: first and last name (the email if no name is set).
+- `X-Forwarded-Groups`: comma-separated names of all groups the user belongs to,
+  including inherited ones.
 
 ### 4. Configure your reverse proxy
 
@@ -189,7 +201,7 @@ server {
         auth_request /__weftid_auth;
 
         # Capture the redirect target from the auth subrequest (set only when
-        # /check answers 302 -- i.e. no valid cookie yet).
+        # /check answers 302, that is, no valid cookie yet).
         auth_request_set $weft_redirect $upstream_http_location;
 
         # Capture identity headers from the auth subrequest...

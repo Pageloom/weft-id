@@ -20,14 +20,14 @@ LinkedIn's `sub` is unique to your application, and stable for a given member. L
 1. Open the [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps) and click **Create app**
 2. Fill in the app name and logo, and associate it with a LinkedIn company page (LinkedIn requires one)
 3. On the **Products** tab, request **Sign In with LinkedIn using OpenID Connect**. It is granted without review
-4. On the **Auth** tab, under **Authorized redirect URLs for your app**, add the redirect URI from your WeftID connection's Details tab
+4. On the **Auth** tab, under **Authorized redirect URLs for your app**, add the callback URL from your WeftID connection's Details tab (you can create the WeftID connection first and fill this in afterwards)
 5. Copy the **Client ID** and **Primary Client Secret** from the **Auth** tab
 
 ## Step 2: Configure the WeftID connection
 
 1. In WeftID, go to **Identity Providers > OIDC** and create a connection with provider type **LinkedIn**
 2. Paste the client ID and client secret
-3. Click **Test connection**, then enable it
+3. Click **Test Connection**, then enable the connection
 
 ## Email linking
 

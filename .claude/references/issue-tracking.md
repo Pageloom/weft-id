@@ -78,7 +78,8 @@ gh issue view <number>
 gh api repos/Pageloom/weft-id/security-advisories/<ghsa_id> --jq .description
 ```
 
-Order of work: draft advisories and `security` issues first, then `bug`, each by
+Order of work: draft advisories always first, whatever their severity (a low
+advisory outranks a critical bug). Then `security` issues, then `bug`, each by
 severity (critical first), then `enhancement` by priority.
 
 ## Resolving

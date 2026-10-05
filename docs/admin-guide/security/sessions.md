@@ -8,10 +8,13 @@ Navigate to **Security > Sessions**.
 
 How long a user can remain signed in before they must re-authenticate.
 
-* Indefinitely
+* Indefinitely (default, no time limit)
+* 8 hours
 * One to six days
 * One week
-* Two weeks (default)
+* Two weeks
+
+Changes apply immediately. Users whose sessions exceed the new limit are signed out on their next request.
 
 Signing out ends a session on the server as well as in the browser, so a copy of the session cookie stops working
 too. Sessions also end when a connected OIDC identity provider reports that the user signed out there (see
@@ -27,13 +30,16 @@ Default is enabled.
 ## Automatic deactivation
 
 Automatically deactivate users who haven't been active for a set period. Once deactivated, an admin must reactivate them
-before they can sign in again. The default is 90 days.
+before they can sign in again.
 
-* Disabled (users are never deactivated)
+* Disabled (default, users are never deactivated)
 * 14 days
 * 30 days
 * 60 days
-* 90 days (default)
+* 90 days
+
+If every super admin ends up deactivated, a self-hosted instance can recover from the server. See
+[Recovering a locked-out super admin](../../self-hosting/index.md#recovering-a-locked-out-super-admin).
 
 ## Sign-in verification
 

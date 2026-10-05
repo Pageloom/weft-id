@@ -392,9 +392,9 @@
                 <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
                     <p class="text-xs text-amber-800 dark:text-amber-300">
                         <strong>Leaving this IdP:</strong> attributes mirrored from
-                        {{ target_user.saml_idp_name or 'this IdP' }} (e.g. department, employee ID)
-                        will be removed so they stop flowing to connected apps. Values the user or
-                        an admin has since changed are kept.
+                        {{ target_user.saml_idp_name or 'this IdP' }} (such as department or employee ID)
+                        are removed so they stop flowing to connected apps. Values the user or an
+                        admin has changed since are kept.
                     </p>
                 </div>
                 <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -402,7 +402,6 @@
                            class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
                     <span>
                         Remove attributes mirrored from {{ target_user.saml_idp_name or 'this IdP' }}
-                        (uncheck to keep them on this profile).
                     </span>
                 </label>
                 {% endif %}

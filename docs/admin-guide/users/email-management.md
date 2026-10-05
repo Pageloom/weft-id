@@ -1,6 +1,6 @@
 # Email Management
 
-Email addresses in WeftID are managed by administrators. Users can view their emails at **Account > Emails** but cannot add, remove, or promote them.
+Email addresses in WeftID are managed by administrators. Users can view their emails at **User Settings > Email Addresses** but cannot add, remove, or promote them.
 
 ## Viewing a user's emails
 
@@ -22,7 +22,7 @@ When a primary email change affects downstream systems, WeftID shows a warning b
 
 **SP assertion impact.** If service providers use the user's email as their NameID, those SPs will receive a different identity in future SAML assertions. The warning lists each affected SP and its NameID format. SPs using persistent or transient NameIDs are not affected.
 
-**IdP routing change.** If the new email's domain is bound to a different identity provider than the user's current one, the warning shows the routing change (e.g., "Okta to Azure AD"). This means the user may authenticate differently after the change.
+**IdP routing change.** If the new email's domain is bound to a different identity provider than the user's current one, the warning shows the routing change (for example, "Okta to Entra ID"). This means the user may authenticate differently after the change.
 
 Review the impact, then click **Confirm & Promote** to proceed.
 
@@ -60,11 +60,11 @@ Once users are selected, the bulk action bar appears at the bottom with availabl
 Add a secondary email address to multiple users at once.
 
 1. Select users from the user list
-2. Click **Manage Secondary Emails**
+2. Click **Add Secondary Email** in the action bar
 3. For each user, enter a new secondary email address or leave blank to skip
 4. Click **Add Secondary Emails** to submit
 
-A background job processes the additions. Check progress at **Account > Background Jobs**.
+A background job processes the additions. Check progress at **User Settings > Background Jobs**.
 
 Each email in the results has one of three statuses:
 
@@ -85,8 +85,8 @@ Change the primary email for multiple users at once, with a preview of downstrea
 
 **Step 2: Preview impact.** Click **Preview Changes** to run a dry-run analysis. WeftID checks each user for:
 
-- **SP assertion impact** -- how many service providers use email-based NameIDs and will see a different identity in future assertions. SPs using persistent or transient NameIDs are unaffected.
-- **IdP routing change** -- whether the new email's domain routes to a different identity provider. This could change how the user authenticates.
+- **SP assertion impact**: how many service providers use email-based NameIDs and will see a different identity in future assertions. SPs using persistent or transient NameIDs are unaffected.
+- **IdP routing change**: whether the new email's domain routes to a different identity provider. This could change how the user authenticates.
 
 The preview table shows each user's impact with color indicators:
 

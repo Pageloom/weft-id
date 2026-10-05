@@ -9,7 +9,7 @@ Device sign-in is off for every app until you turn it on:
 1. Open the app under **Applications > OAuth2 / OIDC**.
 2. Check **Allow device sign-in** on the edit form and save.
 
-Through the API, set `device_grant_enabled` to `true` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`. Service accounts (B2B clients) cannot use device sign-in.
+Through the API, set `device_grant_enabled` to `true` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`. Service accounts can't use device sign-in.
 
 ## Public clients
 

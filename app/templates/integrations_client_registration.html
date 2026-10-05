@@ -9,7 +9,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="mb-6">
             <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Client Registration</h1>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Let applications register themselves as OAuth2 / OIDC apps (OpenID Connect Dynamic Client Registration)</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Let applications register themselves as OAuth2 / OIDC apps (Dynamic Client Registration)</p>
         </div>
 
         {% if success == 'settings_saved' %}
@@ -36,7 +36,7 @@
                 {% elif error == 'invalid_settings' %}
                 Choose a registration policy and a default access setting.
                 {% elif error == 'token_not_found' %}
-                That token does not exist or is already revoked.
+                That token doesn't exist or is already revoked.
                 {% else %}
                 An error occurred. Try again.
                 {% endif %}
@@ -69,7 +69,7 @@
                         <input type="radio" name="policy" value="open" class="mt-1" {% if settings.policy == 'open' %}checked{% endif %}>
                         <span>
                             <span class="block text-sm font-medium text-gray-900 dark:text-gray-100">Anyone</span>
-                            <span class="block text-xs text-gray-500 dark:text-gray-400">Any application that can reach this tenant can register. Use this only if you understand the risk: anyone can create an app that asks your users to sign in.</span>
+                            <span class="block text-xs text-gray-500 dark:text-gray-400">Any application that can reach this tenant can register. Risky: anyone can create an app that asks your users to sign in.</span>
                         </span>
                     </label>
                 </div>
@@ -101,7 +101,7 @@
                     Registration endpoint: <code id="registration-endpoint" class="font-mono text-gray-800 dark:text-gray-200 break-all">{{ registration_endpoint }}</code>
                     {% if settings.policy == 'off' %}(closed){% endif %}
                 </p>
-                <button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 shrink-0">Save settings</button>
+                <button type="submit" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 shrink-0">Save Settings</button>
             </div>
         </form>
 
@@ -211,7 +211,7 @@
                     <input type="number" id="token-expiry" name="expires_in_days" min="1" max="365"
                            class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                            placeholder="Never">
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">1 to 365. Leave empty for a token that does not expire.</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">1 to 365. Leave empty for no expiry.</p>
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-6">

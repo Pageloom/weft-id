@@ -5,16 +5,16 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 ## Federation & Single Sign-On
 
 **Federation**
-:   A trust arrangement where separate organizations accept each other's authentication decisions. WeftID can federate with external identity providers (Okta, Entra ID, Google Workspace) so users sign in with their existing credentials while WeftID manages access control. Users authenticate once and gain access to multiple services without separate credentials.
+:   A trust arrangement where separate organizations accept each other's authentication decisions. WeftID can federate with external identity providers (Okta, Entra ID, Google Workspace, and social sign-in providers) so users sign in with their existing credentials while WeftID manages access control. Users authenticate once and gain access to multiple services without separate credentials.
 
 **Single Sign-On (SSO)**
-:   The ability for a user to authenticate once and access multiple applications without signing in again. WeftID supports SSO via SAML 2.0. There are two initiation patterns: SP-initiated (the user starts at the application) and IdP-initiated (the user starts at WeftID). See [SSO Flow](admin-guide/service-providers/sso-flow.md).
+:   The ability for a user to authenticate once and access multiple applications without signing in again. WeftID provides SSO to downstream applications via SAML 2.0, OIDC, and [forward auth](#forward-auth). For SAML there are two initiation patterns: SP-initiated (the user starts at the application) and IdP-initiated (the user starts at WeftID). See [SSO Flow](admin-guide/service-providers/sso-flow.md).
 
 **Single Logout (SLO)**
 :   A SAML protocol for propagating sign-out across federated services. When a user signs out of WeftID, logout requests are sent to each application they accessed during the session. SLO is best-effort because downstream applications may not respond. See [Single Logout](admin-guide/service-providers/slo.md).
 
 **Identity Provider (IdP)**
-:   A system that authenticates users and issues identity assertions. WeftID is an IdP: it manages user accounts, authenticates them (via password, two-step verification, or federated sign-in), and issues SAML assertions to applications. "Upstream IdP" refers to external providers like Okta, Entra ID, or Google Workspace that WeftID can optionally federate with.
+:   A system that authenticates users and issues identity assertions. WeftID is an IdP: it manages user accounts, authenticates them (via password, two-step verification, passkey, or federated sign-in), and issues SAML assertions and OIDC ID tokens to applications. "Upstream IdP" refers to an external provider WeftID federates with over SAML or OIDC, such as Okta, Entra ID, Google Workspace, or a [social sign-in](#social-sign-in) provider.
 
 **Service Provider (SP)**
 :   An application that relies on an identity provider for authentication. In WeftID, SPs are the downstream applications you register for single sign-on. WeftID issues SAML assertions to SPs so users can access them without separate credentials.
@@ -23,7 +23,19 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   A cryptographic agreement between an IdP and an SP, established by exchanging metadata and certificates. Each side knows the other's entity ID and public key, enabling signature verification and secure communication. In WeftID, each connection gets its own trust relationship with independent certificates.
 
 **Consent screen**
-:   A confirmation page shown to the user during SSO before WeftID sends an assertion to the application. Displays the application name, the user's identity, and (when group claims are enabled) the groups that will be shared. The user can proceed, cancel, or switch accounts.
+:   A confirmation page shown before WeftID shares the user's identity with an application. For SAML SSO it shows the application, the user's identity, and (when group claims are enabled) the groups that will be shared. For OAuth2 / OIDC apps it shows the requested scopes; WeftID remembers an **Allow** per user and app until it is revoked. Users see and revoke their consents under **User Settings > Authorized Apps**.
+
+**Social sign-in** {#social-sign-in}
+:   Signing in with an account at a consumer provider such as Google, Microsoft, GitHub, Discord, Facebook, Apple, LinkedIn, or GitLab. Each is an upstream [OIDC connection](#oidc-connection) created from a vendor preset, usually shown as a **Continue with ...** button on the sign-in page. See [Sign-In Page Buttons](admin-guide/identity-providers/login-buttons.md).
+
+**OIDC connection** {#oidc-connection}
+:   An upstream OIDC (or OAuth2) identity provider configured in WeftID, under **Identity Providers > OIDC**. Users can be routed to it by email domain or pick it from a sign-in page button. See [OIDC Setup](admin-guide/identity-providers/oidc-setup.md).
+
+**Account linking** {#account-linking}
+:   Tying an account at an upstream OIDC provider (its stable subject) to one WeftID user. A user can have linked sign-in accounts at several providers and sign in with any of them. Links are made by JIT provisioning or by **email linking**, which attaches a provider account to the existing WeftID account with the same verified email address. Admins see and unlink them on the user's **Profile** tab. See [Account Linking](admin-guide/identity-providers/account-linking.md).
+
+**Forward auth** {#forward-auth}
+:   Gating an HTTP application that has no built-in SSO at your reverse proxy. The proxy asks WeftID on every request whether the user may reach the app, and WeftID answers allow, sign in, or deny. Configured as **protected domains** (web domains you have verified by DNS) and **proxy apps** under them. See [Forward Auth](admin-guide/service-providers/forward-auth.md).
 
 ## SAML 2.0
 
@@ -65,8 +77,8 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 **Authorization code flow** {#authorization-code-flow}
 :   An OAuth2 flow for interactive applications. The user authorizes the application in a browser, receives a short-lived authorization code, and the application exchanges that code for access and refresh tokens. Supports PKCE for added security. See [Apps](admin-guide/integrations/apps.md).
 
-**Client credentials flow**
-:   An OAuth2 flow for service-to-service communication with no user interaction. The client authenticates directly with its ID and secret to obtain an access token. Used by B2B service accounts. See [B2B Service Accounts](admin-guide/integrations/b2b.md).
+**Client credentials flow** {#client-credentials-flow}
+:   An OAuth2 flow for service-to-service communication with no user interaction. The client authenticates directly with its ID and secret to obtain an access token. Used by [service accounts](#service-account). See [Service Accounts](admin-guide/integrations/b2b.md).
 
 **PKCE (Proof Key for Code Exchange)** {#pkce-proof-key-for-code-exchange}
 :   An OAuth2 extension (pronounced "pixy") that protects the [authorization code flow](#authorization-code-flow) against interception attacks. The client generates a random verifier, sends a hash of it with the authorization request, and proves possession of the original verifier when exchanging the code. Recommended for all interactive applications. Defined in [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636).
@@ -131,6 +143,12 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 **Token revocation** {#token-revocation}
 :   An endpoint where a client ends one of its own access or refresh tokens before it expires, for example when the user signs out of the app. Defined in [RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009). See [Token Introspection and Revocation](admin-guide/integrations/token-introspection.md#revoking-a-token).
 
+**Service account** {#service-account}
+:   An OAuth2 client for service-to-service API access, using the [client credentials flow](#client-credentials-flow). It acts as a service user with a role, and no person signs in. See [Service Accounts](admin-guide/integrations/b2b.md).
+
+**Dynamic client registration** {#dynamic-client-registration}
+:   An application registering itself as an OAuth2 / OIDC app through an API call instead of an admin creating it. Off by default; when on, open to anyone or only to holders of an [initial access token](#initial-access-token). Defined in [RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591). See [Client Registration](admin-guide/integrations/client-registration.md).
+
 **Initial access token** {#initial-access-token}
 :   A token an admin issues so an application can register itself through dynamic client registration when registration requires one. Shown once, and can expire or be revoked. See [Client Registration](admin-guide/integrations/client-registration.md#initial-access-tokens).
 
@@ -186,7 +204,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   An isolated organization instance in WeftID. Each tenant has its own users, groups, identity providers, service providers, and settings. Tenants are identified by subdomain (e.g., `acme.id.example.com`) and isolated at the database level.
 
 **Just-in-time provisioning (JIT)**
-:   Automatically creating a user account the first time someone signs in through an external identity provider. The user's name, email, and group memberships are populated from the SAML assertion. Eliminates the need to pre-create accounts. See [Creating Users](admin-guide/users/creating-users.md).
+:   Automatically creating a user account the first time someone signs in through an external identity provider. The user's name, email, and group memberships are populated from the SAML assertion or OIDC claims. Eliminates the need to pre-create accounts. See [Creating Users](admin-guide/users/creating-users.md).
 
 **Deactivation**
 :   Disabling a user account while preserving all data. Deactivated users cannot sign in but can be reactivated by an admin (or request reactivation themselves). Distinct from anonymization, which is irreversible. See [User Lifecycle](admin-guide/users/user-lifecycle.md).
@@ -201,7 +219,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   A profile field from WeftID's built-in attribute registry (display name, job title, department, phone, location, and others, grouped by category). Each attribute can be enabled per tenant, marked required, mirrored from an upstream IdP, locked from user edits, and made available to downstream SPs in SAML assertions. See [User Attributes](admin-guide/security/user-attributes.md).
 
 **Attribute mirroring**
-:   Copying user attribute values from an upstream IdP's SAML assertion into the user's WeftID profile on each sign-in. When mirroring is enabled for an attribute, the IdP becomes the source of truth and the value is refreshed every time the user signs in. Diverged values (changed in WeftID after mirroring) are preserved when an IdP is later disconnected unless the admin opts in to scrub them.
+:   Copying user attribute values from an upstream IdP's SAML assertion or OIDC claims into the user's WeftID profile on each sign-in. When mirroring is enabled for an attribute, the IdP becomes the source of truth and the value is refreshed every time the user signs in. Diverged values (changed in WeftID after mirroring) are preserved when an IdP is later disconnected unless the admin opts in to scrub them.
 
 ## Groups & Access Control
 
@@ -215,15 +233,15 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   A setting that controls which group memberships are included in SAML assertions sent to service providers. Three options: "access-granting groups only" (default, shares only groups that grant access to the specific SP), "top-level groups only" (shares the user's highest-level memberships without nested groups), and "all groups" (shares every effective membership). The tenant-wide default is set in security permissions. Each SP can override it. See [Group claims](admin-guide/service-providers/attribute-mapping.md#group-claims).
 
 **Group-based access**
-:   Restricting which users can access an application by assigning specific groups to the SP. Only users who belong to an assigned group (directly or through the hierarchy) can access the application. The alternative is "available to all", which grants access to every active user. See [Group-Based Access](admin-guide/groups/group-based-access.md).
+:   Restricting which users can access an application (a SAML SP, an OIDC app, or a forward-auth proxy app) by assigning groups to it. Only users who belong to an assigned group (directly or through the hierarchy) can access the application. The alternative is "available to all", which grants access to every active user. See [Group-Based Access](admin-guide/groups/group-based-access.md).
 
 **IdP group**
-:   A group whose membership is synced from an external identity provider during SAML sign-in. Membership is read-only in WeftID. Created automatically when an IdP sends group assertions.
+:   A group whose membership is synced from an external identity provider during SAML or OIDC sign-in. Membership is read-only in WeftID. Created automatically when an IdP sends group assertions or a group claim.
 
 ## Audit & Security
 
 **Event log**
-:   A tamper-evident record of every write operation in a tenant: user creation, role changes, SP configuration, sign-in events, and more. Each entry records the actor, timestamp, event type, affected resource, and contextual metadata. Events are classified into visibility tiers (security, admin, operational, system) for filtering. See [Audit](admin-guide/audit/index.md).
+:   A record of every write operation in a tenant: user creation, role changes, SP configuration, sign-in events, and more. Each entry records the actor, timestamp, event type, affected resource, and contextual metadata. Events are classified into visibility tiers (security, admin, operational, system) for filtering. See [Audit](admin-guide/audit/index.md).
 
 **Activity tracking**
 :   Recording when users last performed read operations (viewing pages, listing resources). Used by the automatic deactivation policy to identify inactive accounts. Distinct from event logging, which records writes.

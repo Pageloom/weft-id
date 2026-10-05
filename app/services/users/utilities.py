@@ -127,7 +127,8 @@ def get_auth_method_options(tenant_id: str) -> list[dict]:
     """
     Get available auth method filter options.
 
-    Builds options from static categories plus any configured SAML IdPs.
+    Builds options from static categories plus any configured SAML IdPs
+    and OIDC/social connections.
     This avoids a heavy GROUP BY query across all users.
 
     Args:
@@ -152,6 +153,12 @@ def get_auth_method_options(tenant_id: str) -> list[dict]:
             options.append(
                 {"auth_method_key": f"idp:{idp_id}_totp", "auth_method_label": f"{name} + TOTP"}
             )
+
+    connections = sorted(
+        database.oidc_upstream.list_connections(tenant_id), key=lambda c: c["name"].lower()
+    )
+    for conn in connections:
+        options.append({"auth_method_key": f"oidc:{conn['id']}", "auth_method_label": conn["name"]})
 
     options.append({"auth_method_key": "unverified", "auth_method_label": "Unverified"})
 

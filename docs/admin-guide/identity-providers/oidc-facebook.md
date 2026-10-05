@@ -85,7 +85,7 @@ Facebook has no sign-out endpoint for this flow and no back-channel logout, so t
 :   The App ID or App secret is wrong, or the secret was reset. Copy both again from **App settings > Basic**.
 
 **New users get no account**
-:   Their Facebook account has no email address, or they declined to share it on the consent screen. They can sign in again and allow it.
+:   Their Facebook account has no email address, or they declined to share it on the consent screen. Facebook does not ask again for a permission the user declined. To share it, the user removes your app under **Settings & privacy > Settings > Apps and websites** in Facebook, then signs in again.
 
 **Sign-in fails and the event log shows `facebook_api`**
 :   The Graph API call failed after the user authorized the app. Check that the app is not restricted and that the App secret in WeftID is current.

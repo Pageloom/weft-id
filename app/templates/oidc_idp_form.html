@@ -229,9 +229,9 @@
                     </div>
                     <div class="ml-3">
                         <label for="show_on_login" class="text-sm font-medium text-gray-700 dark:text-gray-300">Show on Sign-In Page</label>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Add a "Continue with ..." button for this provider to the sign-in page once it is enabled.</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Add a "Continue with ..." button for this provider to the sign-in page while enabled.</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="login-email-verified">
-                            New users sign in without an extra step: this provider only shares email addresses it has verified.
+                            New users sign in without an extra step: WeftID treats email addresses from this provider as verified.
                         </p>
                         <p class="hidden text-xs text-amber-600 dark:text-amber-400 mt-1" id="login-email-code">
                             New users must enter a code sent to their email address before their first sign-in completes, because this provider does not verify email addresses.
@@ -380,8 +380,8 @@
         // provider's behaviour depends on the IdP, so neither note is shown.
         loginEmailVerified.classList.toggle('hidden', !linkingTrusted || type === 'generic');
         loginEmailCode.classList.toggle('hidden', linkingTrusted);
-        // Every preset publishes discovery; manual endpoints only make sense
-        // for a generic provider.
+        // Every other preset publishes discovery or has fixed endpoints;
+        // manual endpoints only make sense for a generic provider.
         manualSection.classList.toggle('hidden', type !== 'generic');
     }
 

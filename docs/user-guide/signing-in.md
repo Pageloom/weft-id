@@ -50,7 +50,9 @@ Your organization may put **Continue with ...** buttons above the email field, s
 
 The first time you use a button, WeftID either finds your existing account, creates one, or tells you no account was found, depending on how your organization set it up. If your account signs in through your organization's single sign-on, use your email address instead.
 
-Some providers, such as Facebook, do not confirm that your email address is yours. When such a provider creates your account, WeftID emails a code to the address and asks for it before you are signed in. Enter it to finish. You only do this once.
+Some providers, such as Facebook, do not confirm that your email address is yours. When such a provider creates your account, WeftID emails a code to the address and asks for it before you are signed in. Enter it to finish. You only do this once. If you enter a wrong code too many times, or wait too long, you are sent back to the sign-in page to start again.
+
+If the sign-in page says **Too many attempts**, wait a few minutes and try again.
 
 ## Passkey sign-in
 

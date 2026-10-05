@@ -84,6 +84,7 @@ _MAX_COOKIE_STASHED_ID_TOKEN_LENGTH = 2048
 _POLICY_REFUSALS = {
     "saml_assigned_user": "sso_required",
     "oidc_connection_already_linked": "account_already_linked",
+    "oidc_email_unconfirmed": "account_unconfirmed",
 }
 
 
@@ -218,13 +219,15 @@ def oidc_callback(
     # Single-use: the session's state and the stored sign-in are removed on
     # first use. The stored sign-in is only taken by the browser that
     # started it (the session's state matches).
-    expected_state = request.session.pop(_session_key(connection_id, "state"), None)
+    # A request whose state does not match leaves the sign-in in progress
+    # alone, so a forged callback cannot cancel it.
+    state_key = _session_key(connection_id, "state")
+    expected_state = request.session.get(state_key)
     state = request.query_params.get("state")
-    login_state = (
-        oidc_service.take_login_state(state)
-        if expected_state is not None and state == expected_state
-        else None
-    )
+    login_state = None
+    if expected_state is not None and state == expected_state:
+        request.session.pop(state_key, None)
+        login_state = oidc_service.take_login_state(state)
     if login_state is not None and (
         login_state.tenant_id != str(tenant_id) or login_state.connection_id != connection_id
     ):
@@ -254,11 +257,6 @@ def oidc_callback(
         _log_failure(tenant_id, connection_id, connection, "missing_code", None, entry)
         return _error_response("auth_failed")
 
-    code_verifier = login_state.code_verifier
-    if not code_verifier:
-        _log_failure(tenant_id, connection_id, connection, "missing_verifier", None, entry)
-        return _error_response("auth_failed")
-
     adapter = oidc_service.get_adapter(connection.get("provider_type"))
     try:
         identity = adapter.complete(
@@ -266,7 +264,7 @@ def oidc_callback(
             connection,
             code=code,
             redirect_uri=_callback_url(request, connection_id),
-            code_verifier=code_verifier,
+            code_verifier=login_state.code_verifier,
             nonce=login_state.nonce,
             callback_fields=callback_fields,
         )
@@ -284,7 +282,7 @@ def oidc_callback(
         )
     except NotFoundError as exc:
         _log_failure(tenant_id, connection_id, connection, "user_not_found", str(exc), entry)
-        return _error_response("user_not_found")
+        return _error_response("oidc_user_not_found")
     except ForbiddenError as exc:
         # Account-linking policy refusals are audited by the service
         # (oidc_login_refused); everything else is a generic failure.
@@ -292,6 +290,8 @@ def oidc_callback(
         if refusal:
             return _error_response(refusal)
         _log_failure(tenant_id, connection_id, connection, "auth_failed", str(exc), entry)
+        if exc.code == "user_inactivated":
+            return _error_response("account_inactivated")
         return _error_response("auth_failed")
     except Exception as exc:  # noqa: BLE001 - ForbiddenError and others
         _log_failure(tenant_id, connection_id, connection, "auth_failed", str(exc), entry)
@@ -428,6 +428,8 @@ def _finish_sign_in(
 _CONFIRM_SESSION_KEY = "pending_oidc_email_confirmation"
 _CONFIRM_COOKIE = "oidc_email_confirm"
 _CONFIRM_PATH = "/auth/oidc/confirm-email"
+# Code attempts per user in ten minutes, across all IPs (a six-digit code).
+_CONFIRM_ATTEMPT_LIMIT = 5
 
 
 def _set_confirm_cookie(response: Response, email: str, tenant_id: str) -> None:
@@ -455,9 +457,10 @@ def _start_email_confirmation(
     """Send a code to the user's unconfirmed address and ask for it."""
     try:
         ratelimit.prevent(
-            "oidc_email_confirm_send:email:{email}",
+            "oidc_email_confirm_send:tenant:{tenant_id}:email:{email}",
             limit=5,
             timespan=MINUTE * 10,
+            tenant_id=tenant_id,
             email=pending_email["email"],
         )
     except RateLimitError:
@@ -546,19 +549,19 @@ def confirm_email(
         return _abandon_confirmation(request, "session_expired")
     parked, pending_email = pending
 
-    client_ip = extract_remote_address(request) or "unknown"
+    # Counted per user, not per IP, so spreading guesses over many addresses
+    # does not multiply them. Running out burns the code: the sign-in must
+    # start again (and a new code is sent, within the send limit).
     try:
         ratelimit.prevent(
-            "oidc_email_confirm:ip:{ip}:user:{user_id}",
-            limit=5,
-            timespan=MINUTE * 5,
-            ip=client_ip,
+            "oidc_email_confirm:tenant:{tenant_id}:user:{user_id}",
+            limit=_CONFIRM_ATTEMPT_LIMIT,
+            timespan=MINUTE * 10,
+            tenant_id=tenant_id,
             user_id=parked["user_id"],
         )
     except RateLimitError:
-        return RedirectResponse(
-            url="/auth/oidc/confirm-email?error=too_many_attempts", status_code=303
-        )
+        return _abandon_confirmation(request, "too_many_requests")
 
     is_valid, _, cookie_tenant_id = validate_verification_cookie(
         oidc_email_confirm, code.strip(), expected_email=pending_email["email"]
@@ -600,9 +603,10 @@ def resend_confirmation_code(
             "oidc_email_confirm_resend:ip:{ip}", limit=5, timespan=MINUTE * 10, ip=client_ip
         )
         ratelimit.prevent(
-            "oidc_email_confirm_send:email:{email}",
+            "oidc_email_confirm_send:tenant:{tenant_id}:email:{email}",
             limit=5,
             timespan=MINUTE * 10,
+            tenant_id=tenant_id,
             email=pending_email["email"],
         )
     except RateLimitError:

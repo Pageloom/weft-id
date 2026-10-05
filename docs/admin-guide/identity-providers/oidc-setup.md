@@ -14,7 +14,7 @@ WeftID uses the authorization code flow with PKCE, and nothing else. There is no
 2. After an email address, WeftID routes them to the connection, either because they are already linked to it, because their email domain is bound to it, or because it is the tenant default. A user linked to several connections goes to the one they used most recently (see [Account linking](account-linking.md)).
 3. WeftID redirects to the provider's authorization endpoint with a `state`, a `nonce`, and a PKCE challenge.
 4. The provider authenticates the user and redirects back to WeftID's callback.
-5. WeftID exchanges the code for an ID token, verifies its signature against the provider's JWKS, and checks the issuer, audience, nonce, and expiry.
+5. WeftID exchanges the code for an ID token, verifies its signature against the provider's JWKS, and checks the issuer, audience, nonce, and expiry. (GitHub, Discord and Facebook have no ID token; WeftID reads the profile from the provider's API instead.)
 6. WeftID correlates the user, provisions them if this is a first sign-in, and completes the login.
 
 ## Step 1: Create the connection
@@ -25,7 +25,7 @@ WeftID uses the authorization code flow with PKCE, and nothing else. There is no
 4. Select the provider type (Generic, Google, Entra ID, Microsoft personal accounts, LinkedIn, GitLab, GitHub, Discord, Facebook, or Apple)
 5. Click **Create**
 
-Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), [GitLab](oidc-gitlab.md), [GitHub](oidc-github.md), [Discord](oidc-discord.md), [Facebook](oidc-facebook.md), and [Apple](oidc-apple.md). GitHub, Discord and Facebook are OAuth 2.0 rather than OpenID Connect, so they have no issuer, discovery or correlation settings; their walkthroughs explain the differences. Apple is OpenID Connect but signs its client secret with a private key you upload instead of a stored secret.
+Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), [GitLab](oidc-gitlab.md), [GitHub](oidc-github.md), [Discord](oidc-discord.md), [Facebook](oidc-facebook.md), and [Apple](oidc-apple.md). GitHub, Discord and Facebook are OAuth 2.0 rather than OpenID Connect, so they have no issuer, discovery or correlation settings; their walkthroughs explain the differences. Apple is OpenID Connect but has no client secret; WeftID signs one with the private key you upload.
 
 ## Step 2: Register WeftID with your provider
 
@@ -108,7 +108,7 @@ The same applies when an app signs a user out through WeftID's own end session e
 
 ## Providers without discovery
 
-A provider that does not publish `/.well-known/openid-configuration` can still be used by entering its endpoints by hand. This applies to the Generic provider type only. Every other preset publishes discovery, so the manual fields are not shown for them.
+A provider that does not publish `/.well-known/openid-configuration` can still be used by entering its endpoints by hand. This applies to the Generic provider type only. Every other preset either publishes discovery or has fixed endpoints built in, so the manual fields are not shown for them.
 
 * **When creating a connection**, expand **Advanced: manual endpoints** on the form and fill in the authorization endpoint, token endpoint, userinfo endpoint, and JWKS URI. The end session endpoint is optional and only used by **Sign Out at the Provider**.
 * **On an existing connection**, open the **Details** tab and click the pencil next to **Endpoints**. A blank field keeps its current value.
@@ -129,9 +129,9 @@ Entering endpoints by hand stops the hourly refresh at sign-in, so your values s
 
 * **Enabled**: whether users can sign in through this connection. A disabled connection blocks its linked users from authenticating.
 * **Default connection**: new users with no other route are sent here. One connection per tenant can be the default.
-* **Show on sign-in page**: put a **Continue with ...** button for this connection on the sign-in page while it is enabled. See [Sign-in page buttons](login-buttons.md).
+* **Show on Sign-In Page**: put a **Continue with ...** button for this connection on the sign-in page while it is enabled. See [Sign-in page buttons](login-buttons.md).
 * **JIT provisioning**: create a WeftID account on first successful sign-in. Without it, only users who already exist and are already linked can sign in. For a provider that does not verify email addresses (Facebook, Microsoft personal accounts), the new user confirms their address with an emailed code before the sign-in completes. See [Account linking](account-linking.md#confirming-an-unverified-email-address).
-* **Require two-step verification**: after the provider authenticates the user, WeftID additionally requires its own two-step verification before the session is established. Use this when you do not want to rely solely on the upstream provider's authentication.
+* **Require Platform Two-Step Verification**: after the provider authenticates the user, WeftID additionally requires its own two-step verification before the session is established. Use this when you do not want to rely solely on the upstream provider's authentication.
 * **Allow email linking**: see below.
 * **Sign out at the provider**: see [Sign-out at the provider](#sign-out-at-the-provider).
 * **Scopes**: space-separated. `openid` is always requested.
@@ -146,7 +146,7 @@ The first time a subject appears, WeftID has nothing to match it against. With e
 
 That is convenient when migrating existing users onto a new provider. It also means anyone who can obtain a token from that provider carrying a given verified email can take over the matching WeftID account. Only enable it for a provider you trust to verify email addresses properly, and consider turning it off again once migration is done.
 
-Email linking is unavailable for providers that do not reliably verify email addresses (currently Microsoft personal accounts). It never attaches a second provider account to a user already linked to the same connection, and it never links a user who is assigned to a SAML identity provider. See [Account linking](account-linking.md) for the full policy.
+Email linking is unavailable for providers that do not reliably verify email addresses (Microsoft personal accounts and Facebook). It never attaches a second provider account to a user already linked to the same connection, and it never links a user who is assigned to a SAML identity provider. See [Account linking](account-linking.md) for the full policy.
 
 ## Claim mapping
 

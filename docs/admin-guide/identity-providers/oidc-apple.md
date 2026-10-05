@@ -42,7 +42,7 @@ Apple reorganizes its developer site from time to time. The names below are as o
 
 Test Connection fetches Apple's discovery document and signing keys, then signs a client secret with your key and presents it to Apple's token endpoint. It reports whether Apple rejects the Services ID, team ID, key ID or key, without anyone signing in. It cannot check the return URL: Apple only compares that during a real sign-in.
 
-To replace the key (for example after revoking it at Apple), edit the **Sign in with Apple Key** card on the Details tab. Fields you leave blank keep their current value.
+To replace the key (for example after revoking it at Apple), edit the **Apple Signing Key** card on the Details tab. Fields you leave blank keep their current value.
 
 ## Names
 

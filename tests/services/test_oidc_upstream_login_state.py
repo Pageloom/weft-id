@@ -116,6 +116,15 @@ class TestAttachCallbackFields:
         assert not store.attach_callback_fields("s-1", store.load_login_state("s-1"), {"code": "b"})
         assert store.load_login_state("s-1").callback_fields == {"code": "a"}
 
+    def test_concurrent_posts_attach_once(self):
+        """Two posts that both loaded the entry before either wrote: one wins."""
+        store.save_login_state("s-1", _state())
+        first = store.load_login_state("s-1")
+        second = store.load_login_state("s-1")
+        assert store.attach_callback_fields("s-1", first, {"code": "a"})
+        assert not store.attach_callback_fields("s-1", second, {"code": "b"})
+        assert store.load_login_state("s-1").callback_fields == {"code": "a"}
+
     def test_keeps_the_rest(self):
         store.save_login_state("s-1", _state(entry="login_button"))
         store.attach_callback_fields("s-1", store.load_login_state("s-1"), {"error": "denied"})

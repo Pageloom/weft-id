@@ -81,7 +81,7 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <div class="flex items-start justify-between">
         <div class="min-w-0 flex-1">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Sign in with Apple Key</h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Apple Signing Key</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
                 Apple has no client secret to copy. WeftID signs one for each sign-in with the private key you created in your Apple developer account.
             </p>
@@ -228,14 +228,14 @@
                 </div>
                 <div class="ml-3">
                     <label for="show_on_login" class="text-sm font-medium text-gray-700 dark:text-gray-300">Show on Sign-In Page</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Add a "Continue with ..." button for this provider to the sign-in page while it is enabled.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Add a "Continue with ..." button for this provider to the sign-in page while enabled.</p>
                     {% if not connection.email_linking_trusted %}
                     <p class="text-xs text-amber-600 dark:text-amber-400 mt-1" id="login-email-code">
                         New users must enter a code sent to their email address before their first sign-in completes, because {{ connection.provider_label }} does not verify email addresses.
                     </p>
                     {% elif connection.provider_type != 'generic' %}
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="login-email-verified">
-                        New users sign in without an extra step: {{ connection.provider_label }} only shares email addresses it has verified.
+                        New users sign in without an extra step: WeftID treats email addresses from {{ connection.provider_label }} as verified.
                     </p>
                     {% endif %}
                     {% if connection.show_on_login and not connection.is_enabled %}
@@ -422,7 +422,7 @@
 {% if connection.provider_type == 'apple' %}
 <div id="edit-apple-key-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Sign in with Apple Key</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Apple Signing Key</h3>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
             Leave a field blank to keep its current value. The private key is never displayed again.
         </p>

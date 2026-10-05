@@ -248,7 +248,7 @@ class TestButtonEntry:
     def test_button_sign_in_failure(self, tenant_client, test_tenant, test_user):
         conn = _make_connection(test_tenant, test_user)  # no JIT, unknown user
         response = self._callback(tenant_client, conn, "login_button")
-        assert response.headers["location"].endswith("/login?error=user_not_found")
+        assert response.headers["location"].endswith("/login?error=oidc_user_not_found")
         event = _last_event(test_tenant["id"], "oidc_login_failed")
         assert event["metadata"]["reason"] == "user_not_found"
         assert event["metadata"]["entry"] == "login_button"

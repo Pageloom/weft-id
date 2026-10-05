@@ -21,6 +21,8 @@ A link is created the first time an account at a provider signs in to WeftID, in
 
 Email linking is how a user who already has a WeftID account adds a second provider: they sign in with the new provider, and the verified email address matches their account.
 
+Email linking also refuses an account whose email address is unconfirmed while it already signs in through another connection. That is an account created through a provider that does not verify email addresses (see below) whose owner never confirmed the address. Linking it would let whoever created it reach the account of the person who owns the address. The login page says the account hasn't been confirmed yet. An account an administrator created that has not signed in yet is linked normally, and the provider's verified email confirms its address.
+
 If the user is already linked to that connection under a different provider account, email linking refuses the sign-in instead of adding a second link. The login page tells the user to sign in with the account they linked before. An administrator can unlink the old account first if the change is intended.
 
 ## Which providers can link by email
@@ -41,7 +43,7 @@ On the providers above, JIT provisioning cannot take the reported email address 
 1. After the provider sends the user back, WeftID emails a six-digit code to the address and shows a page asking for it.
 2. When the user enters the code, the address is marked verified, the account joins the groups linked to the address's domain (see [Domain Routing](privileged-domains.md)), and the sign-in continues, through platform two-step verification if the connection requires it.
 
-Until the address is confirmed, the account is not added to domain-linked groups, and every sign-in through such a provider asks for the code again. The confirmation is recorded in the event log as an email verification by the user.
+Until the address is confirmed, the account is not added to domain-linked groups, and every sign-in through such a provider asks for the code again. After five wrong codes the sign-in ends and the user starts again. A new code can be requested up to five times in ten minutes. The confirmation is recorded in the event log as an email verification by the user.
 
 ## Signing in with an email address
 

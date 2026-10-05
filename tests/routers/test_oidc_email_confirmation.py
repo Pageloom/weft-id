@@ -252,7 +252,48 @@ class TestConfirmation:
         assert response.headers["location"].endswith("/login?error=session_expired")
         assert "user_id" not in flow.session
 
-    def test_confirm_rate_limited(self, tenant_client, test_tenant, test_user):
+    def test_confirm_attempts_capped_per_user_across_ips(
+        self, tenant_client, test_tenant, test_user
+    ):
+        """Guesses from many addresses share one budget; running out burns the code."""
+        conn = _make_facebook(test_tenant, test_user)
+        ips = iter(f"203.0.113.{n}" for n in range(1, 20))
+        with (
+            _Flow(tenant_client, conn).active() as flow,
+            patch(
+                "routers.oidc_upstream.authentication.extract_remote_address",
+                side_effect=lambda _request: next(ips),
+            ),
+        ):
+            flow.callback()
+            wrong = "000000" if flow.codes[-1] != "000000" else "111111"
+            for _ in range(5):
+                assert flow.confirm(wrong).headers["location"] == f"{CONFIRM}?error=invalid_code"
+            # Even the right code is refused once the budget is spent.
+            response = flow.confirm(flow.codes[-1])
+            page = tenant_client.get(response.headers["location"])
+        assert response.headers["location"].endswith("/login?error=too_many_requests")
+        assert "Too many attempts" in page.text
+        assert "pending_oidc_email_confirmation" not in flow.session
+        assert not _verified(test_tenant, _user_id(test_tenant, conn))
+
+    def test_cookie_from_another_tenant_refused(self, tenant_client, test_tenant, test_user):
+        from utils.email_verification import create_verification_cookie
+
+        conn = _make_facebook(test_tenant, test_user)
+        other_tenant_id = "00000000-0000-0000-0000-000000000001"
+        with _Flow(tenant_client, conn).active() as flow:
+            flow.callback()
+            # Same address and code, but issued on another tenant.
+            tenant_client.cookies.set(
+                "oidc_email_confirm",
+                create_verification_cookie("ada@example.com", flow.codes[-1], other_tenant_id),
+            )
+            response = flow.confirm(flow.codes[-1])
+        assert response.headers["location"] == f"{CONFIRM}?error=invalid_code"
+        assert not _verified(test_tenant, _user_id(test_tenant, conn))
+
+    def test_resend_ip_limit_is_independent_of_email(self, tenant_client, test_tenant, test_user):
         from services.exceptions import RateLimitError
         from utils.ratelimit import ratelimit
 
@@ -260,18 +301,33 @@ class TestConfirmation:
         real_prevent = ratelimit.prevent
 
         def prevent(key, *args, **kwargs):
-            if key.startswith("oidc_email_confirm:ip"):
+            if key.startswith("oidc_email_confirm_resend:ip"):
                 raise RateLimitError("limited")
             return real_prevent(key, *args, **kwargs)
 
         with _Flow(tenant_client, conn).active() as flow:
             flow.callback()
             with patch.object(ratelimit, "prevent", side_effect=prevent):
-                response = flow.confirm(flow.codes[-1])
-            page = tenant_client.get(response.headers["location"])
-        assert response.headers["location"] == f"{CONFIRM}?error=too_many_attempts"
-        assert "Too many attempts" in page.text
-        assert not _verified(test_tenant, _user_id(test_tenant, conn))
+                response = tenant_client.post(f"{CONFIRM}/resend", follow_redirects=False)
+        assert response.headers["location"] == f"{CONFIRM}?error=too_many_requests"
+        assert len(flow.codes) == 1
+
+    def test_send_limit_is_per_tenant(self, tenant_client, test_tenant, test_user):
+        from utils.ratelimit import ratelimit
+
+        conn = _make_facebook(test_tenant, test_user)
+        # Another tenant exhausting this address's sends does not block it here.
+        for _ in range(6):
+            ratelimit.log(
+                "oidc_email_confirm_send:tenant:{tenant_id}:email:{email}",
+                limit=5,
+                timespan=600,
+                tenant_id="other-tenant",
+                email="ada@example.com",
+            )
+        with _Flow(tenant_client, conn).active() as flow:
+            response = flow.callback()
+        assert response.headers["location"] == CONFIRM
 
     def test_send_rate_limited(self, tenant_client, test_tenant, test_user):
         from services.exceptions import RateLimitError

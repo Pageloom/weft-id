@@ -327,8 +327,10 @@ When the user approves:
 1. Commit if instructed (follow the commit conventions: short subject under 80 chars,
    brief description of what and how, no Claude attributions)
 2. Verify the iteration file is fully up to date (Step 5e complete)
-3. Close the iteration's roadmap sub-issue (`Fixes Pageloom/weft-id-roadmap#<n>` in the commit,
-   or `gh issue close <n> -R Pageloom/weft-id-roadmap` once committed)
+3. Reference the iteration's roadmap sub-issue with `Fixes Pageloom/weft-id-roadmap#<n>` in the
+   commit body. Never close it by hand (`gh issue close`): it closes when the commit merges to
+   `main`, so the roadmap reflects what is actually on main. Open sub-issues for committed but
+   unmerged iterations are expected; don't offer to close them
 4. Refine the next iteration's scope based on learnings, and update its sub-issue if the scope changed
 5. Tell the user to clear context and resume via `/lead pickup <slug>`. Only continue in the
    same session if the next iteration is small and context is still light.
@@ -390,9 +392,10 @@ Based on the user's decisions:
 ### 8e. Close out
 
 1. Set the iteration file status to "Feature complete"
-2. Close the roadmap item: `Fixes Pageloom/weft-id-roadmap#<item>` in the final commit, or
-   `gh issue close` if everything is already committed. First add a comment on the item saying
-   what shipped where it differs from the item as written. Nothing is added to
+2. Reference the roadmap item with `Fixes Pageloom/weft-id-roadmap#<item>` in the final commit
+   (or the PR description, if everything is already committed). Never close it by hand; it
+   closes when the branch merges to `main`. First add a comment on the item saying what
+   shipped where it differs from the item as written. Nothing is added to
    `.claude/BACKLOG_ARCHIVE.md`
 3. Ask the user if they want to clean up the iteration file
 
@@ -492,7 +495,7 @@ If nothing non-obvious, write "None -- standard patterns apply."]
 
 ## Closing and cleanup
 
-- **Feature complete**: Set status, close the roadmap item, keep iteration file until user deletes.
+- **Feature complete**: Set status, reference the roadmap item for closing on merge (Step 8e), keep iteration file until user deletes.
 - **Abandoned**: Set status to "Closed -- [reason]", keep file until user deletes.
 - **Cleanup**: When user asks, delete iteration files marked complete or closed. Confirm first.
 

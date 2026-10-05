@@ -119,7 +119,9 @@ it to the new one.
 - **Starting:** set `Status` to In Progress (`item-edit` with the Status field above).
 - **Finishing:** put `Fixes Pageloom/weft-id-roadmap#<number>` in the body of the commit
   that completes it. The issue closes when the commit reaches `main` in weft-id, and the
-  project moves it to Done. To close by hand: `gh issue close <number> -R $R`.
+  project moves it to Done. Don't close a completed item or sub-issue by hand: the roadmap
+  should only show work as done once it is on `main`. (Closing by hand is for dropped items,
+  below.)
 - **What shipped:** when the result differs from the item as written (scope cut, design
   change, follow-ups split out), record it in a comment on the issue before it closes
   (`gh issue comment <number> -R $R --body-file <file>`). The commit and CHANGELOG carry

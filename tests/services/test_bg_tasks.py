@@ -708,7 +708,7 @@ def test_preview_bulk_inactivate_eligible(make_requesting_user):
     assert result["eligible"] == 1
     assert result["eligible_ids"] == [user1_id]
     assert len(result["skipped"]) == 1
-    assert result["skipped"][0]["reason"] == "Already inactivated"
+    assert result["skipped"][0]["reason"] == "Already deactivated"
 
 
 def test_preview_bulk_inactivate_forbidden(make_requesting_user):
@@ -761,7 +761,7 @@ def test_preview_bulk_reactivate_eligible(make_requesting_user):
     assert result["eligible"] == 1
     assert result["eligible_ids"] == [user1_id]
     assert len(result["skipped"]) == 1
-    assert result["skipped"][0]["reason"] == "Not inactivated"
+    assert result["skipped"][0]["reason"] == "Not deactivated"
 
 
 def test_preview_bulk_reactivate_forbidden(make_requesting_user):
@@ -995,7 +995,7 @@ def test_preview_bulk_inactivate_cannot_inactivate_self(make_requesting_user):
         result = bg_tasks.preview_bulk_inactivate(requesting_user, [admin_id])
 
     assert result["eligible"] == 0
-    assert result["skipped"][0]["reason"] == "Cannot inactivate yourself"
+    assert result["skipped"][0]["reason"] == "Cannot deactivate yourself"
 
 
 def test_preview_bulk_inactivate_service_user_skipped(make_requesting_user):

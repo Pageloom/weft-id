@@ -76,7 +76,7 @@ templates.env.globals["provider_logo"] = provider_logo
 _ROLE_LABELS = {
     "super_admin": "Super Admin",
     "admin": "Admin",
-    "user": "User",
+    "member": "Member",
 }
 
 

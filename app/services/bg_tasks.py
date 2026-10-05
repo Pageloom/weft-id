@@ -301,13 +301,13 @@ def preview_bulk_inactivate(
                 {
                     "user_id": user_id,
                     "name": name,
-                    "reason": "Cannot inactivate yourself",
+                    "reason": "Cannot deactivate yourself",
                 }
             )
             continue
 
         if user.get("is_inactivated"):
-            skipped.append({"user_id": user_id, "name": name, "reason": "Already inactivated"})
+            skipped.append({"user_id": user_id, "name": name, "reason": "Already deactivated"})
             continue
 
         if database.users.is_service_user(tenant_id, user_id):
@@ -360,7 +360,7 @@ def preview_bulk_reactivate(
             continue
 
         if not user.get("is_inactivated"):
-            skipped.append({"user_id": user_id, "name": name, "reason": "Not inactivated"})
+            skipped.append({"user_id": user_id, "name": name, "reason": "Not deactivated"})
             continue
 
         eligible_ids.append(user_id)

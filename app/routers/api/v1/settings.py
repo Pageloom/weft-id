@@ -362,7 +362,7 @@ def update_attribute_config(
         locked_for_users: Only admins can edit this. Users see it read-only.
         send_to_sps_default: Include this attribute in assertions to
             newly-added SPs.
-        allow_self_sourced_to_sp: Allow user-edited (self-sourced) values to
+        allow_self_sourced_to_sp: Allow user-set (self-sourced) values to
             be sent to service providers. Defaults to false; when false, only
             admin- or IdP-sourced values are emitted into signed assertions.
 

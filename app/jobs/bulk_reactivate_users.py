@@ -67,7 +67,7 @@ def handle_bulk_reactivate_users(task: dict) -> dict[str, Any]:
                     )
                     continue
 
-                # Not inactivated
+                # Not deactivated
                 if not user.get("is_inactivated"):
                     skipped += 1
                     details.append(
@@ -75,7 +75,7 @@ def handle_bulk_reactivate_users(task: dict) -> dict[str, Any]:
                             "user_id": user_id,
                             "name": name,
                             "status": "skipped",
-                            "reason": "Not inactivated",
+                            "reason": "Not deactivated",
                         }
                     )
                     continue

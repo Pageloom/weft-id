@@ -96,7 +96,7 @@ def test_skips_not_inactivated():
     assert result["skipped"] == 1
     assert result["errors"] == 0
     assert result["details"][0]["status"] == "skipped"
-    assert "Not inactivated" in result["details"][0]["reason"]
+    assert "Not deactivated" in result["details"][0]["reason"]
 
 
 def test_skips_anonymized_users():

@@ -106,7 +106,7 @@ def test_skips_already_inactivated():
     assert result["skipped"] == 1
     assert result["errors"] == 0
     assert result["details"][0]["status"] == "skipped"
-    assert "Already inactivated" in result["details"][0]["reason"]
+    assert "Already deactivated" in result["details"][0]["reason"]
 
 
 def test_skips_service_users():

@@ -50,9 +50,10 @@
 {# Delete Connection #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-red-200 dark:border-red-800">
     <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete OIDC Provider</h2>
-    {% if connection.is_enabled %}
+    {% if connection.is_enabled or linked_users %}
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Disable on the Details tab before deleting.
+        {% if connection.is_enabled %}Disable on the Details tab before deleting.{% endif %}
+        {% if linked_users %}Unlink all users before deleting.{% endif %}
     </p>
     <button type="button" disabled
             class="px-4 py-2 text-sm font-medium text-white bg-red-300 dark:bg-red-900 rounded cursor-not-allowed opacity-60">
@@ -60,7 +61,7 @@
     </button>
     {% else %}
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
-        Removes the connection, its synced groups, and its domain bindings. Unlink all users first. Cannot be undone.
+        Removes the connection, its synced groups, and its domain bindings. Cannot be undone.
     </p>
     <form method="post" action="/identity-providers/oidc/{{ connection.id }}/delete" class="mt-2">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

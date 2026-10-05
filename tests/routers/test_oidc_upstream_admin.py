@@ -256,6 +256,42 @@ def test_danger_tab_renders(
     assert response.status_code == 200
 
 
+def test_danger_tab_delete_enabled_when_disabled_and_unlinked(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/danger",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert f'action="/identity-providers/oidc/{conn["id"]}/delete"' in response.text
+    assert "Unlink all users before deleting." not in response.text
+
+
+def test_danger_tab_delete_disabled_while_users_linked(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, test_user
+):
+    import database
+
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    database.oidc_upstream.create_link(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        idp_id=str(conn["id"]),
+        sub="linked-sub",
+        user_id=str(test_user["id"]),
+    )
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/danger",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    assert "Unlink all users before deleting." in response.text
+    assert f'action="/identity-providers/oidc/{conn["id"]}/delete"' not in response.text
+
+
 def test_danger_tab_surfaces_linked_user_listing_failure(
     super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, caplog
 ):

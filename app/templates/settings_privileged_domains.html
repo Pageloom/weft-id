@@ -92,7 +92,8 @@
                                     Unbind SAML
                                 </button>
                             </form>
-                            {% else %}
+                            {% elif not domain.bound_oidc_idp_id %}
+                            {# SAML and OIDC bindings are exclusive: no SAML bind while bound to OIDC #}
                             <form method="post" action="/identity-providers/domain-routing/{{ domain.id }}/bind"
                                   class="flex items-center gap-2">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -120,7 +121,8 @@
                                     Unbind OIDC
                                 </button>
                             </form>
-                            {% else %}
+                            {% elif not domain.bound_idp_id %}
+                            {# No OIDC bind while bound to a SAML IdP #}
                             <form method="post" action="/identity-providers/domain-routing/{{ domain.id }}/bind-oidc"
                                   class="flex items-center gap-2">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

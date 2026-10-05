@@ -716,3 +716,75 @@ def test_index_works_without_trailing_slash(test_super_admin_user, override_auth
 
     assert response.status_code == 303
     assert response.headers["location"] == "/identity-providers/saml"
+
+
+# =============================================================================
+# Bind controls: SAML and OIDC bindings are exclusive (issue #181)
+# =============================================================================
+
+
+def _domain_routing_setup(tenant, super_admin):
+    """Create a SAML IdP, an OIDC connection and two privileged domains."""
+    import database
+
+    tid = tenant["id"]
+    idp = database.saml.create_identity_provider(
+        tenant_id=tid,
+        tenant_id_value=str(tid),
+        name="Okta",
+        provider_type="generic",
+        sp_entity_id="https://sp.example.com",
+        created_by=str(super_admin["id"]),
+    )
+    conn = database.oidc_upstream.create_connection(
+        tenant_id=tid,
+        tenant_id_value=str(tid),
+        name="Google",
+        provider_type="google",
+        issuer="https://accounts.google.com",
+        created_by=str(super_admin["id"]),
+    )
+    for domain in ("saml-bound.example.com", "oidc-bound.example.com"):
+        database.settings.add_privileged_domain(tid, domain, str(super_admin["id"]), str(tid))
+    domains = {d["domain"]: d for d in database.settings.list_privileged_domains(tid)}
+    return idp, conn, domains
+
+
+def test_domain_routing_hides_cross_protocol_bind(
+    test_tenant, test_super_admin_user, override_auth, mocker
+):
+    import database
+
+    idp, conn, domains = _domain_routing_setup(test_tenant, test_super_admin_user)
+    saml_domain = domains["saml-bound.example.com"]
+    oidc_domain = domains["oidc-bound.example.com"]
+    database.saml.bind_domain_to_idp(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        str(saml_domain["id"]),
+        str(idp["id"]),
+        str(test_super_admin_user["id"]),
+    )
+    database.oidc_upstream.bind_domain_to_connection(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        str(oidc_domain["id"]),
+        str(conn["id"]),
+        str(test_super_admin_user["id"]),
+    )
+
+    override_auth(test_super_admin_user, level="super_admin")
+    # The template reads the user from the session, which tests don't have.
+    mocker.patch(f"{UTILS_TEMPLATE}.get_current_user", return_value=test_super_admin_user)
+    response = TestClient(app).get("/identity-providers/domain-routing")
+
+    assert response.status_code == 200
+    html = response.text
+    saml_base = f"/identity-providers/domain-routing/{saml_domain['id']}"
+    oidc_base = f"/identity-providers/domain-routing/{oidc_domain['id']}"
+    # SAML-bound: unbind SAML, no OIDC bind.
+    assert f'action="{saml_base}/unbind"' in html
+    assert f'action="{saml_base}/bind-oidc"' not in html
+    # OIDC-bound: unbind OIDC, no SAML bind.
+    assert f'action="{oidc_base}/unbind-oidc"' in html
+    assert f'action="{oidc_base}/bind"' not in html

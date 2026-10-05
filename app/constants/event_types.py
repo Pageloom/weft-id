@@ -160,6 +160,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "oidc_idp_connection_enabled": "OIDC upstream identity provider connection enabled",
     "oidc_idp_connection_disabled": "OIDC upstream identity provider connection disabled",
     "oidc_idp_connection_set_default": "OIDC upstream identity provider connection set as default",
+    "oidc_idp_connection_default_cleared": (
+        "OIDC upstream identity provider connection no longer the default"
+    ),
     "oidc_idp_connection_tested": "OIDC upstream identity provider connection tested",
     "oidc_login_started": "OIDC upstream login initiated",
     "oidc_login_completed": "User signed in via OIDC upstream",
@@ -483,6 +486,7 @@ EVENT_TYPE_TIERS: dict[str, str] = {
     "oidc_idp_connection_enabled": "admin",
     "oidc_idp_connection_disabled": "admin",
     "oidc_idp_connection_set_default": "admin",
+    "oidc_idp_connection_default_cleared": "admin",
     "oidc_idp_connection_tested": "admin",
     "oidc_domain_bound": "admin",
     "oidc_domain_unbound": "admin",

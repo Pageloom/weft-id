@@ -324,6 +324,31 @@ def test_edit_settings(super_admin_session, test_tenant_host, test_tenant, test_
     assert "success=settings_updated" in response.headers["location"]
 
 
+def test_edit_settings_unchecking_default_clears_it(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    url = f"/identity-providers/oidc/{conn['id']}/edit-settings"
+    super_admin_session.post(
+        url,
+        data={"is_default": "on"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])["is_default"]
+
+    # An unchecked box is absent from the form: the connection stops being the default.
+    response = super_admin_session.post(
+        url, data={}, headers={"Host": test_tenant_host}, follow_redirects=False
+    )
+    assert response.status_code == 303
+    assert "success=settings_updated" in response.headers["location"]
+    row = database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])
+    assert row["is_default"] is False
+
+
 def test_edit_settings_turns_provider_sign_out_on_and_off(
     super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
 ):

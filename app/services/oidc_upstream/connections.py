@@ -983,3 +983,51 @@ def set_connection_default(
     )
 
     return _row_to_config(row, base_url)
+
+
+def clear_connection_default(
+    requesting_user: RequestingUser,
+    connection_id: str,
+    base_url: str,
+) -> OIDCConnectionConfig:
+    """Stop an OIDC connection being the default for the tenant.
+
+    The tenant is left with no default OIDC connection. A connection that is
+    not the default is returned unchanged.
+
+    Authorization: Requires super_admin role.
+    Logs: oidc_idp_connection_default_cleared event (only when it changed).
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.oidc_upstream.get_connection(tenant_id, connection_id)
+    if existing is None:
+        raise NotFoundError(
+            message="OIDC connection not found",
+            code="oidc_connection_not_found",
+        )
+
+    if not existing["is_default"]:
+        return _row_to_config(existing, base_url)
+
+    row = database.oidc_upstream.clear_connection_default(tenant_id, connection_id)
+
+    if row is None:
+        raise ValidationError(
+            message="Failed to update OIDC connection",
+            code="oidc_connection_update_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="oidc_idp_connection",
+        artifact_id=connection_id,
+        event_type="oidc_idp_connection_default_cleared",
+        metadata={"name": existing["name"]},
+    )
+
+    return _row_to_config(row, base_url)

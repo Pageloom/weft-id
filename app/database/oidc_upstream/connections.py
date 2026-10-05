@@ -326,6 +326,23 @@ def set_connection_default(
     )
 
 
+def clear_connection_default(
+    tenant_id: TenantArg,
+    connection_id: str,
+) -> dict | None:
+    """Stop an OIDC connection being the default for the tenant."""
+    return fetchone(
+        tenant_id,
+        f"""
+        update oidc_idp_connections
+        set is_default = false
+        where id = :connection_id
+        returning {_COLUMNS}
+        """,
+        {"connection_id": connection_id},
+    )
+
+
 def delete_connection(tenant_id: TenantArg, connection_id: str) -> int:
     """Delete an OIDC connection. Returns the number of rows deleted."""
     return execute(

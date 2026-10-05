@@ -631,3 +631,35 @@ def set_default_connection(
         )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
+
+
+@router.post("/connections/{connection_id}/clear-default", response_model=OIDCConnectionConfig)
+def clear_default_connection(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+):
+    """
+    Stop an OIDC upstream connection being the default.
+
+    Requires super_admin role.
+
+    The tenant is left with no default connection, so an unrecognized email
+    address with no domain binding is no longer sent to an OIDC connection to
+    sign up. Calling this on a connection that is not the default changes
+    nothing.
+
+    Path parameters:
+    - connection_id: UUID of the connection
+
+    Returns the updated connection.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    base_url = _get_base_url(request)
+    try:
+        return oidc_upstream_service.clear_connection_default(
+            requesting_user, connection_id, base_url
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)

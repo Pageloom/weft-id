@@ -2420,3 +2420,38 @@ def test_apps_list_marks_public_clients(test_admin_user, override_auth, public_a
     assert response.status_code == 200
     assert 'title="Public client: no secret, device sign-in only">Public</span>' in response.text
     assert 'id="is_public" name="is_public" value="true"' in response.text
+
+
+# =============================================================================
+# Description length matches the database limit (500)
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "path, extra",
+    [
+        ("/applications/oauth/create", {"name": "App", "redirect_uris": "https://e.com/cb"}),
+        ("/applications/service-accounts/create", {"name": "Svc", "role": "member"}),
+        ("/applications/oauth/client-1/edit", {"name": "App"}),
+        ("/applications/service-accounts/client-1/edit", {"name": "Svc"}),
+    ],
+)
+def test_description_over_500_rejected_before_service(
+    test_admin_user, override_auth, mocker, path, extra
+):
+    """A description the database would refuse is rejected at the form."""
+    override_auth(test_admin_user, level="admin")
+    create_normal = mocker.patch(f"{SERVICES_OAUTH2}.create_normal_client")
+    create_b2b = mocker.patch(f"{SERVICES_OAUTH2}.create_b2b_client")
+    update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
+
+    response = TestClient(app).post(
+        path,
+        data={**extra, "description": "x" * 501, "csrf_token": "test-token"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 422
+    create_normal.assert_not_called()
+    create_b2b.assert_not_called()
+    update.assert_not_called()

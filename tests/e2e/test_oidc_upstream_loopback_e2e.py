@@ -23,7 +23,8 @@ The browser flow per sign-in:
 
 Test ordering is load-bearing: the first sign-in JIT-provisions the RP user
 and the `(connection, sub)` link; the second sign-in must correlate on that
-link (no duplicate user, no second link). The sign-out test signs out on the
+link (no duplicate user, no second link), and the sign-in page button test
+signs that linked user in again. The sign-out test signs out on the
 RP with "sign out at the provider" on and follows the round trip through the
 OP's end_session endpoint. The back-channel test (order-independent) signs
 out on the OP and checks the OP's logout token ends the live RP session.
@@ -353,6 +354,84 @@ class TestUpstreamOidcSecondSignIn:
         page.wait_for_selector("#first_name", timeout=10000)
         assert page.locator("#first_name").input_value() == op["user_first_name"]
         assert page.locator("#last_name").input_value() == op["user_last_name"]
+
+
+# ---------------------------------------------------------------------------
+# Sign-in page button: "Continue with ..." on the RP login page
+# ---------------------------------------------------------------------------
+
+
+def _last_event_metadata(tenant_id: str, event_type: str, key: str) -> str:
+    """A metadata field of the tenant's latest event of the given type."""
+    return _run_sql(
+        f"SELECT m.metadata->>'{key}' FROM event_logs e "
+        "JOIN event_log_metadata m ON m.metadata_hash = e.metadata_hash "
+        f"WHERE e.tenant_id = '{tenant_id}' AND e.event_type = '{event_type}' "
+        "ORDER BY e.created_at DESC LIMIT 1;"
+    )
+
+
+class TestUpstreamOidcLoginButton:
+    """The connection's button on the RP sign-in page signs the user in.
+
+    Runs after the second sign-in, so the user is linked and the OP
+    remembers the consent. The button skips the email step and goes
+    straight to /auth/oidc/{connection}/login?via=login_button; the audit
+    events carry ``entry: login_button``.
+    """
+
+    def test_button_signs_in_linked_user(self, page, login, loopback_config):
+        cfg = loopback_config
+        op, rp = cfg["op"], cfg["rp"]
+        email = op["user_email"]
+
+        before_users = _rp_user_ids(rp["tenant_id"], email)
+        before_links = _links(rp["connection_id"])
+        assert len(before_users) == 1
+        assert len(before_links) == 1
+
+        _run_sql(
+            "UPDATE oidc_idp_connections SET show_on_login = true "
+            f"WHERE id = '{rp['connection_id']}';"
+        )
+        try:
+            started_before = _event_count(rp["tenant_id"], "oidc_login_started")
+            completed_before = _event_count(rp["tenant_id"], "oidc_login_completed")
+
+            login(op["base_url"], email)
+            page.goto(f"{rp['base_url']}/login")
+            button = page.locator(
+                f"a[href='/auth/oidc/{rp['connection_id']}/login?via=login_button']"
+            )
+            button.wait_for(timeout=10000)
+            button.click()
+
+            consent_url = re.escape(f"{op['base_url']}/oauth2/authorize?")
+            dashboard_url = re.escape(f"{rp['base_url']}/dashboard")
+            page.wait_for_url(re.compile(f"^({consent_url}|{dashboard_url})"), timeout=15000)
+            if "/oauth2/authorize" in page.url:
+                page.locator("button[name='action'][value='allow']").click()
+            page.wait_for_url(f"{rp['base_url']}/dashboard**", timeout=20000)
+            assert "error=" not in page.url, f"Login landed with an error: {page.url}"
+        finally:
+            _run_sql(
+                "UPDATE oidc_idp_connections SET show_on_login = false "
+                f"WHERE id = '{rp['connection_id']}';"
+            )
+
+        # Same user and link: the button signed in the linked user.
+        assert _rp_user_ids(rp["tenant_id"], email) == before_users
+        assert _links(rp["connection_id"]) == before_links
+
+        assert _event_count(rp["tenant_id"], "oidc_login_started") == started_before + 1
+        assert _event_count(rp["tenant_id"], "oidc_login_completed") == completed_before + 1
+        assert _event_count(rp["tenant_id"], "oidc_login_failed") == 0
+        assert _last_event_metadata(rp["tenant_id"], "oidc_login_started", "entry") == (
+            "login_button"
+        )
+        assert _last_event_metadata(rp["tenant_id"], "oidc_login_completed", "entry") == (
+            "login_button"
+        )
 
 
 # ---------------------------------------------------------------------------

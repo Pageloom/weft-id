@@ -320,3 +320,29 @@ def end_user_oidc_sessions(*, tenant_id: str, user_id: str) -> int:
         tenant_id, tenant_id, str(user_id), issuer=_canonical_issuer(tenant_id)
     )
     return sum(1 for row in rows if row.get("backchannel_queued"))
+
+
+def end_user_client_sessions(*, tenant_id: str, user_id: str, client_uuid: str) -> int:
+    """Queue back-channel logouts to one client for every session of a user.
+
+    Authorization: none -- called when the user's consent for the client is
+    revoked (``services.oidc.consent``), after that path's own authorization.
+
+    No audit of its own: the caller's ``oauth2_consent_revoked`` event records
+    the count. The user's records for the client are consumed and one delivery
+    is queued per session in which the client received an ID token. The
+    user's WeftID sessions stay: only this client is signed out. Tokens are
+    not touched here; the caller revokes the client's tokens for the user.
+
+    Returns:
+        The number of back-channel deliveries queued.
+    """
+    tenant_id = str(tenant_id)
+    rows = database.oauth2.consume_user_client_session_clients(
+        tenant_id,
+        tenant_id,
+        str(user_id),
+        str(client_uuid),
+        issuer=_canonical_issuer(tenant_id),
+    )
+    return sum(1 for row in rows if row.get("backchannel_queued"))

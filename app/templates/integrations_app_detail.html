@@ -465,7 +465,7 @@
                     <form method="post" action="/applications/oauth/{{ client.client_id }}/consents/{{ grant.id }}/revoke">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400"
-                                data-confirm="Revoke consent for {{ grant.user_name or grant.user_email }}?&#10;&#10;They will see the consent screen again the next time they sign in to {{ client.name }}."
+                                data-confirm="Revoke consent for {{ grant.user_name or grant.user_email }}?&#10;&#10;The app loses access to their account now, and they will see the consent screen again the next time they sign in to {{ client.name }}."
                                 data-destructive="true">
                             Revoke
                         </button>

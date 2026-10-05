@@ -137,3 +137,31 @@ def consume_user_session_clients(
             "exclude_client_id": None,
         },
     )
+
+
+def consume_user_client_session_clients(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    user_id: str,
+    client_id: str,
+    *,
+    issuer: str,
+) -> list[dict]:
+    """Delete ``user_id``'s rows for one client (all sessions) and queue its logouts.
+
+    Same statement and return shape as ``consume_session_clients``, matched by
+    user and client (internal UUID): one delivery per session in which the
+    client received an ID token, when it registered a back-channel logout URI.
+    ``issuer`` is the fallback for rows recorded without one.
+    """
+    return fetchall(
+        tenant_id,
+        _CONSUME_SQL.format(match="s.user_id = :user_id and s.client_id = :client_id"),
+        {
+            "tenant_id": tenant_id_value,
+            "user_id": user_id,
+            "client_id": client_id,
+            "issuer": issuer,
+            "exclude_client_id": None,
+        },
+    )

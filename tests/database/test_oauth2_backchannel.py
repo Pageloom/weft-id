@@ -401,6 +401,39 @@ def test_consume_user_queued_flag_is_per_session(
     assert _session_rows(tid) == []
 
 
+def test_consume_user_client_takes_only_that_pair(
+    test_tenant, bc_client, normal_oauth2_client, test_user, test_admin_user
+):
+    """Consent revocation signs one user out of one client, every session."""
+    tid = test_tenant["id"]
+    _record(tid, bc_client, test_user, "s-1")
+    _record(tid, bc_client, test_user, "s-2", issuer=None)
+    _record(tid, normal_oauth2_client, test_user, "s-1")
+    _record(tid, bc_client, test_admin_user, "s-3")
+
+    rows = database.oauth2.consume_user_client_session_clients(
+        tid, tid, str(test_user["id"]), str(bc_client["id"]), issuer=ISSUER
+    )
+
+    assert sorted(row["sid"] for row in rows) == ["s-1", "s-2"]
+    assert all(row["backchannel_queued"] for row in rows)
+    deliveries = {d["sid"]: d for d in _rows(tid)}
+    assert set(deliveries) == {"s-1", "s-2"}
+    assert deliveries["s-2"]["issuer"] == ISSUER
+    assert {str(d["client_id"]) for d in deliveries.values()} == {str(bc_client["id"])}
+    remaining = {(r["sid"], str(r["client_id"])) for r in _session_rows(tid)}
+    assert remaining == {("s-1", str(normal_oauth2_client["id"])), ("s-3", str(bc_client["id"]))}
+
+
+def test_consume_user_client_with_no_sessions(test_tenant, bc_client, test_user):
+    tid = test_tenant["id"]
+    rows = database.oauth2.consume_user_client_session_clients(
+        tid, tid, str(test_user["id"]), str(bc_client["id"]), issuer=ISSUER
+    )
+    assert rows == []
+    assert _rows(tid) == []
+
+
 def test_consume_user_with_no_sessions(test_tenant, test_user):
     tid = test_tenant["id"]
     assert (

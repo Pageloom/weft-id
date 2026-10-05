@@ -147,7 +147,7 @@ Below the form you can:
 
 - **Enable OIDC**. Lets the app sign users in with OpenID Connect, and shows the endpoint URLs, access mode, assigned groups, and subject identifier settings. See [Sign in with WeftID (OIDC)](oidc-provider-setup.md).
 - **Choose subject identifiers** (OIDC apps). Give the app the user's WeftID ID (public) or a [pairwise identifier](pairwise-subjects.md) that apps in other sectors can't match.
-- **Revoke a user's consent**. The **User Consents** section lists every user who allowed the app and the scopes they granted. Revoking one makes that user see the consent screen again on their next sign-in. It does not revoke tokens the app already holds. Users can also revoke their own consents under **User Settings > Authorized Apps**.
+- **Revoke a user's consent**. The **User Consents** section lists every user who allowed the app and the scopes they granted. Revoking one ends the app's access for that user right away (its tokens are revoked, and a back-channel logout is sent when the app has a back-channel logout URI) and makes the user see the consent screen again on their next sign-in. Users can also revoke their own consents under **User Settings > Authorized Apps**.
 - **Check back-channel logout deliveries**. Shown when the app has a back-channel logout URI. See [Back-channel logout](oidc-provider-setup.md#back-channel-logout).
 - **Change client authentication**. Switch between a client secret and [private key JWT](private-key-jwt.md), and set the app's public keys.
 - **Allow token introspection for all tenant tokens**. For an app whose backend acts as a resource server. See [Token Introspection and Revocation](token-introspection.md).

@@ -14,6 +14,8 @@ Two kinds of function live here:
 - Management functions take a ``RequestingUser`` and follow the standard
   service pattern (authorization, activity tracking, event logging).
 
+Revoking a grant also revokes the client's tokens for the user and queues
+back-channel logouts to the client for the user's sessions with it.
 Invalidation on client deactivation and user deactivation is done by the
 owning services (``services.oauth2.deactivate_client`` and the user
 lifecycle paths), which call the database layer directly next to their
@@ -28,6 +30,7 @@ from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
+from services.oidc.logout import end_user_client_sessions
 from services.types import RequestingUser
 
 # ---------------------------------------------------------------------------
@@ -211,7 +214,16 @@ def _revoke(requesting_user: RequestingUser, grant: dict, *, revoked_by: str) ->
     if rows == 0:
         raise NotFoundError(message="Consent grant not found", code="consent_grant_not_found")
 
-    client = database.oauth2.get_client_by_id(tenant_id, str(grant["client_id"]))
+    # The grant is what the client's tokens were issued under: they end with
+    # it, and the client is told the user's sessions with it are over.
+    user_id = str(grant["user_id"])
+    client_uuid = str(grant["client_id"])
+    tokens_revoked = database.oauth2.revoke_user_client_tokens(tenant_id, user_id, client_uuid)
+    backchannel_logout_count = end_user_client_sessions(
+        tenant_id=tenant_id, user_id=user_id, client_uuid=client_uuid
+    )
+
+    client = database.oauth2.get_client_by_id(tenant_id, client_uuid)
     log_event(
         tenant_id=tenant_id,
         actor_user_id=requesting_user["id"],
@@ -220,9 +232,11 @@ def _revoke(requesting_user: RequestingUser, grant: dict, *, revoked_by: str) ->
         event_type="oauth2_consent_revoked",
         metadata={
             "revoked_by": revoked_by,
-            "user_id": str(grant["user_id"]),
+            "user_id": user_id,
             "client_id": client["client_id"] if client else None,
             "client_name": client.get("name") if client else None,
             "scopes": list(grant["scopes"] or []),
+            "tokens_revoked": tokens_revoked,
+            "backchannel_logout_count": backchannel_logout_count,
         },
     )

@@ -273,6 +273,104 @@ class TestAdmin:
 
 
 # ---------------------------------------------------------------------------
+# What a revocation takes with it
+# ---------------------------------------------------------------------------
+
+
+def _tokens(test_tenant, client, user) -> tuple[str, str]:
+    tid = str(test_tenant["id"])
+    refresh, refresh_id = database.oauth2.create_refresh_token(
+        tenant_id=tid, tenant_id_value=tid, client_id=str(client["id"]), user_id=str(user["id"])
+    )
+    access = database.oauth2.create_access_token(
+        tenant_id=tid,
+        tenant_id_value=tid,
+        client_id=str(client["id"]),
+        user_id=str(user["id"]),
+        parent_token_id=refresh_id,
+    )
+    return access, refresh
+
+
+def _backchannel_client(test_tenant, test_admin_user, name="BC App"):
+    client = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name=name,
+        redirect_uris=["https://rp.example/cb"],
+        created_by=str(test_admin_user["id"]),
+        backchannel_logout_uri="https://rp.example/bc",
+    )
+    database.oauth2.update_client_oidc_settings(
+        test_tenant["id"], client["client_id"], oidc_enabled=True
+    )
+    return client
+
+
+def _session_record(test_tenant, client, user, sid):
+    tid = str(test_tenant["id"])
+    database.oauth2.upsert_session_client(
+        tid, tid, sid=sid, client_id=str(client["id"]), user_id=str(user["id"])
+    )
+
+
+def _deliveries(test_tenant) -> list[dict]:
+    return database.fetchall(
+        test_tenant["id"], "select client_id, sub, sid from oidc_backchannel_logout_deliveries"
+    )
+
+
+class TestRevocationEndsAccess:
+    @pytest.mark.parametrize("revoked_by", ["user", "admin"])
+    def test_revoke_ends_the_clients_tokens_and_sessions(
+        self, revoked_by, test_tenant, test_admin_user, test_user
+    ):
+        tid = str(test_tenant["id"])
+        client = _backchannel_client(test_tenant, test_admin_user)
+        other = _backchannel_client(test_tenant, test_admin_user, "Other BC App")
+        grant = _grant(test_tenant, client, test_user, ["openid"])
+        access, refresh = _tokens(test_tenant, client, test_user)
+        other_access, _ = _tokens(test_tenant, other, test_user)
+        _session_record(test_tenant, client, test_user, "s-1")
+        _session_record(test_tenant, client, test_user, "s-2")
+        _session_record(test_tenant, other, test_user, "s-1")
+
+        with patch("services.oidc.consent.log_event") as log:
+            if revoked_by == "user":
+                svc.revoke_my_grant(_member(test_tenant, test_user), str(grant["id"]))
+            else:
+                svc.revoke_client_grant(
+                    _admin(test_tenant, test_admin_user), client["client_id"], str(grant["id"])
+                )
+
+        assert database.oauth2.validate_token(access, tid) is None
+        assert database.oauth2.validate_refresh_token(tid, refresh, str(client["id"])) is None
+        # Another client the user allowed keeps working.
+        assert database.oauth2.validate_token(other_access, tid) is not None
+        deliveries = _deliveries(test_tenant)
+        assert sorted(d["sid"] for d in deliveries) == ["s-1", "s-2"]
+        assert {str(d["client_id"]) for d in deliveries} == {str(client["id"])}
+        assert {d["sub"] for d in deliveries} == {str(test_user["id"])}
+        metadata = log.call_args.kwargs["metadata"]
+        assert metadata["revoked_by"] == revoked_by
+        assert metadata["tokens_revoked"] == 2
+        assert metadata["backchannel_logout_count"] == 2
+
+    def test_revoke_leaves_other_users_tokens(self, test_tenant, test_admin_user, test_user):
+        tid = str(test_tenant["id"])
+        client = _client(test_tenant, test_admin_user)
+        grant = _grant(test_tenant, client, test_user, ["openid"])
+        admin_access, _ = _tokens(test_tenant, client, test_admin_user)
+
+        with patch("services.oidc.consent.log_event") as log:
+            svc.revoke_my_grant(_member(test_tenant, test_user), str(grant["id"]))
+
+        assert database.oauth2.validate_token(admin_access, tid) is not None
+        assert log.call_args.kwargs["metadata"]["tokens_revoked"] == 0
+        assert log.call_args.kwargs["metadata"]["backchannel_logout_count"] == 0
+
+
+# ---------------------------------------------------------------------------
 # Invalidation hooks in the owning services
 # ---------------------------------------------------------------------------
 

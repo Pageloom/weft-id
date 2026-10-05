@@ -52,7 +52,7 @@
                 <form method="post" action="/account/authorized-apps/{{ grant.id }}/revoke">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="confirm-btn text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                            data-confirm="Revoke access for {{ grant.client_name }}?&#10;&#10;You will be asked to allow it again the next time you sign in to it."
+                            data-confirm="Revoke access for {{ grant.client_name }}?&#10;&#10;It loses access to your account now, and you will be asked to allow it again the next time you sign in to it."
                             data-destructive="true">
                         Revoke
                     </button>

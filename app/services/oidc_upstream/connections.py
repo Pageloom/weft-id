@@ -56,7 +56,9 @@ POST_LOGOUT_PATH = "/logout/complete"
 
 # Optional text settings where an explicit empty string from the API or a form
 # means "clear" and is stored as NULL.
-_CLEARABLE_TEXT_FIELDS = frozenset({"group_claim_source", "group_claim_name_key"})
+_CLEARABLE_TEXT_FIELDS = frozenset(
+    {"group_claim_source", "group_claim_name_key", "hosted_domain", "discovery_url"}
+)
 
 
 def _blank_to_none(value: str | None) -> str | None:
@@ -579,6 +581,18 @@ def create_connection(
     return _row_to_config(row, base_url)
 
 
+def _discovery_source_changed(existing: dict, update_kwargs: dict[str, Any]) -> bool:
+    """Whether an update moves the issuer or discovery URL elsewhere."""
+    for field in ("issuer", "discovery_url"):
+        if field not in update_kwargs:
+            continue
+        new = (update_kwargs[field] or "").rstrip("/")
+        old = (existing.get(field) or "").rstrip("/")
+        if new != old:
+            return True
+    return False
+
+
 def update_connection(
     requesting_user: RequestingUser,
     connection_id: str,
@@ -607,6 +621,21 @@ def update_connection(
     _validate_manual_endpoints(data)
     _validate_email_linking(existing["provider_type"], data.allow_email_linking)
     apple_settings = _apple_settings(existing["provider_type"], data)
+
+    # Entra composes its authority from the tenant id, as on create, unless an
+    # explicit issuer was supplied.
+    if existing["provider_type"] == "entra" and data.entra_tenant_id and not data.issuer:
+        data.issuer = compose_entra_authority(data.entra_tenant_id)
+        if not data.discovery_url:
+            data.discovery_url = compose_entra_discovery_url(data.entra_tenant_id)
+
+    # An overridable preset issuer (a self-managed GitLab) discovers from its
+    # own well-known path, as on create: the preset discovery URL follows the
+    # preset issuer only.
+    preset = get_preset(existing["provider_type"])
+    if preset and preset.issuer_overridable and data.issuer and data.discovery_url is None:
+        issuer_is_preset = data.issuer.rstrip("/") == (preset.issuer or "").rstrip("/")
+        data.discovery_url = preset.discovery_url if issuer_is_preset else ""
 
     update_kwargs: dict[str, Any] = {}
     for field in [
@@ -645,6 +674,14 @@ def update_connection(
     # the sign-in refresh (``discovery.refresh_for_login``) does not overwrite
     # them. A later successful Test Connection puts it back under discovery.
     if any(field in update_kwargs for field in _MANUAL_ENDPOINT_FIELDS):
+        update_kwargs["discovery_fetched_at"] = None
+    elif existing.get("discovery_fetched_at") is not None and _discovery_source_changed(
+        existing, update_kwargs
+    ):
+        # The discovered endpoints belong to the old issuer. Drop them so the
+        # next sign-in (or Test Connection) discovers from the new one.
+        for field in _MANUAL_ENDPOINT_FIELDS:
+            update_kwargs[field] = None
         update_kwargs["discovery_fetched_at"] = None
 
     # An empty list clears the restriction (stored as NULL).

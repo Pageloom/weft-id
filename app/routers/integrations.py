@@ -135,7 +135,7 @@ def apps_create(
     user: Annotated[dict, Depends(get_current_user)],
     name: str = Form("", max_length=255),
     redirect_uris: str = Form("", max_length=20000),
-    description: str = Form("", max_length=2000),
+    description: str = Form("", max_length=500),
     is_public: str = Form("", max_length=10),
 ):
     """Create a new normal OAuth2 client (App). A public client (device
@@ -218,7 +218,7 @@ def b2b_create(
     user: Annotated[dict, Depends(get_current_user)],
     name: str = Form("", max_length=255),
     role: str = Form("", max_length=50),
-    description: str = Form("", max_length=2000),
+    description: str = Form("", max_length=500),
 ):
     """Create a new B2B OAuth2 client (Service Account)."""
     if not has_page_access("/applications/service-accounts", user.get("role")):
@@ -326,7 +326,7 @@ def app_edit(
     client_id: str,
     name: str = Form("", max_length=255),
     redirect_uris: str = Form("", max_length=20000),
-    description: str = Form("", max_length=2000),
+    description: str = Form("", max_length=500),
     post_logout_redirect_uris: str = Form("", max_length=20000),
     frontchannel_logout_uri: str = Form("", max_length=2048),
     frontchannel_logout_session_required: str = Form("", max_length=10),
@@ -877,7 +877,7 @@ def b2b_edit(
     user: Annotated[dict, Depends(get_current_user)],
     client_id: str,
     name: str = Form("", max_length=255),
-    description: str = Form("", max_length=2000),
+    description: str = Form("", max_length=500),
 ):
     """Update a B2B OAuth2 client name/description."""
     if not has_page_access("/applications/service-accounts", user.get("role")):

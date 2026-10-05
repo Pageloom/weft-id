@@ -404,7 +404,7 @@ class TestListSyncLog:
         )
         with patch(
             "services.scim.admin.list_sync_log",
-            return_value=ScimSyncLogList(items=[entry], total=1, page=1, page_size=50),
+            return_value=ScimSyncLogList(items=[entry], total=1, page=1, limit=50, page_size=50),
         ) as fn:
             resp = api_client.get(
                 f"/api/v1/service-providers/{sp_id}/scim/sync-log",
@@ -421,13 +421,57 @@ class TestListSyncLog:
         sp_id = str(uuid4())
         with patch(
             "services.scim.admin.list_sync_log",
-            return_value=ScimSyncLogList(items=[], total=0, page=1, page_size=50),
+            return_value=ScimSyncLogList(items=[], total=0, page=1, limit=50, page_size=50),
         ) as fn:
             api_client.get(
                 f"/api/v1/service-providers/{sp_id}/scim/sync-log?status=failed",
                 headers={"host": api_host},
             )
         assert fn.call_args.kwargs["status"] == "failed"
+
+    def test_limit_sets_page_size(self, api_client, api_host):
+        sp_id = str(uuid4())
+        with patch(
+            "services.scim.admin.list_sync_log",
+            return_value=ScimSyncLogList(items=[], total=0, page=1, limit=20, page_size=20),
+        ) as fn:
+            resp = api_client.get(
+                f"/api/v1/service-providers/{sp_id}/scim/sync-log?limit=20",
+                headers={"host": api_host},
+            )
+        assert resp.json()["limit"] == 20
+        assert fn.call_args.kwargs["page_size"] == 20
+
+    def test_deprecated_page_size_still_accepted(self, api_client, api_host):
+        sp_id = str(uuid4())
+        with patch(
+            "services.scim.admin.list_sync_log",
+            return_value=ScimSyncLogList(items=[], total=0, page=1, limit=30, page_size=30),
+        ) as fn:
+            api_client.get(
+                f"/api/v1/service-providers/{sp_id}/scim/sync-log?page_size=30",
+                headers={"host": api_host},
+            )
+        assert fn.call_args.kwargs["page_size"] == 30
+
+    def test_limit_wins_over_page_size(self, api_client, api_host):
+        sp_id = str(uuid4())
+        with patch(
+            "services.scim.admin.list_sync_log",
+            return_value=ScimSyncLogList(items=[], total=0, page=1, limit=10, page_size=10),
+        ) as fn:
+            api_client.get(
+                f"/api/v1/service-providers/{sp_id}/scim/sync-log?limit=10&page_size=99",
+                headers={"host": api_host},
+            )
+        assert fn.call_args.kwargs["page_size"] == 10
+
+    def test_limit_above_max_rejected(self, api_client, api_host):
+        resp = api_client.get(
+            f"/api/v1/service-providers/{uuid4()}/scim/sync-log?limit=201",
+            headers={"host": api_host},
+        )
+        assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------

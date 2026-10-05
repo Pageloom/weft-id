@@ -869,7 +869,8 @@ def list_scim_sync_log_endpoint(
     admin: Annotated[dict, Depends(require_super_admin_api)],
     sp_id: str,
     page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+    limit: Annotated[int | None, Query(ge=1, le=200)] = None,
+    page_size: Annotated[int | None, Query(ge=1, le=200, deprecated=True)] = None,
     status_filter: Annotated[str | None, Query(alias="status", max_length=20)] = None,
 ):
     """List recent sync activity for one SP.
@@ -881,18 +882,24 @@ def list_scim_sync_log_endpoint(
 
     Query parameters:
     - page: 1-indexed page number (default 1).
-    - page_size: Rows per page (default 50, max 200).
+    - limit: Rows per page (default 50, max 200).
+    - page_size: Deprecated alias of limit, used only when limit is absent.
     - status: Optional filter. One of `pending`, `running`, `done`,
       `failed`, `dead_letter`.
 
-    Response: items (list of sync log entries), total, page, page_size.
+    Response: items (list of sync log entries), total, page, limit, and
+    page_size (deprecated, equal to limit).
     Each entry: id, sp_id, resource_type, resource_id, status, attempt,
     error, started_at, completed_at, created_at.
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return scim_admin_service.list_sync_log(
-            requesting_user, sp_id, page=page, page_size=page_size, status=status_filter
+            requesting_user,
+            sp_id,
+            page=page,
+            page_size=limit or page_size or 50,
+            status=status_filter,
         )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

@@ -395,7 +395,7 @@ PAGES = [
                             ),
                             Page(
                                 path="/identity-providers/oidc/connection/danger",
-                                title="Disable/Delete",
+                                title="Delete",
                                 permission=PagePermission.SUPER_ADMIN,
                                 show_in_nav=False,
                                 creates_nav_level=False,
@@ -525,7 +525,7 @@ PAGES = [
                 children=[
                     Page(
                         path="/applications/forward-auth/domains",
-                        title="Domains",
+                        title="Protected Domains",
                         permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=True,
                         docs_path="/docs/admin-guide/service-providers/forward-auth/",
@@ -541,7 +541,7 @@ PAGES = [
                     ),
                     Page(
                         path="/applications/forward-auth/apps",
-                        title="Apps",
+                        title="Proxy Apps",
                         permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=True,
                         docs_path="/docs/admin-guide/service-providers/forward-auth/",

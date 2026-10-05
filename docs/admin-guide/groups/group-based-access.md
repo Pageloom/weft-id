@@ -12,7 +12,7 @@ Plain OAuth2 apps (OIDC disabled) are not gated by groups.
 
 - **SAML service provider**: Open the SP and select the **Groups** tab. Choose a group and click **Assign**.
 - **OIDC app**: Open the app under **Applications > OAuth2 / OIDC**. Under **Access Mode**, switch to group-based access, then assign groups.
-- **Forward-auth app**: Open the app under **Applications > Forward Auth > Apps**. Under **Group Grants**, choose a group to grant.
+- **Forward-auth app**: Open the app under **Applications > Forward Auth > Proxy Apps**. Under **Group Grants**, choose a group to grant.
 
 Repeat to assign more groups. A user needs to be in at least one of them.
 

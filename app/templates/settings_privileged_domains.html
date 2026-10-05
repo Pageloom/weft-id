@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Privileged Domains - {{ site_title }}{% endblock %}
+{% block title %}Domain Routing - {{ site_title }}{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-        <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Privileged Domains</h1>
+        <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Domain Routing</h1>
 
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            Email domains your organization controls (e.g., @company.com). Addresses on these domains are auto-verified.
+            Privileged domains are email domains your organization controls (e.g., @company.com). Addresses on these domains are auto-verified.
             Bind a domain to an IdP to route its users there, or link it to groups for automatic membership.
         </p>
 
@@ -47,7 +47,7 @@
         {% endif %}
 
         <div class="mb-6">
-            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Current Privileged Domains</h2>
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Privileged Domains</h2>
 
             {% if domains %}
             <div class="space-y-3">

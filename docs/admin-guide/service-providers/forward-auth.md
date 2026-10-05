@@ -64,14 +64,14 @@ not a defect.
     It is unrelated to a [privileged domain](../identity-providers/privileged-domains.md),
     which is an **email** domain used for identity routing. The same string can be
     registered as both; they are independent concepts. Protected domains are under
-    **Applications > Forward Auth > Domains**. Privileged domains are under
+    **Applications > Forward Auth > Protected Domains**. Privileged domains are under
     **Identity Providers > Domain Routing**.
 
 ## Setup
 
 ### 1. Register and verify the protected domain
 
-In **Applications > Forward Auth > Domains**, register the domain (for example
+In **Applications > Forward Auth > Protected Domains**, register the domain (for example
 `acme-corp.com`) and its portal host (`auth.acme-corp.com`). WeftID issues a
 DNS-TXT challenge:
 
@@ -90,7 +90,7 @@ WeftID instance's public IP. WeftID obtains a TLS certificate for it on demand
 
 ### 3. Create the proxy app
 
-In **Applications > Forward Auth > Apps**, add an app under the verified domain
+In **Applications > Forward Auth > Proxy Apps**, add an app under the verified domain
 with a name and its **External URL**: the app's public `https` address, under the
 protected domain (`https://grafana.acme-corp.com`). Then open the app to configure:
 

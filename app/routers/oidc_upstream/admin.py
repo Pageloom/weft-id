@@ -567,6 +567,61 @@ def edit_connection_endpoints(
 
 
 @router.post(
+    "/identity-providers/oidc/{connection_id}/edit-credentials",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_connection_credentials(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+    client_id: Annotated[str, Form(max_length=255)] = "",
+    client_secret: Annotated[str, Form(max_length=3000)] = "",
+    scopes: Annotated[str, Form(max_length=500)] = "",
+    issuer: Annotated[str, Form(max_length=2048)] = "",
+    discovery_url: Annotated[str, Form(max_length=2048)] = "",
+    correlation_claim: Annotated[str, Form(max_length=50)] = "",
+    entra_tenant_id: Annotated[str, Form(max_length=100)] = "",
+    hosted_domain: Annotated[str, Form(max_length=253)] = "",
+):
+    """Update the credentials and identity settings set at creation.
+
+    Mirrors ``PATCH /api/v1/oidc-upstream/connections/{id}``: a blank field
+    leaves the stored value untouched, so the write-only client secret is
+    kept unless a new one is typed. Hosted domain is the exception: it is an
+    optional restriction, so blank clears it (a no-op for providers other
+    than Google, which have none).
+    """
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    data = OIDCConnectionUpdate(
+        client_id=client_id.strip() or None,
+        client_secret=client_secret.strip() or None,
+        scopes=" ".join(scopes.split()) or None,
+        issuer=issuer.strip() or None,
+        discovery_url=discovery_url.strip() or None,
+        correlation_claim=correlation_claim.strip() or None,
+        entra_tenant_id=entra_tenant_id.strip() or None,
+        hosted_domain=hosted_domain.strip(),
+    )
+
+    try:
+        oidc_service.update_connection(
+            requesting_user, connection_id, data, tenant_base_url(request)
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as e:
+        return safe_redirect(
+            f"{CONNECTION_LIST_URL}/{connection_id}/details?error={quote(e.message)}"
+        )
+
+    return safe_redirect(
+        f"{CONNECTION_LIST_URL}/{connection_id}/details?success=credentials_updated"
+    )
+
+
+@router.post(
     "/identity-providers/oidc/{connection_id}/edit-settings",
     dependencies=[Depends(require_super_admin)],
 )

@@ -134,6 +134,16 @@
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Issuer</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ connection.issuer }}</dd>
         </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Discovery URL</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.discovery_url %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.discovery_url or "The issuer's well-known path" }}</dd>
+        </div>
+        {% if connection.provider_type == 'entra' %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Entra Tenant ID</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.entra_tenant_id %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.entra_tenant_id or 'Not configured' }}</dd>
+        </div>
+        {% endif %}
         {% if connection.provider_type == 'generic' %}
         <div class="flex items-center justify-between">
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Endpoints</dt>
@@ -165,9 +175,16 @@
             <dd class="mt-1 text-sm text-gray-{% if connection.end_session_endpoint %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.end_session_endpoint or 'Not published' }}</dd>
         </div>
         {% endif %}
-        <div>
-            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client ID</dt>
-            <dd class="mt-1 text-sm text-gray-{% if connection.client_id %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.client_id or 'Not configured' }}</dd>
+        <div class="flex items-start justify-between">
+            <div class="min-w-0 flex-1">
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client ID</dt>
+                <dd class="mt-1 text-sm text-gray-{% if connection.client_id %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.client_id or 'Not configured' }}</dd>
+            </div>
+            <button type="button" id="edit-credentials-btn"
+                    class="ml-2 mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                    title="Edit credentials">
+                {{ icon("pencil", class="w-4 h-4") }}
+            </button>
         </div>
         {% if connection.provider_type != 'apple' %}
         <div>
@@ -175,6 +192,16 @@
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
                 {% if connection.client_secret_set %}Configured{% else %}Not configured{% endif %}
             </dd>
+        </div>
+        {% endif %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Scopes</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.scopes %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.scopes or 'Not configured' }}</dd>
+        </div>
+        {% if connection.provider_type == 'google' %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hosted Domain</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.hosted_domain %}900 dark:text-gray-100 font-mono{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.hosted_domain or 'Any Google account' }}</dd>
         </div>
         {% endif %}
         {% if connection.uses_discovery %}
@@ -388,6 +415,87 @@
     </div>
 </div>
 
+{# Edit Credentials Modal #}
+<div id="edit-credentials-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Edit Credentials</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            Leave a field blank to keep its current value.{% if connection.uses_discovery %} After changing the issuer or discovery URL, run Test Connection to fetch the new endpoints.{% endif %}
+        </p>
+        <form method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-credentials">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if connection.provider_type == 'entra' %}
+            <div class="mb-4">
+                <label for="edit-entra-tenant-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entra Tenant ID</label>
+                <input type="text" id="edit-entra-tenant-id" name="entra_tenant_id" maxlength="100" value="{{ connection.entra_tenant_id or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">WeftID builds the issuer URL from this value.</p>
+            </div>
+            {% endif %}
+            {% if connection.provider_type in ('generic', 'gitlab') %}
+            <div class="mb-4">
+                <label for="edit-issuer" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Issuer</label>
+                <input type="url" id="edit-issuer" name="issuer" maxlength="2048" value="{{ connection.issuer }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            {% endif %}
+            {% if connection.provider_type == 'generic' %}
+            <div class="mb-4">
+                <label for="edit-discovery-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Discovery URL</label>
+                <input type="url" id="edit-discovery-url" name="discovery_url" maxlength="2048" value="{{ connection.discovery_url or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            {% endif %}
+            <div class="mb-4">
+                <label for="edit-client-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client ID</label>
+                <input type="text" id="edit-client-id" name="client_id" maxlength="255" autocomplete="off" value="{{ connection.client_id or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            {% if connection.provider_type != 'apple' %}
+            <div class="mb-4">
+                <label for="edit-client-secret" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client Secret</label>
+                <input type="password" id="edit-client-secret" name="client_secret" maxlength="3000" autocomplete="new-password"
+                       placeholder="{% if connection.client_secret_set %}Configured. Type a new secret to replace it.{% endif %}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Encrypted at rest and never displayed again.</p>
+            </div>
+            {% endif %}
+            <div class="mb-4">
+                <label for="edit-scopes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scopes</label>
+                <input type="text" id="edit-scopes" name="scopes" maxlength="500" value="{{ connection.scopes or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            {% if connection.provider_type == 'generic' %}
+            <div class="mb-4">
+                <label for="edit-correlation-claim" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Correlation Claim</label>
+                <input type="text" id="edit-correlation-claim" name="correlation_claim" maxlength="50" value="{{ connection.correlation_claim }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">Users already linked are matched on the old claim. Changing it can stop them signing in.</p>
+            </div>
+            {% endif %}
+            {% if connection.provider_type == 'google' %}
+            <div class="mb-4">
+                <label for="edit-hosted-domain" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hosted Domain (Google <code>hd</code>)</label>
+                <input type="text" id="edit-hosted-domain" name="hosted_domain" maxlength="253" value="{{ connection.hosted_domain or '' }}"
+                       placeholder="example.com"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Restrict sign-in to a Google Workspace domain. Leave blank to allow any Google account.</p>
+            </div>
+            {% endif %}
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-credentials-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {# Edit Allowed Organizations Modal (GitHub only) #}
 {% if connection.provider_type == 'github' %}
 <div id="edit-orgs-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
@@ -530,6 +638,8 @@
     });
     document.getElementById('edit-name-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-name-modal'); });
     document.getElementById('cancel-name-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-name-modal'); });
+    document.getElementById('edit-credentials-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-credentials-modal'); });
+    document.getElementById('cancel-credentials-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-credentials-modal'); });
     document.getElementById('edit-endpoints-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-endpoints-modal'); });
     document.getElementById('cancel-endpoints-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-endpoints-modal'); });
     document.getElementById('edit-orgs-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-orgs-modal'); });

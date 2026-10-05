@@ -50,7 +50,7 @@ Google does not emit a groups claim over OIDC, so the connection's [group claim 
 :   The URI registered in Google Cloud does not exactly match WeftID's. Copy the callback URL again from the connection's Details tab, including the scheme and any trailing path.
 
 **Users from outside the Workspace can sign in**
-:   The hosted domain is not set, or the OAuth client is configured as External. Set the hosted domain on the connection (through the API once it exists; see [Changing credentials later](oidc-setup.md#changing-credentials-later)).
+:   The hosted domain is not set, or the OAuth client is configured as External. Set the hosted domain on the connection (see [Changing credentials later](oidc-setup.md#changing-credentials-later)).
 
 **"Access blocked: this app's request is invalid"**
 :   Usually a missing redirect URI or an incomplete consent screen. Check both in the Google Cloud console.

@@ -203,8 +203,13 @@ def update_connection(
       entra_tenant_id, require_platform_mfa, jit_provisioning,
       allow_email_linking, sign_out_at_idp, show_on_login,
       github_allowed_orgs, apple_team_id, apple_key_id, apple_private_key.
-      An empty string for group_claim_source or group_claim_name_key clears
-      the setting. allow_email_linking=true is rejected (400) for providers
+      An empty string for group_claim_source, group_claim_name_key,
+      hosted_domain or discovery_url clears the setting. For entra, a new
+      entra_tenant_id recomposes the issuer and discovery URL unless an issuer
+      is given. For gitlab, a new issuer resets discovery_url to follow it. A
+      changed issuer or discovery URL on a discovered connection drops the
+      discovered endpoints, so the next sign-in discovers again.
+      allow_email_linking=true is rejected (400) for providers
       without a trusted verified-email claim (microsoft, facebook). For github,
       github_allowed_orgs replaces the list (an empty list removes the
       restriction). For github, discord and facebook the discovery/endpoint

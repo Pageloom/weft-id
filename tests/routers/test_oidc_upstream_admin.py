@@ -708,6 +708,232 @@ def test_edit_endpoints_as_admin_forbidden(
 
 
 # =============================================================================
+# Credentials (details tab)
+# =============================================================================
+
+
+def test_details_tab_shows_credentials_editor(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        scopes="openid profile email groups",
+        client_secret_enc="encrypted-secret-value",
+    )
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/details",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    html = response.text
+    assert 'id="edit-credentials-btn"' in html
+    assert 'id="edit-credentials-modal"' in html
+    assert "openid profile email groups" in html
+    for field in ("issuer", "discovery_url", "client_id", "client_secret", "correlation_claim"):
+        assert f'name="{field}"' in html
+    assert 'name="hosted_domain"' not in html
+    assert 'name="entra_tenant_id"' not in html
+    # The secret is write-only.
+    assert "encrypted-secret-value" not in html
+
+
+def test_details_tab_credentials_editor_for_google(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        provider_type="google",
+        issuer="https://accounts.google.com",
+        hosted_domain="example.com",
+    )
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/details",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    html = response.text
+    assert 'name="hosted_domain"' in html
+    assert 'value="example.com"' in html
+    assert 'name="issuer"' not in html
+    assert 'name="correlation_claim"' not in html
+
+
+def test_details_tab_credentials_editor_for_entra(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        provider_type="entra",
+        issuer="https://login.microsoftonline.com/contoso.com/v2.0",
+        entra_tenant_id="contoso.com",
+    )
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/details",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    html = response.text
+    assert 'name="entra_tenant_id"' in html
+    assert 'value="contoso.com"' in html
+    assert 'name="issuer"' not in html
+
+
+def test_details_tab_credentials_editor_for_apple_has_no_secret(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        provider_type="apple",
+        issuer="https://appleid.apple.com",
+    )
+    response = super_admin_session.get(
+        f"/identity-providers/oidc/{conn['id']}/details",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    html = response.text
+    assert 'id="edit-credentials-modal"' in html
+    assert 'name="client_secret"' not in html
+
+
+def test_edit_credentials_rotates_secret(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(test_tenant, test_super_admin_user, scopes="openid")
+    response = super_admin_session.post(
+        f"/identity-providers/oidc/{conn['id']}/edit-credentials",
+        data={
+            "client_id": " client-456 ",
+            "client_secret": "rotated-secret",
+            "scopes": "openid   profile email",
+            "issuer": "https://idp.example.com",
+            "discovery_url": "",
+            "correlation_claim": "sub",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "success=credentials_updated" in response.headers["location"]
+
+    row = database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])
+    assert row["client_id"] == "client-456"
+    assert row["scopes"] == "openid profile email"
+    assert row["client_secret_enc"]
+    assert "rotated-secret" not in row["client_secret_enc"]
+
+
+def test_edit_credentials_blank_keeps_values(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        scopes="openid",
+        client_secret_enc="encrypted-secret-value",
+    )
+    response = super_admin_session.post(
+        f"/identity-providers/oidc/{conn['id']}/edit-credentials",
+        data={"client_id": "", "client_secret": "", "scopes": "", "issuer": ""},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    row = database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])
+    assert row["client_id"] == "client-123"
+    assert row["client_secret_enc"] == "encrypted-secret-value"
+    assert row["scopes"] == "openid"
+    assert row["issuer"] == "https://idp.example.com"
+
+
+def test_edit_credentials_clears_hosted_domain(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        provider_type="google",
+        issuer="https://accounts.google.com",
+        hosted_domain="example.com",
+    )
+    response = super_admin_session.post(
+        f"/identity-providers/oidc/{conn['id']}/edit-credentials",
+        data={"client_id": "client-123", "hosted_domain": ""},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    row = database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])
+    assert row["hosted_domain"] is None
+
+
+def test_edit_credentials_rejects_multi_tenant_entra(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(
+        test_tenant,
+        test_super_admin_user,
+        provider_type="entra",
+        issuer="https://login.microsoftonline.com/contoso.com/v2.0",
+        entra_tenant_id="contoso.com",
+    )
+    response = super_admin_session.post(
+        f"/identity-providers/oidc/{conn['id']}/edit-credentials",
+        data={"entra_tenant_id": "organizations"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert f"/{conn['id']}/details?error=Multi-tenant" in response.headers["location"]
+    row = database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])
+    assert row["entra_tenant_id"] == "contoso.com"
+
+
+def test_edit_credentials_not_found(super_admin_session, test_tenant_host):
+    from uuid import uuid4
+
+    response = super_admin_session.post(
+        f"/identity-providers/oidc/{uuid4()}/edit-credentials",
+        data={"client_id": "x"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
+
+
+def test_edit_credentials_as_admin_forbidden(
+    admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    import database
+
+    conn = _make_connection(test_tenant, test_super_admin_user)
+    response = admin_session.post(
+        f"/identity-providers/oidc/{conn['id']}/edit-credentials",
+        data={"client_id": "hijacked"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+    assert response.status_code in (303, 403)
+    row = database.oidc_upstream.get_connection(test_tenant["id"], conn["id"])
+    assert row["client_id"] == "client-123"
+
+
+# =============================================================================
 # Group claim settings (claim-mapping tab)
 # =============================================================================
 

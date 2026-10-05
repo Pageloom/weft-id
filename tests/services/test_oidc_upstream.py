@@ -870,3 +870,130 @@ class TestGroupLifecycle:
         )
         assert cleared.group_claim_source is None
         assert cleared.group_claim_name_key is None
+
+
+class TestCredentialUpdate:
+    """Editing the settings fixed at creation (issue #177)."""
+
+    ENDPOINTS = TestManualEndpoints.ENDPOINTS
+
+    def _mark_discovered(self, tenant_id, connection_id):
+        import database
+
+        database.execute(
+            tenant_id,
+            "update oidc_idp_connections set discovery_fetched_at = now() where id = :id",
+            {"id": connection_id},
+        )
+
+    def test_issuer_change_drops_discovered_endpoints(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+        self._mark_discovered(test_tenant["id"], created.id)
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(issuer="https://new-idp.example.com"), BASE_URL
+        )
+        assert updated.issuer == "https://new-idp.example.com"
+        assert updated.discovery_fetched_at is None
+        for field in self.ENDPOINTS:
+            assert getattr(updated, field) is None
+
+    def test_same_issuer_keeps_discovered_endpoints(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+        self._mark_discovered(test_tenant["id"], created.id)
+
+        updated = svc.update_connection(
+            ru,
+            created.id,
+            OIDCConnectionUpdate(issuer="https://idp.example.com/", client_id="other"),
+            BASE_URL,
+        )
+        assert updated.discovery_fetched_at is not None
+        assert updated.token_endpoint == self.ENDPOINTS["token_endpoint"]
+
+    def test_issuer_change_keeps_hand_set_endpoints(self, test_tenant, test_super_admin_user):
+        """A never-discovered connection's endpoints were set by hand: keep them."""
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(issuer="https://new-idp.example.com"), BASE_URL
+        )
+        assert updated.token_endpoint == self.ENDPOINTS["token_endpoint"]
+
+    def test_entra_tenant_change_recomposes_authority(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru,
+            _create_data(provider_type="entra", issuer=None, entra_tenant_id="old.example.com"),
+            BASE_URL,
+        )
+        assert "old.example.com" in created.issuer
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(entra_tenant_id="new.example.com"), BASE_URL
+        )
+        assert updated.entra_tenant_id == "new.example.com"
+        assert updated.issuer == "https://login.microsoftonline.com/new.example.com/v2.0"
+        assert updated.discovery_url and "new.example.com" in updated.discovery_url
+
+    def test_entra_multi_tenant_refused_on_update(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru,
+            _create_data(provider_type="entra", issuer=None, entra_tenant_id="old.example.com"),
+            BASE_URL,
+        )
+        with pytest.raises(ValidationError):
+            svc.update_connection(
+                ru, created.id, OIDCConnectionUpdate(entra_tenant_id="common"), BASE_URL
+            )
+
+    def test_gitlab_issuer_override_follows_discovery(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru, _create_data(provider_type="gitlab", issuer=None), BASE_URL
+        )
+        assert created.discovery_url == "https://gitlab.com/.well-known/openid-configuration"
+
+        moved = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(issuer="https://git.example.com"), BASE_URL
+        )
+        assert moved.issuer == "https://git.example.com"
+        assert moved.discovery_url is None
+
+        back = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(issuer="https://gitlab.com"), BASE_URL
+        )
+        assert back.discovery_url == "https://gitlab.com/.well-known/openid-configuration"
+
+    def test_hosted_domain_blank_clears(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru,
+            _create_data(provider_type="google", issuer=None, hosted_domain="example.com"),
+            BASE_URL,
+        )
+        assert created.hosted_domain == "example.com"
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(hosted_domain=""), BASE_URL
+        )
+        assert updated.hosted_domain is None

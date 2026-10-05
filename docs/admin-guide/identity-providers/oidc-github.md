@@ -81,10 +81,10 @@ GitHub has no sign-out endpoint and no back-channel logout, so the related setti
 :   The callback URL on the GitHub app does not exactly match WeftID's. Copy it again from the connection's Details tab. Test Connection reports this too.
 
 **Test Connection: "GitHub rejected the client ID or client secret"**
-:   The client ID or secret is wrong, or the secret was deleted on GitHub. Generate a new secret and set it on the connection through the API (see [Changing credentials later](oidc-setup.md#changing-credentials-later)).
+:   The client ID or secret is wrong, or the secret was deleted on GitHub. Generate a new secret and set it on the connection (see [Changing credentials later](oidc-setup.md#changing-credentials-later)).
 
 **Users see "not a member of an organization that can sign in here" although they are**
 :   Their membership is private and the connection lacks the `read:org` scope, or the organization restricts OAuth app access and has not approved the app. See [Allowed organizations](#allowed-organizations).
 
 **Sign-in fails and the event log shows `github_api`**
-:   A GitHub API call failed after the user authorized the app. A missing `user:email` scope is the usual cause. Check the connection's `scopes` through the API (the Details tab does not show them).
+:   A GitHub API call failed after the user authorized the app. A missing `user:email` scope is the usual cause. Check the connection's scopes on its **Details** tab.

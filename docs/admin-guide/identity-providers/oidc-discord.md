@@ -55,7 +55,7 @@ Discord has no sign-out endpoint and no back-channel logout, so the related sett
 :   The callback URL in the Discord application's **Redirects** does not exactly match WeftID's. Copy it again from the connection's Details tab.
 
 **Test Connection: "Discord rejected the client ID or client secret"**
-:   The client ID or secret is wrong, or the secret was reset in the Developer Portal. Reset it again and set the new one on the connection through the API (see [Changing credentials later](oidc-setup.md#changing-credentials-later)).
+:   The client ID or secret is wrong, or the secret was reset in the Developer Portal. Reset it again and set the new one on the connection (see [Changing credentials later](oidc-setup.md#changing-credentials-later)).
 
 **New users are not created**
 :   Their Discord email address is unverified, so WeftID has no address to create the account with. The event log shows a failed sign-in. The user verifies their email in Discord's settings and signs in again.

@@ -64,13 +64,17 @@ Once the test passes, check **Enabled** under **Settings** and click **Save Sett
 
 ## Changing credentials later
 
-The **Details** tab edits the connection's name, settings, manual endpoints (Generic OIDC), allowed organizations (GitHub), and signing key (Apple). The issuer, discovery URL, client ID, client secret, scopes, correlation claim, hosted domain and Entra tenant ID are set when the connection is created. To change one of them afterwards, for example to rotate an expiring client secret, use the API:
+To rotate an expiring client secret or change another credential, click the pencil next to **Client ID** on the **Details** tab. The form holds the fields that apply to the provider:
 
-```
-PATCH /api/v1/oidc-upstream/connections/{connection_id}
-```
+* Client ID, client secret and scopes (every provider; Apple has no client secret)
+* Issuer (Generic OIDC and GitLab)
+* Discovery URL and correlation claim (Generic OIDC)
+* Entra tenant ID (Entra ID)
+* Hosted domain (Google)
 
-Send only the fields to change, such as `{"client_secret": "..."}`. See the [API overview](../../api/index.md) for authentication.
+A blank field keeps its current value, so the client secret stays as it is unless you type a new one. The hosted domain is the exception: clearing it lets any Google account sign in. When the issuer or discovery URL changes, WeftID drops the endpoints it discovered from the old one and discovers again at the next sign-in. Run **Test Connection** to check the new values straight away.
+
+The same fields can be changed through the API with `PATCH /api/v1/oidc-upstream/connections/{connection_id}`, sending only the fields to change. See the [API overview](../../api/index.md) for authentication.
 
 ### Keeping endpoints current
 

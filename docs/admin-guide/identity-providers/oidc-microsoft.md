@@ -36,7 +36,7 @@ The Entra preset correlates on `oid`, but personal-account tokens do not carry o
 
 ## Client secret expiry
 
-Client secrets expire (the portal defaults to six months). When a secret expires, sign-in through the connection fails at the token exchange. Create a new secret before the old one expires and set it on the connection through the API (see [Changing credentials later](oidc-setup.md#changing-credentials-later)).
+Client secrets expire (the portal defaults to six months). When a secret expires, sign-in through the connection fails at the token exchange. Create a new secret before the old one expires and set it on the connection (see [Changing credentials later](oidc-setup.md#changing-credentials-later)).
 
 ## Email linking
 

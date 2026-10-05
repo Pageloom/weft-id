@@ -16,9 +16,9 @@ Clicking **Deny** never records anything. You will see the screen again on the n
 
 ## Revoking an application
 
-Click **Revoke** next to an application and confirm. From then on, the application's next sign-in attempt shows the consent screen again, so you can decide afresh.
+Click **Revoke** next to an application and confirm. The application loses access to your account right away: the tokens WeftID issued to it stop working, and an application that supports back-channel logout is told to sign you out. Its next sign-in attempt shows the consent screen again, so you can decide afresh.
 
-Revoking does not sign you out of the application or cancel access tokens it already holds. Those expire on their own schedule. If you need an application cut off immediately, contact your administrator, who can deactivate it.
+Revoking does not sign you out of WeftID or of other applications.
 
 ## What administrators can see
 

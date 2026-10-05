@@ -646,6 +646,7 @@ def list_sync_log(
         items=[_row_to_sync_log(row) for row in rows],
         total=total,
         page=page,
+        limit=page_size,
         page_size=page_size,
     )
 

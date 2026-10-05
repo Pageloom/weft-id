@@ -89,7 +89,7 @@ def _empty_credentials():
 
 
 def _empty_sync_log():
-    return ScimSyncLogList(items=[], total=0, page=1, page_size=50)
+    return ScimSyncLogList(items=[], total=0, page=1, limit=50, page_size=50)
 
 
 def _queue_status(sp_id):

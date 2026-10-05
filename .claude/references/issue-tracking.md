@@ -82,6 +82,13 @@ Order of work: draft advisories always first, whatever their severity (a low
 advisory outranks a critical bug). Then `security` issues, then `bug`, each by
 severity (critical first), then `enhancement` by priority.
 
+**Deferred advisories.** Advisories have no labels and no "deferred" state, so a
+draft the user has chosen to put off carries a `[Deferred]` prefix on its
+summary and a dated status line at the top of its description. It stays a
+draft. A deferred advisory does not take precedence: list it last, after the
+issues, and work it only when the user picks it. Deferring is the user's
+decision. To resume one, remove the prefix and the status line.
+
 ## Resolving
 
 - **Issue:** put `Fixes #<number>` in the commit message body, so the issue

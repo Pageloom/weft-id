@@ -49,10 +49,10 @@ does, prerequisites, and lifecycle details.
 
 In the **Admin Credentials** section:
 
-* **Tenant URL** -- paste the SCIM base URL from step 1 of the
+* **Tenant URL**: paste the SCIM base URL from step 1 of the
   WeftID side (form
   `https://<tenant-subdomain>.weftid.com/scim/v2/inbound/<idp-id>/`).
-* **Secret Token** -- paste the plaintext bearer token from step 1.
+* **Secret Token**: paste the plaintext bearer token from step 1.
 
 Click **Test Connection**. Entra runs a probe against the
 ServiceProviderConfig and Users endpoints. You should see "The
@@ -72,7 +72,7 @@ fields.
 
 In the **Mappings** section:
 
-1. **Provision Microsoft Entra ID Users** -- click in. Verify:
+1. **Provision Microsoft Entra ID Users**: click in. Verify:
 
    * `userPrincipalName` maps to `userName`.
    * `Switch([IsSoftDeleted], , "False", "True", "True", "False")`
@@ -82,7 +82,7 @@ In the **Mappings** section:
    * Standard name, email, and Enterprise User extension attributes
      (`employeeId`, `department`, `manager`) map to their SCIM
      equivalents.
-2. **Provision Microsoft Entra ID Groups** -- click in. Verify:
+2. **Provision Microsoft Entra ID Groups**: click in. Verify:
 
    * `displayName` maps to `displayName`.
    * `objectId` maps to `externalId`.

@@ -288,8 +288,17 @@ def _bullets(reports: list[ProfileReport], attr: str) -> list[str]:
         for name, comment in getattr(report, attr):
             profiles.setdefault((name, comment), []).append(report.run.profile)
     return [
-        f"* `{name}` ({', '.join(names)}): {comment}" for (name, comment), names in profiles.items()
+        f"* `{name}` ({', '.join(names)}): {_sentence(comment)}"
+        for (name, comment), names in profiles.items()
     ]
+
+
+def _sentence(comment: str) -> str:
+    """End a reason with a full stop so every bullet reads the same."""
+    comment = comment.strip()
+    if comment and not comment.endswith((".", "!", "?")):
+        comment += "."
+    return comment
 
 
 def render_markdown(reports: list[ProfileReport], weftid: str) -> str:

@@ -5,7 +5,7 @@
             "response_mode": "default"
         },
         "configuration-filename": "*config.json",
-        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims."
     },
     {
         "test-name": "oidcc-scope-phone",
@@ -13,7 +13,7 @@
             "response_mode": "default"
         },
         "configuration-filename": "*config.json",
-        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims."
     },
     {
         "test-name": "oidcc-scope-all",
@@ -21,7 +21,7 @@
             "response_mode": "default"
         },
         "configuration-filename": "*config.json",
-        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims."
     },
     {
         "test-name": "oidcc-scope-address",
@@ -29,7 +29,7 @@
             "response_mode": "form_post"
         },
         "configuration-filename": "*config.json",
-        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims."
     },
     {
         "test-name": "oidcc-scope-phone",
@@ -37,7 +37,7 @@
             "response_mode": "form_post"
         },
         "configuration-filename": "*config.json",
-        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims."
     },
     {
         "test-name": "oidcc-scope-all",
@@ -45,7 +45,7 @@
             "response_mode": "form_post"
         },
         "configuration-filename": "*config.json",
-        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims"
+        "comment": "Address and phone scopes are not advertised; WeftID has no attributes to populate their claims."
     },
     {
         "test-name": "oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported",
@@ -101,6 +101,6 @@
             "response_type": "code"
         },
         "configuration-filename": "*rp-config.json",
-        "comment": "RP plans (Basic and Config): the upstream connector accepts RS256-signed ID tokens only, so it refuses the unsigned (alg none) one and never calls userinfo. The suite records that as SKIPPED: RPs are not required to accept alg none."
+        "comment": "The upstream connector accepts RS256-signed ID tokens only, so it refuses the unsigned (alg none) one and never calls userinfo. The suite records that as SKIPPED: RPs are not required to accept alg none."
     }
 ]

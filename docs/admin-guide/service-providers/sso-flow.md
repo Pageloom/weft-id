@@ -45,9 +45,9 @@ Each SAML assertion is cached by its unique ID after processing. If the same ass
 
 The SAML assertion contains:
 
-- **Issuer** -- WeftID's entity ID (unique per SP connection)
-- **NameID** -- User identifier in the configured format (email, persistent, or transient)
-- **Attributes** -- Email, first name, last name, display name, and optionally group memberships (filtered by the effective [group assertion scope](attribute-mapping.md#group-assertion-scope))
-- **Session index** -- Unique session identifier for [Single Logout](slo.md) correlation
-- **Signature** -- Signed with the SP's per-SP signing certificate
-- **Encryption** -- If the application provides an encryption certificate, the signed assertion is encrypted (AES-256-CBC or AES-256-GCM, RSA-OAEP key transport). See [Assertion Encryption](attribute-mapping.md#assertion-encryption).
+- **Issuer**: WeftID's entity ID (unique per SP connection)
+- **NameID**: User identifier in the configured format (email, persistent, or transient)
+- **Attributes**: Email, first name, last name, display name, and optionally group memberships (filtered by the effective [group assertion scope](attribute-mapping.md#group-assertion-scope))
+- **Session index**: Unique session identifier for [Single Logout](slo.md) correlation
+- **Signature**: Signed with the SP's per-SP signing certificate
+- **Encryption**: If the application provides an encryption certificate, the signed assertion is encrypted (AES-256-CBC or AES-256-GCM, RSA-OAEP key transport). See [Assertion Encryption](attribute-mapping.md#assertion-encryption).

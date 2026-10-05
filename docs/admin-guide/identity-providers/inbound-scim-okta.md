@@ -45,16 +45,16 @@ for WeftID. You do not need a separate app for SCIM provisioning.
 5. A new **Provisioning** tab appears. Click it.
 6. Under **SCIM Connection**, click **Edit** and fill in:
 
-   * **SCIM connector base URL** -- paste the SCIM base URL from
+   * **SCIM connector base URL**: paste the SCIM base URL from
      step 1 of the WeftID side (form
      `https://<tenant-subdomain>.weftid.com/scim/v2/inbound/<idp-id>/`).
-   * **Unique identifier field for users** -- `userName`.
-   * **Supported provisioning actions** -- check all four (Push New
+   * **Unique identifier field for users**: `userName`.
+   * **Supported provisioning actions**: check all four (Push New
      Users, Push Profile Updates, Push Groups, Import New Users and
      Profile Updates is optional; WeftID supports the read endpoints
      either way).
-   * **Authentication Mode** -- `HTTP Header`.
-   * **HTTP Header > Authorization** -- paste the plaintext bearer
+   * **Authentication Mode**: `HTTP Header`.
+   * **HTTP Header > Authorization**: paste the plaintext bearer
      token from step 1.
 7. Click **Test Connector Configuration**. Okta probes the SCIM
    endpoint; you should see a green check on each test. If any test

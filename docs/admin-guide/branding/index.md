@@ -12,8 +12,8 @@ Set a custom title displayed in the browser tab and navigation bar. Leave empty 
 
 Choose between two modes:
 
-- **Auto-generated mandala** -- A unique geometric pattern derived from your tenant ID. Click **Randomize** to pick a different design.
-- **Custom logo** -- Upload your own logo. Requires at least a light-mode logo.
+- **Auto-generated mandala**: A unique geometric pattern derived from your tenant ID. Click **Randomize** to pick a different design.
+- **Custom logo**: Upload your own logo. Requires at least a light-mode logo.
 
 Your logo and organization name also appear in the header of all emails sent to users (invitations, verification codes, notifications).
 
@@ -21,8 +21,8 @@ Your logo and organization name also appear in the header of all emails sent to 
 
 Upload logos for light and dark backgrounds separately. Supported formats:
 
-- **PNG** -- Square, minimum 48x48 pixels, maximum 256 KB
-- **SVG** -- Maximum 256 KB, sanitized for security (no scripts or external entities)
+- **PNG**: Square, minimum 48x48 pixels, maximum 256 KB
+- **SVG**: Maximum 256 KB, sanitized for security (no scripts or external entities)
 
 You can also use your logo as the browser favicon.
 
@@ -32,8 +32,8 @@ You can also use your logo as the browser favicon.
 
 Choose how group avatars appear across the application:
 
-- **Acronym** -- Colored circle with the group's initials
-- **Mandala** -- Unique geometric pattern derived from the group ID
+- **Acronym**: Colored circle with the group's initials
+- **Mandala**: Unique geometric pattern derived from the group ID
 
 Individual groups can have a custom logo uploaded from the group's detail page, overriding the default style.
 

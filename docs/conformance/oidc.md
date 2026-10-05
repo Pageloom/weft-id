@@ -34,20 +34,20 @@ WeftID **passes the OpenID Foundation conformance suite** for the Basic OP, Conf
 
 **Accepted warnings** (each is a deviation listed below):
 
-* `oidcc-scope-profile` (Basic OP, Form Post OP, private_key_jwt clients): WeftID has no attributes for nickname, picture, website, gender, birthdate, middle_name, preferred_username, or profile; absent claims are omitted, never null (OIDC Core 5.1)
-* `oidcc-ensure-request-with-acr-values-succeeds` (Basic OP, Form Post OP, private_key_jwt clients): WeftID defines no authentication context classes and emits no acr claim; the suite warns when acr_values was requested (SHOULD)
-* `oidcc-claims-essential` (Basic OP, Form Post OP, private_key_jwt clients): The claims request parameter is not supported (claims_parameter_supported=false); claims are released by scope only, so name is absent without the profile scope (SHOULD)
+* `oidcc-scope-profile` (Basic OP, Form Post OP, private_key_jwt clients): WeftID has no attributes for nickname, picture, website, gender, birthdate, middle_name, preferred_username, or profile; absent claims are omitted, never null (OIDC Core 5.1).
+* `oidcc-ensure-request-with-acr-values-succeeds` (Basic OP, Form Post OP, private_key_jwt clients): WeftID defines no authentication context classes and emits no acr claim; the suite warns when acr_values was requested (SHOULD).
+* `oidcc-claims-essential` (Basic OP, Form Post OP, private_key_jwt clients): The claims request parameter is not supported (claims_parameter_supported=false); claims are released by scope only, so name is absent without the profile scope (SHOULD).
 
 **Expected skips:**
 
-* `oidcc-scope-address` (Basic OP, Form Post OP, private_key_jwt clients): Address and phone scopes are not advertised; WeftID has no attributes to populate their claims
-* `oidcc-scope-phone` (Basic OP, Form Post OP, private_key_jwt clients): Address and phone scopes are not advertised; WeftID has no attributes to populate their claims
-* `oidcc-scope-all` (Basic OP, Form Post OP, private_key_jwt clients): Address and phone scopes are not advertised; WeftID has no attributes to populate their claims
+* `oidcc-scope-address` (Basic OP, Form Post OP, private_key_jwt clients): Address and phone scopes are not advertised; WeftID has no attributes to populate their claims.
+* `oidcc-scope-phone` (Basic OP, Form Post OP, private_key_jwt clients): Address and phone scopes are not advertised; WeftID has no attributes to populate their claims.
+* `oidcc-scope-all` (Basic OP, Form Post OP, private_key_jwt clients): Address and phone scopes are not advertised; WeftID has no attributes to populate their claims.
 * `oidcc-unsigned-request-object-supported-correctly-or-rejected-as-unsupported` (Basic OP, Form Post OP, private_key_jwt clients): Only signed request objects are accepted; request_object_signing_alg_values_supported does not list none, so the suite skips the unsigned-request-object module.
 * `oidcc-ensure-request-object-with-redirect-uri` (Basic OP, Form Post OP, private_key_jwt clients, Dynamic OP): The module sends an unsigned request object; request_object_signing_alg_values_supported does not list none (only signed request objects are accepted), so the suite skips it.
 * `oidcc-idtoken-unsigned` (Dynamic OP): ID tokens are always signed; id_token_signing_alg_values_supported does not list none, so the suite skips the unsigned ID token module.
 * `oidcc-request-uri-unsigned` (Dynamic OP): Only signed request objects are accepted; request_object_signing_alg_values_supported does not list none, so the suite skips the unsigned request_uri module.
-* `oidcc-client-test-idtoken-sig-none` (Basic RP, Config RP): RP plans (Basic and Config): the upstream connector accepts RS256-signed ID tokens only, so it refuses the unsigned (alg none) one and never calls userinfo. The suite records that as SKIPPED: RPs are not required to accept alg none.
+* `oidcc-client-test-idtoken-sig-none` (Basic RP, Config RP): The upstream connector accepts RS256-signed ID tokens only, so it refuses the unsigned (alg none) one and never calls userinfo. The suite records that as SKIPPED: RPs are not required to accept alg none.
 
 **Review** means the suite captured a screenshot (an error page, a second login page, or the consent page) for a person to judge, because it cannot judge page content itself:
 

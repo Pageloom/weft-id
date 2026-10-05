@@ -20,17 +20,17 @@ Plain OAuth2 apps (OIDC disabled) are unaffected by both changes.
 
 Once OIDC is enabled, the app detail page shows the read-only **endpoint URLs** for your tenant. Copy these into your downstream application. Most OIDC client libraries need only the discovery URL and will fetch the rest automatically.
 
-* **Issuer** -- `https://<your-tenant-host>`
-* **Discovery URL** -- `https://<your-tenant-host>/.well-known/openid-configuration`
-* **JWKS URI** -- `https://<your-tenant-host>/.well-known/jwks.json` (public keys for verifying ID token signatures)
-* **Authorization endpoint** -- `https://<your-tenant-host>/oauth2/authorize`
-* **Token endpoint** -- `https://<your-tenant-host>/oauth2/token`
-* **UserInfo endpoint** -- `https://<your-tenant-host>/userinfo`
-* **End session endpoint** -- `https://<your-tenant-host>/oauth2/logout` (see [Signing out](#signing-out))
-* **Introspection endpoint** -- `https://<your-tenant-host>/oauth2/introspect` (see [Token Introspection and Revocation](token-introspection.md))
-* **Revocation endpoint** -- `https://<your-tenant-host>/oauth2/revoke`
-* **Device authorization endpoint** -- `https://<your-tenant-host>/oauth2/device_authorization` (see [Device Sign-In](device-sign-in.md))
-* **Pushed authorization request endpoint** -- `https://<your-tenant-host>/oauth2/par` (see [Pushed authorization requests](#pushed-authorization-requests))
+* **Issuer**: `https://<your-tenant-host>`
+* **Discovery URL**: `https://<your-tenant-host>/.well-known/openid-configuration`
+* **JWKS URI**: `https://<your-tenant-host>/.well-known/jwks.json` (public keys for verifying ID token signatures)
+* **Authorization endpoint**: `https://<your-tenant-host>/oauth2/authorize`
+* **Token endpoint**: `https://<your-tenant-host>/oauth2/token`
+* **UserInfo endpoint**: `https://<your-tenant-host>/userinfo`
+* **End session endpoint**: `https://<your-tenant-host>/oauth2/logout` (see [Signing out](#signing-out))
+* **Introspection endpoint**: `https://<your-tenant-host>/oauth2/introspect` (see [Token Introspection and Revocation](token-introspection.md))
+* **Revocation endpoint**: `https://<your-tenant-host>/oauth2/revoke`
+* **Device authorization endpoint**: `https://<your-tenant-host>/oauth2/device_authorization` (see [Device Sign-In](device-sign-in.md))
+* **Pushed authorization request endpoint**: `https://<your-tenant-host>/oauth2/par` (see [Pushed authorization requests](#pushed-authorization-requests))
 
 The issuer and every endpoint are scoped to your tenant host. A relying party configured against one tenant's issuer can never receive another tenant's keys or claims.
 
@@ -67,10 +67,10 @@ An app can sign the user out of WeftID by sending the browser to the **end sessi
 
 The endpoint accepts `GET` and `POST` with these parameters:
 
-* `id_token_hint` -- an ID token WeftID issued to your app for this user (an expired one is fine). Strongly recommended.
-* `post_logout_redirect_uri` -- where to send the user afterwards. Must exactly match one of the app's **Post-logout redirect URIs**.
-* `state` -- any value; it is passed back to the `post_logout_redirect_uri`.
-* `client_id` -- optional; must match the `id_token_hint` when both are sent.
+* `id_token_hint`: an ID token WeftID issued to your app for this user (an expired one is fine). Strongly recommended.
+* `post_logout_redirect_uri`: where to send the user afterwards. Must exactly match one of the app's **Post-logout redirect URIs**.
+* `state`: any value; it is passed back to the `post_logout_redirect_uri`.
+* `client_id`: optional; must match the `id_token_hint` when both are sent.
 
 What happens:
 
@@ -119,10 +119,10 @@ WeftID gates released claims by the scopes a relying party **requests** at autho
 
 Supported scopes and the claims they release:
 
-* `openid` -- required for an ID token. Releases the envelope claims: `sub` (the stable WeftID user id, never the email, or a [pairwise identifier](pairwise-subjects.md) for an app set to pairwise), `iss`, `aud`, `exp`, `iat`, `auth_time`, `nonce` (when supplied), and `sid` (the WeftID session the user signed in with).
-* `profile` -- `name`, `given_name`, `family_name`, `locale`, `zoneinfo`, `updated_at`. Claims WeftID has no data for (such as `nickname`, `picture`, or `birthdate`) are left out, never sent empty.
-* `email` -- `email`, `email_verified`.
-* `groups` -- `groups`, the user's effective group memberships (see below).
+* `openid`: required for an ID token. Releases the envelope claims: `sub` (the stable WeftID user id, never the email, or a [pairwise identifier](pairwise-subjects.md) for an app set to pairwise), `iss`, `aud`, `exp`, `iat`, `auth_time`, `nonce` (when supplied), and `sid` (the WeftID session the user signed in with).
+* `profile`: `name`, `given_name`, `family_name`, `locale`, `zoneinfo`, `updated_at`. Claims WeftID has no data for (such as `nickname`, `picture`, or `birthdate`) are left out, never sent empty.
+* `email`: `email`, `email_verified`.
+* `groups`: `groups`, the user's effective group memberships (see below).
 
 The ID token carries only the `openid` envelope claims. The `profile`, `email`, and `groups` claims come from the **UserInfo endpoint**, called with the access token from the same token response. This follows OpenID Connect Core section 5.4 for the authorization code flow, and it keeps personal data out of a token that the app may pass on to other parties. Most OIDC client libraries call UserInfo automatically after sign-in.
 
@@ -136,8 +136,8 @@ When the `groups` scope is granted, the UserInfo response includes a `groups` cl
 
 OIDC-enabled apps enforce access control at sign-in, mirroring the [SAML service provider](../service-providers/index.md) model:
 
-* **Group-based access** (default) -- Only members of assigned groups, and members of their descendant groups, can sign in. Assign groups in the **Assigned Groups** panel on the app detail page.
-* **Available to all users** -- Every active tenant user can sign in. Toggle this in the **Access Mode** panel. Group assignments remain visible but are organizational only.
+* **Group-based access** (default): Only members of assigned groups, and members of their descendant groups, can sign in. Assign groups in the **Assigned Groups** panel on the app detail page.
+* **Available to all users**: Every active tenant user can sign in. Toggle this in the **Access Mode** panel. Group assignments remain visible but are organizational only.
 
 A denied user sees an access-denied error instead of the consent screen and is never issued a code or token. Denials are recorded in the audit log.
 
@@ -145,13 +145,13 @@ A denied user sees an access-denied error instead of the consent screen and is n
 
 Everything above is available through the REST API under `/api/v1/oauth2/clients/{client_id}`:
 
-* `PATCH /{client_id}/oidc` -- toggle `oidc_enabled` and/or `available_to_all`.
-* `GET /{client_id}/oidc/urls` -- fetch the discovery/JWKS/endpoint URLs.
-* `GET /{client_id}/groups` -- list assigned groups.
-* `POST /{client_id}/groups` -- assign a group (`{"group_id": "..."}`).
-* `POST /{client_id}/groups/bulk` -- assign several groups (`{"group_ids": [...]}`).
-* `DELETE /{client_id}/groups/{group_id}` -- remove a group assignment.
-* `GET /{client_id}/backchannel-logout-deliveries` -- list back-channel logout deliveries, newest first.
+* `PATCH /{client_id}/oidc`: toggle `oidc_enabled` and/or `available_to_all`.
+* `GET /{client_id}/oidc/urls`: fetch the discovery/JWKS/endpoint URLs.
+* `GET /{client_id}/groups`: list assigned groups.
+* `POST /{client_id}/groups`: assign a group (`{"group_id": "..."}`).
+* `POST /{client_id}/groups/bulk`: assign several groups (`{"group_ids": [...]}`).
+* `DELETE /{client_id}/groups/{group_id}`: remove a group assignment.
+* `GET /{client_id}/backchannel-logout-deliveries`: list back-channel logout deliveries, newest first.
 
 Redirect URIs, post-logout redirect URIs, and front- and back-channel logout are managed through the existing `PATCH /{client_id}` endpoint (`redirect_uris`, `post_logout_redirect_uris`, `frontchannel_logout_uri`, `frontchannel_logout_session_required`, `backchannel_logout_uri`, `backchannel_logout_session_required`).
 
@@ -159,9 +159,9 @@ Redirect URIs, post-logout redirect URIs, and front- and back-channel logout are
 
 WeftID signs ID tokens with a per-tenant RSA key, published at the JWKS URI. The key is provisioned automatically the first time it is needed; no setup is required. Operators can inspect and rotate it under `/api/v1/oidc/signing-key`:
 
-* `GET /api/v1/oidc/signing-key` -- current key metadata: `kid`, `algorithm`, `created_at`, plus the retired key's `previous_kid` and `rotation_grace_period_ends_at` while a rotation is in its grace window. Admin role required. No key material is ever returned.
-* `POST /api/v1/oidc/signing-key/rotate` -- generate a new signing key. Optional body `{"grace_period_hours": 24}` (1 to 720) controls how long the retired key stays published in the JWKS so relying parties can still verify in-flight ID tokens. Rotation is refused while a prior rotation is still within its grace period. Super admin role required.
-* `POST /api/v1/oidc/signing-key/cleanup` -- remove the retired key immediately after its grace period has ended, without waiting for the automatic sweep. A key still within its grace window is never removed. Super admin role required.
+* `GET /api/v1/oidc/signing-key`: current key metadata: `kid`, `algorithm`, `created_at`, plus the retired key's `previous_kid` and `rotation_grace_period_ends_at` while a rotation is in its grace window. Admin role required. No key material is ever returned.
+* `POST /api/v1/oidc/signing-key/rotate`: generate a new signing key. Optional body `{"grace_period_hours": 24}` (1 to 720) controls how long the retired key stays published in the JWKS so relying parties can still verify in-flight ID tokens. Rotation is refused while a prior rotation is still within its grace period. Super admin role required.
+* `POST /api/v1/oidc/signing-key/cleanup`: remove the retired key immediately after its grace period has ended, without waiting for the automatic sweep. A key still within its grace window is never removed. Super admin role required.
 
 New tokens are signed with the new key as soon as the rotation completes. Relying parties that fetch keys from the JWKS URI (the normal case) pick up the change automatically. A background sweep removes retired keys once their grace period lapses; rotations and cleanups are recorded in the audit log.
 

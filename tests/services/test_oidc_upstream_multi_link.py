@@ -611,3 +611,103 @@ class TestUnlinkOneOfSeveral:
         with pytest.raises(NotFoundError) as exc_info:
             svc.unlink_user_from_connection(requesting, str(test_user["id"]), "bad")
         assert exc_info.value.code == "oidc_connection_not_found"
+
+
+# =============================================================================
+# Email linking onto an unconfirmed address (pre-hijacking)
+# =============================================================================
+
+
+class TestEmailLinkUnconfirmedAddress:
+    def test_refused_when_account_already_signs_in_elsewhere(
+        self, test_tenant, test_super_admin_user, test_user
+    ):
+        """An unconfirmed JIT account must not absorb another provider's identity.
+
+        Someone signs up through Facebook with the victim's address and never
+        confirms it. The victim then signs in with Google: linking would give
+        the Facebook account holder the victim's sign-in.
+        """
+        import database
+        from services import oidc_upstream as svc
+
+        squatter_conn = _make_connection(test_tenant, test_super_admin_user, name="Squat")
+        google = _make_connection(
+            test_tenant, test_super_admin_user, name="Google", allow_email_linking=True
+        )
+        _link(test_tenant, squatter_conn, test_user, sub="squatter-sub")
+        database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+
+        with pytest.raises(ForbiddenError) as exc_info:
+            svc.authenticate_via_oidc(
+                test_tenant["id"], google, "victim-sub", _claims(email=test_user["email"])
+            )
+
+        assert exc_info.value.code == "oidc_email_unconfirmed"
+        assert _link_row(test_tenant, google, "victim-sub") is None
+        row = database.user_emails.get_primary_email_for_resend(
+            test_tenant["id"], str(test_user["id"])
+        )
+        assert row["verified_at"] is None
+        refused = _events(test_tenant, "oidc_login_refused", test_user["id"])
+        assert [e["metadata"]["reason"] for e in refused] == ["email_unconfirmed"]
+        assert refused[0]["metadata"]["sub"] == "victim-sub"
+        assert _events(test_tenant, "email_verified", test_user["id"]) == []
+
+    def test_invited_account_without_links_is_linked_and_verified(
+        self, test_tenant, test_super_admin_user, test_user
+    ):
+        """An admin-created account (no sign-in yet) is linked; the provider proves the address."""
+        import database
+        from services import oidc_upstream as svc
+
+        google = _make_connection(test_tenant, test_super_admin_user, allow_email_linking=True)
+        database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+
+        user = svc.authenticate_via_oidc(
+            test_tenant["id"], google, "g-sub", _claims(email=test_user["email"])
+        )
+
+        assert str(user["id"]) == str(test_user["id"])
+        assert _link_row(test_tenant, google, "g-sub") is not None
+        row = database.user_emails.get_primary_email_for_resend(
+            test_tenant["id"], str(test_user["id"])
+        )
+        assert row["verified_at"] is not None
+        verified = _events(test_tenant, "email_verified", test_user["id"])
+        assert len(verified) == 1
+        assert verified[0]["metadata"]["flow"] == "oidc_email_linking"
+        assert verified[0]["metadata"]["email_id"] == str(row["id"])
+
+
+# =============================================================================
+# Unlink: authorization and tenant isolation
+# =============================================================================
+
+
+class TestUnlinkAuthorization:
+    @pytest.mark.parametrize("role", ["admin", "member"])
+    def test_requires_super_admin(self, role, test_tenant, test_super_admin_user, test_user):
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(test_tenant, test_super_admin_user)
+        _link(test_tenant, conn, test_user)
+        requesting = _requesting(test_user, test_tenant["id"], role)
+
+        with pytest.raises(ForbiddenError):
+            svc.unlink_user_from_connection(requesting, str(test_user["id"]), str(conn["id"]))
+        assert _link_row(test_tenant, conn, "subject-123") is not None
+
+    def test_tenant_isolation(self, test_tenant, test_super_admin_user, test_user, second_tenant):
+        """A super admin of another tenant cannot unlink this tenant's user."""
+        from services import oidc_upstream as svc
+
+        conn = _make_connection(test_tenant, test_super_admin_user)
+        _link(test_tenant, conn, test_user)
+        other = RequestingUser(
+            id=str(uuid4()), tenant_id=str(second_tenant["id"]), role="super_admin"
+        )
+
+        with pytest.raises(NotFoundError):
+            svc.unlink_user_from_connection(other, str(test_user["id"]), str(conn["id"]))
+        assert _link_row(test_tenant, conn, "subject-123") is not None

@@ -69,11 +69,11 @@ nav:
       - OIDC (Microsoft personal accounts): admin-guide/identity-providers/oidc-microsoft.md
       - OIDC (LinkedIn): admin-guide/identity-providers/oidc-linkedin.md
       - OIDC (GitLab): admin-guide/identity-providers/oidc-gitlab.md
-      - GitHub: admin-guide/identity-providers/oidc-github.md
-      - Discord: admin-guide/identity-providers/oidc-discord.md
-      - Facebook: admin-guide/identity-providers/oidc-facebook.md
-      - Apple: admin-guide/identity-providers/oidc-apple.md
-      - Sign-In Page Buttons: admin-guide/identity-providers/login-buttons.md
+      - Sign in with GitHub: admin-guide/identity-providers/oidc-github.md
+      - Sign in with Discord: admin-guide/identity-providers/oidc-discord.md
+      - Sign in with Facebook: admin-guide/identity-providers/oidc-facebook.md
+      - Sign in with Apple: admin-guide/identity-providers/oidc-apple.md
+      - Sign-in page buttons: admin-guide/identity-providers/login-buttons.md
       - Account Linking: admin-guide/identity-providers/account-linking.md
       - Inbound SCIM Overview: admin-guide/identity-providers/inbound-scim.md
       - Inbound SCIM (Okta): admin-guide/identity-providers/inbound-scim-okta.md

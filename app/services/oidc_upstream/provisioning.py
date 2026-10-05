@@ -294,6 +294,8 @@ def authenticate_via_oidc(
         _refuse_saml_assigned(tenant_id, user, connection, sub, entry)
         _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
         _sync_groups(tenant_id, str(user["id"]), connection, claims, user)
+        # Bookkeeping for routing (most recently used link), like activity
+        # tracking: the sign-in event below is the audit record.
         database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
         _log_sign_in(tenant_id, str(user["id"]), connection, sub, entry)
         return user
@@ -322,7 +324,35 @@ def authenticate_via_oidc(
                         code="oidc_connection_already_linked",
                     )
                 if not existing.get("email_verified"):
+                    # An unconfirmed address on an account that already signs
+                    # in elsewhere was never proven by its owner (a JIT user
+                    # from an untrusted-email provider who skipped the
+                    # confirmation). Linking would hand this sign-in an
+                    # account someone else controls.
+                    if database.oidc_upstream.list_links_for_user(tenant_id, user_id):
+                        _log_refusal(
+                            tenant_id, user_id, connection, sub, "email_unconfirmed", entry
+                        )
+                        raise ForbiddenError(
+                            message="Matched account has an unconfirmed email address",
+                            code="oidc_email_unconfirmed",
+                        )
+                    # Otherwise an admin created the account for this address
+                    # (an invitation not yet accepted): the provider proves it.
                     database.user_emails.verify_email(tenant_id, str(existing["email_id"]))
+                    log_event(
+                        tenant_id=tenant_id,
+                        actor_user_id=user_id,
+                        artifact_type="user",
+                        artifact_id=user_id,
+                        event_type="email_verified",
+                        metadata={
+                            "email_id": str(existing["email_id"]),
+                            "email": email,
+                            "flow": "oidc_email_linking",
+                            "idp_id": connection_id,
+                        },
+                    )
                 database.oidc_upstream.create_link(
                     tenant_id=tenant_id,
                     tenant_id_value=tenant_id,

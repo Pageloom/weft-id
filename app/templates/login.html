@@ -64,6 +64,16 @@
                 Your sign-in expired. Start again.
                 {% elif error == 'too_many_requests' %}
                 Too many attempts. Wait a few minutes and try again.
+                {% elif error == 'auth_failed' %}
+                Sign-in didn't complete. Try again.
+                {% elif error == 'configuration_error' %}
+                This sign-in option isn't set up correctly. Contact your administrator.
+                {% elif error == 'idp_not_found' %}
+                Sign-in option not found.
+                {% elif error == 'oidc_user_not_found' %}
+                No account found for this sign-in. Contact your administrator.
+                {% elif error == 'account_unconfirmed' %}
+                An account with this email address hasn't been confirmed yet. Contact your administrator.
                 {% else %}
                 {{ error }}
                 {% endif %}

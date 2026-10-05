@@ -401,7 +401,7 @@ class TestAdmin:
     def test_details_tab(self, super_admin_session, test_tenant, test_super_admin_user):
         conn = fx.make_apple_row(test_tenant, test_super_admin_user["id"])
         page = super_admin_session.get(f"/identity-providers/oidc/{conn['id']}/details").text
-        assert "Sign in with Apple Key" in page
+        assert "Apple Signing Key" in page
         assert fx.TEAM_ID in page
         assert fx.KEY_ID in page
         assert "BEGIN PRIVATE KEY" not in page
@@ -423,7 +423,7 @@ class TestAdmin:
             {"id": conn["id"]},
         )
         page = super_admin_session.get(f"/identity-providers/oidc/{conn['id']}/details").text
-        assert "Sign in with Apple Key" not in page
+        assert "Apple Signing Key" not in page
         assert 'id="login-email-code"' in page
 
     def test_edit_key(self, super_admin_session, test_tenant, test_super_admin_user):

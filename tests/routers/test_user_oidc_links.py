@@ -153,7 +153,7 @@ class TestUnlinkRoute:
             f"/users/{test_user['id']}/profile?success=oidc_link_removed",
             headers={"Host": test_tenant_host},
         )
-        assert "Linked sign-in account removed." in response.text
+        assert "Sign-in account unlinked." in response.text
 
     def test_not_linked_redirects_with_error(
         self, super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, test_user

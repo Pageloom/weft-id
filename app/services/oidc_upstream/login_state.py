@@ -109,9 +109,13 @@ def attach_callback_fields(state: str, login_state: LoginState, fields: dict[str
 
     Only :data:`CALLBACK_FIELDS` are kept. A sign-in takes one posted
     callback: returns False when fields are already attached or the store
-    is unavailable.
+    is unavailable, or another post got there first.
     """
     if login_state.callback_fields is not None:
+        return False
+    # Read-then-write is not atomic: a marker that only one post can add
+    # settles two concurrent posts.
+    if not cache.add(_key(state) + ":posted", "1", ttl=LOGIN_STATE_TTL):
         return False
     kept = {name: value for name, value in fields.items() if name in CALLBACK_FIELDS and value}
     updated = LoginState(**{**asdict(login_state), "callback_fields": kept})

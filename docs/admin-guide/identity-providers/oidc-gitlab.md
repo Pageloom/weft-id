@@ -41,7 +41,7 @@ An application can belong to a user, a group, or (on a self-managed instance) th
 
 ## Email linking
 
-GitLab includes `email_verified` in its tokens, so [email linking](oidc-setup.md#allow-email-linking) can match existing accounts when you turn it on. The security trade-off described there still applies.
+GitLab includes `email_verified` in its tokens, so [email linking](oidc-setup.md#allow-email-linking) can match existing accounts when you turn it on. The security trade-off described there still applies. On a self-managed instance, `email_verified` is only as trustworthy as the instance: its administrators can mark any address verified. Turn on email linking only for an instance whose administrators you trust with your WeftID accounts.
 
 ## Groups
 

@@ -43,17 +43,32 @@ The button starts the same flow as email sign-in, and the provider sends the use
 
 So decide who may get in before adding a button. For open sign-up, turn on JIT provisioning. To let only existing users in, leave JIT off. Users assigned to a SAML identity provider are always refused and told to sign in with their email address.
 
-A button does not skip **Require two-step verification**, if the connection has it on.
+A button does not skip **Require Platform Two-Step Verification**, if the connection has it on.
 
 ## Email verification for new users
 
-Whether a new user meets an extra step depends on the provider. The connection's **Show on Sign-In Page** setting tells you which applies.
+Whether a new user meets an extra step depends on the provider. The hint under **Show on Sign-In Page** says which applies.
 
-* **No extra step**: Google, Microsoft Entra ID, LinkedIn, GitLab, GitHub, Discord and Apple only share email addresses they have verified, so a new account's address counts as verified straight away.
+* **No extra step**: WeftID treats email addresses from Google, Microsoft Entra ID, LinkedIn, GitLab, GitHub, Discord and Apple as verified, so a new account's address counts as verified straight away.
 * **Code by email**: Facebook and Microsoft personal accounts do not prove that the user controls the address. A new user must enter a code WeftID sends to it before their first sign-in completes. Until they do, every sign-in through that provider asks for the code again.
-* **Generic OIDC**: no extra step. Whether the address was verified depends on the identity provider.
+* **Generic OIDC**: no extra step. WeftID treats the address as verified, so only turn on JIT provisioning for an identity provider that verifies email addresses.
 
 Apple users may hide their address behind an Apple private relay address. WeftID treats it as verified. To deliver email to it (invitations, sign-in codes), register your sending domain with Apple. See [Apple](oidc-apple.md#private-relay-email-addresses).
+
+## What users may see
+
+When a sign-in through a button does not complete, the sign-in page says why:
+
+* **No account found for this sign-in**: no linked account, no email match, and JIT provisioning is off.
+* **Your account is already linked to a different account at this provider**: see [Account linking](account-linking.md#how-links-are-made).
+* **An account with this email address hasn't been confirmed yet**: see [Account linking](account-linking.md#how-links-are-made).
+* **Your GitHub account is not a member of an organization that can sign in here**: see [GitHub](oidc-github.md).
+* **This account signs in through your organization's single sign-on**: the user is assigned to a SAML identity provider.
+* **Account deactivated**: the WeftID account is deactivated.
+* **Your sign-in expired**: the email confirmation step was interrupted or its code expired. The user starts again.
+* **Too many attempts**: too many sign-ins, confirmation codes or code requests in a short time. The user waits a few minutes. Five wrong confirmation codes also end the sign-in, and the user starts again for a new code.
+* **Sign-in didn't complete**: anything else, such as the user cancelling at the provider or taking longer than ten minutes there. The event log has the reason.
+* **This sign-in option isn't set up correctly**: the provider's configuration could not be loaded. Run **Test connection**.
 
 ## Event log
 

@@ -691,6 +691,61 @@ class TestEnableDisableDefault:
         assert default.is_default is True
         _verify_event_logged(test_tenant["id"], "oidc_idp_connection_set_default", created.id)
 
+    def test_clear_default(self, test_tenant, test_super_admin_user):
+        import database
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+        svc.set_connection_default(ru, created.id, BASE_URL)
+
+        cleared = svc.clear_connection_default(ru, created.id, BASE_URL)
+
+        assert cleared.is_default is False
+        row = database.oidc_upstream.get_connection(test_tenant["id"], created.id)
+        assert row["is_default"] is False
+        _verify_event_logged(test_tenant["id"], "oidc_idp_connection_default_cleared", created.id)
+
+    def test_clear_default_when_not_default_changes_nothing(
+        self, test_tenant, test_super_admin_user
+    ):
+        import database
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+
+        with patch("services.oidc_upstream.connections.log_event") as log_event:
+            result = svc.clear_connection_default(ru, created.id, BASE_URL)
+
+        assert result.is_default is False
+        log_event.assert_not_called()
+        row = database.oidc_upstream.get_connection(test_tenant["id"], created.id)
+        assert row["is_default"] is False
+
+    def test_clear_default_unknown_connection(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        with pytest.raises(NotFoundError):
+            svc.clear_connection_default(ru, str(uuid4()), BASE_URL)
+
+    def test_clear_default_admin_forbidden(
+        self, test_tenant, test_super_admin_user, test_admin_user
+    ):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+        svc.set_connection_default(ru, created.id, BASE_URL)
+
+        with pytest.raises(ForbiddenError):
+            svc.clear_connection_default(
+                _make_requesting_user(test_admin_user, test_tenant["id"], "admin"),
+                created.id,
+                BASE_URL,
+            )
+
     def test_requires_platform_mfa(self, test_tenant, test_super_admin_user):
         from services import oidc_upstream as svc
 

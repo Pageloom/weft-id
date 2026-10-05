@@ -299,6 +299,38 @@ def test_set_default_connection(
     assert response.json()["is_default"] is True
 
 
+def test_clear_default_connection(
+    client, test_tenant_host, oauth2_super_admin_header, created_connection
+):
+    base = f"/api/v1/oidc-upstream/connections/{created_connection['id']}"
+    headers = {"Host": test_tenant_host, **oauth2_super_admin_header}
+    client.post(f"{base}/set-default", headers=headers)
+
+    response = client.post(f"{base}/clear-default", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["is_default"] is False
+    assert client.get(base, headers=headers).json()["is_default"] is False
+
+
+def test_clear_default_connection_not_found(client, test_tenant_host, oauth2_super_admin_header):
+    response = client.post(
+        f"/api/v1/oidc-upstream/connections/{uuid.uuid4()}/clear-default",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+    assert response.status_code == 404
+
+
+def test_clear_default_connection_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header, created_connection
+):
+    response = client.post(
+        f"/api/v1/oidc-upstream/connections/{created_connection['id']}/clear-default",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 403
+
+
 def test_enable_connection_as_admin_forbidden(
     client, test_tenant_host, oauth2_admin_authorization_header, created_connection
 ):

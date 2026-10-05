@@ -133,6 +133,26 @@ class TestSingleDefault:
         assert default is not None
         assert str(default["id"]) == str(a["id"])
 
+    def test_clear_default(self, test_tenant):
+        a = _create_connection(test_tenant, name="A")
+        b = _create_connection(test_tenant, name="B")
+        database.oidc_upstream.set_connection_default(test_tenant["id"], str(a["id"]))
+        database.oidc_upstream.set_connection_enabled(test_tenant["id"], str(a["id"]), True)
+
+        cleared = database.oidc_upstream.clear_connection_default(test_tenant["id"], str(a["id"]))
+
+        assert cleared["is_default"] is False
+        assert database.oidc_upstream.get_default_connection(test_tenant["id"]) is None
+        b_refreshed = database.oidc_upstream.get_connection(test_tenant["id"], str(b["id"]))
+        assert b_refreshed["is_default"] is False
+
+    def test_clear_default_unknown_connection(self, test_tenant):
+        from uuid import uuid4
+
+        assert (
+            database.oidc_upstream.clear_connection_default(test_tenant["id"], str(uuid4())) is None
+        )
+
 
 class TestUserLinks:
     def test_create_and_get_link(self, test_tenant, test_user):

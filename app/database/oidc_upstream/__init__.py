@@ -14,6 +14,7 @@ from database.oidc_upstream.attributes import (
     replace_idp_attributes,
 )
 from database.oidc_upstream.connections import (
+    clear_connection_default,
     create_connection,
     delete_connection,
     get_connection,
@@ -67,6 +68,7 @@ __all__ = [
     "update_connection",
     "set_connection_enabled",
     "set_connection_default",
+    "clear_connection_default",
     "delete_connection",
     "get_enabled_connections",
     "get_default_connection",

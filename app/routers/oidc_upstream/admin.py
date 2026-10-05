@@ -598,6 +598,8 @@ def edit_connection_settings(
 
         if is_default and not connection.is_default:
             oidc_service.set_connection_default(requesting_user, connection_id, base_url)
+        elif not is_default and connection.is_default:
+            oidc_service.clear_connection_default(requesting_user, connection_id, base_url)
 
         oidc_service.update_connection(
             requesting_user,

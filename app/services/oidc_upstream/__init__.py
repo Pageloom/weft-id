@@ -35,6 +35,7 @@ from services.oidc_upstream.auth import (
 )
 from services.oidc_upstream.connections import (
     POST_LOGOUT_PATH,
+    clear_connection_default,
     create_connection,
     decrypt_client_secret,
     delete_connection,
@@ -164,6 +165,7 @@ __all__ = [
     "delete_connection",
     "set_connection_enabled",
     "set_connection_default",
+    "clear_connection_default",
     "test_connection",
     "oidc_connection_requires_platform_mfa",
     "decrypt_client_secret",

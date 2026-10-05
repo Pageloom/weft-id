@@ -3,7 +3,9 @@
 One row per WeftID session (``sid``) that began with a sign-in at an upstream
 OIDC connection, holding the upstream ``sub`` and, when the IdP sent one, the
 upstream ``sid``. A back-channel logout token from that IdP names the upstream
-session; these rows map it to the WeftID sessions to revoke.
+session; these rows map it to the WeftID sessions to revoke. Unlinking a
+user's identity at a connection revokes that user's sessions found here.
+A provider without ID tokens is recorded under the linked subject.
 
 Also the replay store for accepted logout tokens (``jti`` until expiry).
 
@@ -85,6 +87,24 @@ def find_idp_sessions(
         order by created_at
         """,
         {"idp_id": idp_id, "upstream_sid": upstream_sid, "upstream_sub": upstream_sub},
+    )
+
+
+def find_user_idp_sessions(tenant_id: TenantArg, idp_id: str, user_id: str) -> list[dict]:
+    """WeftID sessions of ``user_id`` that began with a sign-in at this connection.
+
+    A user has at most one link per connection, so these are the sessions
+    created through that linked identity.
+    """
+    return fetchall(
+        tenant_id,
+        f"""
+        select {_COLUMNS}
+        from oidc_idp_sessions
+        where idp_id = :idp_id and user_id = :user_id
+        order by created_at
+        """,
+        {"idp_id": idp_id, "user_id": user_id},
     )
 
 

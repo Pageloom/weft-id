@@ -54,7 +54,7 @@ class UpstreamIdentity:
             mapping and group sync.
         upstream_sub: The provider session's subject, for back-channel and
             RP-initiated logout. None when the provider has no sessions to
-            end (no ID token).
+            end (no ID token); the session record then carries ``subject``.
         upstream_sid: The provider session id (``sid``), when issued.
         id_token: The raw ID token, kept for ``id_token_hint`` at logout.
     """

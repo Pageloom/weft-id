@@ -346,3 +346,27 @@ def end_user_client_sessions(*, tenant_id: str, user_id: str, client_uuid: str) 
         issuer=_canonical_issuer(tenant_id),
     )
     return sum(1 for row in rows if row.get("backchannel_queued"))
+
+
+def end_oidc_sessions(*, tenant_id: str, sids: list[str]) -> OidcSessionEnd:
+    """End WeftID sessions from outside them (no request, no browser).
+
+    Authorization: none -- called by an admin action that has done its own
+    authorization (unlinking an upstream identity ends the sessions it
+    created).
+
+    No audit of its own: the caller's event records the counts. Each session
+    is ended as by ``end_oidc_session``: revoked server-side, back-channel
+    logouts queued, its refresh tokens revoked. Front-channel logout does not
+    apply, so no URLs are returned.
+
+    Returns:
+        The totals over all the sessions (``frontchannel_logout_urls`` empty).
+    """
+    tenant_id = str(tenant_id)
+    issuer = _canonical_issuer(tenant_id)
+    ends = [end_oidc_session(tenant_id=tenant_id, issuer=issuer, sid=sid) for sid in sids]
+    return OidcSessionEnd(
+        backchannel_logout_count=sum(end.backchannel_logout_count for end in ends),
+        refresh_tokens_revoked=sum(end.refresh_tokens_revoked for end in ends),
+    )

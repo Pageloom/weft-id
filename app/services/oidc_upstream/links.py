@@ -24,7 +24,7 @@ from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError
-from services.oidc.logout import end_user_oidc_sessions
+from services.oidc.logout import end_oidc_sessions, end_user_oidc_sessions
 from services.oidc_upstream.presets import provider_display_name
 from services.types import RequestingUser
 
@@ -129,9 +129,14 @@ def unlink_user_from_connection(
     last-mirrored snapshot (``cause: idp_disconnect_scrub``), and drops the
     connection's mirror rows for this user. When that was the user's last
     OIDC link it also -- mirroring SAML's ``assign_user_idp`` disconnect
-    semantics -- inactivates the user, unverifies their emails and revokes
-    their tokens so they cannot fall back to password auth. A user with
-    other links keeps signing in through them.
+    semantics -- inactivates the user and unverifies their emails so they
+    cannot fall back to password auth. A user with other links keeps signing
+    in through them.
+
+    Every unlink ends the WeftID sessions signed in through the unlinked
+    identity (revoked server-side, downstream back-channel logouts queued)
+    and revokes all of the user's downstream tokens, which are not tied to
+    the identity that signed in.
 
     Authorization: Requires super_admin role.
     Logs: user_oidc_idp_unlinked event (plus user_profile_updated scrub events,
@@ -184,15 +189,20 @@ def unlink_user_from_connection(
     database.oidc_upstream.delete_for_user_idp(tenant_id, user_id, connection_id)
     database.oidc_upstream.delete_link_for_user_idp(tenant_id, user_id, connection_id)
 
+    # The sessions signed in through this identity end with the link, and so
+    # do the user's downstream tokens: those are not tied to the identity that
+    # signed in, and apps can sign in again through a remaining link.
+    sessions = database.oidc_upstream.find_user_idp_sessions(tenant_id, connection_id, user_id)
+    ended = end_oidc_sessions(tenant_id=tenant_id, sids=[str(row["sid"]) for row in sessions])
+    tokens_revoked = database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+
     # Only the last link mirrors SAML disconnect semantics (inactivate +
-    # unverify + revoke tokens). A user with other links still signs in
-    # through them.
+    # unverify). A user with other links still signs in through them.
     remaining_links = database.oidc_upstream.list_links_for_user(tenant_id, user_id)
     user_inactivated = not remaining_links
     if user_inactivated:
         database.users.unverify_user_emails(tenant_id, user_id)
         database.users.inactivate_user(tenant_id, user_id)
-        database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
         end_user_oidc_sessions(tenant_id=tenant_id, user_id=user_id)
 
     log_event(
@@ -207,6 +217,9 @@ def unlink_user_from_connection(
             "sub": link["sub"],
             "scrubbed_count": scrubbed_count,
             "remaining_links": len(remaining_links),
+            "sessions_ended": len(sessions),
+            "backchannel_logout_count": ended.backchannel_logout_count,
+            "tokens_revoked": tokens_revoked,
         },
     )
 

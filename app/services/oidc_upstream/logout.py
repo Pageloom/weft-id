@@ -95,10 +95,12 @@ def record_upstream_session(
     """Link WeftID session ``sid`` to the upstream sign-in that created it.
 
     Authorization: none -- called by login completion for the session it has
-    just created, from values of an ID token that verified.
+    just created, from values of an ID token that verified (or, for a
+    provider without ID tokens, the linked subject).
 
     No audit of its own: the ``user_signed_in`` event records the sign-in;
-    the link is bookkeeping that lets the IdP's logout reach the session.
+    the link is bookkeeping that lets the IdP's logout, and unlinking the
+    identity, reach the session.
 
     ``id_token`` is the verified upstream ID token, kept as the
     ``id_token_hint`` of a later RP-initiated logout (dropped when longer than

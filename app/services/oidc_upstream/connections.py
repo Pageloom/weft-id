@@ -315,6 +315,47 @@ def _apply_preset_defaults(data: OIDCConnectionCreate) -> OIDCConnectionCreate:
     return data
 
 
+# Entra authorities that accept sign-ins from any directory. Their discovery
+# documents publish an issuer template (``{tenantid}``) or another directory's
+# issuer, so the exact issuer check refuses every sign-in; and the email
+# claim of a directory WeftID does not control is not proof of address. They
+# are refused on save rather than left to fail at sign-in.
+_ENTRA_MULTI_TENANT_IDS = frozenset({"common", "organizations", "consumers"})
+_ENTRA_HOST = "login.microsoftonline.com"
+
+
+def _is_entra_multi_tenant_issuer(issuer: str | None) -> bool:
+    parsed = urlparse(issuer or "")
+    segments = [part for part in parsed.path.split("/") if part]
+    return (
+        (parsed.hostname or "").lower() == _ENTRA_HOST
+        and bool(segments)
+        and segments[0].lower() in _ENTRA_MULTI_TENANT_IDS
+    )
+
+
+def _validate_single_tenant_authority(
+    provider_type: str, entra_tenant_id: str | None, issuer: str | None
+) -> None:
+    """Reject a multi-tenant Entra authority (common, organizations, consumers).
+
+    Checked on the tenant id of an Entra connection and on the issuer of any
+    connection, so a hand-entered authority is caught as well. Personal
+    Microsoft accounts have their own provider type, with its fixed issuer.
+    """
+    tenant_value = (entra_tenant_id or "").strip().lower()
+    if (
+        provider_type == "entra" and tenant_value in _ENTRA_MULTI_TENANT_IDS
+    ) or _is_entra_multi_tenant_issuer(issuer):
+        raise ValidationError(
+            message=(
+                "Multi-tenant Entra authorities (common, organizations, consumers) are "
+                "not supported. Use your directory's tenant ID or a verified domain"
+            ),
+            code="oidc_entra_multi_tenant_not_supported",
+        )
+
+
 def _validate_email_linking(provider_type: str, allow_email_linking: bool | None) -> None:
     """Reject email linking on a provider whose verified-email claim is not trusted."""
     if allow_email_linking and not email_linking_trusted(provider_type):
@@ -443,6 +484,7 @@ def create_connection(
 
     _validate_fixed_endpoint_fields(data.provider_type, data)
     data = _apply_preset_defaults(data)
+    _validate_single_tenant_authority(data.provider_type, data.entra_tenant_id, data.issuer)
     _validate_manual_endpoints(data)
     _validate_email_linking(data.provider_type, data.allow_email_linking)
     github_allowed_orgs = _normalize_github_allowed_orgs(
@@ -561,6 +603,7 @@ def update_connection(
         )
 
     _validate_fixed_endpoint_fields(existing["provider_type"], data)
+    _validate_single_tenant_authority(existing["provider_type"], data.entra_tenant_id, data.issuer)
     _validate_manual_endpoints(data)
     _validate_email_linking(existing["provider_type"], data.allow_email_linking)
     apple_settings = _apple_settings(existing["provider_type"], data)

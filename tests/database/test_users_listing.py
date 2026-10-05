@@ -124,17 +124,36 @@ class TestBuildAuthMethodClauses:
         from database.users.listing import _build_auth_method_clauses
 
         clauses, params = [], {}
-        _build_auth_method_clauses(["idp:some-uuid"], clauses, params)
-        assert "auth_idp_ids" in params
-        assert params["auth_idp_ids"] == ["some-uuid"]
+        idp_id = "8a3c1f9e-2d4b-4c6a-9e1f-0b2c3d4e5f60"
+        _build_auth_method_clauses([f"idp:{idp_id}"], clauses, params)
+        assert params["auth_idp_ids"] == [idp_id]
 
     def test_idp_totp(self):
         from database.users.listing import _build_auth_method_clauses
 
         clauses, params = [], {}
-        _build_auth_method_clauses(["idp:some-uuid_totp"], clauses, params)
-        assert "auth_idp_totp_ids" in params
-        assert params["auth_idp_totp_ids"] == ["some-uuid"]
+        idp_id = "8a3c1f9e-2d4b-4c6a-9e1f-0b2c3d4e5f60"
+        _build_auth_method_clauses([f"idp:{idp_id}_totp"], clauses, params)
+        assert params["auth_idp_totp_ids"] == [idp_id]
+
+    def test_oidc_uuid(self):
+        from database.users.listing import _build_auth_method_clauses
+
+        clauses, params = [], {}
+        conn_id = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d"
+        _build_auth_method_clauses([f"oidc:{conn_id}"], clauses, params)
+        assert params["auth_oidc_ids"] == [conn_id]
+        assert "oidc_idp_user_links" in clauses[0]
+
+    def test_malformed_ids_dropped(self):
+        from database.users.listing import _build_auth_method_clauses
+
+        clauses, params = [], {}
+        _build_auth_method_clauses(
+            ["idp:some-uuid", "idp:some-uuid_totp", "oidc:nope"], clauses, params
+        )
+        assert clauses == []
+        assert params == {}
 
     def test_negated_auth_methods(self):
         from database.users.listing import _build_auth_method_clauses

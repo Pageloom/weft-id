@@ -65,7 +65,10 @@ def list_users(
         sort_order: Sort order (asc or desc)
         role: Comma-separated role filter (member, admin, super_admin)
         status: Comma-separated status filter (active, inactivated, anonymized)
-        auth_method: Comma-separated auth method keys
+        auth_method: Comma-separated auth method keys:
+            password_email, password_totp, passkey, multiple, unverified,
+            idp:<saml_idp_uuid>, idp:<saml_idp_uuid>_totp,
+            oidc:<oidc_connection_uuid>
         domain: Filter by email domain (e.g. example.com)
         group_id: Filter by group membership (group UUID)
         has_secondary_email: Filter by secondary email existence (true/false)

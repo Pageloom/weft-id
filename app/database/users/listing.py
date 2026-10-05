@@ -2,6 +2,7 @@
 
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
+from uuid import UUID
 
 from database._core import TenantArg, escape_like, fetchall, fetchone
 
@@ -74,6 +75,17 @@ def _build_status_clause(
             where_clauses.append(clause)
 
 
+_HAS_OIDC_LINK = "exists (select 1 from oidc_idp_user_links ol where ol.user_id = u.id)"
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        UUID(value)
+    except ValueError:
+        return False
+    return True
+
+
 def _build_auth_method_clauses(
     auth_methods: list[str] | None,
     where_clauses: list[str],
@@ -86,10 +98,13 @@ def _build_auth_method_clauses(
       - password_email: has password, no TOTP
       - password_totp: has password, TOTP enabled
       - passkey: has at least one registered WebAuthn credential
-      - multiple: has two or more of {password, SAML IdP, TOTP, passkey}
+      - multiple: has two or more of {password, SAML IdP, OIDC link, TOTP, passkey}
       - idp:<uuid>: SAML IdP user without platform MFA
       - idp:<uuid>_totp: SAML IdP user with platform MFA TOTP
-      - unverified: no password, no IdP
+      - oidc:<uuid>: linked to that OIDC or social connection
+      - unverified: no password, no SAML IdP, no OIDC link
+
+    Keys with a malformed UUID are ignored.
     """
     if not auth_methods:
         return
@@ -97,6 +112,7 @@ def _build_auth_method_clauses(
     conditions: list[str] = []
     idp_ids: list[str] = []
     idp_totp_ids: list[str] = []
+    oidc_ids: list[str] = []
 
     for method in auth_methods:
         if method == "password_email":
@@ -117,6 +133,7 @@ def _build_auth_method_clauses(
                 "("
                 "(case when u.password_hash is not null then 1 else 0 end)"
                 " + (case when u.saml_idp_id is not null then 1 else 0 end)"
+                f" + (case when {_HAS_OIDC_LINK} then 1 else 0 end)"
                 " + (case when u.mfa_method = 'totp' then 1 else 0 end)"
                 " + (case when exists ("
                 "select 1 from webauthn_credentials wc where wc.user_id = u.id"
@@ -124,13 +141,19 @@ def _build_auth_method_clauses(
                 ") >= 2"
             )
         elif method == "unverified":
-            conditions.append("(u.password_hash is null and u.saml_idp_id is null)")
+            conditions.append(
+                f"(u.password_hash is null and u.saml_idp_id is null and not {_HAS_OIDC_LINK})"
+            )
         elif method.startswith("idp:"):
             remainder = method[4:]
             if remainder.endswith("_totp"):
-                idp_totp_ids.append(remainder[:-5])
-            else:
+                if _is_uuid(remainder[:-5]):
+                    idp_totp_ids.append(remainder[:-5])
+            elif _is_uuid(remainder):
                 idp_ids.append(remainder)
+        elif method.startswith("oidc:"):
+            if _is_uuid(method[5:]):
+                oidc_ids.append(method[5:])
 
     if idp_ids:
         params["auth_idp_ids"] = idp_ids
@@ -146,6 +169,13 @@ def _build_auth_method_clauses(
             "(u.saml_idp_id = ANY(:auth_idp_totp_ids)"
             " and idp.require_platform_mfa = true"
             " and u.mfa_method = 'totp')"
+        )
+
+    if oidc_ids:
+        params["auth_oidc_ids"] = oidc_ids
+        conditions.append(
+            "exists (select 1 from oidc_idp_user_links ol"
+            " where ol.user_id = u.id and ol.idp_id = ANY(:auth_oidc_ids))"
         )
 
     if conditions:
@@ -380,7 +410,8 @@ def list_users(
         List of user dicts with id, first_name, last_name, role, created_at,
         last_login, last_activity_at, is_inactivated, is_anonymized, email,
         saml_idp_id, saml_idp_name, require_platform_mfa, has_password,
-        mfa_enabled, and mfa_method
+        mfa_enabled, mfa_method, and oidc_connection_names (names of the
+        OIDC/social connections the user is linked to, sorted, or None)
     """
     # Build WHERE clause — always exclude service accounts (B2B OAuth2 clients)
     where_clauses: list[str] = [
@@ -465,6 +496,12 @@ def list_users(
                u.password_hash is not null as has_password,
                u.mfa_enabled,
                u.mfa_method,
+               (
+                   select array_agg(oc.name order by lower(oc.name))
+                   from oidc_idp_user_links ol
+                   join oidc_idp_connections oc on oc.id = ol.idp_id
+                   where ol.user_id = u.id
+               ) as oidc_connection_names,
                coalesce(gc.group_count, 0) as group_count
         from users u
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true

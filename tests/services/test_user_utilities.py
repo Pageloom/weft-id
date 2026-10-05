@@ -257,3 +257,23 @@ def test_update_timezone_locale_and_last_login_delegates():
         mock_db.users.update_timezone_locale_and_last_login.assert_called_once_with(
             "t1", "u1", "Europe/London", "en-GB"
         )
+
+
+def test_get_auth_method_options_includes_oidc_connections():
+    """OIDC/social connections become oidc:<id> options, sorted by name, before Unverified."""
+    from services.users.utilities import get_auth_method_options
+
+    gh_id, apple_id = str(uuid4()), str(uuid4())
+
+    with patch("services.users.utilities.database") as mock_db:
+        mock_db.saml.list_identity_providers.return_value = []
+        mock_db.oidc_upstream.list_connections.return_value = [
+            {"id": gh_id, "name": "GitHub"},
+            {"id": apple_id, "name": "apple"},
+        ]
+        options = get_auth_method_options("t1")
+
+    keys = [o["auth_method_key"] for o in options]
+    assert keys[-3:] == [f"oidc:{apple_id}", f"oidc:{gh_id}", "unverified"]
+    labels = {o["auth_method_key"]: o["auth_method_label"] for o in options}
+    assert labels[f"oidc:{gh_id}"] == "GitHub"

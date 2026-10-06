@@ -938,14 +938,16 @@ class TestCredentialUpdate:
             _create_data(provider_type="entra", issuer=None, entra_tenant_id="old.example.com"),
             BASE_URL,
         )
-        assert "old.example.com" in created.issuer
+        assert created.issuer == "https://login.microsoftonline.com/old.example.com/v2.0"
 
         updated = svc.update_connection(
             ru, created.id, OIDCConnectionUpdate(entra_tenant_id="new.example.com"), BASE_URL
         )
         assert updated.entra_tenant_id == "new.example.com"
         assert updated.issuer == "https://login.microsoftonline.com/new.example.com/v2.0"
-        assert updated.discovery_url and "new.example.com" in updated.discovery_url
+        assert updated.discovery_url == (
+            "https://login.microsoftonline.com/new.example.com/v2.0/.well-known/openid-configuration"
+        )
 
     def test_entra_multi_tenant_refused_on_update(self, test_tenant, test_super_admin_user):
         from services import oidc_upstream as svc

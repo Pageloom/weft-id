@@ -1,5 +1,6 @@
 """Tests for the SAML IdP admin UI routes."""
 
+import gc
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -2911,7 +2912,13 @@ class TestSPLogoUpload:
         assert "error=" in response.headers["location"]
 
     def test_upload_access_denied_for_non_super_admin(self, client, sp_host, override_auth):
-        """Non-super-admin users are redirected away from logo upload."""
+        """Non-super-admin users are redirected away from logo upload.
+
+        The multipart body is parsed before the access check rejects, so the
+        upload's temp file must still be closed. A leaked one surfaces as an
+        unraisable ResourceWarning at the forced collection below, which
+        fails the test under error-mode warnings (#173).
+        """
         user = {
             "id": str(uuid4()),
             "tenant_id": str(uuid4()),
@@ -2933,6 +2940,8 @@ class TestSPLogoUpload:
 
         assert response.status_code == 303
         assert "/login" in response.headers["location"]
+        del response
+        gc.collect()
 
 
 class TestSPLogoDelete:

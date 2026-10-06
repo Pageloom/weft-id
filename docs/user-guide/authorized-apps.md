@@ -2,7 +2,7 @@
 
 When you sign in to an application through WeftID for the first time, WeftID shows a consent screen: the application's name, the account you are signed in with, and what the application is asking for (your profile, your email address, your groups, and so on). If you click **Allow**, WeftID remembers your choice. The next time that application sends you to WeftID, you are signed in without seeing the screen again.
 
-The **Authorized Apps** page under User Settings lists every application you have allowed, with the scopes you granted and when you first allowed it.
+The **Authorized Apps** page under User Settings lists every application you have allowed, with the scopes you granted and when you first allowed it. Approving a [device sign-in](signing-in.md#signing-in-on-a-device) also adds the application here. A device sign-in always asks for approval, even for an application you allowed before.
 
 ## When the consent screen appears
 
@@ -16,9 +16,9 @@ Clicking **Deny** never records anything. You will see the screen again on the n
 
 ## Revoking an application
 
-Click **Revoke** next to an application and confirm. From then on, the application's next sign-in attempt shows the consent screen again, so you can decide afresh.
+Click **Revoke** next to an application and confirm. The application loses access to your account right away: the tokens WeftID issued to it stop working, and an application that supports back-channel logout is told to sign you out. Its next sign-in attempt shows the consent screen again, so you can decide afresh.
 
-Revoking does not sign you out of the application or cancel access tokens it already holds. Those expire on their own schedule. If you need an application cut off immediately, contact your administrator, who can deactivate it.
+Revoking does not sign you out of WeftID or of other applications.
 
 ## What administrators can see
 

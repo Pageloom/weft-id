@@ -10,48 +10,49 @@ WeftID acts as a relying party here, consuming an upstream provider. That is the
 
 WeftID uses the authorization code flow with PKCE, and nothing else. There is no implicit flow and no hybrid flow.
 
-1. A user arrives at the login page and enters their email address.
-2. WeftID routes them to the connection, either because they are already linked to it, because their email domain is bound to it, or because it is the tenant default.
+1. A user arrives at the sign-in page and enters their email address, or clicks the connection's **Continue with ...** button if it has one (see [Sign-in page buttons](login-buttons.md)).
+2. After an email address, WeftID routes them to the connection, either because they are already linked to it, because their email domain is bound to it, or because it is the tenant default. A user linked to several connections goes to the one they used most recently (see [Account linking](account-linking.md)).
 3. WeftID redirects to the provider's authorization endpoint with a `state`, a `nonce`, and a PKCE challenge.
 4. The provider authenticates the user and redirects back to WeftID's callback.
-5. WeftID exchanges the code for an ID token, verifies its signature against the provider's JWKS, and checks the issuer, audience, nonce, and expiry.
-6. WeftID correlates the user, provisions them if this is a first sign-in, and completes the login.
+5. WeftID exchanges the code for an ID token, verifies its signature against the provider's JWKS, and checks the issuer, audience, nonce, and expiry. (GitHub, Discord and Facebook have no ID token; WeftID reads the profile from the provider's API instead.)
+6. WeftID correlates the user, provisions them if this is a first sign-in, and completes the sign-in.
 
-## Step 1: Create the connection
+## Step 1: Register WeftID with your provider
+
+Create an application in your provider's console (Keycloak calls it a client, Auth0 an application, Entra an app registration). Your provider then gives you a client ID and a client secret.
+
+The application also needs WeftID's redirect URI, which exists only once the WeftID connection does. Most consoles let you add it afterwards (step 3).
+
+## Step 2: Create the connection
 
 1. Navigate to **Identity Providers > OIDC**
-2. Click **Add Connection**
+2. Click **Add OIDC Provider**
 3. Enter a display name
-4. Select the provider type (Generic, Google, or Entra)
-5. Click **Create**
+4. Select the provider type (Generic OIDC, Google, Entra ID, Microsoft (personal accounts), LinkedIn, GitLab, GitHub, Discord, Facebook, or Apple)
+5. Fill in the connection:
+    * **Issuer**: the provider's issuer URL, for example `https://auth.example.com/realms/staff`
+    * **Discovery URL**: optional. Defaults to the issuer plus `/.well-known/openid-configuration`
+    * **Client ID** and **Client Secret**: from your provider
+    * **Scopes**: space-separated. `openid` is always requested
+6. Choose the [connection settings](#connection-settings) and click **Create OIDC Provider**
 
-Selecting a provider type pre-fills the authority URL, the default scopes, and the correlation claim. Every pre-filled value can be overridden. See [Google Workspace](oidc-google.md) and [Microsoft Entra ID](oidc-entra.md) for the vendor walkthroughs.
+Selecting a provider type pre-fills the issuer, discovery URL, scopes, and correlation claim. Every pre-filled value can be overridden. The vendor walkthroughs cover each preset: [Google Workspace](oidc-google.md), [Microsoft Entra ID](oidc-entra.md), [Microsoft personal accounts](oidc-microsoft.md), [LinkedIn](oidc-linkedin.md), [GitLab](oidc-gitlab.md), [GitHub](oidc-github.md), [Discord](oidc-discord.md), [Facebook](oidc-facebook.md), and [Apple](oidc-apple.md). GitHub, Discord and Facebook are OAuth 2.0 rather than OpenID Connect, so they have no issuer, discovery or correlation settings; their walkthroughs explain the differences. Apple is OpenID Connect but has no client secret; WeftID signs one with the private key you upload.
 
-## Step 2: Register WeftID with your provider
+The client secret is encrypted at rest and never displayed again. The connection shows only whether a secret is set.
 
-Open the connection's **Details** tab and copy the **redirect URI**. It looks like this:
+## Step 3: Register the callback URL
+
+Open the connection's **Details** tab and copy the **Callback URL**. It looks like this:
 
 ```
 https://<your-tenant>.example.com/auth/oidc/<connection-id>/callback
 ```
 
-The connection ID is part of the URI, so each connection has its own. Create an application (Keycloak calls it a client, Auth0 an application, Entra an app registration) in your provider's console and register that exact URI as an allowed redirect. A mismatch of even a trailing slash will cause the provider to reject the handshake.
-
-Your provider will then give you a client ID and a client secret.
-
-## Step 3: Enter the credentials
-
-Back in WeftID, edit the connection and supply:
-
-* **Issuer**: the provider's issuer URL, for example `https://auth.example.com/realms/staff`
-* **Discovery URL**: usually the issuer plus `/.well-known/openid-configuration`
-* **Client ID** and **Client secret**: from your provider
-
-The client secret is encrypted at rest and is never displayed again after you save it. The connection shows only whether a secret is set. To change it, enter a new one.
+The connection ID is part of the URL, so each connection has its own. Register that exact URL as an allowed redirect URI in your provider's console. A mismatch of even a trailing slash will cause the provider to reject the handshake.
 
 ## Step 4: Test and enable
 
-Click **Test connection**. WeftID fetches the discovery document, checks that its issuer matches the issuer you configured, stores the discovered endpoints, and fetches the signing keys from the document's `jwks_uri`. Failures are reported with the reason. A failed discovery leaves the stored endpoints unchanged. The same test is available through the API:
+Click **Test Connection**. WeftID fetches the discovery document, checks that its issuer matches the issuer you configured, stores the discovered endpoints, and fetches the signing keys from the document's `jwks_uri`. Failures are reported with the reason. A failed discovery leaves the stored endpoints unchanged. The same test is available through the API:
 
 ```
 POST /api/v1/oidc-upstream/connections/{connection_id}/test
@@ -59,11 +60,25 @@ POST /api/v1/oidc-upstream/connections/{connection_id}/test
 
 A discovery document is rejected when its `issuer` does not match the configured issuer, or when any of its endpoints is not `https`. Both are signs that something is misconfigured or being intercepted.
 
-Once the test passes, enable the connection.
+Once the test passes, check **Enabled** under **Settings** and click **Save Settings**.
+
+## Changing credentials later
+
+To rotate an expiring client secret or change another credential, click the pencil next to **Client ID** on the **Details** tab. The form holds the fields that apply to the provider:
+
+* Client ID, client secret and scopes (every provider; Apple has no client secret)
+* Issuer (Generic OIDC and GitLab)
+* Discovery URL and correlation claim (Generic OIDC)
+* Entra tenant ID (Entra ID)
+* Hosted domain (Google)
+
+A blank field keeps its current value, so the client secret stays as it is unless you type a new one. The hosted domain is the exception: clearing it lets any Google account sign in. When the issuer or discovery URL changes, WeftID drops the endpoints it discovered from the old one and discovers again at the next sign-in. Run **Test Connection** to check the new values straight away.
+
+The same fields can be changed through the API with `PATCH /api/v1/oidc-upstream/connections/{connection_id}`, sending only the fields to change. See the [API overview](../../api/index.md) for authentication.
 
 ### Keeping endpoints current
 
-Providers move their endpoints and rotate their signing keys. WeftID refreshes the discovery document at sign-in once the last successful fetch is more than an hour old. Nobody has to click **Test connection** again.
+Providers move their endpoints and rotate their signing keys. WeftID refreshes the discovery document at sign-in once the last successful fetch is more than an hour old. Nobody has to click **Test Connection** again.
 
 * If the document cannot be retrieved (the provider is unreachable or returns an error), sign-in carries on with the last known endpoints.
 * If the document is retrieved but refused (wrong issuer, an endpoint that is not `https`, a redirect, or not a valid document), sign-in stops with a configuration error. It keeps stopping until the provider or the connection is fixed. Each attempt is audited as `oidc_login_failed` with reason `discovery`.
@@ -108,7 +123,7 @@ The same applies when an app signs a user out through WeftID's own end session e
 
 ## Providers without discovery
 
-A provider that does not publish `/.well-known/openid-configuration` can still be used by entering its endpoints by hand. This applies to the Generic provider type only. Google and Entra always publish discovery, so the manual fields are not shown for them.
+A provider that does not publish `/.well-known/openid-configuration` can still be used by entering its endpoints by hand. This applies to the Generic provider type only. Every other preset either publishes discovery or has fixed endpoints built in, so the manual fields are not shown for them.
 
 * **When creating a connection**, expand **Advanced: manual endpoints** on the form and fill in the authorization endpoint, token endpoint, userinfo endpoint, and JWKS URI. The end session endpoint is optional and only used by **Sign Out at the Provider**.
 * **On an existing connection**, open the **Details** tab and click the pencil next to **Endpoints**. A blank field keeps its current value.
@@ -123,17 +138,19 @@ PATCH /api/v1/oidc-upstream/connections/{connection_id}
 
 Send any of `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, `jwks_uri`, and `end_session_endpoint`.
 
-Entering endpoints by hand stops the hourly refresh at sign-in, so your values stay as entered. They are not protected from **Test connection**, though. If you later click it and the fetch succeeds, the endpoints are replaced with the discovered values and the hourly refresh starts again. For a provider with no discovery document the test fails and your manual values are left as they are.
+Entering endpoints by hand stops the hourly refresh at sign-in, so your values stay as entered. They are not protected from **Test Connection**, though. If you later click it and the fetch succeeds, the endpoints are replaced with the discovered values and the hourly refresh starts again. For a provider with no discovery document the test fails and your manual values are left as they are.
 
 ## Connection settings
 
+These are under **Settings** on the **Details** tab. All but **Enabled**, **Default Provider** and **Sign Out at the Provider** can also be chosen when creating the connection.
+
 * **Enabled**: whether users can sign in through this connection. A disabled connection blocks its linked users from authenticating.
-* **Default connection**: new users with no other route are sent here. One connection per tenant can be the default.
-* **JIT provisioning**: create a WeftID account on first successful sign-in. Without it, only users who already exist and are already linked can sign in.
-* **Require two-step verification**: after the provider authenticates the user, WeftID additionally requires its own two-step verification before the session is established. Use this when you do not want to rely solely on the upstream provider's authentication.
-* **Allow email linking**: see below.
-* **Sign out at the provider**: see [Sign-out at the provider](#sign-out-at-the-provider).
-* **Scopes**: space-separated. `openid` is always requested.
+* **Default Provider**: an unrecognized email address with no [domain binding](privileged-domains.md) is sent here to sign up, when **Just-in-Time Provisioning** is on. A default SAML IdP takes precedence. One connection per tenant can be the default. Uncheck it to leave the tenant with no default OIDC connection, so such addresses are no longer offered sign-up.
+* **Show on Sign-In Page**: put a **Continue with ...** button for this connection on the sign-in page while it is enabled. See [Sign-in page buttons](login-buttons.md).
+* **Require Platform Two-Step Verification**: after the provider authenticates the user, WeftID additionally requires its own two-step verification before the session is established. Use this when you do not want to rely solely on the upstream provider's authentication.
+* **Just-in-Time Provisioning**: create a WeftID account on first successful sign-in. Without it, only users who already exist and are already linked can sign in. For a provider that does not verify email addresses (Facebook, Microsoft personal accounts), the new user confirms their address with an emailed code before the sign-in completes. See [Account linking](account-linking.md#confirming-an-unverified-email-address).
+* **Allow Email Linking**: see below.
+* **Sign Out at the Provider**: see [Sign-out at the provider](#sign-out-at-the-provider).
 
 ### Allow email linking
 
@@ -141,13 +158,15 @@ This setting is off by default, and turning it on has a security consequence wor
 
 WeftID correlates users by the provider's stable subject claim, recorded per connection. That is what lets someone change their email address upstream without getting a duplicate WeftID account.
 
-The first time a subject appears, WeftID has nothing to match it against. With email linking off, that subject is either provisioned as a new user (if JIT is on) or refused. With email linking on, WeftID will also attach the subject to an **existing** WeftID account when the ID token's email matches and the token asserts `email_verified: true`.
+The first time a subject appears, WeftID has nothing to match it against. With email linking off, that subject is either provisioned as a new user (if JIT is on) or refused. With email linking on, WeftID also attaches the subject to an **existing** WeftID account when the ID token's email matches and the token asserts `email_verified: true`.
 
 That is convenient when migrating existing users onto a new provider. It also means anyone who can obtain a token from that provider carrying a given verified email can take over the matching WeftID account. Only enable it for a provider you trust to verify email addresses properly, and consider turning it off again once migration is done.
 
+Email linking is unavailable for providers that do not reliably verify email addresses (Microsoft personal accounts and Facebook). It never attaches a second provider account to a user already linked to the same connection, and it never links a user who is assigned to a SAML identity provider. See [Account linking](account-linking.md) for the full policy.
+
 ## Claim mapping
 
-The **Claim mapping** tab maps claims from the provider onto WeftID's standard user attributes. The default mapping is:
+The **Claim Mapping** tab maps claims from the provider onto WeftID's standard user attributes. The default mapping is:
 
 | WeftID attribute | OIDC claim |
 |------------------|-----------|
@@ -155,13 +174,13 @@ The **Claim mapping** tab maps claims from the provider onto WeftID's standard u
 | First name | `given_name` |
 | Last name | `family_name` |
 
-Mapped values are mirrored into the user's profile on every sign-in, subject to the tenant's attribute settings: a value is written to the canonical profile field only where that attribute is enabled and set to mirror from the IdP. Claims that map to unknown attributes are ignored.
+Mapped values are mirrored into the user's profile on every sign-in, subject to the tenant's attribute settings: a value is written to the profile only where that attribute is enabled with **Mirror from IdP** on (see [User attributes](../security/user-attributes.md)). Claims that map to unknown attributes are ignored.
 
 Mirroring is best-effort. A mapping problem will not prevent a user from signing in.
 
 ## Group claims
 
-The **Claim mapping** tab also holds the connection's group claim settings. Leave the claim name empty (the default) and WeftID never touches group membership for this connection. Set it, and every sign-in through the connection syncs the user's groups from that claim.
+The **Claim Mapping** tab also holds the connection's group claim settings. Leave the claim name empty (the default) and WeftID never touches group membership for this connection. Set it, and every sign-in through the connection syncs the user's groups from that claim.
 
 How it works:
 
@@ -184,20 +203,23 @@ Provider notes:
 * **Okta**: add a `groups` claim to the authorization server (**Security > API > Authorization Servers > Claims**), include it in the ID token, and use the claim's group filter to limit which groups are released. Add `groups` to the connection's scopes if the claim is scoped to it.
 * **Microsoft Entra ID**: enable the groups claim on the app registration. The claim carries group object IDs, not names, so synced groups are named by GUID. See [OIDC with Microsoft Entra ID](oidc-entra.md#groups).
 * **Google Workspace**: no groups claim is available over OIDC.
+* **GitLab**: the `groups` claim carries group paths. See [OIDC with GitLab](oidc-gitlab.md#groups).
+* **GitHub**: enter `groups` to sync organizations and teams. See [Sign in with GitHub](oidc-github.md#groups).
+* **Microsoft personal accounts, LinkedIn, Discord, Facebook and Apple**: no groups claim.
 * **Keycloak, Auth0, Authentik and other generic providers**: add a mapper or action that puts the user's groups into a claim, then enter that claim's name here. Namespaced names such as `https://example.com/groups` work.
 
 ## Correlation claim
 
-Most providers use `sub` as the stable subject. Entra is the exception: its `sub` is unique per application, so the Entra preset correlates on `oid` instead, per Microsoft's guidance.
+Most providers use `sub` as the stable subject. Entra is the exception: its `sub` is unique per application, so the Entra preset correlates on `oid` instead, per Microsoft's guidance. Personal Microsoft accounts carry no `oid`, so that preset uses `sub`.
 
 Changing the correlation claim on a connection that already has linked users will orphan those links, and affected users will be treated as new subjects on their next sign-in. Change it before the connection goes into use, not after.
 
 ## Disconnecting a user
 
-The **Danger** tab lists users linked to the connection and can unlink them individually. Unlinking removes the subject link and scrubs mirrored attribute values that still match what the provider supplied, leaving anything the user set themselves. The account itself is not deleted.
+The connection's **Delete** tab lists users linked to the connection and can unlink them individually. A user's own **Profile** tab lists all of their links, across connections, with the same action. Unlinking removes the subject link and scrubs mirrored attribute values that still match what the provider supplied, leaving anything the user set themselves. The account itself is not deleted. If it was the user's last link, the account is deactivated (see [Account linking](account-linking.md#viewing-and-removing-links)).
 
 ## Deleting a connection
 
-Deleting a connection removes its user links, mirrored attributes, and the groups synced from it (including the base group). Users who could only sign in through that connection will no longer have a way in, so give them a password or another connection first.
+A connection can be deleted only when it is disabled and no users are linked to it. Unlink its users first, after giving anyone who still needs access a password or another connection.
 
-A connection bound to a [privileged domain](privileged-domains.md) cannot be deleted until the binding is removed.
+Deleting a connection removes its mirrored attribute values, the groups synced from it (including the base group), its [domain bindings](privileged-domains.md), and its cached signing keys. This cannot be undone.

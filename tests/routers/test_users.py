@@ -4057,3 +4057,45 @@ def test_create_new_user_ignores_disabled_attribute(test_admin_user, mocker, ove
     assert response.status_code == 303
     # The disabled attribute must NOT be set
     mock_set_attr.assert_not_called()
+
+
+def test_users_list_renders_oidc_connection_names(test_admin_user, mocker, override_auth):
+    """A user signing in through OIDC/social connections shows the connection names."""
+    from datetime import UTC, datetime
+
+    override_auth(test_admin_user)
+
+    mocker.patch(f"{SERVICES_USERS}.count_users", return_value=1)
+    mocker.patch(
+        f"{SERVICES_USERS}.list_users_raw",
+        return_value=[
+            {
+                "id": "00000000-0000-0000-0000-0000000000e1",
+                "first_name": "Erin",
+                "last_name": "Social",
+                "role": "member",
+                "email": "erin@example.com",
+                "created_at": datetime(2024, 1, 1, tzinfo=UTC),
+                "last_login": None,
+                "last_activity_at": None,
+                "is_inactivated": False,
+                "is_anonymized": False,
+                "saml_idp_id": None,
+                "saml_idp_name": None,
+                "require_platform_mfa": None,
+                "has_password": False,
+                "mfa_enabled": False,
+                "mfa_method": None,
+                "oidc_connection_names": ["GitHub", "Google"],
+                "group_count": 0,
+            }
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.get("/users/list")
+
+    assert response.status_code == 200
+    row = response.text.split("erin@example.com", 1)[1].split("</tr>", 1)[0]
+    assert "GitHub, Google" in row
+    assert "Unverified" not in row

@@ -188,6 +188,90 @@ class TestPresetDefaults:
         assert conn.correlation_claim == "sub"
 
 
+class TestMultiTenantEntraRefused:
+    """common / organizations / consumers accept any directory: refused on save."""
+
+    @pytest.mark.parametrize("tenant_value", ["common", "organizations", "consumers", " Common "])
+    def test_create_entra_with_multi_tenant_id(
+        self, tenant_value, test_tenant, test_super_admin_user
+    ):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        with pytest.raises(ValidationError) as exc_info:
+            svc.create_connection(
+                ru,
+                OIDCConnectionCreate(
+                    name="Entra", provider_type="entra", entra_tenant_id=tenant_value
+                ),
+                BASE_URL,
+            )
+        assert exc_info.value.code == "oidc_entra_multi_tenant_not_supported"
+
+    @pytest.mark.parametrize("provider_type", ["entra", "generic"])
+    def test_create_with_hand_entered_multi_tenant_issuer(
+        self, provider_type, test_tenant, test_super_admin_user
+    ):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        with pytest.raises(ValidationError) as exc_info:
+            svc.create_connection(
+                ru,
+                _create_data(
+                    provider_type=provider_type,
+                    issuer="https://login.microsoftonline.com/organizations/v2.0",
+                    entra_tenant_id="contoso.onmicrosoft.com" if provider_type == "entra" else None,
+                ),
+                BASE_URL,
+            )
+        assert exc_info.value.code == "oidc_entra_multi_tenant_not_supported"
+
+    def test_single_tenant_guid_accepted(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        tenant_guid = "72f988bf-86f1-41af-91ab-2d7cd011db47"
+        conn = svc.create_connection(
+            ru,
+            OIDCConnectionCreate(name="Entra", provider_type="entra", entra_tenant_id=tenant_guid),
+            BASE_URL,
+        )
+        assert conn.issuer == f"https://login.microsoftonline.com/{tenant_guid}/v2.0"
+
+    def test_microsoft_personal_preset_unaffected(self, test_tenant, test_super_admin_user):
+        """Personal accounts have their own type, with the fixed consumers issuer."""
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        conn = svc.create_connection(
+            ru, OIDCConnectionCreate(name="MSA", provider_type="microsoft"), BASE_URL
+        )
+        assert "9188040d-6c67-4c5b-b112-36a304b66dad" in conn.issuer
+
+    def test_update_to_multi_tenant_refused(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru,
+            OIDCConnectionCreate(
+                name="Entra", provider_type="entra", entra_tenant_id="contoso.onmicrosoft.com"
+            ),
+            BASE_URL,
+        )
+        for update in (
+            OIDCConnectionUpdate(entra_tenant_id="organizations"),
+            OIDCConnectionUpdate(issuer="https://login.microsoftonline.com/common/v2.0"),
+        ):
+            with pytest.raises(ValidationError) as exc_info:
+                svc.update_connection(ru, created.id, update, BASE_URL)
+            assert exc_info.value.code == "oidc_entra_multi_tenant_not_supported"
+
+
 class TestGetAndList:
     def test_get_returns_config_without_secret(self, test_tenant, test_super_admin_user):
         from services import oidc_upstream as svc
@@ -607,6 +691,61 @@ class TestEnableDisableDefault:
         assert default.is_default is True
         _verify_event_logged(test_tenant["id"], "oidc_idp_connection_set_default", created.id)
 
+    def test_clear_default(self, test_tenant, test_super_admin_user):
+        import database
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+        svc.set_connection_default(ru, created.id, BASE_URL)
+
+        cleared = svc.clear_connection_default(ru, created.id, BASE_URL)
+
+        assert cleared.is_default is False
+        row = database.oidc_upstream.get_connection(test_tenant["id"], created.id)
+        assert row["is_default"] is False
+        _verify_event_logged(test_tenant["id"], "oidc_idp_connection_default_cleared", created.id)
+
+    def test_clear_default_when_not_default_changes_nothing(
+        self, test_tenant, test_super_admin_user
+    ):
+        import database
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+
+        with patch("services.oidc_upstream.connections.log_event") as log_event:
+            result = svc.clear_connection_default(ru, created.id, BASE_URL)
+
+        assert result.is_default is False
+        log_event.assert_not_called()
+        row = database.oidc_upstream.get_connection(test_tenant["id"], created.id)
+        assert row["is_default"] is False
+
+    def test_clear_default_unknown_connection(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        with pytest.raises(NotFoundError):
+            svc.clear_connection_default(ru, str(uuid4()), BASE_URL)
+
+    def test_clear_default_admin_forbidden(
+        self, test_tenant, test_super_admin_user, test_admin_user
+    ):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(), BASE_URL)
+        svc.set_connection_default(ru, created.id, BASE_URL)
+
+        with pytest.raises(ForbiddenError):
+            svc.clear_connection_default(
+                _make_requesting_user(test_admin_user, test_tenant["id"], "admin"),
+                created.id,
+                BASE_URL,
+            )
+
     def test_requires_platform_mfa(self, test_tenant, test_super_admin_user):
         from services import oidc_upstream as svc
 
@@ -731,3 +870,132 @@ class TestGroupLifecycle:
         )
         assert cleared.group_claim_source is None
         assert cleared.group_claim_name_key is None
+
+
+class TestCredentialUpdate:
+    """Editing the settings fixed at creation (issue #177)."""
+
+    ENDPOINTS = TestManualEndpoints.ENDPOINTS
+
+    def _mark_discovered(self, tenant_id, connection_id):
+        import database
+
+        database.execute(
+            tenant_id,
+            "update oidc_idp_connections set discovery_fetched_at = now() where id = :id",
+            {"id": connection_id},
+        )
+
+    def test_issuer_change_drops_discovered_endpoints(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+        self._mark_discovered(test_tenant["id"], created.id)
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(issuer="https://new-idp.example.com"), BASE_URL
+        )
+        assert updated.issuer == "https://new-idp.example.com"
+        assert updated.discovery_fetched_at is None
+        for field in self.ENDPOINTS:
+            assert getattr(updated, field) is None
+
+    def test_same_issuer_keeps_discovered_endpoints(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+        self._mark_discovered(test_tenant["id"], created.id)
+
+        updated = svc.update_connection(
+            ru,
+            created.id,
+            OIDCConnectionUpdate(issuer="https://idp.example.com/", client_id="other"),
+            BASE_URL,
+        )
+        assert updated.discovery_fetched_at is not None
+        assert updated.token_endpoint == self.ENDPOINTS["token_endpoint"]
+
+    def test_issuer_change_keeps_hand_set_endpoints(self, test_tenant, test_super_admin_user):
+        """A never-discovered connection's endpoints were set by hand: keep them."""
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(ru, _create_data(**self.ENDPOINTS), BASE_URL)
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(issuer="https://new-idp.example.com"), BASE_URL
+        )
+        assert updated.token_endpoint == self.ENDPOINTS["token_endpoint"]
+
+    def test_entra_tenant_change_recomposes_authority(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru,
+            _create_data(provider_type="entra", issuer=None, entra_tenant_id="old.example.com"),
+            BASE_URL,
+        )
+        assert created.issuer == "https://login.microsoftonline.com/old.example.com/v2.0"
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(entra_tenant_id="new.example.com"), BASE_URL
+        )
+        assert updated.entra_tenant_id == "new.example.com"
+        assert updated.issuer == "https://login.microsoftonline.com/new.example.com/v2.0"
+        assert updated.discovery_url == (
+            "https://login.microsoftonline.com/new.example.com/v2.0/.well-known/openid-configuration"
+        )
+
+    def test_entra_multi_tenant_refused_on_update(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+        from services.exceptions import ValidationError
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru,
+            _create_data(provider_type="entra", issuer=None, entra_tenant_id="old.example.com"),
+            BASE_URL,
+        )
+        with pytest.raises(ValidationError):
+            svc.update_connection(
+                ru, created.id, OIDCConnectionUpdate(entra_tenant_id="common"), BASE_URL
+            )
+
+    def test_gitlab_issuer_override_follows_discovery(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru, _create_data(provider_type="gitlab", issuer=None), BASE_URL
+        )
+        assert created.discovery_url == "https://gitlab.com/.well-known/openid-configuration"
+
+        moved = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(issuer="https://git.example.com"), BASE_URL
+        )
+        assert moved.issuer == "https://git.example.com"
+        assert moved.discovery_url is None
+
+        back = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(issuer="https://gitlab.com"), BASE_URL
+        )
+        assert back.discovery_url == "https://gitlab.com/.well-known/openid-configuration"
+
+    def test_hosted_domain_blank_clears(self, test_tenant, test_super_admin_user):
+        from services import oidc_upstream as svc
+
+        ru = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+        created = svc.create_connection(
+            ru,
+            _create_data(provider_type="google", issuer=None, hosted_domain="example.com"),
+            BASE_URL,
+        )
+        assert created.hosted_domain == "example.com"
+
+        updated = svc.update_connection(
+            ru, created.id, OIDCConnectionUpdate(hosted_domain=""), BASE_URL
+        )
+        assert updated.hosted_domain is None

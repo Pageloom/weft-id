@@ -8,8 +8,8 @@ SLO is optional. Applications that don't support it simply keep their local sess
 
 WeftID supports SLO in two directions:
 
-- **User signs out of WeftID** -- WeftID sends a LogoutRequest to each application the user accessed during the session. This is best-effort: if an application is unreachable or slow, the sign-out still completes.
-- **Application signs out the user** -- The application sends a LogoutRequest to WeftID. WeftID terminates the user's session and returns a LogoutResponse.
+- **User signs out of WeftID**: WeftID sends a LogoutRequest to each application the user accessed during the session. This is best-effort: if an application is unreachable or slow, the sign-out still completes.
+- **Application signs out the user**: The application sends a LogoutRequest to WeftID. WeftID terminates the user's session and returns a LogoutResponse.
 
 Both directions use signed SAML messages. WeftID advertises both HTTP-Redirect and HTTP-POST bindings for its SLO endpoint.
 

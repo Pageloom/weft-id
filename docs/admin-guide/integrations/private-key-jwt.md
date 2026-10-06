@@ -12,7 +12,7 @@ Open the app or service account and find **Client Authentication**:
 2. Give WeftID the client's public keys, either:
     * **Paste public keys (JWKS)**: a JSON Web Key Set of RSA or EC public keys, at most 20. Never paste a private key; WeftID refuses a set that contains private key material.
     * **Fetch from a URL**: an `https` URL where the client publishes its key set. WeftID fetches it, caches it for an hour, and fetches it again when the client signs with a key it hasn't seen yet, so the client can rotate keys without an admin.
-3. Click **Save authentication** and confirm.
+3. Click **Save Authentication** and confirm.
 
 The client secret stops working as soon as you switch. Switching back to **Client secret** generates a new secret, shown once.
 

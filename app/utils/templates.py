@@ -16,6 +16,8 @@ from utils.static_assets import static_url
 
 _TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 _ICONS_DIR = _TEMPLATES_DIR / "icons"
+_PROVIDER_LOGOS_DIR = _TEMPLATES_DIR / "provider_logos"
+_PROVIDER_LOGO_NAME = re.compile(r"^[a-z0-9-]+$")
 
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 templates.env.globals["static_url"] = static_url
@@ -44,10 +46,37 @@ def icon(name: str, **kwargs: str) -> Markup:
 
 templates.env.globals["icon"] = icon
 
+
+@lru_cache(maxsize=32)
+def _read_provider_logo(name: str) -> str | None:
+    if not _PROVIDER_LOGO_NAME.match(name):
+        return None
+    path = _PROVIDER_LOGOS_DIR / f"{name}.svg"
+    return path.read_text() if path.is_file() else None
+
+
+def provider_logo(name: str | None, **kwargs: str) -> Markup:
+    """Return a provider's brand logo SVG, or empty markup if there is none.
+
+    Brand logos keep their own colours, so they live apart from the
+    Heroicons in ``icons/``. Usage in templates:
+        {{ provider_logo(button.logo, class="w-5 h-5") }}
+    """
+    svg = _read_provider_logo(name) if name else None
+    if svg is None:
+        return Markup("")
+    attrs = " ".join(f'{k}="{v}"' for k, v in kwargs.items() if v)
+    if attrs:
+        svg = re.sub(r"<svg\b", f"<svg {attrs}", svg, count=1)
+    return Markup(svg)
+
+
+templates.env.globals["provider_logo"] = provider_logo
+
 _ROLE_LABELS = {
     "super_admin": "Super Admin",
     "admin": "Admin",
-    "user": "User",
+    "member": "Member",
 }
 
 

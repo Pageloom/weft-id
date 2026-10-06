@@ -148,7 +148,8 @@ class ScimSyncLogList(BaseModel):
     items: list[ScimSyncLogEntry]
     total: int
     page: int
-    page_size: int
+    limit: int = Field(..., description="Rows per page")
+    page_size: int = Field(..., description="Deprecated alias of limit")
 
 
 class ScimQueueStatus(BaseModel):

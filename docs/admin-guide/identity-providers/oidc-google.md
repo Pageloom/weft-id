@@ -20,7 +20,7 @@ Google's `sub` is stable per user and does not change when someone's email addre
 2. Go to **APIs & Services > OAuth consent screen**, choose **Internal** for a Workspace-only application, and complete the required fields
 3. Go to **APIs & Services > Credentials** and click **Create Credentials > OAuth client ID**
 4. Choose **Web application** as the type
-5. Under **Authorized redirect URIs**, add the redirect URI from your WeftID connection's Details tab
+5. Under **Authorized redirect URIs**, add the callback URL from your WeftID connection's Details tab (you can create the WeftID connection first and fill this in afterwards)
 6. Click **Create** and copy the client ID and client secret
 
 Choosing **Internal** on the consent screen restricts sign-in to your Workspace organization and avoids Google's verification review. An **External** client will show an unverified-app warning until it is reviewed.
@@ -29,8 +29,8 @@ Choosing **Internal** on the consent screen restricts sign-in to your Workspace 
 
 1. In WeftID, go to **Identity Providers > OIDC** and create a connection with provider type **Google**
 2. Paste the client ID and client secret
-3. Optionally set a **hosted domain** (see below)
-4. Click **Test connection**, then enable it
+3. Optionally set a **Hosted Domain** (see below)
+4. Click **Test Connection**, then enable the connection
 
 ## Hosted domain restriction
 
@@ -47,10 +47,10 @@ Google does not emit a groups claim over OIDC, so the connection's [group claim 
 ## Troubleshooting
 
 **`redirect_uri_mismatch`**
-:   The URI registered in Google Cloud does not exactly match WeftID's. Copy it again from the connection's Details tab, including the scheme and any trailing path.
+:   The URI registered in Google Cloud does not exactly match WeftID's. Copy the callback URL again from the connection's Details tab, including the scheme and any trailing path.
 
 **Users from outside the Workspace can sign in**
-:   The hosted domain is not set, or the OAuth client is configured as External. Set the hosted domain on the connection.
+:   The hosted domain is not set, or the OAuth client is configured as External. Set the hosted domain on the connection (see [Changing credentials later](oidc-setup.md#changing-credentials-later)).
 
 **"Access blocked: this app's request is invalid"**
 :   Usually a missing redirect URI or an incomplete consent screen. Check both in the Google Cloud console.

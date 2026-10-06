@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}B2B - {{ site_title }}{% endblock %}
+{% block title %}Service Accounts - {{ site_title }}{% endblock %}
 
 {% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
 
@@ -9,18 +9,18 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="flex justify-between items-center mb-6">
             <div>
-                <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">B2B</h1>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Service accounts using the client credentials flow</p>
+                <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Service Accounts</h1>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">OAuth2 clients for service-to-service calls (client credentials flow)</p>
             </div>
             <button id="show-create-btn"
                     class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                Create B2B Client
+                Create Service Account
             </button>
         </div>
 
         {% if success == 'created' and not pending_credentials %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">B2B client created.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">Service account created.</p>
         </div>
         {% endif %}
 
@@ -32,7 +32,7 @@
                 {% elif error == 'invalid_role' %}
                 Invalid role selected.
                 {% elif error == 'creation_failed' %}
-                Failed to create the B2B client. Try again.
+                Failed to create the service account. Try again.
                 {% else %}
                 An error occurred. Try again.
                 {% endif %}
@@ -100,17 +100,17 @@
         {% else %}
         <div class="text-center py-12">
             {{ icon("server-stack", class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500") }}
-            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No B2B clients</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Create a B2B service account to get started.</p>
+            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No service accounts</h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Create a service account to get started.</p>
         </div>
         {% endif %}
     </div>
 </div>
 
-<!-- Create B2B Client Modal -->
+<!-- Create Service Account Modal -->
 <div id="create-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-70 hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
-        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Create B2B Client</h3>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Create Service Account</h3>
         <form method="post" action="/applications/service-accounts/create">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -124,7 +124,7 @@
 
                 <div>
                     <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
-                    <textarea id="description" name="description" rows="2"
+                    <textarea id="description" name="description" rows="2" maxlength="500"
                               class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="Optional description"></textarea>
                 </div>
@@ -148,7 +148,7 @@
                 </button>
                 <button type="submit"
                         class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                    Create B2B Client
+                    Create Service Account
                 </button>
             </div>
         </form>

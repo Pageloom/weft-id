@@ -1319,6 +1319,30 @@ def test_anonymize_user_as_super_admin(make_user_dict, override_api_auth):
         assert data["first_name"] == "[Anonymized]"
 
 
+def test_anonymize_user_erases_identifying_data(
+    test_tenant, test_super_admin_user, test_user, override_api_auth
+):
+    """Through the real service and database: nothing identifying survives."""
+    from tests.fixtures.identity_data import (
+        ERASED_TABLES,
+        count_rows,
+        hibp_values,
+        seed_identity_data,
+    )
+
+    tid = str(test_tenant["id"])
+    seed_identity_data(tid, test_user["id"], test_super_admin_user["id"])
+    override_api_auth(test_super_admin_user, level="super_admin")
+
+    client = TestClient(app)
+    response = client.post(f"/api/v1/users/{test_user['id']}/anonymize")
+
+    assert response.status_code == 200
+    assert response.json()["is_anonymized"] is True
+    assert count_rows(tid, test_user["id"]) == dict.fromkeys(ERASED_TABLES, 0)
+    assert hibp_values(tid, test_user["id"]) == (None, None)
+
+
 # Note: test_anonymize_user_as_admin_forbidden and test_anonymize_user_as_member_forbidden
 # are covered in integration tests
 

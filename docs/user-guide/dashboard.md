@@ -8,13 +8,13 @@ The top of the dashboard displays your name, email address, role, user ID, tenan
 
 ## My Apps
 
-Lists the applications you can access through single sign-on. Each application shows its name and logo (or an auto-generated icon if no logo has been uploaded). Click an application to launch it. WeftID shows a consent screen confirming your identity, then sends a signed SAML assertion to the application. You are signed in automatically without entering separate credentials.
+Lists the applications you can access. Click one to open it. You are signed in without entering separate credentials.
 
-This is called IdP-initiated SSO. For details on how the sign-on flow works, see [SSO Flow](../admin-guide/service-providers/sso-flow.md).
+- **SAML applications** show their logo, or an auto-generated icon if none has been uploaded. WeftID shows a consent screen confirming your identity, then sends a signed SAML assertion to the application. This is called IdP-initiated SSO. See [SSO Flow](../admin-guide/service-providers/sso-flow.md).
+- **OpenID Connect applications** open the application, which asks WeftID to sign you in. Because you are already signed in to WeftID, this usually happens without a prompt, apart from a one-time consent screen the first time you use the application.
+- **Other web applications** that WeftID protects open directly. WeftID checks your access before the application loads.
 
-Some applications sign you in with OpenID Connect instead. Clicking one of these opens the application, which asks WeftID to sign you in. Because you are already signed in to WeftID, this usually happens without any prompt, apart from a one-time consent screen the first time you use the application.
-
-If no applications are assigned to your groups, this section is empty. Contact your administrator to request access.
+If no applications are assigned to your groups, this section says **No applications available**. Contact your administrator to request access.
 
 ## My Groups
 

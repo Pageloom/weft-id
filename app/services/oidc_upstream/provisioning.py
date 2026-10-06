@@ -8,12 +8,21 @@ named by the connection's ``correlation_claim``), not on email: the OIDC
 The flow has three branches for an unrecognized subject:
 
 1. An existing ``oidc_idp_user_links`` row authenticates that user.
-2. No link + ``allow_email_linking`` + ``email_verified: true`` + a matching
-   existing email links the subject to that account.
+2. No link + ``allow_email_linking`` + a provider trusted for email linking
+   + ``email_verified: true`` + a matching existing email links the subject
+   to that account.
 3. No link + JIT enabled provisions a new user.
 
 ``allow_email_linking=false`` never attaches an unrecognized subject to an
-existing account (account-takeover guard).
+existing account (account-takeover guard). A user may hold links to several
+connections, but only one per connection: email linking never attaches a
+second upstream account to a user already linked on the connection.
+
+A user assigned to a SAML IdP is refused on every branch. SAML assignment is
+the tenant's policy for that user and an OIDC link must not bypass it.
+
+Every successful sign-in stamps the link's ``last_used_at``, which
+email-first routing uses to pick among a user's links.
 """
 
 import logging
@@ -21,7 +30,15 @@ import logging
 import database
 from services.event_log import log_event
 from services.exceptions import ForbiddenError, NotFoundError, ValidationError
+from services.oidc_upstream.email_confirmation import requires_confirmed_email
+from services.oidc_upstream.presets import email_linking_trusted
 from utils.validate import is_email_like
+
+# How a user reached the provider, recorded on sign-in audit events: a
+# "Continue with ..." button on the sign-in page, or any other route (email-
+# first routing, the default connection, a direct link).
+ENTRY_LOGIN_BUTTON = "login_button"
+ENTRY_ROUTED = "routed"
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +87,13 @@ def jit_provision_user(
     connection: dict,
     sub: str,
     claims: dict,
+    entry: str = ENTRY_ROUTED,
 ) -> dict:
     """Create a new user via JIT provisioning from OIDC claims.
 
-    Creates a user with a NULL password (OIDC-only authentication), a verified
-    email, an ``oidc_idp_user_links`` row, base-group membership, domain-group
+    Creates a user with a NULL password (OIDC-only authentication), an email
+    (verified, unless the provider's emails are untrusted: then the sign-in
+    must confirm it), an ``oidc_idp_user_links`` row, base-group membership, domain-group
     auto-assignment, and logs ``oidc_user_jit_provisioned``.
 
     Args:
@@ -82,6 +101,7 @@ def jit_provision_user(
         connection: The OIDC connection row (dict).
         sub: The correlation subject (the ``correlation_claim`` value).
         claims: The validated ID-token claims (plus any userinfo claims).
+        entry: How the user reached the provider, recorded on the event.
 
     Returns:
         The created user dict (for session creation).
@@ -132,12 +152,24 @@ def jit_provision_user(
 
     user_id = str(result["user_id"])
 
-    users_service.add_verified_email_with_nonce(
-        tenant_id=tenant_id,
-        user_id=user_id,
-        email=email,
-        is_primary=True,
-    )
+    # A provider that does not prove the address (Facebook, Microsoft
+    # personal) gets it stored unverified; the sign-in then asks the user to
+    # confirm it (services.oidc_upstream.email_confirmation).
+    unconfirmed = requires_confirmed_email(connection.get("provider_type"))
+    if unconfirmed:
+        users_service.add_unverified_email_with_nonce(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            email=email,
+            is_primary=True,
+        )
+    else:
+        users_service.add_verified_email_with_nonce(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            email=email,
+            is_primary=True,
+        )
 
     # Link the user to the (idp_id, sub) pair.
     database.oidc_upstream.create_link(
@@ -167,8 +199,10 @@ def jit_provision_user(
     # existing-link and email-link branches.
 
     # Auto-assign to domain-linked groups (protocol-agnostic, email-domain
-    # based, so it works for OIDC users unchanged).
-    settings_service.auto_assign_user_to_domain_groups(tenant_id, user_id, email, user_id)
+    # based, so it works for OIDC users unchanged). An unconfirmed address
+    # proves nothing about its domain: confirming it assigns them instead.
+    if not unconfirmed:
+        settings_service.auto_assign_user_to_domain_groups(tenant_id, user_id, email, user_id)
 
     log_event(
         tenant_id=tenant_id,
@@ -183,10 +217,16 @@ def jit_provision_user(
             "first_name": first_name,
             "last_name": last_name,
             "sub": sub,
+            "entry": entry,
+            "email_verified": not unconfirmed,
         },
     )
 
-    user = database.users.get_user_by_email_with_status(tenant_id, email)
+    # The usual lookup only sees verified addresses.
+    if unconfirmed:
+        user = database.users.get_user_by_email_for_saml(tenant_id, email)
+    else:
+        user = database.users.get_user_by_email_with_status(tenant_id, email)
     if not user:
         raise ValidationError(
             message="Failed to retrieve created user",
@@ -201,31 +241,39 @@ def authenticate_via_oidc(
     connection: dict,
     sub: str,
     claims: dict,
+    entry: str = ENTRY_ROUTED,
 ) -> dict:
     """Complete OIDC authentication and return the user.
 
     Correlation order:
 
     1. Existing ``(idp_id, sub)`` link -> authenticate that user.
-    2. No link + ``allow_email_linking`` + ``email_verified: true`` + matching
-       email -> link and authenticate.
+    2. No link + ``allow_email_linking`` + trusted provider +
+       ``email_verified: true`` + matching email -> link and authenticate.
     3. No link + JIT enabled -> provision.
     4. Otherwise -> reject.
 
-    Inactivated users are rejected (matching SAML).
+    Inactivated users are rejected (matching SAML). Users assigned to a SAML
+    IdP are rejected (``saml_assigned_user``), as is an email link to a user
+    already linked to this connection under another subject
+    (``oidc_connection_already_linked``). Both log
+    ``oidc_login_refused``.
 
     Args:
         tenant_id: Tenant ID.
         connection: The OIDC connection row (dict).
         sub: The correlation subject.
         claims: The validated ID-token claims.
+        entry: How the user reached the provider (``ENTRY_LOGIN_BUTTON`` or
+            ``ENTRY_ROUTED``), recorded on the sign-in and refusal events.
 
     Returns:
         The user dict for session creation.
 
     Raises:
         NotFoundError if no link, no email-link, and JIT disabled.
-        ForbiddenError if the user is inactivated.
+        ForbiddenError if the user is inactivated, assigned to a SAML IdP, or
+        already linked to this connection under another subject.
     """
     connection_id = str(connection["id"])
 
@@ -243,13 +291,21 @@ def authenticate_via_oidc(
                 message="User account is inactivated",
                 code="user_inactivated",
             )
+        _refuse_saml_assigned(tenant_id, user, connection, sub, entry)
         _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
         _sync_groups(tenant_id, str(user["id"]), connection, claims, user)
-        _log_sign_in(tenant_id, str(user["id"]), connection, sub, claims)
+        # Bookkeeping for routing (most recently used link), like activity
+        # tracking: the sign-in event below is the audit record.
+        database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
+        _log_sign_in(tenant_id, str(user["id"]), connection, sub, entry)
         return user
 
     # 2. Email linking (opt-in, gated on email_verified).
-    if connection.get("allow_email_linking"):
+    # The trust rule is checked here as well as on save: a connection saved
+    # before the rule existed must still not email-link.
+    if connection.get("allow_email_linking") and email_linking_trusted(
+        connection.get("provider_type") or ""
+    ):
         email = _extract_claims(claims, connection.get("claim_mapping") or {}).get("email")
         if email and claims.get("email_verified") is True:
             existing = database.users.get_user_by_email_for_saml(tenant_id, email)
@@ -259,9 +315,44 @@ def authenticate_via_oidc(
                         message="User account is inactivated",
                         code="user_inactivated",
                     )
-                if not existing.get("email_verified"):
-                    database.user_emails.verify_email(tenant_id, str(existing["email_id"]))
+                _refuse_saml_assigned(tenant_id, existing, connection, sub, entry)
                 user_id = str(existing["id"])
+                if database.oidc_upstream.get_link_for_user_idp(tenant_id, user_id, connection_id):
+                    _log_refusal(tenant_id, user_id, connection, sub, "already_linked", entry)
+                    raise ForbiddenError(
+                        message="User is already linked to this connection",
+                        code="oidc_connection_already_linked",
+                    )
+                if not existing.get("email_verified"):
+                    # An unconfirmed address on an account that already signs
+                    # in elsewhere was never proven by its owner (a JIT user
+                    # from an untrusted-email provider who skipped the
+                    # confirmation). Linking would hand this sign-in an
+                    # account someone else controls.
+                    if database.oidc_upstream.list_links_for_user(tenant_id, user_id):
+                        _log_refusal(
+                            tenant_id, user_id, connection, sub, "email_unconfirmed", entry
+                        )
+                        raise ForbiddenError(
+                            message="Matched account has an unconfirmed email address",
+                            code="oidc_email_unconfirmed",
+                        )
+                    # Otherwise an admin created the account for this address
+                    # (an invitation not yet accepted): the provider proves it.
+                    database.user_emails.verify_email(tenant_id, str(existing["email_id"]))
+                    log_event(
+                        tenant_id=tenant_id,
+                        actor_user_id=user_id,
+                        artifact_type="user",
+                        artifact_id=user_id,
+                        event_type="email_verified",
+                        metadata={
+                            "email_id": str(existing["email_id"]),
+                            "email": email,
+                            "flow": "oidc_email_linking",
+                            "idp_id": connection_id,
+                        },
+                    )
                 database.oidc_upstream.create_link(
                     tenant_id=tenant_id,
                     tenant_id_value=tenant_id,
@@ -297,14 +388,17 @@ def authenticate_via_oidc(
                 )
                 _apply_oidc_idp_attributes_safe(tenant_id, user_id, connection, claims)
                 _sync_groups(tenant_id, user_id, connection, claims, existing)
-                _log_sign_in(tenant_id, user_id, connection, sub, claims)
+                database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
+                _log_sign_in(tenant_id, user_id, connection, sub, entry)
                 return existing
 
     # 3. JIT provisioning.
     if connection.get("jit_provisioning"):
-        user = jit_provision_user(tenant_id, connection, sub, claims)
+        # Recorded by oidc_user_jit_provisioned alone, mirroring SAML JIT.
+        user = jit_provision_user(tenant_id, connection, sub, claims, entry)
         _apply_oidc_idp_attributes_safe(tenant_id, str(user["id"]), connection, claims)
         _sync_groups(tenant_id, str(user["id"]), connection, claims, user)
+        database.oidc_upstream.touch_link(tenant_id, connection_id, sub)
         return user
 
     # 4. Reject.
@@ -312,6 +406,49 @@ def authenticate_via_oidc(
         message="User account not found",
         code="user_not_found",
         details={"sub": sub},
+    )
+
+
+def _refuse_saml_assigned(
+    tenant_id: str,
+    user: dict,
+    connection: dict,
+    sub: str,
+    entry: str,
+) -> None:
+    """Refuse an OIDC sign-in for a user assigned to a SAML IdP."""
+    if not user.get("saml_idp_id"):
+        return
+    user_id = str(user["id"])
+    _log_refusal(tenant_id, user_id, connection, sub, "saml_assigned_user", entry)
+    raise ForbiddenError(
+        message="User signs in through a SAML identity provider",
+        code="saml_assigned_user",
+    )
+
+
+def _log_refusal(
+    tenant_id: str,
+    user_id: str,
+    connection: dict,
+    sub: str,
+    reason: str,
+    entry: str,
+) -> None:
+    """Log ``oidc_login_refused`` for a known user turned away by policy."""
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=user_id,
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="oidc_login_refused",
+        metadata={
+            "idp_id": str(connection["id"]),
+            "idp_name": connection["name"],
+            "sub": sub,
+            "reason": reason,
+            "entry": entry,
+        },
     )
 
 
@@ -395,9 +532,9 @@ def _log_sign_in(
     user_id: str,
     connection: dict,
     sub: str,
-    claims: dict,
+    entry: str,
 ) -> None:
-    """Log the ``oidc_login_completed`` event for an existing user."""
+    """Log the ``oidc_login_completed`` event."""
     log_event(
         tenant_id=tenant_id,
         actor_user_id=user_id,
@@ -408,5 +545,6 @@ def _log_sign_in(
             "idp_id": str(connection["id"]),
             "idp_name": connection["name"],
             "sub": sub,
+            "entry": entry,
         },
     )

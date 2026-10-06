@@ -19,13 +19,13 @@ Attributes are grouped into four categories:
 
 The catalog is fixed. Custom attribute keys are not supported.
 
-## The five flags
+## The six flags
 
-Each attribute has five independent flags. Each row saves on change (no Save button).
+Each attribute has six independent flags. Each row saves on change (no Save button).
 
 * **Enabled.** Collect this attribute for users in this tenant. When off, the attribute
   is hidden from profile pages, user creation, IdP mapping, and SP mapping. The other
-  four flags are disabled until Enabled is on.
+  flags are disabled until Enabled is on.
 * **Required.** Users must provide a value. Missing values flag the user in
   **Directory > Requests > Profile Completion** and (when [force-completion](#force-profile-completion) is
   on) block sign-in until the field is filled.
@@ -39,6 +39,11 @@ Each attribute has five independent flags. Each row saves on change (no Save but
   service providers by default. Existing SPs are unaffected; per-SP attribute mappings
   always override this default. See
   [attribute mapping](../service-providers/attribute-mapping.md) for per-SP control.
+* **Send user-set values to SPs.** Off by default. When off, a value the user set on
+  their own profile is withheld from SAML assertions; only values set by an admin or
+  mirrored from an IdP are sent. Turn it on only if you trust users to assert this
+  value to downstream apps. When the attribute is also unlocked, the row shows a
+  warning that users can self-set a signed claim.
 
 ## Editing values
 
@@ -52,7 +57,7 @@ Where attributes can be edited depends on the locked-for-users flag and the
 | Locked | No | Yes |
 
 Admins edit attributes on the user detail page (**Directory > Users > (user) > Profile**). Users
-edit their own attributes on **Account > Profile**.
+edit their own attributes on **User Settings > Profile**.
 
 ## Force profile completion
 
@@ -98,4 +103,4 @@ choose not to mirror it.
 
 ## Removing mirrored values when an IdP is disconnected
 
-When you delete an IdP, mirrored profile values stay on the user record. To clear values that still match the IdP's last-mirrored snapshot, tick **Scrub mirrored attributes** in the IdP delete dialog. See [Deleting an IdP](../identity-providers/saml-setup.md#scrubbing-mirrored-attributes) for details.
+When you delete an IdP, WeftID clears profile values mirrored from it by default. Values that users or admins have since changed are left alone. To keep the mirrored values, uncheck **Clear user profile values mirrored from this IdP** on the IdP's **Disable/Delete** tab before deleting. See [Deleting an IdP](../identity-providers/saml-setup.md#scrubbing-mirrored-attributes) for details.

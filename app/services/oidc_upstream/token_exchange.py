@@ -23,7 +23,17 @@ logger = logging.getLogger(__name__)
 
 
 class TokenExchangeError(OIDCUpstreamError):
-    """The token endpoint rejected the authorization-code exchange."""
+    """The token endpoint rejected the authorization-code exchange.
+
+    Attributes:
+        error: The OAuth ``error`` code from the response body, when the
+            endpoint returned one (``invalid_grant``,
+            ``incorrect_client_credentials``, ...).
+    """
+
+    def __init__(self, message: str, *, error: str | None = None) -> None:
+        super().__init__(message)
+        self.error = error
 
 
 class UserinfoError(OIDCUpstreamError):
@@ -45,12 +55,14 @@ def exchange_code(
     client_secret: str,
     code: str,
     redirect_uri: str,
-    code_verifier: str,
+    code_verifier: str | None,
+    auth_method: str = "client_secret_basic",
 ) -> dict:
     """Exchange an authorization code for tokens at the IdP's token endpoint.
 
     Uses the authorization-code grant with PKCE (S256). The client secret is
-    sent via HTTP Basic auth (the standard confidential-client form).
+    sent via HTTP Basic auth (the standard confidential-client form), or in
+    the form body for a provider that only accepts ``client_secret_post``.
 
     Args:
         token_endpoint: The IdP token endpoint URL.
@@ -58,7 +70,9 @@ def exchange_code(
         client_secret: The connection's decrypted client secret.
         code: The authorization code from the callback.
         redirect_uri: The callback URL (must match the authorize request).
-        code_verifier: The PKCE code verifier from the login flow.
+        code_verifier: The PKCE code verifier from the login flow, or None
+            for a provider that is not sent PKCE (Apple).
+        auth_method: ``client_secret_basic`` or ``client_secret_post``.
 
     Returns:
         The parsed token response dict (access_token, id_token, ...).
@@ -70,8 +84,14 @@ def exchange_code(
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": redirect_uri,
-        "code_verifier": code_verifier,
     }
+    if code_verifier is not None:
+        data["code_verifier"] = code_verifier
+    auth: tuple[str, str] | None = (client_id, client_secret)
+    if auth_method == "client_secret_post":
+        data["client_id"] = client_id
+        data["client_secret"] = client_secret
+        auth = None
 
     with build_safe_client(**SAFE_CLIENT_OPTIONS) as client:
         try:
@@ -80,13 +100,20 @@ def exchange_code(
                 "POST",
                 token_endpoint,
                 data=data,
-                auth=(client_id, client_secret),
+                auth=auth,
+                # GitHub answers in form encoding unless asked for JSON.
+                headers={"Accept": "application/json"},
+                # RFC 6749 5.2 errors come with a 400/401 and a JSON body
+                # naming the error; keep it for the caller.
+                error_body=True,
             )
         except Exception as exc:  # noqa: BLE001
             raise TokenExchangeError(f"Token exchange failed: {exc}") from exc
 
     if status != 200:
-        raise TokenExchangeError(f"Token endpoint returned HTTP {status}")
+        raise TokenExchangeError(
+            f"Token endpoint returned HTTP {status}", error=_oauth_error_code(body)
+        )
 
     try:
         payload = json.loads(body)
@@ -97,9 +124,23 @@ def exchange_code(
         raise TokenExchangeError("Token response is not a JSON object")
 
     if "error" in payload:
-        raise TokenExchangeError(f"Token endpoint returned an error: {payload.get('error')}")
+        error = payload.get("error")
+        raise TokenExchangeError(
+            f"Token endpoint returned an error: {error}",
+            error=error if isinstance(error, str) else None,
+        )
 
     return payload
+
+
+def _oauth_error_code(body: bytes) -> str | None:
+    """Return the ``error`` code of an RFC 6749 error response, if it has one."""
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return None
+    error = payload.get("error") if isinstance(payload, dict) else None
+    return error if isinstance(error, str) else None
 
 
 def fetch_userinfo(*, userinfo_endpoint: str, access_token: str, expected_sub: str) -> dict:

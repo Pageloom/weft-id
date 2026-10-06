@@ -496,7 +496,7 @@ Review this request at:
 <p style="margin: 0 0 8px 0;"><strong>User:</strong> {html.escape(user_name)}</p>
 <p style="margin: 0;"><strong>Email:</strong> {html.escape(user_email)}</p>
 </div>
-<p style="{_S_P}">A user whose account was inactivated has requested reactivation. Review this request:</p>
+<p style="{_S_P}">A deactivated user has requested reactivation. Review this request:</p>
 <a href="{url}" style="{_S_BUTTON}">Review Request</a>
 <p style="{_S_P}">Or copy and paste this link into your browser:</p>
 <p style="{_S_LINK_FALLBACK}">{url}</p>"""
@@ -736,7 +736,7 @@ def send_idle_users_inactivation_admin_notification(
 
     text_body = _wrap_text(
         f"""
-{count} {user_word} in your organization were automatically deactivated after being inactive for at least {threshold_days} days.
+WeftID automatically deactivated {count} {user_word} in your organization after at least {threshold_days} days of inactivity.
 
 Affected {user_word}:
 {text_list}
@@ -747,7 +747,7 @@ If an account was deactivated in error, you can reactivate it from the WeftID ad
     )
 
     body = f"""<h1 style="{_S_H1}">Users Deactivated Due to Inactivity</h1>
-<p style="{_S_P}"><strong>{count} {user_word}</strong> in your organization were automatically deactivated after being inactive for at least {threshold_days} days.</p>
+<p style="{_S_P}">WeftID automatically deactivated <strong>{count} {user_word}</strong> in your organization after at least {threshold_days} days of inactivity.</p>
 <p style="{_S_P}">Affected {user_word}:</p>
 <ul style="margin: 0 0 12px 0; padding-left: 20px; color: #333333;">
 {html_rows}</ul>

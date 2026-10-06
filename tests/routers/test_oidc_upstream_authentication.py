@@ -15,6 +15,7 @@ from uuid import uuid4
 import pytest
 from main import app
 
+from tests.fixtures.oidc_login import login_session
 from tests.helpers.client import TestClient
 
 
@@ -108,9 +109,9 @@ class TestCallback:
         assert response.status_code == 303
         assert "/login?error=auth_failed" in response.headers["location"]
 
-    def test_callback_missing_verifier(self, tenant_client, test_tenant, test_user):
+    def test_callback_without_started_sign_in(self, tenant_client, test_tenant, test_user):
         conn = _make_connection(test_tenant, test_user)
-        # No prior login -> no session state -> state mismatch (single-use).
+        # No prior login -> no session state -> state mismatch.
         response = tenant_client.get(
             f"/auth/oidc/{conn['id']}/callback?state=s&code=abc",
             follow_redirects=False,
@@ -187,11 +188,7 @@ class TestPkceRoundTrip:
             headers={"kid": "oidc-upstream-fixture-key"},
         )
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
+        session = login_session(conn)
 
         with patch(
             "starlette.requests.Request.session",
@@ -248,11 +245,7 @@ class TestMfaGate:
             headers={"kid": "oidc-upstream-fixture-key"},
         )
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
+        session = login_session(conn)
 
         with patch(
             "starlette.requests.Request.session",
@@ -393,11 +386,7 @@ class TestUserinfoSubject:
     def _callback(self, tenant_client, conn, userinfo_response):
         from tests.fixtures.oidc import load_fixture
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
+        session = login_session(conn)
         with (
             patch(
                 "starlette.requests.Request.session",
@@ -477,11 +466,7 @@ class TestCallbackFailures:
     def _callback(self, tenant_client, conn, *, query="state=state-1&code=code-1", **patches):
         from tests.fixtures.oidc import load_fixture
 
-        session = {
-            f"oidc_auth:{conn['id']}:state": "state-1",
-            f"oidc_auth:{conn['id']}:nonce": "n-1",
-            f"oidc_auth:{conn['id']}:code_verifier": "verifier-1",
-        }
+        session = login_session(conn)
         exchange = patches.get(
             "exchange", {"return_value": {"access_token": "at", "id_token": _signed_id_token()}}
         )
@@ -549,7 +534,9 @@ class TestCallbackFailures:
     def test_unknown_user_without_jit(self, tenant_client, test_tenant, test_user):
         conn = _make_connection(test_tenant, test_user, jit_provisioning=False)
         response = self._callback(tenant_client, conn)
-        self._assert_failed(response, test_tenant, conn, "user_not_found", error="user_not_found")
+        self._assert_failed(
+            response, test_tenant, conn, "user_not_found", error="oidc_user_not_found"
+        )
 
     def test_forbidden_user(self, tenant_client, test_tenant, test_user):
         from services.exceptions import ForbiddenError
@@ -561,6 +548,77 @@ class TestCallbackFailures:
         ):
             response = self._callback(tenant_client, conn)
         self._assert_failed(response, test_tenant, conn, "auth_failed")
+
+    def test_saml_assigned_user_refused(
+        self, tenant_client, test_tenant, test_user, test_super_admin_user
+    ):
+        """A linked user who is assigned to SAML is sent back to email-first."""
+        import database
+
+        conn = _make_connection(test_tenant, test_user)
+        database.oidc_upstream.create_link(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            idp_id=str(conn["id"]),
+            sub="subject-123",
+            user_id=str(test_user["id"]),
+        )
+        idp = database.saml.create_identity_provider(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=str(test_tenant["id"]),
+            name="Corp SAML",
+            provider_type="okta",
+            sp_entity_id=f"https://sp.example.com/{uuid4()}",
+            created_by=str(test_super_admin_user["id"]),
+            is_enabled=True,
+        )
+        database.users.update_user_saml_idp(test_tenant["id"], str(test_user["id"]), str(idp["id"]))
+
+        response = self._callback(tenant_client, conn)
+
+        assert response.status_code == 303
+        assert response.headers["location"].endswith("/login?error=sso_required")
+        events = database.event_log.list_events(test_tenant["id"], limit=20)
+        refused = [e for e in events if e["event_type"] == "oidc_login_refused"]
+        assert len(refused) == 1
+        assert refused[0]["metadata"]["reason"] == "saml_assigned_user"
+        # Audited once, as a refusal, not also as a generic failure.
+        assert not any(e["event_type"] == "oidc_login_failed" for e in events)
+
+    def test_deactivated_user(self, tenant_client, test_tenant, test_user):
+        from services.exceptions import ForbiddenError
+
+        conn = _make_connection(test_tenant, test_user, jit_provisioning=True)
+        with patch(
+            "services.oidc_upstream.authenticate_via_oidc",
+            side_effect=ForbiddenError(message="inactivated", code="user_inactivated"),
+        ):
+            response = self._callback(tenant_client, conn)
+        self._assert_failed(response, test_tenant, conn, "auth_failed", error="account_inactivated")
+
+    def test_unconfirmed_email_refused(self, tenant_client, test_tenant, test_user):
+        from services.exceptions import ForbiddenError
+
+        conn = _make_connection(test_tenant, test_user, jit_provisioning=True)
+        with patch(
+            "services.oidc_upstream.authenticate_via_oidc",
+            side_effect=ForbiddenError(message="unconfirmed", code="oidc_email_unconfirmed"),
+        ):
+            response = self._callback(tenant_client, conn)
+        assert response.headers["location"].endswith("/login?error=account_unconfirmed")
+
+    def test_already_linked_refused(self, tenant_client, test_tenant, test_user):
+        from services.exceptions import ForbiddenError
+
+        conn = _make_connection(test_tenant, test_user, jit_provisioning=True)
+        with patch(
+            "services.oidc_upstream.authenticate_via_oidc",
+            side_effect=ForbiddenError(
+                message="already linked", code="oidc_connection_already_linked"
+            ),
+        ):
+            response = self._callback(tenant_client, conn)
+        assert response.headers["location"].endswith("/login?error=account_already_linked")
 
     def test_connection_disabled_since_login(self, tenant_client, test_tenant, test_user):
         conn = _make_connection(test_tenant, test_user, is_enabled=False)
@@ -583,3 +641,138 @@ class TestCallbackFailures:
         self._assert_failed(
             response, test_tenant, conn, "configuration_error", error="configuration_error"
         )
+
+
+class TestSocialPresetRoutes:
+    """The spec OIDC presets for consumer providers go through the same routes."""
+
+    def test_linkedin_login_and_callback(self, tenant_client, test_tenant, test_user):
+        import database
+
+        conn = _make_connection(test_tenant, test_user, jit_provisioning=True)
+        database.execute(
+            test_tenant["id"],
+            "update oidc_idp_connections set provider_type = 'linkedin' where id = :id",
+            {"id": conn["id"]},
+        )
+
+        login = tenant_client.get(f"/auth/oidc/{conn['id']}/login", follow_redirects=False)
+        assert login.status_code == 303
+        location = login.headers["location"]
+        assert location.startswith("https://idp.example.com/authorize?")
+        assert f"%2Fauth%2Foidc%2F{conn['id']}%2Fcallback" in location
+
+        from tests.fixtures.oidc import load_fixture
+
+        session = login_session(conn)
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: session),
+            ),
+            patch(
+                "services.oidc_upstream.exchange_code",
+                return_value={"access_token": "at", "id_token": _signed_id_token()},
+            ) as exchange,
+            patch("services.oidc_upstream.jwks._fetch_jwks", return_value=load_fixture("jwks")),
+        ):
+            response = tenant_client.get(
+                f"/auth/oidc/{conn['id']}/callback?state=state-1&code=code-1",
+                follow_redirects=False,
+            )
+        assert response.status_code == 303
+        assert "error=" not in response.headers["location"]
+        # LinkedIn only accepts the client credentials in the request body.
+        assert exchange.call_args.kwargs["auth_method"] == "client_secret_post"
+        assert database.oidc_upstream.get_user_id_by_sub(
+            test_tenant["id"], str(conn["id"]), "subject-123"
+        )
+
+    def test_login_without_authorization_endpoint(self, tenant_client, test_tenant, test_user):
+        import routers.oidc_upstream.authentication as auth_router
+
+        conn = _make_connection(test_tenant, test_user)
+        real = auth_router._get_connection
+
+        def unconfigured(tenant_id, connection_id):
+            return {**real(tenant_id, connection_id), "authorization_endpoint": None}
+
+        with (
+            patch.object(auth_router, "_get_connection", side_effect=unconfigured),
+            patch("services.oidc_upstream.refresh_for_login", side_effect=lambda t, c: c),
+        ):
+            response = tenant_client.get(f"/auth/oidc/{conn['id']}/login", follow_redirects=False)
+        assert response.headers["location"].endswith("/login?error=configuration_error")
+
+
+class TestStoredStateBinding:
+    """The GET callback only takes a stored sign-in started for this tenant and
+    connection, and a callback that does not match leaves the sign-in alone."""
+
+    def _callback(self, tenant_client, conn, session, state="state-1"):
+        with patch(
+            "starlette.requests.Request.session",
+            new_callable=lambda: property(lambda self: session),
+        ):
+            return tenant_client.get(
+                f"/auth/oidc/{conn['id']}/callback?state={state}&code=code-1",
+                follow_redirects=False,
+            )
+
+    def _assert_state_mismatch(self, response, test_tenant, conn, session):
+        assert response.headers["location"].endswith("/login?error=auth_failed")
+        event = _last_login_failure(test_tenant["id"], conn["id"])
+        assert event["metadata"]["reason"] == "state_mismatch"
+        assert "user_id" not in session
+
+    def test_state_started_for_another_connection(self, tenant_client, test_tenant, test_user):
+        conn = _make_connection(test_tenant, test_user)
+        login_session({**conn, "id": str(uuid4())})
+        session = {f"oidc_auth:{conn['id']}:state": "state-1"}
+
+        response = self._callback(tenant_client, conn, session)
+
+        self._assert_state_mismatch(response, test_tenant, conn, session)
+
+    def test_state_started_on_another_tenant(self, tenant_client, test_tenant, test_user):
+        conn = _make_connection(test_tenant, test_user)
+        session = login_session({**conn, "tenant_id": str(uuid4())})
+
+        response = self._callback(tenant_client, conn, session)
+
+        self._assert_state_mismatch(response, test_tenant, conn, session)
+
+    def test_mismatched_callback_keeps_sign_in_in_progress(
+        self, tenant_client, test_tenant, test_user
+    ):
+        from services.oidc_upstream.login_state import load_login_state
+
+        conn = _make_connection(test_tenant, test_user)
+        session = login_session(conn)
+        key = f"oidc_auth:{conn['id']}:state"
+
+        response = self._callback(tenant_client, conn, session, state="forged")
+
+        self._assert_state_mismatch(response, test_tenant, conn, session)
+        assert session[key] == "state-1"
+        assert load_login_state("state-1") is not None
+
+
+class TestRefusalMessages:
+    @pytest.mark.parametrize(
+        ("error", "text"),
+        [
+            ("sso_required", "signs in through your organization's single sign-on"),
+            ("account_already_linked", "Your account here is already linked to a different"),
+            ("account_unconfirmed", "hasn't been confirmed yet"),
+            ("account_inactivated", "Account deactivated"),
+            ("auth_failed", "Sign-in didn't complete. Try again."),
+            ("configuration_error", "isn't set up correctly"),
+            ("idp_not_found", "Sign-in option not found."),
+            ("oidc_user_not_found", "No account found for this sign-in."),
+        ],
+    )
+    def test_login_page_explains_refusal(self, tenant_client, error, text):
+        response = tenant_client.get(f"/login?error={error}")
+        assert response.status_code == 200
+        assert text in response.text.replace("&#39;", "'")

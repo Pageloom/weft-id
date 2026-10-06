@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ client.name }} - B2B - {{ site_title }}{% endblock %}
+{% block title %}{{ client.name }} - Service Accounts - {{ site_title }}{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl">
@@ -8,7 +8,7 @@
         <!-- Header with back link -->
         <div class="mb-6">
             <a href="/applications/service-accounts" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                &larr; Back to B2B
+                &larr; Back to Service Accounts
             </a>
         </div>
 
@@ -41,7 +41,7 @@
         <!-- Success/Error Messages -->
         {% if success == 'updated' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">B2B client updated.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">Service account updated.</p>
         </div>
         {% elif success == 'role_changed' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
@@ -53,11 +53,11 @@
         </div>
         {% elif success == 'deactivated' %}
         <div class="mb-6 p-4 border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
-            <p class="text-sm text-yellow-800 dark:text-yellow-300">B2B client deactivated. It can no longer request tokens.</p>
+            <p class="text-sm text-yellow-800 dark:text-yellow-300">Service account deactivated. It can no longer request tokens.</p>
         </div>
         {% elif success == 'reactivated' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-            <p class="text-sm text-green-800 dark:text-green-300">B2B client reactivated.</p>
+            <p class="text-sm text-green-800 dark:text-green-300">Service account reactivated.</p>
         </div>
         {% elif success == 'introspection_updated' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
@@ -75,9 +75,9 @@
                 {% if error == 'name_required' %}
                 Name is required.
                 {% elif error == 'invalid_role' %}
-                Invalid role selected.
+                Choose a valid role.
                 {% elif error == 'update_failed' %}
-                Failed to update the B2B client. Try again.
+                Failed to update the service account. Try again.
                 {% elif error == 'role_change_failed' %}
                 Failed to change the service role. Try again.
                 {% elif error == 'introspection_update_failed' %}
@@ -109,7 +109,7 @@
 
             <div>
                 <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
-                <textarea id="description" name="description" rows="2"
+                <textarea id="description" name="description" rows="2" maxlength="500"
                           class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ client.description or '' }}</textarea>
             </div>
 
@@ -125,7 +125,7 @@
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Service Role</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                The service role determines what API operations this B2B client can perform.
+                Determines what this service account can do through the API.
             </p>
 
             <form method="post" action="/applications/service-accounts/{{ client.client_id }}/role" class="flex items-end gap-4">
@@ -154,7 +154,7 @@
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Token Introspection</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                Every client can check its own tokens at the introspection endpoint. Allow this client to check all tokens if it is a resource server, such as an API backend that receives tokens issued to other applications in this tenant.
+                Every client can introspect its own tokens. Allow all tokens only for a resource server, such as an API backend that receives tokens issued to other apps in this tenant.
             </p>
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
                 Introspection endpoint: <code class="font-mono text-gray-800 dark:text-gray-200 break-all">{{ introspection_endpoint }}</code>
@@ -195,7 +195,7 @@
                 <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div>
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Regenerate Client Secret</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The current secret will be immediately invalidated.</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The current secret stops working immediately.</p>
                     </div>
                     <button id="show-regenerate-btn"
                             class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600">
@@ -208,8 +208,8 @@
                 <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                     {% if client.is_active %}
                     <div>
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Deactivate B2B Client</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The client will not be able to request tokens. All existing tokens will be revoked.</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Deactivate Service Account</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The service account can't request tokens. Its existing tokens are revoked.</p>
                     </div>
                     <button id="show-deactivate-btn"
                             class="px-3 py-1.5 text-sm border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20">
@@ -217,8 +217,8 @@
                     </button>
                     {% else %}
                     <div>
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Reactivate B2B Client</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Allow this client to request tokens again.</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Reactivate Service Account</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Lets the service account request tokens again.</p>
                     </div>
                     <form method="post" action="/applications/service-accounts/{{ client.client_id }}/reactivate" class="inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -254,7 +254,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Regenerate Client Secret?</h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            The current client secret will be immediately invalidated. Any systems using the current secret will stop working until updated.
+            The current secret stops working immediately. Anything that uses it fails until it gets the new one.
         </p>
         <div class="flex justify-end gap-3">
             <button id="hide-regenerate-btn"
@@ -275,9 +275,9 @@
 <!-- Deactivate Confirmation Modal -->
 <div id="deactivate-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-70 hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Deactivate B2B Client?</h3>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Deactivate Service Account?</h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            This client will no longer be able to request tokens. All existing tokens will be revoked immediately. You can reactivate it later if needed.
+            The service account can no longer request tokens, and its existing tokens are revoked immediately. You can reactivate it later.
         </p>
         <div class="flex justify-end gap-3">
             <button id="hide-deactivate-btn"

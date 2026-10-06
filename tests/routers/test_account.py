@@ -1061,6 +1061,38 @@ def test_revoke_authorized_app_success(test_tenant, test_admin_user, test_user, 
     assert database.oauth2.get_consent_grant_by_id(test_tenant["id"], str(grant["id"])) is None
 
 
+def test_revoke_authorized_app_ends_the_apps_api_access(
+    test_tenant, test_tenant_host, test_admin_user, test_user, override_auth
+):
+    """The revoked app's bearer token stops working, not just its consent."""
+    import database
+
+    override_auth(test_user)
+    grant = _grant_row(test_tenant, test_admin_user, test_user)
+    tid = str(test_tenant["id"])
+    _, refresh_id = database.oauth2.create_refresh_token(
+        tenant_id=tid,
+        tenant_id_value=tid,
+        client_id=str(grant["client_id"]),
+        user_id=str(test_user["id"]),
+    )
+    access = database.oauth2.create_access_token(
+        tenant_id=tid,
+        tenant_id_value=tid,
+        client_id=str(grant["client_id"]),
+        user_id=str(test_user["id"]),
+        parent_token_id=refresh_id,
+    )
+    client = TestClient(app)
+    bearer = {"Host": test_tenant_host, "Authorization": f"Bearer {access}"}
+    assert client.get("/api/v1/users/me", headers=bearer).status_code == 200
+
+    response = client.post(f"/account/authorized-apps/{grant['id']}/revoke", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert client.get("/api/v1/users/me", headers=bearer).status_code == 401
+
+
 def test_revoke_authorized_app_not_found(test_user, override_auth):
     from uuid import uuid4
 

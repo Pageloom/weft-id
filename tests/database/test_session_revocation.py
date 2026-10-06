@@ -217,6 +217,39 @@ class TestUpstreamSessions:
             == []
         )
 
+    def test_find_user_sessions_at_connection(
+        self, test_tenant, connection, test_user, test_admin_user
+    ):
+        other = database.oidc_upstream.create_connection(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=_tid(test_tenant),
+            name="Other IdP",
+            provider_type="generic",
+            issuer="https://other.example.com",
+            created_by=str(test_user["id"]),
+        )
+        _link(test_tenant, connection, test_user, sid="w1", sub="s-1")
+        _link(test_tenant, connection, test_user, sid="w2", sub="s-2", upstream_sid=None)
+        _link(test_tenant, other, test_user, sid="w3")
+        _link(test_tenant, connection, test_admin_user, sid="w4")
+
+        rows = database.oidc_upstream.find_user_idp_sessions(
+            _tid(test_tenant), str(connection["id"]), str(test_user["id"])
+        )
+
+        assert [row["sid"] for row in rows] == ["w1", "w2"]
+
+    def test_find_user_sessions_tenant_isolation(
+        self, test_tenant, other_tenant, connection, test_user
+    ):
+        _link(test_tenant, connection, test_user, sid="w1")
+        assert (
+            database.oidc_upstream.find_user_idp_sessions(
+                _tid(other_tenant), str(connection["id"]), str(test_user["id"])
+            )
+            == []
+        )
+
     def test_delete(self, test_tenant, connection, test_user):
         _link(test_tenant, connection, test_user, sid="w1")
         assert database.oidc_upstream.delete_idp_session(_tid(test_tenant), "w1") == 1

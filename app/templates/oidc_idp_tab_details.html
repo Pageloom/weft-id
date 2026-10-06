@@ -16,11 +16,12 @@
     </div>
 </div>
 
+{% if connection.uses_discovery %}
 {# Back-channel logout URL to paste into the IdP console #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Back-Channel Logout URL</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-        Optional. Register this as the back-channel logout URI in your IdP console. When a user signs out at the IdP, WeftID signs them out of the sessions that sign-in started.
+        Optional. Register this as the back-channel logout URI in your IdP console. When a user signs out at the IdP, WeftID ends the sessions that IdP sign-in started.
     </p>
     <div class="flex items-center gap-2">
         <code id="backchannel-logout-url" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ connection.backchannel_logout_url }}</code>
@@ -45,6 +46,68 @@
         </button>
     </div>
 </div>
+{% endif %}
+
+{% if connection.provider_type == 'github' %}
+{# GitHub organizations a user must belong to #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <div class="flex items-start justify-between">
+        <div class="min-w-0 flex-1">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Allowed Organizations</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Users must belong to at least one of these GitHub organizations. With none listed, any GitHub account can sign in.
+            </p>
+            {% if connection.github_allowed_orgs %}
+            <ul id="github-orgs-list" class="flex flex-wrap gap-2">
+                {% for org in connection.github_allowed_orgs %}
+                <li class="px-2 py-0.5 text-sm font-mono rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100">{{ org }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p id="github-orgs-list" class="text-sm text-gray-500 dark:text-gray-400 italic">Any GitHub account</p>
+            {% endif %}
+        </div>
+        <button type="button" id="edit-orgs-btn"
+                class="ml-2 mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                title="Edit allowed organizations">
+            {{ icon("pencil", class="w-4 h-4") }}
+        </button>
+    </div>
+</div>
+{% endif %}
+
+{% if connection.provider_type == 'apple' %}
+{# Apple signs its client secret with the admin's key #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <div class="flex items-start justify-between">
+        <div class="min-w-0 flex-1">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Apple Signing Key</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Apple has no client secret to copy. WeftID signs one for each sign-in with the private key you created in your Apple developer account.
+            </p>
+            <dl id="apple-key-settings" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Team ID</dt>
+                    <dd class="mt-1 text-sm text-gray-{% if connection.apple_team_id %}900 dark:text-gray-100 font-mono{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.apple_team_id or 'Not configured' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Key ID</dt>
+                    <dd class="mt-1 text-sm text-gray-{% if connection.apple_key_id %}900 dark:text-gray-100 font-mono{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.apple_key_id or 'Not configured' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Private Key</dt>
+                    <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{% if connection.apple_private_key_set %}Configured{% else %}Not configured{% endif %}</dd>
+                </div>
+            </dl>
+        </div>
+        <button type="button" id="edit-apple-key-btn"
+                class="ml-2 mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                title="Edit Apple key">
+            {{ icon("pencil", class="w-4 h-4") }}
+        </button>
+    </div>
+</div>
+{% endif %}
 
 {# Connection Configuration #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
@@ -63,15 +126,24 @@
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Provider Type</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
-                {% if connection.provider_type == 'google' %}Google
-                {% elif connection.provider_type == 'entra' %}Entra ID
-                {% else %}Generic OIDC{% endif %}
+                {{ connection.provider_label }}
             </dd>
         </div>
+        {% if connection.uses_discovery %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Issuer</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ connection.issuer }}</dd>
         </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Discovery URL</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.discovery_url %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.discovery_url or "The issuer's well-known path" }}</dd>
+        </div>
+        {% if connection.provider_type == 'entra' %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Entra Tenant ID</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.entra_tenant_id %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.entra_tenant_id or 'Not configured' }}</dd>
+        </div>
+        {% endif %}
         {% if connection.provider_type == 'generic' %}
         <div class="flex items-center justify-between">
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Endpoints</dt>
@@ -102,20 +174,42 @@
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">End Session Endpoint</dt>
             <dd class="mt-1 text-sm text-gray-{% if connection.end_session_endpoint %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.end_session_endpoint or 'Not published' }}</dd>
         </div>
-        <div>
-            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client ID</dt>
-            <dd class="mt-1 text-sm text-gray-{% if connection.client_id %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.client_id or 'Not configured' }}</dd>
+        {% endif %}
+        <div class="flex items-start justify-between">
+            <div class="min-w-0 flex-1">
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client ID</dt>
+                <dd class="mt-1 text-sm text-gray-{% if connection.client_id %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.client_id or 'Not configured' }}</dd>
+            </div>
+            <button type="button" id="edit-credentials-btn"
+                    class="ml-2 mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                    title="Edit credentials">
+                {{ icon("pencil", class="w-4 h-4") }}
+            </button>
         </div>
+        {% if connection.provider_type != 'apple' %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client Secret</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
                 {% if connection.client_secret_set %}Configured{% else %}Not configured{% endif %}
             </dd>
         </div>
+        {% endif %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Scopes</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.scopes %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.scopes or 'Not configured' }}</dd>
+        </div>
+        {% if connection.provider_type == 'google' %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hosted Domain</dt>
+            <dd class="mt-1 text-sm text-gray-{% if connection.hosted_domain %}900 dark:text-gray-100 font-mono{% else %}500 dark:text-gray-400 italic{% endif %}">{{ connection.hosted_domain or 'Any Google account' }}</dd>
+        </div>
+        {% endif %}
+        {% if connection.uses_discovery %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Correlation Claim</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">{{ connection.correlation_claim }}</dd>
         </div>
+        {% endif %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ fmt_datetime(connection.created_at) }}</dd>
@@ -149,7 +243,34 @@
                 </div>
                 <div class="ml-3">
                     <label for="is_default" class="text-sm font-medium text-gray-700 dark:text-gray-300">Default Provider</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Default provider for OIDC sign-in.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Unrecognized email addresses with no domain binding sign up through this provider when Just-in-Time Provisioning is on. A default SAML IdP takes precedence.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="show_on_login" name="show_on_login"
+                           {% if connection.show_on_login %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="show_on_login" class="text-sm font-medium text-gray-700 dark:text-gray-300">Show on Sign-In Page</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Adds a "Continue with ..." button to the sign-in page while the provider is enabled.</p>
+                    {% if not connection.email_linking_trusted %}
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-1" id="login-email-code">
+                        {{ connection.provider_label }} does not verify email addresses. New users enter an emailed code before their first sign-in completes.
+                    </p>
+                    {% elif connection.provider_type != 'generic' %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="login-email-verified">
+                        Email addresses from {{ connection.provider_label }} count as verified, so new users sign in without an extra step.
+                    </p>
+                    {% endif %}
+                    {% if connection.show_on_login and not connection.is_enabled %}
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        {{ icon("exclamation-triangle", class="w-3 h-3 inline-block mr-1 -mt-0.5") }}
+                        The provider is disabled, so the button is not shown.
+                    </p>
+                    {% endif %}
                 </div>
             </div>
 
@@ -174,6 +295,11 @@
                 <div class="ml-3">
                     <label for="jit_provisioning" class="text-sm font-medium text-gray-700 dark:text-gray-300">Just-in-Time Provisioning</label>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Create accounts automatically on first OIDC sign-in.</p>
+                    {% if not connection.email_linking_trusted %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="jit-email-confirmation">
+                        New users confirm their email address with a code first, because {{ connection.provider_label }} does not verify it.
+                    </p>
+                    {% endif %}
                 </div>
             </div>
 
@@ -181,19 +307,26 @@
                 <div class="flex items-center h-5">
                     <input type="checkbox" id="allow_email_linking" name="allow_email_linking"
                            {% if connection.allow_email_linking %}checked{% endif %}
-                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                           {% if not connection.email_linking_trusted %}disabled{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50">
                 </div>
                 <div class="ml-3">
                     <label for="allow_email_linking" class="text-sm font-medium text-gray-700 dark:text-gray-300">Allow Email Linking</label>
                     <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
                         {{ icon("exclamation-triangle", class="w-3 h-3 inline-block mr-1 -mt-0.5") }}
-                        Attaches an unrecognized subject to an existing account on an email match
-                        (requires <code>email_verified: true</code>). Leave off unless you trust the
-                        IdP to verify emails.
+                        Links an unrecognized provider account to an existing account with the same
+                        email address (requires <code>email_verified: true</code>). Leave off unless
+                        you trust the IdP to verify email addresses.
                     </p>
+                    {% if not connection.email_linking_trusted %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="email-linking-unsupported">
+                        Not available for {{ connection.provider_label }}: it does not assert a verified email address.
+                    </p>
+                    {% endif %}
                 </div>
             </div>
 
+            {% if connection.uses_discovery %}
             <div class="flex items-start">
                 <div class="flex items-center h-5">
                     <input type="checkbox" id="sign_out_at_idp" name="sign_out_at_idp"
@@ -211,6 +344,7 @@
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
         </div>
         <div class="flex justify-end mt-6">
             <button type="submit"
@@ -225,12 +359,20 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Connection Testing</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        {% if connection.provider_type == 'apple' %}
+        Fetch Apple's discovery document and signing keys, then check the Services ID, team ID, key ID and private key with Apple.
+        {% elif connection.uses_discovery %}
         Fetch the IdP's discovery document, validate the issuer and endpoints, and fetch the signing keys they point to.
+        {% elif connection.provider_type == 'github' %}
+        Check the client ID, client secret and callback URL with {{ connection.provider_label }}.
+        {% else %}
+        Check the client ID and client secret with {{ connection.provider_label }}.
+        {% endif %}
     </p>
 
     {% if test == 'success' %}
     <div class="mb-4 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-        <p class="text-sm text-green-800 dark:text-green-300">Discovery and signing keys fetched. Endpoints updated.</p>
+        <p class="text-sm text-green-800 dark:text-green-300">{% if connection.provider_type == 'apple' %}Discovery and signing keys fetched. Apple accepted the client secret signed with your key.{% elif connection.uses_discovery %}Discovery and signing keys fetched. Endpoints updated.{% else %}{{ connection.provider_label }} accepted the client credentials.{% endif %}</p>
     </div>
     {% elif test == 'error' %}
     <div class="mb-4 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
@@ -272,6 +414,160 @@
         </form>
     </div>
 </div>
+
+{# Edit Credentials Modal #}
+<div id="edit-credentials-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Edit Credentials</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            Leave a field blank to keep its current value.{% if connection.uses_discovery %} After changing the issuer or discovery URL, run Test Connection to fetch the new endpoints.{% endif %}
+        </p>
+        <form method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-credentials">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if connection.provider_type == 'entra' %}
+            <div class="mb-4">
+                <label for="edit-entra-tenant-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Entra Tenant ID</label>
+                <input type="text" id="edit-entra-tenant-id" name="entra_tenant_id" maxlength="100" value="{{ connection.entra_tenant_id or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">WeftID builds the issuer URL from this value.</p>
+            </div>
+            {% endif %}
+            {% if connection.provider_type in ('generic', 'gitlab') %}
+            <div class="mb-4">
+                <label for="edit-issuer" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Issuer</label>
+                <input type="url" id="edit-issuer" name="issuer" maxlength="2048" value="{{ connection.issuer }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            {% endif %}
+            {% if connection.provider_type == 'generic' %}
+            <div class="mb-4">
+                <label for="edit-discovery-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Discovery URL</label>
+                <input type="url" id="edit-discovery-url" name="discovery_url" maxlength="2048" value="{{ connection.discovery_url or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            {% endif %}
+            <div class="mb-4">
+                <label for="edit-client-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client ID</label>
+                <input type="text" id="edit-client-id" name="client_id" maxlength="255" autocomplete="off" value="{{ connection.client_id or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            {% if connection.provider_type != 'apple' %}
+            <div class="mb-4">
+                <label for="edit-client-secret" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client Secret</label>
+                <input type="password" id="edit-client-secret" name="client_secret" maxlength="3000" autocomplete="new-password"
+                       placeholder="{% if connection.client_secret_set %}Configured. Type a new secret to replace it.{% endif %}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Encrypted at rest and never displayed again.</p>
+            </div>
+            {% endif %}
+            <div class="mb-4">
+                <label for="edit-scopes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scopes</label>
+                <input type="text" id="edit-scopes" name="scopes" maxlength="500" value="{{ connection.scopes or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            {% if connection.provider_type == 'generic' %}
+            <div class="mb-4">
+                <label for="edit-correlation-claim" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Correlation Claim</label>
+                <input type="text" id="edit-correlation-claim" name="correlation_claim" maxlength="50" value="{{ connection.correlation_claim }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">Users already linked are matched on the old claim. Changing it can stop them signing in.</p>
+            </div>
+            {% endif %}
+            {% if connection.provider_type == 'google' %}
+            <div class="mb-4">
+                <label for="edit-hosted-domain" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hosted Domain (Google <code>hd</code>)</label>
+                <input type="text" id="edit-hosted-domain" name="hosted_domain" maxlength="253" value="{{ connection.hosted_domain or '' }}"
+                       placeholder="example.com"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Restrict sign-in to a Google Workspace domain. Leave blank to allow any Google account.</p>
+            </div>
+            {% endif %}
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-credentials-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# Edit Allowed Organizations Modal (GitHub only) #}
+{% if connection.provider_type == 'github' %}
+<div id="edit-orgs-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Allowed Organizations</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            GitHub organization names, separated by commas or new lines. Leave blank to let any GitHub account sign in.
+        </p>
+        <form method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-github-orgs">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label for="edit-github-orgs" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Organizations</label>
+                <textarea id="edit-github-orgs" name="github_allowed_orgs" rows="4"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">{{ connection.github_allowed_orgs | join('\n') }}</textarea>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-orgs-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{# Edit Apple Key Modal (Apple only) #}
+{% if connection.provider_type == 'apple' %}
+<div id="edit-apple-key-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Apple Signing Key</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            Leave a field blank to keep its current value. The private key is never displayed again.
+        </p>
+        <form method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-apple-key">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label for="edit-apple-team-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Team ID</label>
+                <input type="text" id="edit-apple-team-id" name="apple_team_id" maxlength="10" autocomplete="off"
+                       value="{{ connection.apple_team_id or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label for="edit-apple-key-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Key ID</label>
+                <input type="text" id="edit-apple-key-id" name="apple_key_id" maxlength="10" autocomplete="off"
+                       value="{{ connection.apple_key_id or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label for="edit-apple-private-key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Private Key (.p8)</label>
+                <textarea id="edit-apple-private-key" name="apple_private_key" rows="5" autocomplete="off"
+                          placeholder="{% if connection.apple_private_key_set %}Configured. Paste a new key to replace it.{% else %}-----BEGIN PRIVATE KEY-----{% endif %}"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"></textarea>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-apple-key-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 {# Edit Endpoints Modal (generic providers only) #}
 {% if connection.provider_type == 'generic' %}
@@ -342,8 +638,14 @@
     });
     document.getElementById('edit-name-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-name-modal'); });
     document.getElementById('cancel-name-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-name-modal'); });
+    document.getElementById('edit-credentials-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-credentials-modal'); });
+    document.getElementById('cancel-credentials-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-credentials-modal'); });
     document.getElementById('edit-endpoints-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-endpoints-modal'); });
     document.getElementById('cancel-endpoints-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-endpoints-modal'); });
+    document.getElementById('edit-orgs-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-orgs-modal'); });
+    document.getElementById('cancel-orgs-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-orgs-modal'); });
+    document.getElementById('edit-apple-key-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-apple-key-modal'); });
+    document.getElementById('cancel-apple-key-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-apple-key-modal'); });
 })();
 </script>
 {% endblock %}

@@ -463,6 +463,43 @@ def revoke_all_client_tokens(tenant_id: TenantArg, client_id: str) -> int:
     )
 
 
+def revoke_user_client_tokens(tenant_id: TenantArg, user_id: str, client_id: str) -> int:
+    """
+    Revoke everything a user has granted one client.
+
+    Used when the user's consent for the client is revoked. Deletes the
+    client's access and refresh tokens for the user, the authorization codes
+    not yet redeemed, and the device authorization requests the user approved
+    but the device has not yet redeemed, so no token can be minted from them
+    afterwards. Redeemed codes stay: they are what detects a replayed code.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID whose grant ends
+        client_id: OAuth2 client UUID (not client_id string!)
+
+    Returns:
+        Number of tokens deleted
+    """
+    params = {"user_id": user_id, "client_id": client_id}
+    with session(tenant_id=tenant_id) as cur:
+        cur.execute(
+            "delete from oauth2_authorization_codes "
+            "where user_id = %(user_id)s and client_id = %(client_id)s and consumed_at is null",
+            params,
+        )
+        cur.execute(
+            "delete from oauth2_device_codes "
+            "where user_id = %(user_id)s and client_id = %(client_id)s and status = 'approved'",
+            params,
+        )
+        cur.execute(
+            "delete from oauth2_tokens where user_id = %(user_id)s and client_id = %(client_id)s",
+            params,
+        )
+        return int(cur.rowcount)
+
+
 def purge_expired_tokens(*, older_than_days: int) -> int:
     """Delete tokens that expired more than ``older_than_days`` ago.
 

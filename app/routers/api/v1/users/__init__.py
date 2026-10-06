@@ -18,6 +18,7 @@ from services import bg_tasks as bg_tasks_service  # noqa: F401
 from services import emails as emails_service  # noqa: F401
 from services import groups as groups_service  # noqa: F401
 from services import mfa as mfa_service  # noqa: F401
+from services import oidc_upstream as oidc_upstream_service  # noqa: F401
 from services import saml as saml_service  # noqa: F401
 from services import service_providers as sp_service  # noqa: F401
 from services import settings as settings_service  # noqa: F401

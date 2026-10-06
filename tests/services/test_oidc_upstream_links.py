@@ -2,7 +2,8 @@
 
 Covers ``unlink_user_from_connection``: scrub fires, mirror rows dropped, link
 removed, user inactivated + emails unverified, and the dedicated unlink event
-is logged. Also covers the admin list helpers.
+is logged. Also covers the admin list helpers. Unlinking one of several links
+is covered in ``test_oidc_upstream_multi_link.py``.
 """
 
 import pytest
@@ -174,28 +175,6 @@ class TestUnlinkUser:
         with pytest.raises(NotFoundError) as exc_info:
             svc.unlink_user_from_connection(requesting, str(test_user["id"]), str(conn["id"]))
         assert exc_info.value.code == "oidc_user_link_not_found"
-
-    def test_unlink_removes_all_links_for_user_idp(
-        self, test_tenant, test_super_admin_user, test_user
-    ):
-        import database
-        from services import oidc_upstream as svc
-
-        conn = _make_connection(test_tenant, test_super_admin_user)
-        # A user can hold multiple links against one connection (the schema
-        # has no uniqueness on user_id, only on (idp_id, sub)).
-        _link(test_tenant, conn, test_user, sub="subject-123")
-        _link(test_tenant, conn, test_user, sub="subject-456")
-
-        requesting = _make_requesting_user(test_super_admin_user, test_tenant["id"])
-        svc.unlink_user_from_connection(requesting, str(test_user["id"]), str(conn["id"]))
-
-        assert (
-            database.oidc_upstream.get_links_for_user_idp(
-                test_tenant["id"], str(test_user["id"]), str(conn["id"])
-            )
-            == []
-        )
 
     def test_unlink_as_admin_forbidden(self, test_tenant, test_admin_user, test_user):
         from services import oidc_upstream as svc

@@ -338,6 +338,10 @@
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
                                     {{ u.saml_idp_name or 'IdP' }}
                                 </span>
+                                {% elif u.oidc_connection_names %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+                                    {{ u.oidc_connection_names | join(', ') }}
+                                </span>
                                 {% elif u.has_password and u.mfa_method == 'totp' %}
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
                                     Password + TOTP
@@ -677,7 +681,7 @@ WeftUtils.listManager({
             callback: (selectedIds) => {
                 const userIds = _collectUserIds(selectedIds);
                 _previewAndConfirm('/api/v1/users/bulk-ops/inactivate/preview', userIds, {
-                    action: 'Inactivate',
+                    action: 'Deactivate',
                     consequence: 'OAuth tokens will be revoked and affected users will lose sign-in access.',
                     destructive: true,
                     formId: 'bulk-inactivate-form',

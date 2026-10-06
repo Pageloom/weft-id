@@ -19,9 +19,9 @@ The metadata includes WeftID's entity ID, SSO endpoint, signing certificate, and
 
 Once your application is configured, import its SAML metadata into WeftID to complete the connection. Three options are available on the SP's detail page:
 
-- **Metadata URL** -- Paste the application's metadata URL for automatic import
-- **Metadata XML** -- Paste the raw SAML metadata XML
-- **Manual entry** -- Enter the entity ID and Assertion Consumer Service (ACS) URL directly
+- **Metadata URL**: Paste the application's metadata URL for automatic import
+- **Metadata XML**: Paste the raw SAML metadata XML
+- **Manual entry**: Enter the entity ID and Assertion Consumer Service (ACS) URL directly
 
 After import, the service provider is ready for SSO.
 
@@ -33,7 +33,7 @@ By default, no users can access a new service provider. Assign groups to control
 2. Assign one or more groups
 3. Users in those groups can now launch the application from their dashboard
 
-To allow all users access without group restrictions, enable **Available to all** in the SP settings.
+To allow all users access without group restrictions, switch **Access Mode** on the **Groups** tab to **Available to all users**.
 
 ## Test the connection
 

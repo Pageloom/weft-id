@@ -12,6 +12,17 @@ All functions follow the service layer pattern:
 - Log events for all writes
 """
 
+from services.oidc_upstream.adapters import (
+    ClientCredentials,
+    ProviderAdapter,
+    ProviderCheckError,
+    ProviderLoginError,
+    SpecOIDCAdapter,
+    UpstreamIdentity,
+    callback_url,
+    get_adapter,
+    resolve_client_credentials,
+)
 from services.oidc_upstream.attributes import (
     apply_oidc_idp_attributes,
     scrub_oidc_canonical_matches_mirror,
@@ -24,6 +35,7 @@ from services.oidc_upstream.auth import (
 )
 from services.oidc_upstream.connections import (
     POST_LOGOUT_PATH,
+    clear_connection_default,
     create_connection,
     decrypt_client_secret,
     delete_connection,
@@ -31,6 +43,7 @@ from services.oidc_upstream.connections import (
     get_connection,
     get_connection_row,
     list_connections,
+    list_login_buttons,
     oidc_connection_requires_platform_mfa,
     set_connection_default,
     set_connection_enabled,
@@ -45,6 +58,11 @@ from services.oidc_upstream.domains import (
     list_domain_bindings,
     rebind_domain_to_connection,
     unbind_domain_from_connection,
+)
+from services.oidc_upstream.email_confirmation import (
+    confirm_sign_in_email,
+    pending_email_confirmation,
+    requires_confirmed_email,
 )
 from services.oidc_upstream.errors import (
     DiscoveryError,
@@ -77,7 +95,15 @@ from services.oidc_upstream.jwks import (
 )
 from services.oidc_upstream.links import (
     list_connection_linked_users,
+    list_user_links,
     unlink_user_from_connection,
+)
+from services.oidc_upstream.login_state import (
+    LoginState,
+    attach_callback_fields,
+    load_login_state,
+    save_login_state,
+    take_login_state,
 )
 from services.oidc_upstream.logout import (
     BackchannelLogoutResult,
@@ -89,10 +115,14 @@ from services.oidc_upstream.logout import (
 from services.oidc_upstream.presets import (
     compose_entra_authority,
     compose_entra_discovery_url,
+    email_linking_trusted,
     get_preset,
     get_preset_defaults,
+    provider_display_name,
 )
 from services.oidc_upstream.provisioning import (
+    ENTRY_LOGIN_BUTTON,
+    ENTRY_ROUTED,
     authenticate_via_oidc,
     jit_provision_user,
 )
@@ -105,9 +135,29 @@ from services.oidc_upstream.token_exchange import (
 )
 
 __all__ = [
+    "LoginState",
+    "attach_callback_fields",
+    "load_login_state",
+    "save_login_state",
+    "take_login_state",
+    "confirm_sign_in_email",
+    "pending_email_confirmation",
+    "requires_confirmed_email",
+    "ClientCredentials",
+    "ProviderAdapter",
+    "ProviderCheckError",
+    "ProviderLoginError",
+    "SpecOIDCAdapter",
+    "UpstreamIdentity",
+    "callback_url",
+    "get_adapter",
+    "resolve_client_credentials",
+    "provider_display_name",
+    "email_linking_trusted",
     "list_connections",
     "get_connection",
     "get_connection_row",
+    "list_login_buttons",
     "create_connection",
     "update_connection",
     "get_claim_mapping",
@@ -115,6 +165,7 @@ __all__ = [
     "delete_connection",
     "set_connection_enabled",
     "set_connection_default",
+    "clear_connection_default",
     "test_connection",
     "oidc_connection_requires_platform_mfa",
     "decrypt_client_secret",
@@ -122,6 +173,8 @@ __all__ = [
     "generate_state",
     "generate_nonce",
     "build_authorize_url",
+    "ENTRY_LOGIN_BUTTON",
+    "ENTRY_ROUTED",
     "authenticate_via_oidc",
     "jit_provision_user",
     "extract_group_names",
@@ -129,6 +182,7 @@ __all__ = [
     "sync_groups_from_claims",
     "unlink_user_from_connection",
     "list_connection_linked_users",
+    "list_user_links",
     "apply_oidc_idp_attributes",
     "scrub_oidc_canonical_matches_mirror",
     "list_domain_bindings",

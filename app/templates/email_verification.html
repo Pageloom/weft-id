@@ -7,6 +7,9 @@
     <div class="w-full max-w-md">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
             <h1 class="text-2xl font-semibold text-center mb-2 text-gray-900 dark:text-gray-100">Check Your Email</h1>
+            {% if intro %}
+            <p class="text-gray-600 dark:text-gray-400 text-center mb-2">{{ intro }}</p>
+            {% endif %}
             <p class="text-gray-600 dark:text-gray-400 text-center mb-6">
                 We sent a code to <strong class="text-gray-900 dark:text-gray-100">{{ email }}</strong>
             </p>
@@ -19,6 +22,10 @@
                 Code expired. Request a new code.
                 {% elif error == 'missing_cookie' %}
                 Session expired. Start over.
+                {% elif error == 'too_many_attempts' %}
+                Too many attempts. Wait a few minutes and try again.
+                {% elif error == 'too_many_requests' %}
+                Too many codes requested. Wait a few minutes and try again.
                 {% else %}
                 {{ error }}
                 {% endif %}
@@ -35,7 +42,7 @@
             </div>
             {% endif %}
 
-            <form method="post" action="/login/verify-code" id="verifyCodeForm">
+            <form method="post" action="{{ verify_action | default('/login/verify-code') }}" id="verifyCodeForm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-6">
                     <label for="code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -62,7 +69,7 @@
 
             <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-3">Didn't receive the code?</p>
-                <form method="post" action="/login/resend-code">
+                <form method="post" action="{{ resend_action | default('/login/resend-code') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-4 rounded-md transition duration-150 text-sm">
                         Resend code
@@ -72,7 +79,7 @@
 
             <div class="mt-4 text-center">
                 <a href="/login" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
-                    Use a different email
+                    {{ back_label | default('Use a different email') }}
                 </a>
             </div>
         </div>

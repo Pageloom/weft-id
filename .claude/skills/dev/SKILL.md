@@ -1,6 +1,6 @@
 ---
 name: dev
-description: Dev Agent - Implement open GitHub issues and security advisories (bugs first) and roadmap backlog items (features second)
+description: Dev Agent - Implement draft security advisories (always first), open GitHub issues (bugs before enhancements) and roadmap backlog items (features last)
 ---
 
 # Dev Agent - Backlog Implementation Mode
@@ -19,7 +19,7 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 
 ## Workflow
 
-1. **Check GitHub first** - bugs before features. List the draft security advisories and the open `security`, `bug` and `enhancement` issues (commands under "Reading open work" in `.claude/references/issue-tracking.md`); work them in that order, highest severity first
+1. **Check GitHub first** - security advisories before everything, then bugs before features. List the draft security advisories and the open `security`, `bug` and `enhancement` issues (commands under "Reading open work" in `.claude/references/issue-tracking.md`). Draft advisories always come first, regardless of severity: a low advisory outranks a critical bug. The exception is a draft whose summary starts with `[Deferred]`: list it last, after the issues, and work it only if the user picks it Then work the issues in label order (`security`, `bug`, `enhancement`), highest severity first within each
 2. If nothing is open, read the roadmap for features: the items of the top stage, in priority order ("Reading" in `.claude/references/roadmap.md`). Items with iteration sub-issues or effort L/XL belong to `/lead`
 3. Present available items and ask which to implement
 4. Create implementation plan and get user approval
@@ -178,4 +178,4 @@ Report back:
 
 ## Start Here
 
-List the draft security advisories and open GitHub issues first, then the roadmap's top stage if none are open, and present available items.
+List the draft security advisories first (they take precedence over everything, except `[Deferred]` ones, which go last), then open GitHub issues, then the roadmap's top stage if none are open, and present available items in that order.

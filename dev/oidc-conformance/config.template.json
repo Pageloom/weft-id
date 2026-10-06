@@ -167,7 +167,7 @@
                             "optional": true,
                             "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                             "commands": [
-                                ["wait", "xpath", "//*", 10, "requesting access", "update-image-placeholder-optional"],
+                                ["wait", "id", "consent-prompt", 10, "\\S", "update-image-placeholder-optional"],
                                 ["click", "css", "button[name='action'][value='allow']"]
                             ]
                         },
@@ -230,7 +230,7 @@
                             "optional": true,
                             "match": "{WEFTID_ISSUER}/oauth2/authorize*",
                             "commands": [
-                                ["wait", "xpath", "//*", 10, "requesting access", "update-image-placeholder-optional"],
+                                ["wait", "id", "consent-prompt", 10, "\\S", "update-image-placeholder-optional"],
                                 ["click", "css", "button[name='action'][value='allow']"]
                             ]
                         },

@@ -8,7 +8,7 @@
         "current-block": "Verify authorization endpoint response",
         "condition": "ValidateIdTokenACRClaimAgainstAcrValuesRequest",
         "expected-result": "warning",
-        "comment": "WeftID defines no authentication context classes and emits no acr claim; the suite warns when acr_values was requested (SHOULD)"
+        "comment": "WeftID defines no authentication context classes and emits no acr claim; the suite warns when acr_values was requested (SHOULD)."
     },
     {
         "test-name": "oidcc-claims-essential",
@@ -19,7 +19,7 @@
         "current-block": "",
         "condition": "EnsureUserInfoContainsName",
         "expected-result": "warning",
-        "comment": "The claims request parameter is not supported (claims_parameter_supported=false); claims are released by scope only, so name is absent without the profile scope (SHOULD)"
+        "comment": "The claims request parameter is not supported (claims_parameter_supported=false); claims are released by scope only, so name is absent without the profile scope (SHOULD)."
     },
     {
         "test-name": "oidcc-scope-profile",
@@ -30,7 +30,7 @@
         "current-block": "",
         "condition": "VerifyScopesReturnedInUserInfoClaims",
         "expected-result": "warning",
-        "comment": "WeftID has no attributes for nickname, picture, website, gender, birthdate, middle_name, preferred_username, or profile; absent claims are omitted, never null (OIDC Core 5.1)"
+        "comment": "WeftID has no attributes for nickname, picture, website, gender, birthdate, middle_name, preferred_username, or profile; absent claims are omitted, never null (OIDC Core 5.1)."
     },
     {
         "test-name": "oidcc-ensure-request-with-acr-values-succeeds",
@@ -41,7 +41,7 @@
         "current-block": "Verify authorization endpoint response",
         "condition": "ValidateIdTokenACRClaimAgainstAcrValuesRequest",
         "expected-result": "warning",
-        "comment": "WeftID defines no authentication context classes and emits no acr claim; the suite warns when acr_values was requested (SHOULD)"
+        "comment": "WeftID defines no authentication context classes and emits no acr claim; the suite warns when acr_values was requested (SHOULD)."
     },
     {
         "test-name": "oidcc-claims-essential",
@@ -52,7 +52,7 @@
         "current-block": "",
         "condition": "EnsureUserInfoContainsName",
         "expected-result": "warning",
-        "comment": "The claims request parameter is not supported (claims_parameter_supported=false); claims are released by scope only, so name is absent without the profile scope (SHOULD)"
+        "comment": "The claims request parameter is not supported (claims_parameter_supported=false); claims are released by scope only, so name is absent without the profile scope (SHOULD)."
     },
     {
         "test-name": "oidcc-scope-profile",
@@ -63,7 +63,7 @@
         "current-block": "",
         "condition": "VerifyScopesReturnedInUserInfoClaims",
         "expected-result": "warning",
-        "comment": "WeftID has no attributes for nickname, picture, website, gender, birthdate, middle_name, preferred_username, or profile; absent claims are omitted, never null (OIDC Core 5.1)"
+        "comment": "WeftID has no attributes for nickname, picture, website, gender, birthdate, middle_name, preferred_username, or profile; absent claims are omitted, never null (OIDC Core 5.1)."
     },
     {
         "test-name": "oidcc-discovery-endpoint-verification",

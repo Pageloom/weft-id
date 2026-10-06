@@ -139,6 +139,14 @@ If you find inconsistencies in the glossary vs. actual usage, flag them.
 - Redundant help text that restates the label
 - Typos and grammar errors
 
+### What Becomes a Security Advisory
+
+Anything sensitive or security-related found along the way (data exposure, incomplete
+erasure, tokens or sessions that outlive a revocation, authorization gaps) goes to a
+**private draft security advisory**, never a public issue, commit message or file under
+`.claude/`. The repository is public. See "Creating a draft security advisory" in
+`.claude/references/issue-tracking.md`. Report the GHSA id to the user.
+
 ### What Becomes a GitHub Issue
 
 Label these `bug` plus `severity-low` (add `documentation` for docs-site problems). See `.claude/references/issue-tracking.md` for the commands.

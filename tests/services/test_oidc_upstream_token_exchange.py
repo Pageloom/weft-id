@@ -63,7 +63,7 @@ class TestExchangeCode:
 
     def test_error_response(self):
         with _patch_client(_FakeResponse(200, {"error": "invalid_grant"})):
-            with pytest.raises(te.TokenExchangeError):
+            with pytest.raises(te.TokenExchangeError) as exc:
                 te.exchange_code(
                     token_endpoint="https://idp.example.com/token",
                     client_id="cid",
@@ -72,6 +72,37 @@ class TestExchangeCode:
                     redirect_uri="https://rp.example.com/cb",
                     code_verifier="verifier",
                 )
+        # The OAuth error code is kept for callers that branch on it.
+        assert exc.value.error == "invalid_grant"
+
+    def test_non_string_error_code(self):
+        with _patch_client(_FakeResponse(200, {"error": {"code": 1}})):
+            with pytest.raises(te.TokenExchangeError) as exc:
+                te.exchange_code(
+                    token_endpoint="https://idp.example.com/token",
+                    client_id="cid",
+                    client_secret="secret",
+                    code="code",
+                    redirect_uri="https://rp.example.com/cb",
+                    code_verifier="verifier",
+                )
+        assert exc.value.error is None
+
+    def test_asks_for_json(self):
+        with patch(
+            "services.oidc_upstream.token_exchange.read_capped",
+            return_value=(200, json.dumps({"access_token": "at"}).encode()),
+        ) as read:
+            te.exchange_code(
+                token_endpoint="https://idp.example.com/token",
+                client_id="cid",
+                client_secret="secret",
+                code="code",
+                redirect_uri="https://rp.example.com/cb",
+                code_verifier="verifier",
+            )
+        # GitHub answers form-encoded otherwise.
+        assert read.call_args.kwargs["headers"] == {"Accept": "application/json"}
 
     def test_http_error(self):
         with _patch_client(_FakeResponse(400)):
@@ -84,6 +115,31 @@ class TestExchangeCode:
                     redirect_uri="https://rp.example.com/cb",
                     code_verifier="verifier",
                 )
+
+    @pytest.mark.parametrize(
+        ("status", "body", "error"),
+        [
+            (400, {"error": "invalid_grant"}, "invalid_grant"),
+            (401, {"error": "invalid_client"}, "invalid_client"),
+            # Facebook's Graph error object is not an RFC 6749 code.
+            (400, {"error": {"code": 100}}, None),
+            (400, ["error"], None),
+            (500, None, None),
+        ],
+    )
+    def test_http_error_keeps_oauth_error_code(self, status, body, error):
+        with _patch_client(_FakeResponse(status, body)):
+            with pytest.raises(te.TokenExchangeError) as exc:
+                te.exchange_code(
+                    token_endpoint="https://idp.example.com/token",
+                    client_id="cid",
+                    client_secret="secret",
+                    code="code",
+                    redirect_uri="https://rp.example.com/cb",
+                    code_verifier="verifier",
+                )
+        assert str(exc.value) == f"Token endpoint returned HTTP {status}"
+        assert exc.value.error == error
 
 
 class TestSsrFGuard:

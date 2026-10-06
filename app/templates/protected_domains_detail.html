@@ -5,7 +5,7 @@
 {% block content %}
 <div class="max-w-4xl">
     <div class="mb-4">
-        <a href="/applications/forward-auth/domains" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to protected domains</a>
+        <a href="/applications/forward-auth/domains" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to Protected Domains</a>
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
@@ -42,7 +42,7 @@
 
         <!-- Step 1: DNS-TXT ownership challenge -->
         <div class="mb-8">
-            <h2 class="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Step 1 &mdash; Prove ownership</h2>
+            <h2 class="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Step 1: Prove ownership</h2>
             {% if domain.verification_status == 'verified' %}
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
                 Ownership of <strong>{{ domain.domain }}</strong> is verified
@@ -50,7 +50,7 @@
             </p>
             {% else %}
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                Add the following TXT record at your DNS provider, then click Verify. This proves you control the domain.
+                Add this TXT record at your DNS provider to prove you control the domain, then click <strong>Verify DNS Record</strong>.
             </p>
             <div class="border border-gray-200 dark:border-gray-700 rounded-md divide-y divide-gray-200 dark:divide-gray-700 mb-4">
                 <div class="p-3 flex items-center gap-3">
@@ -78,12 +78,12 @@
 
         <!-- Step 2: Portal host -->
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h2 class="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Step 2 &mdash; Point the portal host at WeftID</h2>
+            <h2 class="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Step 2: Point the portal host at WeftID</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
                 Create a DNS record for <code class="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">{{ domain.portal_host }}</code>
                 pointing at this WeftID instance. WeftID serves the forward-auth handshake and sets the
-                per-domain cookie from this host. Once the domain is verified, WeftID will issue a TLS
-                certificate for it on first request.
+                domain's cookie from this host. Once the domain is verified, WeftID issues a TLS
+                certificate for the host on its first request.
             </p>
             {% if domain.verification_status != 'verified' %}
             <p class="text-xs text-amber-700 dark:text-amber-400">Certificates and cookies are only issued after Step 1 is verified.</p>

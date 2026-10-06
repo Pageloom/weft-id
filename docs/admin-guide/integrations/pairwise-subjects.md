@@ -19,7 +19,7 @@ Open the app, enable **Sign in with WeftID (OIDC)**, and find **Subject Identifi
 
 1. Choose **Pairwise**.
 2. Optionally enter a **Sector identifier URI**.
-3. Click **Save subject identifiers** and confirm.
+3. Click **Save Subject Identifiers** and confirm.
 
 !!! warning "Every user gets a new `sub`"
     Switching between public and pairwise, or changing the sector, changes the `sub` of every user at that app. The app sees them as new users unless it matches accounts some other way, such as by verified email. Choose pairwise when you first set up an app, or plan a migration with the app's owner.

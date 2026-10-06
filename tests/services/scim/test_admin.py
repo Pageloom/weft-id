@@ -606,6 +606,7 @@ def test_list_sync_log_paginates_and_orders(test_tenant, test_admin_user):
 
     page = scim_admin.list_sync_log(ru, str(sp["id"]), page=1, page_size=10)
     assert page.total == 2
+    assert page.limit == 10
     assert page.page_size == 10
     # In-flight surfaces first thanks to `completed_at DESC NULLS FIRST`.
     assert page.items[0].id == str(in_flight["id"])

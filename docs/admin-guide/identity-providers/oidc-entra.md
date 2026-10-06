@@ -24,7 +24,7 @@ If you recreate the app registration, an `oid`-correlated connection keeps worki
 
 1. Open the [Entra admin center](https://entra.microsoft.com/) and go to **Identity > Applications > App registrations**
 2. Click **New registration** and give it a name
-3. Under **Redirect URI**, select **Web** and paste the redirect URI from your WeftID connection's Details tab
+3. Under **Redirect URI**, select **Web** and paste the callback URL from your WeftID connection's Details tab (you can create the WeftID connection first and fill this in afterwards)
 4. Click **Register**
 5. Copy the **Application (client) ID** and the **Directory (tenant) ID** from the overview page
 6. Go to **Certificates & secrets > New client secret**, create one, and copy its **value** immediately (it is shown only once)
@@ -33,12 +33,12 @@ Note that Entra shows both a secret **value** and a secret **ID**. WeftID needs 
 
 ## Step 2: Configure the WeftID connection
 
-1. In WeftID, go to **Identity Providers > OIDC** and create a connection with provider type **Entra**
-2. Enter the **directory (tenant) ID** — WeftID composes the authority URL from it
+1. In WeftID, go to **Identity Providers > OIDC** and create a connection with provider type **Entra ID**
+2. Enter the directory (tenant) ID as the **Entra Tenant ID**. WeftID builds the issuer URL from it
 3. Paste the client ID and the client secret value
-4. Click **Test connection**, then enable it
+4. Click **Test Connection**, then enable the connection
 
-The tenant ID field also accepts `organizations` (any work or school account) or `common` (work, school, or personal Microsoft accounts). Use your specific directory ID unless you deliberately want a multi-tenant application, since the broader values allow sign-ins from directories you do not control.
+The tenant ID field also accepts one of your directory's verified domains. The multi-tenant values `common`, `organizations` and `consumers` are refused: they would accept sign-ins from directories you do not control, whose email addresses WeftID cannot trust. To let people sign in with personal Microsoft accounts, use a [Microsoft](oidc-microsoft.md) connection instead.
 
 ## Client secret expiry
 
@@ -56,7 +56,7 @@ To enable the claim:
 
 1. On the app registration, open **Token configuration > Add groups claim**
 2. Choose which groups to emit and keep the **Group ID** format for the ID token. Restricting it to groups assigned to the application keeps tokens small and avoids overage
-3. In WeftID, open the connection's **Claim mapping** tab and set the group claim name to `groups`
+3. In WeftID, open the connection's **Claim Mapping** tab and set the group claim name to `groups`
 
 ## Troubleshooting
 

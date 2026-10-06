@@ -76,10 +76,17 @@ class TestIsExempt:
 
     def test_upstream_backchannel_logout_pattern_is_exact(self):
         """Only that one path shape; its siblings and extensions stay protected."""
-        assert _is_exempt("/auth/oidc/0b1c/callback") is False
+        assert _is_exempt("/auth/oidc/0b1c/login") is False
         assert _is_exempt("/auth/oidc/0b1c/backchannel-logout/extra") is False
         assert _is_exempt("/auth/oidc/a/b/backchannel-logout") is False
         assert _is_exempt("/x/auth/oidc/0b1c/backchannel-logout") is False
+
+    def test_upstream_callback_pattern_is_exact(self):
+        """The upstream callback takes a provider's cross-site form_post (Apple)."""
+        assert _is_exempt("/auth/oidc/0b1c/callback") is True
+        assert _is_exempt("/auth/oidc/0b1c/callback/extra") is False
+        assert _is_exempt("/auth/oidc/a/b/callback") is False
+        assert _is_exempt("/auth/oidc/confirm-email") is False
 
     def test_oauth2_token_is_exempt(self):
         """OAuth2 token endpoint should be exempt."""

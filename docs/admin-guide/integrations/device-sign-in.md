@@ -9,7 +9,7 @@ Device sign-in is off for every app until you turn it on:
 1. Open the app under **Applications > OAuth2 / OIDC**.
 2. Check **Allow device sign-in** on the edit form and save.
 
-Through the API, set `device_grant_enabled` to `true` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`. Service accounts (B2B clients) cannot use device sign-in.
+Through the API, set `device_grant_enabled` to `true` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`. Service accounts can't use device sign-in.
 
 ## Public clients
 
@@ -68,6 +68,6 @@ A link with the code already filled in (`verification_uri_complete`) only fills 
 
 ## Audit events
 
-* **Device sign-in started by an application** -- the device asked for a code (operational).
-* **User approved a device sign-in** and **User denied a device sign-in** -- the user's decision.
-* **Device sign-in completed; tokens issued to the device** -- the device collected its tokens.
+* **Device sign-in started by an application**: the device asked for a code (operational).
+* **User approved a device sign-in** and **User denied a device sign-in**: the user's decision.
+* **Device sign-in completed; tokens issued to the device**: the device collected its tokens.

@@ -6,7 +6,7 @@ See also [Passkeys](passkeys.md) for phishing-resistant sign-in that replaces bo
 
 ## Setting up an authenticator app
 
-1. Go to **Account > Sign-in Methods**
+1. Go to **User Settings > Sign-in Methods**
 2. Click **Authenticator App or Password Manager (TOTP)**
 3. Scan the QR code with your authenticator app (Google Authenticator, 1Password, Authy, etc.)
 4. Enter the 6-digit code from your app to verify
@@ -29,7 +29,7 @@ Email verification sends a one-time code to your email address on each sign-in. 
 
 ## Switching methods
 
-1. Go to **Account > Sign-in Methods**
+1. Go to **User Settings > Sign-in Methods**
 2. Select the method you want to switch to
 3. Verify the change with your current method
 4. The change takes effect immediately

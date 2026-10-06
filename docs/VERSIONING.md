@@ -5,15 +5,15 @@ lives in `pyproject.toml` and is readable at runtime via `app.version.__version_
 
 ## Version Levels
 
-**Patch** (1.0.x) — Bug fixes, security patches. No schema migrations, no API changes,
+**Patch** (1.0.x): Bug fixes, security patches. No schema migrations, no API changes,
 no SAML/OAuth behavior changes. Self-hosters can pull and restart with no other action.
 
-**Minor** (1.x.0) — New features, additive API endpoints, non-breaking schema migrations
+**Minor** (1.x.0): New features, additive API endpoints, non-breaking schema migrations
 (new columns with defaults, new tables), new env vars with sensible defaults, UI
 improvements. Self-hosters pull, restart, and auto-migration runs. Review the changelog
 for new features.
 
-**Major** (x.0.0) — Removed or changed API endpoints, required new env vars without
+**Major** (x.0.0): Removed or changed API endpoints, required new env vars without
 defaults, SAML assertion format or attribute mapping behavior changes, SSO flow changes
 requiring SP/IdP reconfiguration, compose file structural changes (new required services,
 renamed volumes). Read the migration guide. May require SP/IdP reconfiguration.

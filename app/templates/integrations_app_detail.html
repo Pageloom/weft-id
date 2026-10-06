@@ -131,7 +131,7 @@
                 {% elif error == 'oidc_update_failed' %}
                 Failed to update OIDC settings. Try again.
                 {% elif error == 'group_required' %}
-                Please select a group to assign.
+                Select a group to assign.
                 {% elif error == 'group_assign_failed' %}
                 Failed to assign the group. It may already be assigned.
                 {% elif error == 'group_remove_failed' %}
@@ -165,7 +165,8 @@
         </div>
         {% endif %}
 
-        <!-- Edit Form -->
+        <!-- General -->
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">General</h2>
         <form method="post" action="/applications/oauth/{{ client.client_id }}/edit" class="space-y-6">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -177,14 +178,14 @@
 
             <div>
                 <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
-                <textarea id="description" name="description" rows="2"
+                <textarea id="description" name="description" rows="2" maxlength="500"
                           class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ client.description or '' }}</textarea>
             </div>
 
             {% if client.is_public %}
             <div class="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Public client (device sign-in only)</p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">This app has no client secret. It sends only its client ID, signs users in with device sign-in, and can refresh its tokens. It has no redirect URIs and can't use the authorization endpoint or token introspection. Device sign-in is always on for a public client.</p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">No client secret: the app sends only its client ID. It signs users in with device sign-in, which is always on, and can refresh its tokens. It has no redirect URIs and can't use the authorization endpoint or token introspection.</p>
             </div>
             {% else %}
             <div>
@@ -192,48 +193,6 @@
                 <textarea id="redirect_uris" name="redirect_uris" rows="4" required
                           class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{% if client.redirect_uris %}{{ client.redirect_uris | join('\n') }}{% endif %}</textarea>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">One URI per line. No wildcards allowed.</p>
-            </div>
-
-            <div>
-                <label for="post_logout_redirect_uris" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Post-logout redirect URIs</label>
-                <textarea id="post_logout_redirect_uris" name="post_logout_redirect_uris" rows="2"
-                          class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ (client.post_logout_redirect_uris or []) | join('\n') }}</textarea>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. Where the app may send users after they sign out through the end session endpoint (OpenID Connect only). One absolute http(s) URI per line, exact match.</p>
-            </div>
-
-            <div>
-                <label for="frontchannel_logout_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Front-channel logout URI</label>
-                <input type="url" id="frontchannel_logout_uri" name="frontchannel_logout_uri" maxlength="2048" value="{{ client.frontchannel_logout_uri or '' }}"
-                       class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. When a user's session ends, WeftID loads this page of the app in a hidden frame so the app can sign the user out too (OpenID Connect only). Must use the same scheme, host and port as a redirect URI.</p>
-                <label class="mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input type="checkbox" id="frontchannel_logout_session_required" name="frontchannel_logout_session_required" value="true"
-                           {% if client.frontchannel_logout_session_required %}checked{% endif %}
-                           class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
-                    Send the issuer and session ID (<code>iss</code> and <code>sid</code>) with the request
-                </label>
-            </div>
-            {% endif %}
-
-            <div>
-                <label for="backchannel_logout_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Back-channel logout URI</label>
-                <input type="url" id="backchannel_logout_uri" name="backchannel_logout_uri" maxlength="2048" value="{{ client.backchannel_logout_uri or '' }}"
-                       class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. When a user's session ends, WeftID sends a signed logout token to this URL, server to server, so the app can sign the user out even when no browser is involved (OpenID Connect only). Failed deliveries are retried for several hours.</p>
-                <label class="mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input type="checkbox" id="backchannel_logout_session_required" name="backchannel_logout_session_required" value="true"
-                           {% if client.backchannel_logout_session_required %}checked{% endif %}
-                           class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
-                    Include the session ID (<code>sid</code>) in the logout token
-                </label>
-            </div>
-
-            {% if not client.is_public %}
-            <div>
-                <label for="initiate_login_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Login initiation URI</label>
-                <input type="url" id="initiate_login_uri" name="initiate_login_uri" maxlength="2048" value="{{ client.initiate_login_uri or '' }}"
-                       class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. The app's URL that starts a sign-in with WeftID (OpenID Connect only, https). When set, the app appears in My Apps for users who have access, and opening it sends them here.</p>
             </div>
 
             <div>
@@ -265,6 +224,51 @@
             </div>
         </form>
 
+        <!-- Endpoint URLs: the OAuth 2.0 endpoints apply to every app, the OpenID Connect ones once OIDC is on -->
+        {% set oidc_on = client.oidc_enabled %}
+        {% set confidential = not client.is_public %}
+        <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Endpoint URLs</h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                {% if client.oidc_enabled %}
+                Most OIDC libraries need only the discovery URL.
+                {% else %}
+                Where the app sends its OAuth 2.0 requests. Enabling OpenID Connect adds the discovery URL and the OIDC endpoints.
+                {% endif %}
+            </p>
+            <div class="space-y-3">
+                {% for label, field, val, shown in [
+                    ('Issuer', 'endpoint-issuer', oidc_urls.issuer, oidc_on),
+                    ('Discovery URL', 'endpoint-discovery', oidc_urls.discovery_url, oidc_on),
+                    ('JWKS URI', 'endpoint-jwks', oidc_urls.jwks_uri, oidc_on),
+                    ('Authorization endpoint', 'endpoint-authz', oidc_urls.authorization_endpoint, confidential),
+                    ('Token endpoint', 'endpoint-token', oidc_urls.token_endpoint, true),
+                    ('UserInfo endpoint', 'endpoint-userinfo', oidc_urls.userinfo_endpoint, oidc_on),
+                    ('End session endpoint', 'endpoint-end-session', oidc_urls.end_session_endpoint, oidc_on),
+                    ('Introspection endpoint', 'endpoint-introspect', oidc_urls.introspection_endpoint, confidential),
+                    ('Revocation endpoint', 'endpoint-revoke', oidc_urls.revocation_endpoint, true),
+                    ('Device authorization endpoint', 'endpoint-device', oidc_urls.device_authorization_endpoint, client.device_grant_enabled),
+                    ('Pushed authorization request endpoint', 'endpoint-par', oidc_urls.pushed_authorization_request_endpoint, confidential),
+                ] if shown %}
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{{ label }}</label>
+                    <div class="flex items-center gap-2">
+                        <code id="{{ field }}" class="flex-1 bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 text-sm font-mono text-gray-800 dark:text-gray-200 break-all">{{ val }}</code>
+                        <button type="button" class="copy-btn px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0" data-target="{{ field }}">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Client Authentication (a public client sends its client ID alone) -->
+        {% if not client.is_public %}
+        {% set client_auth_action = "/applications/oauth/" ~ client.client_id ~ "/authentication" %}
+        {% include "integrations_client_authentication.html" %}
+        {% endif %}
+
         <!-- OpenID Connect Section -->
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">OpenID Connect</h2>
@@ -281,7 +285,7 @@
                         {% endif %}
                     </h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        When enabled, the token endpoint issues signed ID tokens for the <code>openid</code> scope and group-based access control is enforced at login.
+                        When enabled, the token endpoint issues signed ID tokens for the <code>openid</code> scope, and only users with access can sign in.
                     </p>
                 </div>
                 <form method="post" action="/applications/oauth/{{ client.client_id }}/oidc/toggle" class="shrink-0">
@@ -296,58 +300,24 @@
             </div>
 
             {% if client.oidc_enabled %}
-            <!-- Endpoint URLs -->
-            <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
-                <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Endpoint URLs</h3>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    Configure your downstream application with these values. Most OIDC libraries need only the discovery URL.
-                </p>
-                <div class="space-y-3">
-                    {% for label, field, val in [
-                        ('Issuer', 'oidc-issuer', oidc_urls.issuer),
-                        ('Discovery URL', 'oidc-discovery', oidc_urls.discovery_url),
-                        ('JWKS URI', 'oidc-jwks', oidc_urls.jwks_uri),
-                        ('Authorization endpoint', 'oidc-authz', oidc_urls.authorization_endpoint),
-                        ('Token endpoint', 'oidc-token', oidc_urls.token_endpoint),
-                        ('UserInfo endpoint', 'oidc-userinfo', oidc_urls.userinfo_endpoint),
-                        ('End session endpoint', 'oidc-end-session', oidc_urls.end_session_endpoint),
-                        ('Introspection endpoint', 'oidc-introspect', oidc_urls.introspection_endpoint),
-                        ('Revocation endpoint', 'oidc-revoke', oidc_urls.revocation_endpoint),
-                        ('Device authorization endpoint', 'oidc-device', oidc_urls.device_authorization_endpoint),
-                        ('Pushed authorization request endpoint', 'oidc-par', oidc_urls.pushed_authorization_request_endpoint),
-                    ] %}
-                    <div>
-                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{{ label }}</label>
-                        <div class="flex items-center gap-2">
-                            <code id="{{ field }}" class="flex-1 bg-white dark:bg-gray-700 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 text-sm font-mono text-gray-800 dark:text-gray-200 break-all">{{ val }}</code>
-                            <button type="button" class="copy-btn px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0" data-target="{{ field }}">
-                                Copy
-                            </button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-
             <!-- Access Mode -->
             <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                 <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Access Mode</h3>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Control which users can sign in to this application.</p>
-                <form method="post" action="/applications/oauth/{{ client.client_id }}/oidc/toggle-available-to-all" class="flex items-center gap-3">
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Who can sign in to this app.</p>
+                <form method="post" action="/applications/oauth/{{ client.client_id }}/oidc/toggle-available-to-all" class="space-y-3">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    {% if client.available_to_all %}
-                    <input type="hidden" name="available_to_all" value="false">
-                    <button type="submit" class="px-3 py-1.5 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700">Available to all users</button>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">Click to switch to group-based access</span>
-                    {% else %}
-                    <input type="hidden" name="available_to_all" value="true">
-                    <button type="submit" class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Group-based access</button>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">Click to make available to all users</span>
-                    {% endif %}
+                    <div class="space-y-2">
+                        <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="radio" name="available_to_all" value="false" class="mt-0.5" {% if not client.available_to_all %}checked{% endif %}>
+                            <span>Group-based access<span class="block text-xs text-gray-500 dark:text-gray-400">Only members of the assigned groups, and of their descendant groups, can sign in.</span></span>
+                        </label>
+                        <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="radio" name="available_to_all" value="true" class="mt-0.5" {% if client.available_to_all %}checked{% endif %}>
+                            <span>Available to all users<span class="block text-xs text-gray-500 dark:text-gray-400">Every active user can sign in. Group assignments are for organization only.</span></span>
+                        </label>
+                    </div>
+                    <button type="submit" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Access Mode</button>
                 </form>
-                {% if client.available_to_all %}
-                <p class="mt-3 text-xs text-blue-600 dark:text-blue-400">All active users can sign in to this application. Group assignments below are for organization only.</p>
-                {% endif %}
             </div>
 
             <!-- Subject Identifiers -->
@@ -386,7 +356,7 @@
                     </div>
                     <button type="submit" class="confirm-btn px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
                             data-confirm="Change subject identifiers for {{ client.name }}?&#10;&#10;If the type or sector changes, every user gets a new sub at this app. The app treats them as new users unless it matches accounts another way.">
-                        Save subject identifiers
+                        Save Subject Identifiers
                     </button>
                 </form>
             </div>
@@ -394,7 +364,7 @@
             <!-- Group Assignments -->
             <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                 <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Assigned Groups ({{ assigned_groups|length }})</h3>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Members of these groups (and their descendants) can sign in to this application.</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Members of these groups and their descendant groups can sign in.</p>
 
                 {% if available_groups %}
                 <form method="post" action="/applications/oauth/{{ client.client_id }}/oidc/groups/add" class="mb-4 flex gap-3">
@@ -439,8 +409,102 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">No groups assigned. Assign groups to control who can sign in{% if client.available_to_all %} (currently available to all users){% endif %}.</p>
                 {% endif %}
             </div>
+
+            <!-- Sign-in and Sign-out URIs -->
+            <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                {% if client.is_public %}
+                <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Sign-out</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Where WeftID tells the app a session ended. Optional.</p>
+                {% else %}
+                <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Sign-in and Sign-out</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Where the app starts a sign-in, and where WeftID sends users and tells the app when a session ends. All optional.</p>
+                {% endif %}
+                <form method="post" action="/applications/oauth/{{ client.client_id }}/oidc/uris" class="space-y-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% if not client.is_public %}
+                    <div>
+                        <label for="initiate_login_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Login initiation URI</label>
+                        <input type="url" id="initiate_login_uri" name="initiate_login_uri" maxlength="2048" value="{{ client.initiate_login_uri or '' }}"
+                               class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The app's https URL that starts a sign-in with WeftID. When set, the app appears in My Apps for users who have access, and opening it sends them here.</p>
+                    </div>
+
+                    <div>
+                        <label for="post_logout_redirect_uris" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Post-logout redirect URIs</label>
+                        <textarea id="post_logout_redirect_uris" name="post_logout_redirect_uris" rows="2"
+                                  class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ (client.post_logout_redirect_uris or []) | join('\n') }}</textarea>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Where the app may send users after signing them out at the end session endpoint. One absolute http(s) URI per line, exact match.</p>
+                    </div>
+
+                    <div>
+                        <label for="frontchannel_logout_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Front-channel logout URI</label>
+                        <input type="url" id="frontchannel_logout_uri" name="frontchannel_logout_uri" maxlength="2048" value="{{ client.frontchannel_logout_uri or '' }}"
+                               class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">When a user's session ends, WeftID loads this page of the app in a hidden frame so the app can sign the user out too. Must use the same scheme, host and port as a redirect URI.</p>
+                        <label class="mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" id="frontchannel_logout_session_required" name="frontchannel_logout_session_required" value="true"
+                                   {% if client.frontchannel_logout_session_required %}checked{% endif %}
+                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                            Send the issuer and session ID (<code>iss</code> and <code>sid</code>) with the request
+                        </label>
+                    </div>
+                    {% endif %}
+
+                    <div>
+                        <label for="backchannel_logout_uri" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Back-channel logout URI</label>
+                        <input type="url" id="backchannel_logout_uri" name="backchannel_logout_uri" maxlength="2048" value="{{ client.backchannel_logout_uri or '' }}"
+                               class="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">When a user's session ends, WeftID sends a signed logout token to this URL, server to server, so the app can sign the user out even when no browser is involved. Failed deliveries are retried for several hours.</p>
+                        <label class="mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" id="backchannel_logout_session_required" name="backchannel_logout_session_required" value="true"
+                                   {% if client.backchannel_logout_session_required %}checked{% endif %}
+                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                            Include the session ID (<code>sid</code>) in the logout token
+                        </label>
+                    </div>
+
+                    <button type="submit" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
+                </form>
+            </div>
             {% endif %}
         </div>
+
+        <!-- Token Introspection (a public client cannot authenticate there) -->
+        {% if not client.is_public %}
+        <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Token Introspection</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Every client can introspect its own tokens. Allow all tokens only for a resource server, such as an API backend that receives tokens issued to other apps in this tenant.
+            </p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                Introspection endpoint: <code class="font-mono text-gray-800 dark:text-gray-200 break-all">{{ introspection_endpoint }}</code>
+            </p>
+            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="pr-4">
+                    <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        Introspect all tenant tokens
+                        {% if client.can_introspect_tenant_tokens %}
+                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">Allowed</span>
+                        {% else %}
+                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Own tokens only</span>
+                        {% endif %}
+                    </h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        When allowed, this client can see the user, scopes, and application behind any token in the tenant. It can still revoke only its own tokens.
+                    </p>
+                </div>
+                <form method="post" action="/applications/oauth/{{ client.client_id }}/introspection" class="shrink-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="enabled" value="{{ 'false' if client.can_introspect_tenant_tokens else 'true' }}">
+                    {% if client.can_introspect_tenant_tokens %}
+                    <button type="submit" class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600">Limit to own tokens</button>
+                    {% else %}
+                    <button type="submit" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">Allow all tokens</button>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- User Consents Section -->
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
@@ -465,7 +529,7 @@
                     <form method="post" action="/applications/oauth/{{ client.client_id }}/consents/{{ grant.id }}/revoke">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400"
-                                data-confirm="Revoke consent for {{ grant.user_name or grant.user_email }}?&#10;&#10;They will see the consent screen again the next time they sign in to {{ client.name }}."
+                                data-confirm="Revoke consent for {{ grant.user_name or grant.user_email }}?&#10;&#10;The app loses access to their account now, and they will see the consent screen again the next time they sign in to {{ client.name }}."
                                 data-destructive="true">
                             Revoke
                         </button>
@@ -549,48 +613,20 @@
         </div>
         {% endif %}
 
-        <!-- Client Authentication (a public client sends its client ID alone) -->
-        {% if not client.is_public %}
-        {% set client_auth_action = "/applications/oauth/" ~ client.client_id ~ "/authentication" %}
-        {% include "integrations_client_authentication.html" %}
-        {% endif %}
-
-        <!-- Token Introspection (a public client cannot authenticate there) -->
-        {% if not client.is_public %}
+        <!-- Client Info -->
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Token Introspection</h2>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                Every client can check its own tokens at the introspection endpoint. Allow this client to check all tokens if it is a resource server, such as an API backend that receives tokens issued to other applications in this tenant.
-            </p>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                Introspection endpoint: <code class="font-mono text-gray-800 dark:text-gray-200 break-all">{{ introspection_endpoint }}</code>
-            </p>
-            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
-                <div class="pr-4">
-                    <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        Introspect all tenant tokens
-                        {% if client.can_introspect_tenant_tokens %}
-                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">Allowed</span>
-                        {% else %}
-                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Own tokens only</span>
-                        {% endif %}
-                    </h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        When allowed, this client can see the user, scopes, and application behind any token in the tenant. It can still revoke only its own tokens.
-                    </p>
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Client Information</h2>
+            <dl class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Client ID</dt>
+                    <dd class="font-mono text-gray-900 dark:text-gray-100 mt-1">{{ client.client_id }}</dd>
                 </div>
-                <form method="post" action="/applications/oauth/{{ client.client_id }}/introspection" class="shrink-0">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="enabled" value="{{ 'false' if client.can_introspect_tenant_tokens else 'true' }}">
-                    {% if client.can_introspect_tenant_tokens %}
-                    <button type="submit" class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600">Limit to own tokens</button>
-                    {% else %}
-                    <button type="submit" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">Allow all tokens</button>
-                    {% endif %}
-                </form>
-            </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Created</dt>
+                    <dd class="text-gray-900 dark:text-gray-100 mt-1">{{ fmt_datetime(client.created_at) }}</dd>
+                </div>
+            </dl>
         </div>
-        {% endif %}
 
         <!-- Actions Section -->
         <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
@@ -602,7 +638,7 @@
                 <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div>
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Regenerate Client Secret</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The current secret will be immediately invalidated.</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The current secret stops working immediately.</p>
                     </div>
                     <button id="show-regenerate-btn"
                             class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600">
@@ -634,7 +670,7 @@
                     {% if client.is_active %}
                     <div>
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Deactivate App</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The app will not be able to request tokens. All existing tokens will be revoked.</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The app can't request tokens. Its existing tokens and every user's consent are revoked.</p>
                     </div>
                     <button id="show-deactivate-btn"
                             class="px-3 py-1.5 text-sm border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20">
@@ -643,7 +679,7 @@
                     {% else %}
                     <div>
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Reactivate App</h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Allow this app to request tokens again.</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Lets the app request tokens again. Users see the consent screen again.</p>
                     </div>
                     <form method="post" action="/applications/oauth/{{ client.client_id }}/reactivate" class="inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -656,21 +692,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Client Info -->
-        <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Client Information</h2>
-            <dl class="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">Client ID</dt>
-                    <dd class="font-mono text-gray-900 dark:text-gray-100 mt-1">{{ client.client_id }}</dd>
-                </div>
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">Created</dt>
-                    <dd class="text-gray-900 dark:text-gray-100 mt-1">{{ fmt_datetime(client.created_at) }}</dd>
-                </div>
-            </dl>
-        </div>
     </div>
 </div>
 
@@ -679,7 +700,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Regenerate Client Secret?</h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            The current client secret will be immediately invalidated. Any applications using the current secret will stop working until updated.
+            The current secret stops working immediately. The app fails to get tokens until it has the new one.
         </p>
         <div class="flex justify-end gap-3">
             <button id="hide-regenerate-btn"
@@ -702,7 +723,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Deactivate App?</h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            This app will no longer be able to request tokens. All existing tokens will be revoked immediately. You can reactivate it later if needed.
+            The app can no longer request tokens. Its existing tokens and every user's consent are revoked immediately. You can reactivate it later.
         </p>
         <div class="flex justify-end gap-3">
             <button id="hide-deactivate-btn"

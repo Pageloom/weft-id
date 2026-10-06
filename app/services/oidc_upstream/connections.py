@@ -21,15 +21,23 @@ from schemas.oidc_upstream import (
     OIDCConnectionListItem,
     OIDCConnectionListResponse,
     OIDCConnectionUpdate,
+    OIDCLoginButton,
 )
 from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
+from services.oidc_upstream.adapters import ProviderCheckError, callback_url, get_adapter
+from services.oidc_upstream.apple import ApplePrivateKeyError, load_apple_private_key
 from services.oidc_upstream.presets import (
     compose_entra_authority,
     compose_entra_discovery_url,
+    email_linking_trusted,
+    get_preset,
     get_preset_defaults,
+    login_button_style,
+    provider_display_name,
+    uses_discovery,
 )
 from services.types import RequestingUser
 from utils.crypto import derive_fernet_key
@@ -48,7 +56,9 @@ POST_LOGOUT_PATH = "/logout/complete"
 
 # Optional text settings where an explicit empty string from the API or a form
 # means "clear" and is stored as NULL.
-_CLEARABLE_TEXT_FIELDS = frozenset({"group_claim_source", "group_claim_name_key"})
+_CLEARABLE_TEXT_FIELDS = frozenset(
+    {"group_claim_source", "group_claim_name_key", "hosted_domain", "discovery_url"}
+)
 
 
 def _blank_to_none(value: str | None) -> str | None:
@@ -80,6 +90,9 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         id=connection_id,
         name=row["name"],
         provider_type=row["provider_type"],
+        provider_label=provider_display_name(row["provider_type"]),
+        email_linking_trusted=email_linking_trusted(row["provider_type"]),
+        uses_discovery=uses_discovery(row["provider_type"]),
         issuer=row["issuer"],
         discovery_url=row.get("discovery_url"),
         authorization_endpoint=row.get("authorization_endpoint"),
@@ -104,7 +117,12 @@ def _row_to_config(row: dict, base_url: str) -> OIDCConnectionConfig:
         jit_provisioning=row["jit_provisioning"],
         allow_email_linking=row["allow_email_linking"],
         sign_out_at_idp=row["sign_out_at_idp"],
-        callback_url=f"{base_url}/auth/oidc/{connection_id}/callback",
+        show_on_login=row["show_on_login"],
+        github_allowed_orgs=list(row.get("github_allowed_orgs") or []),
+        apple_team_id=row.get("apple_team_id"),
+        apple_key_id=row.get("apple_key_id"),
+        apple_private_key_set=bool(row.get("apple_private_key_enc")),
+        callback_url=callback_url(base_url, connection_id),
         backchannel_logout_url=f"{base_url}/auth/oidc/{connection_id}/backchannel-logout",
         post_logout_redirect_uri=f"{base_url}{POST_LOGOUT_PATH}",
         created_at=row["created_at"],
@@ -118,8 +136,11 @@ def _row_to_list_item(row: dict) -> OIDCConnectionListItem:
         id=str(row["id"]),
         name=row["name"],
         provider_type=row["provider_type"],
+        provider_label=provider_display_name(row["provider_type"]),
+        uses_discovery=uses_discovery(row["provider_type"]),
         is_enabled=row["is_enabled"],
         is_default=row["is_default"],
+        show_on_login=row["show_on_login"],
         discovery_url=row.get("discovery_url"),
         discovery_fetched_at=row.get("discovery_fetched_at"),
         discovery_error=row.get("discovery_error"),
@@ -207,6 +228,30 @@ def get_connection_row(tenant_id: str, connection_id: str) -> dict | None:
     return database.oidc_upstream.get_connection(tenant_id, connection_id)
 
 
+def list_login_buttons(tenant_id: str) -> list[OIDCLoginButton]:
+    """List the "Continue with ..." buttons for the sign-in page.
+
+    One per enabled connection an admin has marked "show on login". The label
+    and logo come from the preset; a generic provider has neither, so its
+    button carries the connection name.
+
+    No authorization check: the sign-in page is public and this exposes only
+    what the page itself shows.
+    """
+    buttons = []
+    for row in database.oidc_upstream.list_login_page_connections(tenant_id):
+        label, logo = login_button_style(row["provider_type"])
+        buttons.append(
+            OIDCLoginButton(
+                connection_id=str(row["id"]),
+                provider_type=row["provider_type"],
+                label=label or row["name"],
+                logo=logo,
+            )
+        )
+    return buttons
+
+
 def oidc_connection_requires_platform_mfa(tenant_id: str, connection_id: str) -> bool:
     """Check if an OIDC connection requires platform MFA after authentication.
 
@@ -230,7 +275,8 @@ def _apply_preset_defaults(data: OIDCConnectionCreate) -> OIDCConnectionCreate:
     This makes the service layer the single source of truth.
 
     For Entra, the issuer/discovery URL are composed from ``entra_tenant_id``
-    when the admin did not supply an explicit issuer.
+    when the admin did not supply an explicit issuer. The preset discovery URL
+    is only applied alongside the preset issuer.
     """
     defaults = get_preset_defaults(data.provider_type)
     if not defaults:
@@ -248,7 +294,10 @@ def _apply_preset_defaults(data: OIDCConnectionCreate) -> OIDCConnectionCreate:
     if not data.issuer and defaults.get("issuer"):
         data.issuer = defaults["issuer"]
 
-    if not data.discovery_url and defaults.get("discovery_url"):
+    # The preset discovery URL belongs to the preset issuer. An overridden
+    # issuer (a self-managed GitLab) discovers from its own well-known path.
+    issuer_is_preset = (data.issuer or "").rstrip("/") == (defaults.get("issuer") or "").rstrip("/")
+    if not data.discovery_url and defaults.get("discovery_url") and issuer_is_preset:
         data.discovery_url = defaults["discovery_url"]
 
     # Entra composes its authority from the tenant id when no explicit issuer
@@ -268,6 +317,158 @@ def _apply_preset_defaults(data: OIDCConnectionCreate) -> OIDCConnectionCreate:
     return data
 
 
+# Entra authorities that accept sign-ins from any directory. Their discovery
+# documents publish an issuer template (``{tenantid}``) or another directory's
+# issuer, so the exact issuer check refuses every sign-in; and the email
+# claim of a directory WeftID does not control is not proof of address. They
+# are refused on save rather than left to fail at sign-in.
+_ENTRA_MULTI_TENANT_IDS = frozenset({"common", "organizations", "consumers"})
+_ENTRA_HOST = "login.microsoftonline.com"
+
+
+def _is_entra_multi_tenant_issuer(issuer: str | None) -> bool:
+    parsed = urlparse(issuer or "")
+    segments = [part for part in parsed.path.split("/") if part]
+    return (
+        (parsed.hostname or "").lower() == _ENTRA_HOST
+        and bool(segments)
+        and segments[0].lower() in _ENTRA_MULTI_TENANT_IDS
+    )
+
+
+def _validate_single_tenant_authority(
+    provider_type: str, entra_tenant_id: str | None, issuer: str | None
+) -> None:
+    """Reject a multi-tenant Entra authority (common, organizations, consumers).
+
+    Checked on the tenant id of an Entra connection and on the issuer of any
+    connection, so a hand-entered authority is caught as well. Personal
+    Microsoft accounts have their own provider type, with its fixed issuer.
+    """
+    tenant_value = (entra_tenant_id or "").strip().lower()
+    if (
+        provider_type == "entra" and tenant_value in _ENTRA_MULTI_TENANT_IDS
+    ) or _is_entra_multi_tenant_issuer(issuer):
+        raise ValidationError(
+            message=(
+                "Multi-tenant Entra authorities (common, organizations, consumers) are "
+                "not supported. Use your directory's tenant ID or a verified domain"
+            ),
+            code="oidc_entra_multi_tenant_not_supported",
+        )
+
+
+def _validate_email_linking(provider_type: str, allow_email_linking: bool | None) -> None:
+    """Reject email linking on a provider whose verified-email claim is not trusted."""
+    if allow_email_linking and not email_linking_trusted(provider_type):
+        raise ValidationError(
+            message=(
+                f"{provider_display_name(provider_type)} does not assert a verified "
+                "email address, so email linking cannot be enabled for it"
+            ),
+            code="oidc_email_linking_not_supported",
+        )
+
+
+# Settings a provider with fixed endpoints (no discovery) has no use for. Each
+# must be left blank, or for issuer/correlation_claim equal the preset's value
+# (what the web form submits).
+_FIXED_ENDPOINT_BLANK_FIELDS = (
+    "discovery_url",
+    *_MANUAL_ENDPOINT_FIELDS,
+    "hosted_domain",
+    "entra_tenant_id",
+)
+
+
+def _validate_fixed_endpoint_fields(
+    provider_type: str, data: OIDCConnectionCreate | OIDCConnectionUpdate
+) -> None:
+    """Reject discovery and endpoint settings on a provider that has none."""
+    preset = get_preset(provider_type)
+    if preset is None or preset.uses_discovery:
+        return
+    supplied = [field for field in _FIXED_ENDPOINT_BLANK_FIELDS if getattr(data, field, None)]
+    for field, expected in (
+        ("issuer", preset.issuer),
+        ("correlation_claim", preset.correlation_claim),
+    ):
+        value = getattr(data, field, None)
+        if value and value.rstrip("/") != (expected or "").rstrip("/"):
+            supplied.append(field)
+    if supplied:
+        raise ValidationError(
+            message=(
+                f"{preset.display_name} has fixed endpoints; these settings do not "
+                f"apply to it: {', '.join(supplied)}"
+            ),
+            code="oidc_setting_not_supported",
+        )
+
+
+def _normalize_github_allowed_orgs(provider_type: str, orgs: list[str] | None) -> list[str] | None:
+    """Lower-case and de-duplicate allowed organizations (order kept).
+
+    Returns None for no restriction. Rejects a non-empty list on a provider
+    other than GitHub.
+    """
+    if orgs is None:
+        return None
+    if orgs and provider_type != "github":
+        raise ValidationError(
+            message="Allowed organizations apply to GitHub connections only",
+            code="oidc_setting_not_supported",
+        )
+    normalized = list(dict.fromkeys(org.lower() for org in orgs))
+    return normalized or None
+
+
+_APPLE_FIELDS = ("apple_team_id", "apple_key_id", "apple_private_key")
+
+
+def _apple_settings(
+    provider_type: str, data: OIDCConnectionCreate | OIDCConnectionUpdate
+) -> dict[str, str]:
+    """Return the Apple key settings to store (the key encrypted).
+
+    Rejects them on a provider other than Apple, a client secret on Apple
+    (its secret is signed from the key), and a key that is not an EC P-256
+    private key in PEM form.
+    """
+    if provider_type != "apple":
+        if any(getattr(data, field, None) for field in _APPLE_FIELDS):
+            raise ValidationError(
+                message="Team ID, key ID and private key apply to Apple connections only",
+                code="oidc_setting_not_supported",
+            )
+        return {}
+    if data.client_secret:
+        raise ValidationError(
+            message=(
+                "Apple connections have no client secret; WeftID signs one with the private key"
+            ),
+            code="oidc_setting_not_supported",
+        )
+    stored: dict[str, str] = {}
+    if data.apple_team_id:
+        stored["apple_team_id"] = data.apple_team_id
+    if data.apple_key_id:
+        stored["apple_key_id"] = data.apple_key_id
+    if data.apple_private_key and data.apple_private_key.strip():
+        try:
+            load_apple_private_key(data.apple_private_key)
+        except ApplePrivateKeyError as exc:
+            raise ValidationError(
+                message=(
+                    "The private key must be the .p8 file Apple issued "
+                    "(an EC P-256 key in PEM form)"
+                ),
+                code="oidc_apple_private_key_invalid",
+            ) from exc
+        stored["apple_private_key_enc"] = _encrypt_secret(data.apple_private_key.strip())
+    return stored
+
+
 def create_connection(
     requesting_user: RequestingUser,
     data: OIDCConnectionCreate,
@@ -283,8 +484,15 @@ def create_connection(
 
     tenant_id = requesting_user["tenant_id"]
 
+    _validate_fixed_endpoint_fields(data.provider_type, data)
     data = _apply_preset_defaults(data)
+    _validate_single_tenant_authority(data.provider_type, data.entra_tenant_id, data.issuer)
     _validate_manual_endpoints(data)
+    _validate_email_linking(data.provider_type, data.allow_email_linking)
+    github_allowed_orgs = _normalize_github_allowed_orgs(
+        data.provider_type, data.github_allowed_orgs
+    )
+    apple_settings = _apple_settings(data.provider_type, data)
 
     # _apply_preset_defaults guarantees a non-None issuer (composed from the
     # preset or tenant id, or rejected for generic) and a non-None
@@ -326,6 +534,9 @@ def create_connection(
         jit_provisioning=data.jit_provisioning,
         allow_email_linking=data.allow_email_linking,
         sign_out_at_idp=data.sign_out_at_idp,
+        show_on_login=data.show_on_login,
+        github_allowed_orgs=github_allowed_orgs,
+        **apple_settings,
     )
 
     if row is None:
@@ -346,6 +557,7 @@ def create_connection(
             "name": data.name,
             "provider_type": data.provider_type,
             "issuer": data.issuer,
+            "show_on_login": data.show_on_login,
         },
     )
 
@@ -367,6 +579,18 @@ def create_connection(
         )
 
     return _row_to_config(row, base_url)
+
+
+def _discovery_source_changed(existing: dict, update_kwargs: dict[str, Any]) -> bool:
+    """Whether an update moves the issuer or discovery URL elsewhere."""
+    for field in ("issuer", "discovery_url"):
+        if field not in update_kwargs:
+            continue
+        new = (update_kwargs[field] or "").rstrip("/")
+        old = (existing.get(field) or "").rstrip("/")
+        if new != old:
+            return True
+    return False
 
 
 def update_connection(
@@ -392,7 +616,26 @@ def update_connection(
             code="oidc_connection_not_found",
         )
 
+    _validate_fixed_endpoint_fields(existing["provider_type"], data)
+    _validate_single_tenant_authority(existing["provider_type"], data.entra_tenant_id, data.issuer)
     _validate_manual_endpoints(data)
+    _validate_email_linking(existing["provider_type"], data.allow_email_linking)
+    apple_settings = _apple_settings(existing["provider_type"], data)
+
+    # Entra composes its authority from the tenant id, as on create, unless an
+    # explicit issuer was supplied.
+    if existing["provider_type"] == "entra" and data.entra_tenant_id and not data.issuer:
+        data.issuer = compose_entra_authority(data.entra_tenant_id)
+        if not data.discovery_url:
+            data.discovery_url = compose_entra_discovery_url(data.entra_tenant_id)
+
+    # An overridable preset issuer (a self-managed GitLab) discovers from its
+    # own well-known path, as on create: the preset discovery URL follows the
+    # preset issuer only.
+    preset = get_preset(existing["provider_type"])
+    if preset and preset.issuer_overridable and data.issuer and data.discovery_url is None:
+        issuer_is_preset = data.issuer.rstrip("/") == (preset.issuer or "").rstrip("/")
+        data.discovery_url = preset.discovery_url if issuer_is_preset else ""
 
     update_kwargs: dict[str, Any] = {}
     for field in [
@@ -416,6 +659,7 @@ def update_connection(
         "jit_provisioning",
         "allow_email_linking",
         "sign_out_at_idp",
+        "show_on_login",
     ]:
         value = getattr(data, field, None)
         if value is None:
@@ -431,10 +675,27 @@ def update_connection(
     # them. A later successful Test Connection puts it back under discovery.
     if any(field in update_kwargs for field in _MANUAL_ENDPOINT_FIELDS):
         update_kwargs["discovery_fetched_at"] = None
+    elif existing.get("discovery_fetched_at") is not None and _discovery_source_changed(
+        existing, update_kwargs
+    ):
+        # The discovered endpoints belong to the old issuer. Drop them so the
+        # next sign-in (or Test Connection) discovers from the new one.
+        for field in _MANUAL_ENDPOINT_FIELDS:
+            update_kwargs[field] = None
+        update_kwargs["discovery_fetched_at"] = None
+
+    # An empty list clears the restriction (stored as NULL).
+    if data.github_allowed_orgs is not None:
+        update_kwargs["github_allowed_orgs"] = _normalize_github_allowed_orgs(
+            existing["provider_type"], data.github_allowed_orgs
+        )
 
     # The client secret is handled separately: it is write-only and encrypted.
     if data.client_secret is not None:
         update_kwargs["client_secret_enc"] = _encrypt_secret(data.client_secret)
+
+    # Apple key settings: set when given, never cleared (the key is write-only).
+    update_kwargs.update(apple_settings)
 
     if not update_kwargs:
         return _row_to_config(existing, base_url)
@@ -609,26 +870,23 @@ def test_connection(
     connection_id: str,
     base_url: str,
 ) -> OIDCConnectionConfig:
-    """Fetch the IdP's discovery document and the key set it advertises.
+    """Check a connection against its provider.
 
-    Discovery runs regardless of the TTL and, on success, replaces the stored
-    endpoints (see ``discovery.run_discovery``). The JWKS is then fetched
-    from the discovered ``jwks_uri``, so a key set that is unreachable or
-    unusable is reported here rather than at the first sign-in.
+    What runs depends on the provider's adapter. For spec OIDC: discovery
+    (regardless of the TTL, replacing the stored endpoints on success, see
+    ``discovery.run_discovery``) and a fetch of the key set it advertises, so
+    an unusable one is reported here rather than at the first sign-in. For
+    GitHub: the client credentials and callback URL are checked at GitHub's
+    token endpoint.
 
     Authorization: Requires super_admin role.
-    Logs: oidc_idp_connection_tested event (``result`` success or failed;
-    discovery writes the endpoints or the error either way).
+    Logs: oidc_idp_connection_tested event (``result`` success or failed).
 
     Raises:
         NotFoundError: unknown connection.
-        ValidationError: discovery or the JWKS fetch failed; the message is
-            the reason, safe to show to the admin.
+        ValidationError: the check failed; the message is the reason, safe to
+            show to the admin.
     """
-    from services.oidc_upstream import jwks as jwks_service
-    from services.oidc_upstream.discovery import run_discovery
-    from services.oidc_upstream.errors import DiscoveryError, JwksError
-
     require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
     tenant_id = requesting_user["tenant_id"]
@@ -643,12 +901,11 @@ def test_connection(
     detail: str | None = None
     row: dict | None = None
     try:
-        row = run_discovery(tenant_id, connection_id, force=True)
-        jwks_service.refresh_jwks(tenant_id, connection_id, str(row["jwks_uri"]))
-    except DiscoveryError as exc:
-        detail = f"Discovery failed: {exc}"
-    except JwksError as exc:
-        detail = f"Key set (JWKS) failed: {exc}"
+        row = get_adapter(existing["provider_type"]).check(
+            tenant_id, existing, redirect_uri=callback_url(base_url, connection_id)
+        )
+    except ProviderCheckError as exc:
+        detail = str(exc)
 
     log_event(
         tenant_id=tenant_id,
@@ -759,6 +1016,54 @@ def set_connection_default(
         artifact_type="oidc_idp_connection",
         artifact_id=connection_id,
         event_type="oidc_idp_connection_set_default",
+        metadata={"name": existing["name"]},
+    )
+
+    return _row_to_config(row, base_url)
+
+
+def clear_connection_default(
+    requesting_user: RequestingUser,
+    connection_id: str,
+    base_url: str,
+) -> OIDCConnectionConfig:
+    """Stop an OIDC connection being the default for the tenant.
+
+    The tenant is left with no default OIDC connection. A connection that is
+    not the default is returned unchanged.
+
+    Authorization: Requires super_admin role.
+    Logs: oidc_idp_connection_default_cleared event (only when it changed).
+    """
+    require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.oidc_upstream.get_connection(tenant_id, connection_id)
+    if existing is None:
+        raise NotFoundError(
+            message="OIDC connection not found",
+            code="oidc_connection_not_found",
+        )
+
+    if not existing["is_default"]:
+        return _row_to_config(existing, base_url)
+
+    row = database.oidc_upstream.clear_connection_default(tenant_id, connection_id)
+
+    if row is None:
+        raise ValidationError(
+            message="Failed to update OIDC connection",
+            code="oidc_connection_update_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="oidc_idp_connection",
+        artifact_id=connection_id,
+        event_type="oidc_idp_connection_default_cleared",
         metadata={"name": existing["name"]},
     )
 

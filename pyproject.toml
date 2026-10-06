@@ -120,13 +120,6 @@ filterwarnings = [
     # onelogin (python3-saml) emits DeprecationWarnings from its own internals
     # that we cannot fix from here; scoped to that package only.
     "ignore::DeprecationWarning:onelogin.*:",
-    # FastAPI does not close a parsed UploadFile when a router-level dependency
-    # (require_super_admin) rejects before the file param is bound, so its
-    # SpooledTemporaryFile is closed only at GC, where __del__ raises an
-    # unraisable exception. GC-time noise with no production impact; a real fix
-    # needs an upload-auth restructure (collides with the CSRF middleware's body
-    # parsing). Scoped to that exact message. Tracked in GitHub issue #173.
-    "ignore:.*SpooledTemporaryFile.*:pytest.PytestUnraisableExceptionWarning",
 ]
 
 [tool.coverage.run]

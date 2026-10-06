@@ -12,7 +12,33 @@ from typing import Annotated
 from constants.user_attributes import ATTRIBUTE_KEYS
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-PROVIDER_TYPES = ("generic", "google", "entra")
+# The provider types an admin can create (the database CHECK lists the same).
+PROVIDER_TYPES = (
+    "generic",
+    "google",
+    "entra",
+    "microsoft",
+    "linkedin",
+    "gitlab",
+    "github",
+    "discord",
+    "facebook",
+    "apple",
+)
+_PROVIDER_TYPE_PATTERN = f"^({'|'.join(PROVIDER_TYPES)})$"
+
+# A GitHub organization login: alphanumerics and single hyphens, up to 39
+# characters, not starting with a hyphen.
+GITHUB_ORG_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
+MAX_GITHUB_ALLOWED_ORGS = 100
+
+# Apple team and key ids: ten upper-case letters and digits.
+APPLE_ID_PATTERN = r"^[A-Z0-9]{10}$"
+
+# An Apple ``.p8`` key is about 250 characters; the column holds it encrypted.
+MAX_APPLE_PRIVATE_KEY_LENGTH = 2000
+
+GitHubOrgList = list[Annotated[str, Field(max_length=39, pattern=GITHUB_ORG_PATTERN)]]
 
 DEFAULT_CLAIM_MAPPING = {
     "email": "email",
@@ -46,7 +72,7 @@ class OIDCConnectionCreate(BaseModel):
     """Request schema for creating an OIDC connection."""
 
     name: str = Field(..., min_length=1, max_length=120)
-    provider_type: str = Field(..., max_length=50, pattern="^(generic|google|entra)$")
+    provider_type: str = Field(..., max_length=50, pattern=_PROVIDER_TYPE_PATTERN)
     # issuer is optional at the schema level: the service layer composes it
     # from the preset (Google) or from ``entra_tenant_id`` (Entra) when the
     # caller does not supply one. Generic still requires an explicit issuer,
@@ -88,6 +114,13 @@ class OIDCConnectionCreate(BaseModel):
     jit_provisioning: bool = False
     allow_email_linking: bool = False
     sign_out_at_idp: bool = False
+    show_on_login: bool = False
+    # GitHub only: organizations a user must belong to (one is enough).
+    github_allowed_orgs: GitHubOrgList | None = Field(None, max_length=MAX_GITHUB_ALLOWED_ORGS)
+    # Apple only: the client secret is a JWT signed with this key (write-only).
+    apple_team_id: str | None = Field(None, max_length=10, pattern=APPLE_ID_PATTERN)
+    apple_key_id: str | None = Field(None, max_length=10, pattern=APPLE_ID_PATTERN)
+    apple_private_key: str | None = Field(None, max_length=MAX_APPLE_PRIVATE_KEY_LENGTH)
 
 
 class OIDCConnectionUpdate(BaseModel):
@@ -123,6 +156,13 @@ class OIDCConnectionUpdate(BaseModel):
     jit_provisioning: bool | None = None
     allow_email_linking: bool | None = None
     sign_out_at_idp: bool | None = None
+    show_on_login: bool | None = None
+    # An empty list clears the restriction; None leaves it unchanged.
+    github_allowed_orgs: GitHubOrgList | None = Field(None, max_length=MAX_GITHUB_ALLOWED_ORGS)
+    # Apple only: the client secret is a JWT signed with this key (write-only).
+    apple_team_id: str | None = Field(None, max_length=10, pattern=APPLE_ID_PATTERN)
+    apple_key_id: str | None = Field(None, max_length=10, pattern=APPLE_ID_PATTERN)
+    apple_private_key: str | None = Field(None, max_length=MAX_APPLE_PRIVATE_KEY_LENGTH)
 
 
 class OIDCConnectionConfig(BaseModel):
@@ -133,6 +173,9 @@ class OIDCConnectionConfig(BaseModel):
     id: str
     name: str
     provider_type: str
+    provider_label: str
+    email_linking_trusted: bool
+    uses_discovery: bool
     issuer: str
     discovery_url: str | None
     authorization_endpoint: str | None
@@ -157,6 +200,11 @@ class OIDCConnectionConfig(BaseModel):
     jit_provisioning: bool
     allow_email_linking: bool
     sign_out_at_idp: bool
+    show_on_login: bool
+    github_allowed_orgs: list[str]
+    apple_team_id: str | None
+    apple_key_id: str | None
+    apple_private_key_set: bool
     callback_url: str
     backchannel_logout_url: str
     post_logout_redirect_uri: str
@@ -172,8 +220,11 @@ class OIDCConnectionListItem(BaseModel):
     id: str
     name: str
     provider_type: str
+    provider_label: str
+    uses_discovery: bool
     is_enabled: bool
     is_default: bool
+    show_on_login: bool
     discovery_url: str | None
     discovery_fetched_at: datetime | None
     discovery_error: str | None
@@ -185,6 +236,34 @@ class OIDCConnectionListResponse(BaseModel):
 
     items: list[OIDCConnectionListItem]
     total: int
+
+
+class OIDCLoginButton(BaseModel):
+    """A "Continue with ..." button on the sign-in page."""
+
+    connection_id: str
+    provider_type: str
+    label: str
+    logo: str | None
+
+
+class OIDCUserLink(BaseModel):
+    """One upstream OIDC identity linked to a user."""
+
+    connection_id: str
+    connection_name: str
+    provider_type: str
+    provider_label: str
+    connection_enabled: bool
+    sub: str
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+class OIDCUserLinkList(BaseModel):
+    """A user's linked OIDC identities, most recently used first."""
+
+    items: list[OIDCUserLink]
 
 
 # ============================================================================

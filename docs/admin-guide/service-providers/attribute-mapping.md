@@ -89,15 +89,15 @@ If the application provides an encryption certificate in its SAML metadata, Weft
 
 The **Attributes** tab shows the current encryption status:
 
-- **Encrypted** -- The application's metadata includes an encryption certificate. Assertions are encrypted before delivery.
-- **Unencrypted** -- No encryption certificate was found in the metadata. Assertions are sent in plain signed XML.
+- **Encrypted**: The application's metadata includes an encryption certificate. Assertions are encrypted before delivery.
+- **Unencrypted**: No encryption certificate was found in the metadata. Assertions are sent in plain signed XML.
 
 ### Encryption algorithm
 
 When encryption is active, a dropdown on the **Attributes** tab lets you choose the content encryption algorithm:
 
-- **AES-256-CBC** (default) -- Compatible with all SAML implementations. Uses XML Encryption 1.0.
-- **AES-256-GCM** -- Authenticated encryption that provides both confidentiality and integrity in a single pass. Uses XML Encryption 1.1. Not all SAML implementations support it.
+- **AES-256-CBC** (default): Compatible with all SAML implementations. Uses XML Encryption 1.0.
+- **AES-256-GCM**: Authenticated encryption that provides both confidentiality and integrity in a single pass. Uses XML Encryption 1.1. Not all SAML implementations support it.
 
 GCM is the stronger option when your application supports it. CBC is a block cipher mode that requires separate padding and has no built-in integrity check. GCM combines encryption and authentication, eliminating padding-related vulnerabilities. If your application supports XML Encryption 1.1, switching to GCM is recommended.
 

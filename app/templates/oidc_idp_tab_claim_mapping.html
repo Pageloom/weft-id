@@ -11,8 +11,8 @@
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Claim Mapping</h2>
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
         Map OIDC claims from this IdP to WeftID user fields. Values appear in the user's
-        profile (and downstream SAML assertions) once the attribute is enabled and
-        <code>mirror_from_idp</code> is on.
+        profile (and downstream SAML assertions) once the attribute is enabled with
+        <strong>Mirror from IdP</strong> on.
     </p>
 
     <form id="claim-map-form" method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-claim-mapping">
@@ -74,10 +74,10 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Group Claim</h2>
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        Sync group membership from this provider. When a claim name is set, every sign-in
-        creates any missing groups as read-only IdP groups under the
-        <strong>{{ connection.name }}</strong> group and updates the user's membership to
-        match the claim. Leave the claim name empty to leave groups alone.
+        Sync group membership from this provider. With a claim name set, each sign-in
+        creates missing groups as read-only IdP groups under the
+        <strong>{{ connection.name }}</strong> group and matches the user's membership to
+        the claim. Leave it empty to leave groups alone.
     </p>
 
     <form id="group-claim-form" method="post" action="/identity-providers/oidc/{{ connection.id }}/edit-group-claim" class="space-y-4">
@@ -85,24 +85,33 @@
 
         <div>
             <label for="group_claim_source" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Claim name
+                Claim Name
             </label>
             <input type="text" id="group_claim_source" name="group_claim_source"
                    value="{{ connection.group_claim_source or '' }}"
                    placeholder="groups"
                    maxlength="255"
                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            {% if connection.provider_type == 'github' %}
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Enter <code>groups</code> to sync the user's GitHub organizations (as
+                <code>org</code>) and teams (as <code>org/team</code>). With allowed
+                organizations set, only those organizations and their teams are synced.
+                Needs the <code>read:org</code> scope.
+            </p>
+            {% else %}
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 The claim in the ID token or userinfo response that lists the user's groups.
                 Accepts a list of names, a list of objects, or a single name. Common values:
                 <code>groups</code> (Okta, Entra, Keycloak), <code>roles</code>, or a namespaced
                 claim such as <code>https://example.com/groups</code>.
             </p>
+            {% endif %}
         </div>
 
         <div>
             <label for="group_claim_name_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Name key for object entries
+                Name Key for Object Entries
             </label>
             <input type="text" id="group_claim_name_key" name="group_claim_name_key"
                    value="{{ connection.group_claim_name_key or '' }}"

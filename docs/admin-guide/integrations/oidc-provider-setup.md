@@ -12,24 +12,25 @@ This page covers registering a downstream app as an OIDC relying party. For the 
 Enabling OIDC changes two behaviors:
 
 * The token endpoint issues a signed RS256 **ID token** whenever the request includes the `openid` scope.
-* **Group-based access control** is enforced at login. A user who is not granted access is denied at the authorize step (they never receive a code or token).
+* **Group-based access control** is enforced at sign-in. A user who is not granted access is denied at the authorize step (they never receive a code or token).
 
 Plain OAuth2 apps (OIDC disabled) are unaffected by both changes.
 
 ## Discovery URL and endpoints
 
-Once OIDC is enabled, the app detail page shows the read-only **endpoint URLs** for your tenant. Copy these into your downstream application. Most OIDC client libraries need only the discovery URL and will fetch the rest automatically.
+Once OIDC is enabled, the **Endpoint URLs** section of the app detail page adds the issuer, discovery URL, JWKS URI, UserInfo endpoint and end session endpoint to the OAuth2 endpoints it always lists. Copy these into your downstream application. Most OIDC client libraries need only the discovery URL and will fetch the rest automatically.
 
-* **Issuer** -- `https://<your-tenant-host>`
-* **Discovery URL** -- `https://<your-tenant-host>/.well-known/openid-configuration`
-* **JWKS URI** -- `https://<your-tenant-host>/.well-known/jwks.json` (public keys for verifying ID token signatures)
-* **Authorization endpoint** -- `https://<your-tenant-host>/oauth2/authorize`
-* **Token endpoint** -- `https://<your-tenant-host>/oauth2/token`
-* **UserInfo endpoint** -- `https://<your-tenant-host>/userinfo`
-* **End session endpoint** -- `https://<your-tenant-host>/oauth2/logout` (see [Signing out](#signing-out))
-* **Introspection endpoint** -- `https://<your-tenant-host>/oauth2/introspect` (see [Token Introspection and Revocation](token-introspection.md))
-* **Revocation endpoint** -- `https://<your-tenant-host>/oauth2/revoke`
-* **Device authorization endpoint** -- `https://<your-tenant-host>/oauth2/device_authorization` (see [Device Sign-In](device-sign-in.md))
+* **Issuer**: `https://<your-tenant-host>`
+* **Discovery URL**: `https://<your-tenant-host>/.well-known/openid-configuration`
+* **JWKS URI**: `https://<your-tenant-host>/.well-known/jwks.json` (public keys for verifying ID token signatures)
+* **Authorization endpoint**: `https://<your-tenant-host>/oauth2/authorize`
+* **Token endpoint**: `https://<your-tenant-host>/oauth2/token`
+* **UserInfo endpoint**: `https://<your-tenant-host>/userinfo`
+* **End session endpoint**: `https://<your-tenant-host>/oauth2/logout` (see [Signing out](#signing-out))
+* **Introspection endpoint**: `https://<your-tenant-host>/oauth2/introspect` (see [Token Introspection and Revocation](token-introspection.md))
+* **Revocation endpoint**: `https://<your-tenant-host>/oauth2/revoke`
+* **Device authorization endpoint**: `https://<your-tenant-host>/oauth2/device_authorization` (see [Device Sign-In](device-sign-in.md))
+* **Pushed authorization request endpoint**: `https://<your-tenant-host>/oauth2/par` (see [Pushed authorization requests](#pushed-authorization-requests))
 
 The issuer and every endpoint are scoped to your tenant host. A relying party configured against one tenant's issuer can never receive another tenant's keys or claims.
 
@@ -39,7 +40,7 @@ OIDC uses the same **Redirect URIs** as the app's OAuth2 configuration. Add each
 
 ## Launching from My Apps
 
-An OIDC app can appear in users' **My Apps** list on the dashboard, like a SAML application. Set the app's **Login initiation URI** on its edit form: the address in the app that starts a sign-in with WeftID. This is OpenID Connect third-party-initiated login.
+An OIDC app can appear in users' **My Apps** list on the dashboard, like a SAML application. Set the app's **Login initiation URI** in the **Sign-in and Sign-out** panel of the app's **OpenID Connect** section: the address in the app that starts a sign-in with WeftID. This is OpenID Connect third-party-initiated login.
 
 * The URI must be an absolute `https` URL without a fragment. It may have a query.
 * The app appears in My Apps for every user who can access it (see [Controlling who can sign in](#controlling-who-can-sign-in)), as long as OIDC is turned on for the app and the app is active.
@@ -48,16 +49,28 @@ An OIDC app can appear in users' **My Apps** list on the dashboard, like a SAML 
 
 Through the API, set `initiate_login_uri` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}` (an empty string clears it). An app that registers itself can send `initiate_login_uri` in its registration (see [Client Registration](client-registration.md)).
 
+## Asking the user to sign in again
+
+An app can make a user who is already signed in to WeftID sign in again:
+
+* `prompt=login` (or `prompt=select_account`) on the authorization request.
+* `max_age`, when the user's sign-in is older than that many seconds.
+* An `id_token_hint` that names a different user than the one signed in.
+
+WeftID first shows a **Sign in again?** page naming the app. This stops a link on another website from signing the user out. If the user continues, WeftID ends their current session and they sign in to WeftID again (password, then two-step verification per policy). The authorization request then carries on as usual. If they cancel, the app receives `access_denied`. With `prompt=none`, WeftID shows no page and answers `login_required` instead.
+
+Ending the session this way triggers [front-channel](#front-channel-logout) and [back-channel](#back-channel-logout) logout for the user's other apps, but not for the app that asked. The new sign-in happens in WeftID only. It is not passed on to the upstream identity provider the user originally signed in with.
+
 ## Signing out
 
 An app can sign the user out of WeftID by sending the browser to the **end session endpoint** (OpenID Connect RP-Initiated Logout). Most OIDC client libraries do this for you once they know the discovery URL.
 
 The endpoint accepts `GET` and `POST` with these parameters:
 
-* `id_token_hint` -- an ID token WeftID issued to your app for this user (an expired one is fine). Strongly recommended.
-* `post_logout_redirect_uri` -- where to send the user afterwards. Must exactly match one of the app's **Post-logout redirect URIs**.
-* `state` -- any value; it is passed back to the `post_logout_redirect_uri`.
-* `client_id` -- optional; must match the `id_token_hint` when both are sent.
+* `id_token_hint`: an ID token WeftID issued to your app for this user (an expired one is fine). Strongly recommended.
+* `post_logout_redirect_uri`: where to send the user afterwards. Must exactly match one of the app's **Post-logout redirect URIs**.
+* `state`: any value; it is passed back to the `post_logout_redirect_uri`.
+* `client_id`: optional; must match the `id_token_hint` when both are sent.
 
 What happens:
 
@@ -68,11 +81,11 @@ Signing out through the end session endpoint also ends the user's sessions at SA
 
 ### Post-logout redirect URIs
 
-Add each address your app may return to after sign-out in the **Post-logout redirect URIs** box on the app's edit form, one per line. Each must be an absolute `http` or `https` URL without a fragment, and WeftID compares them exactly. Leave the box empty if your app does not need to be sent back. Through the API, set `post_logout_redirect_uris` with `PATCH /api/v1/oauth2/clients/{client_id}`.
+Add each address your app may return to after sign-out in the **Post-logout redirect URIs** box in the **Sign-in and Sign-out** panel of the app's **OpenID Connect** section, one per line. Each must be an absolute `http` or `https` URL without a fragment, and WeftID compares them exactly. Leave the box empty if your app does not need to be sent back. Through the API, set `post_logout_redirect_uris` with `PATCH /api/v1/oauth2/clients/{client_id}`.
 
 ### Front-channel logout
 
-An app can also ask to be told when the user's WeftID session ends, however it ends: through the end session endpoint, the WeftID sign-out button, or WeftID asking the user to sign in again (`prompt=login` or an expired `max_age`). This is OpenID Connect Front-Channel Logout. Set the app's **Front-channel logout URI** on its edit form. When the session ends, WeftID shows a short "Signing you out" page that loads that URI in a hidden frame for every app that received an ID token during the session, and then continues on its way.
+An app can also ask to be told when the user's WeftID session ends, however it ends: through the end session endpoint, the WeftID sign-out button, or WeftID asking the user to sign in again (`prompt=login` or an expired `max_age`). This is OpenID Connect Front-Channel Logout. Set the app's **Front-channel logout URI** in the **Sign-in and Sign-out** panel of the app's **OpenID Connect** section. When the session ends, WeftID shows a short "Signing you out" page that loads that URI in a hidden frame for every app that received an ID token during the session, and then continues on its way.
 
 * The URI must be an absolute `http` or `https` URL without a fragment, on the same scheme, host and port as one of the app's redirect URIs. It may have a query.
 * By default WeftID adds `iss` and `sid` to the request (**Send the issuer and session ID**, on for new apps). The `sid` matches the `sid` claim in the ID tokens the app received, so the app can find the session to end. Browsers that block third-party cookies do not send the app's own cookies to a hidden frame, so most apps need these parameters. Untick the box only if the app requires a bare request.
@@ -83,7 +96,7 @@ Through the API, set `frontchannel_logout_uri` and `frontchannel_logout_session_
 
 ### Back-channel logout
 
-Front-channel logout depends on the user's browser. Back-channel logout does not: when the session ends (the same three ways), WeftID sends a signed logout token straight to the app's server. This is OpenID Connect Back-Channel Logout. Set the app's **Back-channel logout URI** on its edit form.
+Front-channel logout depends on the user's browser. Back-channel logout does not: when the session ends (the same three ways), WeftID sends a signed logout token straight to the app's server. This is OpenID Connect Back-Channel Logout. Set the app's **Back-channel logout URI** in the **Sign-in and Sign-out** panel of the app's **OpenID Connect** section.
 
 * The URI must be an absolute `http` or `https` URL without a fragment. Unlike the front-channel URI it may be on any host, for example an internal API. WeftID refuses to call private or reserved network addresses.
 * WeftID `POST`s a form with one field, `logout_token`: a JWT signed with the same key as the ID tokens (check it against the JWKS). It carries `iss`, `aud` (the app's client ID), `iat`, `exp`, `jti`, `events`, `sub`, and `sid` unless you untick **Include the session ID** (on for new apps). It never carries a `nonce`.
@@ -92,7 +105,7 @@ Front-channel logout depends on the user's browser. Back-channel logout does not
 * As with front-channel logout, the app that asked WeftID to sign the user in again is not sent a logout token.
 * Deactivating, anonymizing or deleting a user also sends a logout token for each session the user holds with the app, whoever or whatever deactivated them (an admin, SCIM, the inactivity policy, or removal from an identity provider). No browser is involved, so front-channel logout does not apply here.
 
-The app's detail page lists the most recent deliveries under **Back-channel Logout Deliveries**: who they were for, whether they were delivered, how many attempts were made, and the last error. "Address not allowed or not found" means the URI's host did not resolve, or resolved to an address WeftID refuses to call. Deliveries are kept for 30 days after they finish.
+The app's detail page lists the most recent deliveries under **Back-Channel Logout Deliveries**: who they were for, whether they were delivered, how many attempts were made, and the last error. "Address not allowed or not found" means the URI's host did not resolve, or resolved to an address WeftID refuses to call. Deliveries are kept for 30 days after they finish.
 
 Through the API, set `backchannel_logout_uri` and `backchannel_logout_session_required` with `POST` or `PATCH /api/v1/oauth2/clients/{client_id}`, and list deliveries with `GET /api/v1/oauth2/clients/{client_id}/backchannel-logout-deliveries` (`status`, `page` and `limit` query parameters).
 
@@ -106,10 +119,10 @@ WeftID gates released claims by the scopes a relying party **requests** at autho
 
 Supported scopes and the claims they release:
 
-* `openid` -- required for an ID token. Releases the envelope claims: `sub` (the stable WeftID user id, never the email, or a [pairwise identifier](pairwise-subjects.md) for an app set to pairwise), `iss`, `aud`, `exp`, `iat`, `auth_time`, `nonce` (when supplied), and `sid` (the WeftID session the user signed in with).
-* `profile` -- `name`, `given_name`, `family_name`, `locale`, `zoneinfo`, `updated_at`. Claims WeftID has no data for (such as `nickname`, `picture`, or `birthdate`) are left out, never sent empty.
-* `email` -- `email`, `email_verified`.
-* `groups` -- `groups`, the user's effective group memberships (see below).
+* `openid`: required for an ID token. Releases the envelope claims: `sub` (the stable WeftID user id, never the email, or a [pairwise identifier](pairwise-subjects.md) for an app set to pairwise), `iss`, `aud`, `exp`, `iat`, `auth_time`, `nonce` (when supplied), and `sid` (the WeftID session the user signed in with).
+* `profile`: `name`, `given_name`, `family_name`, `locale`, `zoneinfo`, `updated_at`. Claims WeftID has no data for (such as `nickname`, `picture`, or `birthdate`) are left out, never sent empty.
+* `email`: `email`, `email_verified`.
+* `groups`: `groups`, the user's effective group memberships (see below).
 
 The ID token carries only the `openid` envelope claims. The `profile`, `email`, and `groups` claims come from the **UserInfo endpoint**, called with the access token from the same token response. This follows OpenID Connect Core section 5.4 for the authorization code flow, and it keeps personal data out of a token that the app may pass on to other parties. Most OIDC client libraries call UserInfo automatically after sign-in.
 
@@ -121,10 +134,10 @@ When the `groups` scope is granted, the UserInfo response includes a `groups` cl
 
 ## Controlling who can sign in
 
-OIDC-enabled apps enforce access control at login, mirroring the [SAML service provider](../service-providers/index.md) model:
+OIDC-enabled apps enforce access control at sign-in, mirroring the [SAML service provider](../service-providers/index.md) model:
 
-* **Group-based access** (default) -- Only members of assigned groups, and members of their descendant groups, can sign in. Assign groups in the **Assigned Groups** panel on the app detail page.
-* **Available to all users** -- Every active tenant user can sign in. Toggle this in the **Access Mode** panel. Group assignments remain visible but are organizational only.
+* **Group-based access** (default): Only members of assigned groups, and members of their descendant groups, can sign in. Assign groups in the **Assigned Groups** panel on the app detail page.
+* **Available to all users**: Every active tenant user can sign in. Choose it in the **Access Mode** panel and save. Group assignments remain visible but are organizational only.
 
 A denied user sees an access-denied error instead of the consent screen and is never issued a code or token. Denials are recorded in the audit log.
 
@@ -132,13 +145,13 @@ A denied user sees an access-denied error instead of the consent screen and is n
 
 Everything above is available through the REST API under `/api/v1/oauth2/clients/{client_id}`:
 
-* `PATCH /{client_id}/oidc` -- toggle `oidc_enabled` and/or `available_to_all`.
-* `GET /{client_id}/oidc/urls` -- fetch the discovery/JWKS/endpoint URLs.
-* `GET /{client_id}/groups` -- list assigned groups.
-* `POST /{client_id}/groups` -- assign a group (`{"group_id": "..."}`).
-* `POST /{client_id}/groups/bulk` -- assign several groups (`{"group_ids": [...]}`).
-* `DELETE /{client_id}/groups/{group_id}` -- remove a group assignment.
-* `GET /{client_id}/backchannel-logout-deliveries` -- list back-channel logout deliveries, newest first.
+* `PATCH /{client_id}/oidc`: toggle `oidc_enabled` and/or `available_to_all`.
+* `GET /{client_id}/oidc/urls`: fetch the discovery/JWKS/endpoint URLs.
+* `GET /{client_id}/groups`: list assigned groups.
+* `POST /{client_id}/groups`: assign a group (`{"group_id": "..."}`).
+* `POST /{client_id}/groups/bulk`: assign several groups (`{"group_ids": [...]}`).
+* `DELETE /{client_id}/groups/{group_id}`: remove a group assignment.
+* `GET /{client_id}/backchannel-logout-deliveries`: list back-channel logout deliveries, newest first.
 
 Redirect URIs, post-logout redirect URIs, and front- and back-channel logout are managed through the existing `PATCH /{client_id}` endpoint (`redirect_uris`, `post_logout_redirect_uris`, `frontchannel_logout_uri`, `frontchannel_logout_session_required`, `backchannel_logout_uri`, `backchannel_logout_session_required`).
 
@@ -146,9 +159,9 @@ Redirect URIs, post-logout redirect URIs, and front- and back-channel logout are
 
 WeftID signs ID tokens with a per-tenant RSA key, published at the JWKS URI. The key is provisioned automatically the first time it is needed; no setup is required. Operators can inspect and rotate it under `/api/v1/oidc/signing-key`:
 
-* `GET /api/v1/oidc/signing-key` -- current key metadata: `kid`, `algorithm`, `created_at`, plus the retired key's `previous_kid` and `rotation_grace_period_ends_at` while a rotation is in its grace window. Admin role required. No key material is ever returned.
-* `POST /api/v1/oidc/signing-key/rotate` -- generate a new signing key. Optional body `{"grace_period_hours": 24}` (1 to 720) controls how long the retired key stays published in the JWKS so relying parties can still verify in-flight ID tokens. Rotation is refused while a prior rotation is still within its grace period. Super admin role required.
-* `POST /api/v1/oidc/signing-key/cleanup` -- remove the retired key immediately after its grace period has ended, without waiting for the automatic sweep. A key still within its grace window is never removed. Super admin role required.
+* `GET /api/v1/oidc/signing-key`: current key metadata: `kid`, `algorithm`, `created_at`, plus the retired key's `previous_kid` and `rotation_grace_period_ends_at` while a rotation is in its grace window. Admin role required. No key material is ever returned.
+* `POST /api/v1/oidc/signing-key/rotate`: generate a new signing key. Optional body `{"grace_period_hours": 24}` (1 to 720) controls how long the retired key stays published in the JWKS so relying parties can still verify in-flight ID tokens. Rotation is refused while a prior rotation is still within its grace period. Super admin role required.
+* `POST /api/v1/oidc/signing-key/cleanup`: remove the retired key immediately after its grace period has ended, without waiting for the automatic sweep. A key still within its grace window is never removed. Super admin role required.
 
 New tokens are signed with the new key as soon as the rotation completes. Relying parties that fetch keys from the JWKS URI (the normal case) pick up the change automatically. A background sweep removes retired keys once their grace period lapses; rotations and cleanups are recorded in the audit log.
 

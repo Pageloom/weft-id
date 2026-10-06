@@ -10,4 +10,5 @@ This is the **SAML** tab of [Applications](../applications/index.md).
 - [SSO Flow](sso-flow.md) — How single sign-on works end to end
 - [Single Logout](slo.md) — How sign-out propagates to applications
 - [Outbound SCIM Provisioning](scim.md) — Push user and group changes to downstream applications
-- [Forward Auth for HTTP Apps](forward-auth.md) — Gate apps with no built-in SSO at your reverse proxy
+
+Apps with no built-in SSO can be gated at your reverse proxy instead, from **Applications > Forward Auth**. See [Forward Auth for HTTP Apps](forward-auth.md).

@@ -523,7 +523,7 @@ function renderSyncRow(row) {
 
 async function refreshSyncLog() {
     const status = syncStatusFilter.value;
-    const params = new URLSearchParams({ page: '1', page_size: '50' });
+    const params = new URLSearchParams({ page: '1', limit: '50' });
     if (status) params.set('status', status);
     const resp = await fetch(`${API_BASE}/sync-log?${params.toString()}`, { credentials: 'same-origin' });
     if (!resp.ok) return;

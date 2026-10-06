@@ -1,6 +1,6 @@
 # Apps
 
-Apps are OAuth2 clients that use the authorization code flow. They're designed for web applications, mobile apps, and other interactive applications where a user authorizes access through a consent screen.
+Apps are OAuth2 clients that sign users in. Most use the authorization code flow: web applications and other interactive applications where the user approves access on a consent screen. An app on a device without a convenient browser can use [device sign-in](device-sign-in.md) instead.
 
 ## Creating an app
 
@@ -10,9 +10,10 @@ Navigate to **Applications > OAuth2 / OIDC** and click **Create App**.
 |-------|----------|-------------|
 | Name | Yes | Display name shown to users on the consent screen (max 255 characters) |
 | Description | No | Internal description (max 500 characters) |
-| Redirect URIs | Yes | One URI per line. Exact match required, no wildcards. These are the URLs the user is redirected to after authorization. |
+| Public client (device sign-in only) | No | For apps that can't keep a secret, such as TV apps and command-line tools. A public client has no secret and no redirect URIs. You can't change this later. See [Public clients](device-sign-in.md#public-clients). |
+| Redirect URIs | Yes, unless public | One URI per line. Exact match required, no wildcards. These are the URLs the user is redirected to after authorization. |
 
-After creation, WeftID displays the **client ID** and **client secret** in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog.
+After creation, WeftID displays the **client ID** and **client secret** in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog. A public client has no secret: WeftID opens its detail page instead.
 
 ## Authorization code flow
 
@@ -132,17 +133,26 @@ Apps can act as OpenID Connect relying parties, receiving a signed ID token and 
 
 ## Managing an app
 
-Click the app name in the list to open its detail page. From there you can:
+Click the app name in the list to open its detail page. Its sections follow the order you set an app up in.
 
-- **Edit** the name, description, and redirect URIs
-- **Enable OIDC** -- Turn the app into an OpenID Connect provider (see [Sign in with WeftID (OIDC)](oidc-provider-setup.md)).
-- **Regenerate the client secret** -- Immediately invalidates the old secret. A new secret is shown once.
-- **Change client authentication** -- Switch between a client secret and [private key JWT](private-key-jwt.md), and set the app's public keys.
-- **Choose subject identifiers** -- Give the app the user's WeftID ID (public) or a [pairwise identifier](pairwise-subjects.md) that apps in other sectors can't match.
-- **Deactivate** -- Disables the client, revokes all active tokens, and forgets every user's consent. The app can be reactivated later.
-- **Reactivate** -- Re-enables a deactivated app. Users will need to re-authorize.
-- **Allow token introspection for all tenant tokens** -- For an app whose backend acts as a resource server. See [Token Introspection and Revocation](token-introspection.md).
-- **Revoke a user's consent** -- The **User Consents** section lists every user who allowed the app and the scopes they granted. Revoking one makes that user see the consent screen again on their next sign-in; it does not revoke tokens the app already holds. Users can also revoke their own consents under **User Settings > Authorized Apps**.
+- **General**. The **Name**, **Description**, and **Redirect URIs**, plus **Allow device sign-in** (see [Device Sign-In](device-sign-in.md)) and **Require pushed authorization requests** (see [Pushed authorization requests](oidc-provider-setup.md#pushed-authorization-requests)).
+- **Endpoint URLs**. The authorization, token, introspection, revocation, device authorization and PAR endpoints to configure in the app. With OIDC on, also the issuer, discovery URL, JWKS URI, UserInfo and end session endpoints.
+- **Client Authentication**. Switch between a client secret and [private key JWT](private-key-jwt.md), and set the app's public keys.
+- **OpenID Connect**. **Enable OIDC** to let the app sign users in with OpenID Connect (see [Sign in with WeftID (OIDC)](oidc-provider-setup.md)). Once it is on, the section holds:
+    - **Access Mode** and **Assigned Groups**. Who can sign in. See [Controlling who can sign in](oidc-provider-setup.md#controlling-who-can-sign-in).
+    - **Subject Identifiers**. Give the app the user's WeftID ID (public) or a [pairwise identifier](pairwise-subjects.md) that apps in other sectors can't match.
+    - **Sign-in and Sign-out**. The **Login initiation URI**, which lists the app in users' My Apps (see [Launching from My Apps](oidc-provider-setup.md#launching-from-my-apps)), and the **Post-logout redirect URIs**, **Front-channel logout URI**, and **Back-channel logout URI** (see [Signing out](oidc-provider-setup.md#signing-out)).
+- **Token Introspection**. Allow the app to introspect every token in the tenant, for an app whose backend acts as a resource server. See [Token Introspection and Revocation](token-introspection.md).
+- **User Consents**. Every user who allowed the app and the scopes they granted. Revoking one ends the app's access for that user right away (its tokens are revoked, and a back-channel logout is sent when the app has a back-channel logout URI) and makes the user see the consent screen again on their next sign-in. Users can also revoke their own consents under **User Settings > Authorized Apps**.
+- **Back-Channel Logout Deliveries**. Shown when the app has a back-channel logout URI. See [Back-channel logout](oidc-provider-setup.md#back-channel-logout).
+- **Client Information**. The client ID and when the app was created.
+- **Actions**:
+    - **Regenerate the client secret**. The old secret stops working immediately. The new one is shown once. Not available while the app uses private key JWT.
+    - **Reset the registration access token**. Only for apps that [registered themselves](client-registration.md#after-registration).
+    - **Deactivate**. The app can no longer request tokens. Its existing tokens and every user's consent are revoked. You can reactivate it later.
+    - **Reactivate**. Re-enables a deactivated app. Users see the consent screen again.
+
+A public client has no redirect URIs, client authentication, token introspection, or client secret. Its **Sign-in and Sign-out** panel is **Sign-out** and holds only the back-channel logout URI.
 
 ## Access requirements
 

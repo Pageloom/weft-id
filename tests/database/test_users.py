@@ -1399,3 +1399,136 @@ def test_bulk_unverify_emails_empty_list(test_tenant):
     rows = database.users.bulk_unverify_emails(test_tenant["id"], [])
 
     assert rows == 0
+
+
+# =============================================================================
+# Auth method: OIDC / social connections
+# =============================================================================
+
+
+def _create_oidc_connection(tenant, user, name):
+    import database
+
+    return database.oidc_upstream.create_connection(
+        tenant_id=tenant["id"],
+        tenant_id_value=str(tenant["id"]),
+        name=name,
+        provider_type="generic",
+        issuer=f"https://{name.lower()}.example.com",
+        created_by=str(user["id"]),
+    )
+
+
+def _link_oidc(tenant, conn, user, sub):
+    import database
+
+    database.oidc_upstream.create_link(
+        tenant_id=tenant["id"],
+        tenant_id_value=str(tenant["id"]),
+        idp_id=str(conn["id"]),
+        sub=sub,
+        user_id=str(user["id"]),
+    )
+
+
+def _clear_password(tenant, user):
+    import database
+
+    database.execute(
+        tenant["id"],
+        "update users set password_hash = null where id = :id",
+        {"id": user["id"]},
+    )
+
+
+def test_list_users_returns_oidc_connection_names(test_tenant, test_user, test_admin_user):
+    """list_users returns the sorted names of the user's OIDC connections."""
+    import database
+
+    github = _create_oidc_connection(test_tenant, test_admin_user, "GitHub")
+    apple = _create_oidc_connection(test_tenant, test_admin_user, "apple")
+    _link_oidc(test_tenant, github, test_user, "gh-1")
+    _link_oidc(test_tenant, apple, test_user, "ap-1")
+
+    users = database.users.list_users(test_tenant["id"], page=1, page_size=10)
+    by_id = {str(u["id"]): u for u in users}
+    assert by_id[str(test_user["id"])]["oidc_connection_names"] == ["apple", "GitHub"]
+    assert by_id[str(test_admin_user["id"])]["oidc_connection_names"] is None
+
+
+def test_list_users_filter_by_oidc_connection(test_tenant, test_user, test_admin_user):
+    """oidc:<id> matches users linked to that connection, and negates cleanly."""
+    import database
+
+    google = _create_oidc_connection(test_tenant, test_admin_user, "Google")
+    github = _create_oidc_connection(test_tenant, test_admin_user, "GitHub")
+    _link_oidc(test_tenant, google, test_user, "g-1")
+    _link_oidc(test_tenant, github, test_admin_user, "gh-1")
+
+    key = f"oidc:{google['id']}"
+    ids = {
+        str(u["id"])
+        for u in database.users.list_users(
+            test_tenant["id"], auth_methods=[key], page=1, page_size=100
+        )
+    }
+    assert ids == {str(test_user["id"])}
+    assert database.users.count_users(test_tenant["id"], auth_methods=[key]) == 1
+
+    negated = {
+        str(u["id"])
+        for u in database.users.list_users(
+            test_tenant["id"], auth_methods=[key], auth_method_negate=True, page=1, page_size=100
+        )
+    }
+    assert str(test_user["id"]) not in negated
+    assert str(test_admin_user["id"]) in negated
+
+
+def test_list_users_unverified_excludes_oidc_linked_users(test_tenant, test_user, test_admin_user):
+    """A user with no password but an OIDC link is not unverified."""
+    import database
+
+    _clear_password(test_tenant, test_user)
+    _clear_password(test_tenant, test_admin_user)
+    conn = _create_oidc_connection(test_tenant, test_admin_user, "Google")
+    _link_oidc(test_tenant, conn, test_user, "g-1")
+
+    ids = {
+        str(u["id"])
+        for u in database.users.list_users(
+            test_tenant["id"], auth_methods=["unverified"], page=1, page_size=100
+        )
+    }
+    assert str(test_user["id"]) not in ids
+    assert str(test_admin_user["id"]) in ids
+
+
+def test_list_users_multiple_counts_oidc_link(test_tenant, test_user, test_admin_user):
+    """Password plus an OIDC link counts as multiple methods."""
+    import database
+
+    conn = _create_oidc_connection(test_tenant, test_admin_user, "Google")
+    _link_oidc(test_tenant, conn, test_user, "g-1")
+
+    ids = {
+        str(u["id"])
+        for u in database.users.list_users(
+            test_tenant["id"], auth_methods=["multiple"], page=1, page_size=100
+        )
+    }
+    assert str(test_user["id"]) in ids
+    assert str(test_admin_user["id"]) not in ids
+
+
+def test_list_users_ignores_malformed_idp_and_oidc_keys(test_tenant, test_user):
+    """Malformed UUIDs in idp:/oidc: keys are dropped instead of erroring."""
+    import database
+
+    users = database.users.list_users(
+        test_tenant["id"],
+        auth_methods=["oidc:not-a-uuid", "idp:nope", "idp:nope_totp"],
+        page=1,
+        page_size=100,
+    )
+    assert str(test_user["id"]) in {str(u["id"]) for u in users}

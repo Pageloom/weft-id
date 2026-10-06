@@ -10,6 +10,7 @@ state changes, not business logic mutations.
 from typing import Annotated
 
 import services.emails as emails_service
+import services.oidc_upstream as oidc_service
 import services.saml as saml_service
 import services.settings as settings_service
 import services.users as users_service
@@ -80,6 +81,9 @@ def login_page(
     # leaking passkey-existence information at GET time.
     show_passkey_first = bool(show_password and prefill_email)
 
+    # "Continue with ..." buttons belong to the email step only.
+    login_buttons = [] if show_password else oidc_service.list_login_buttons(tenant_id)
+
     return templates.TemplateResponse(
         request,
         "login.html",
@@ -90,6 +94,7 @@ def login_page(
             "prefill_email": prefill_email,
             "show_password": show_password,
             "show_passkey_first": show_passkey_first,
+            "login_buttons": login_buttons,
             "passkey_begin_url": "/login/passkey/begin",
             "passkey_complete_url": "/login/passkey/complete",
             "csrf_token": make_csrf_token_func(request),

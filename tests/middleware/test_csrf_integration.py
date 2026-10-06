@@ -60,8 +60,8 @@ def csrf_app():
         own form parsing (BaseHTTPMiddleware replays only a body read via
         ``request.body()``).
         """
-        form = await request.form()
-        fields = {k: (v if isinstance(v, str) else v.filename) for k, v in form.items()}
+        async with request.form() as form:
+            fields = {k: (v if isinstance(v, str) else v.filename) for k, v in form.items()}
         return {"status": "success", "form": fields}
 
     @app.post("/test-json")

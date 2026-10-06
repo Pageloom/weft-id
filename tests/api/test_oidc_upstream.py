@@ -136,6 +136,24 @@ def test_create_connection_invalid_provider_type(
     assert response.status_code == 422
 
 
+def test_create_connection_multi_tenant_entra_refused(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": "Entra",
+            "provider_type": "entra",
+            "entra_tenant_id": "organizations",
+            "client_id": "client-123",
+            "client_secret": "secret",
+        },
+    )
+    assert response.status_code == 400
+    assert "Multi-tenant Entra authorities" in response.text
+
+
 def test_create_connection_missing_required_field(
     client, test_tenant_host, oauth2_super_admin_header
 ):
@@ -279,6 +297,38 @@ def test_set_default_connection(
     )
     assert response.status_code == 200
     assert response.json()["is_default"] is True
+
+
+def test_clear_default_connection(
+    client, test_tenant_host, oauth2_super_admin_header, created_connection
+):
+    base = f"/api/v1/oidc-upstream/connections/{created_connection['id']}"
+    headers = {"Host": test_tenant_host, **oauth2_super_admin_header}
+    client.post(f"{base}/set-default", headers=headers)
+
+    response = client.post(f"{base}/clear-default", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["is_default"] is False
+    assert client.get(base, headers=headers).json()["is_default"] is False
+
+
+def test_clear_default_connection_not_found(client, test_tenant_host, oauth2_super_admin_header):
+    response = client.post(
+        f"/api/v1/oidc-upstream/connections/{uuid.uuid4()}/clear-default",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+    assert response.status_code == 404
+
+
+def test_clear_default_connection_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header, created_connection
+):
+    response = client.post(
+        f"/api/v1/oidc-upstream/connections/{created_connection['id']}/clear-default",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 403
 
 
 def test_enable_connection_as_admin_forbidden(
@@ -435,3 +485,99 @@ def test_test_connection_as_admin_forbidden(
         headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
     )
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("provider_type", "issuer", "label"),
+    [
+        (
+            "microsoft",
+            "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
+            "Microsoft (personal accounts)",
+        ),
+        ("linkedin", "https://www.linkedin.com/oauth", "LinkedIn"),
+        ("gitlab", "https://gitlab.com", "GitLab"),
+    ],
+)
+def test_create_social_preset_connection(
+    client, test_tenant_host, oauth2_super_admin_header, provider_type, issuer, label
+):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": f"{provider_type} sign-in",
+            "provider_type": provider_type,
+            "client_id": "client-123",
+            "client_secret": "super-secret-value",
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["provider_type"] == provider_type
+    assert data["provider_label"] == label
+    assert data["issuer"] == issuer
+    assert data["correlation_claim"] == "sub"
+    assert data["scopes"] == "openid profile email"
+
+    listing = client.get(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    ).json()
+    item = next(i for i in listing["items"] if i["id"] == data["id"])
+    assert item["provider_label"] == label
+
+
+def test_create_self_managed_gitlab(client, test_tenant_host, oauth2_super_admin_header):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": "Acme GitLab",
+            "provider_type": "gitlab",
+            "issuer": "https://gitlab.acme.example",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["discovery_url"] is None
+
+
+def test_create_unknown_provider_type_rejected(client, test_tenant_host, oauth2_super_admin_header):
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"name": "MySpace", "provider_type": "myspace"},
+    )
+    assert response.status_code == 422
+
+
+def test_create_connection_with_show_on_login(
+    client, test_tenant_host, oauth2_super_admin_header, sample_connection_data
+):
+    headers = {"Host": test_tenant_host, **oauth2_super_admin_header}
+    response = client.post(
+        "/api/v1/oidc-upstream/connections",
+        headers=headers,
+        json={**sample_connection_data, "show_on_login": True},
+    )
+    assert response.status_code == 201
+    assert response.json()["show_on_login"] is True
+
+    listed = client.get("/api/v1/oidc-upstream/connections", headers=headers).json()
+    assert listed["items"][0]["show_on_login"] is True
+
+
+def test_show_on_login_defaults_off_and_patches(
+    client, test_tenant_host, oauth2_super_admin_header, created_connection
+):
+    assert created_connection["show_on_login"] is False
+    url = f"/api/v1/oidc-upstream/connections/{created_connection['id']}"
+    headers = {"Host": test_tenant_host, **oauth2_super_admin_header}
+
+    on = client.patch(url, headers=headers, json={"show_on_login": True})
+    assert on.status_code == 200
+    assert on.json()["show_on_login"] is True
+    assert client.get(url, headers=headers).json()["show_on_login"] is True
+
+    off = client.patch(url, headers=headers, json={"show_on_login": False})
+    assert off.json()["show_on_login"] is False

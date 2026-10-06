@@ -1,11 +1,11 @@
 # User Management
 
-Manage the users in your WeftID tenant. Create users manually or let them self-register through an identity provider. Control their lifecycle from active to inactive and back.
+Manage the users in your WeftID tenant. Create users manually or let them be provisioned on first sign-in through an identity provider. Deactivate and reactivate them as needed.
 
 - [Creating Users](creating-users.md)
-- [Email Management](email-management.md) — Add, remove, promote emails; bulk operations
-- [User Lifecycle](user-lifecycle.md) — Active, inactive, reactivation workflows
-- [Roles and Permissions](roles-and-permissions.md) — Super admin, admin, and user roles
+- [Email Management](email-management.md): Add, remove, promote emails; bulk operations
+- [User Lifecycle](user-lifecycle.md): Active, deactivated, anonymized; reactivation
+- [Roles and Permissions](roles-and-permissions.md): Super admin, admin, and member roles
 
 ## User list
 
@@ -27,11 +27,11 @@ Click the funnel icon next to the page title to open the filter panel. Combine m
 |--------|---------|
 | **Role** | Member, Admin, Super Admin |
 | **Status** | Active, Deactivated, Anonymized |
-| **Auth Method** | Lists all authentication methods in use (Password, Passkey, specific IdPs) |
+| **Auth Method** | Password + Email, Password + TOTP, Passkey, Multiple methods, each SAML identity provider, Unverified |
 | **Domain** | Email domains in use. Matches any email at that domain (primary or secondary). Privileged domains are marked with a star. |
 | **Group** | Select a group. Check **Include children** to also match members of descendant groups. |
-| **Secondary Email** | Yes or No. Filter by whether the user has a secondary email address. |
-| **Last Activity** | Date range (start and end). Filter by when users last accessed the system. |
+| **Secondary Email** | Yes or No. Whether the user has a secondary email address. |
+| **Last Activity** | Date range. When the user was last active. |
 
 Each filter (except Secondary Email and Last Activity) has an **is/is not** toggle. Click it to negate the filter. For example, set Role to "Admin" with "is not" to see everyone who is *not* an admin.
 
@@ -41,6 +41,12 @@ Page size preferences are saved in your browser and persist across sessions.
 
 ### Bulk selection
 
-Use checkboxes to select users for [bulk email operations](email-management.md#bulk-email-operations). After checking users on the current page, you can click **Select all N matching users** to extend the selection to every user matching the current search and filters, even across pages.
+Use checkboxes to select users. After checking users on the current page, you can click **Select all N matching users** to extend the selection to every user matching the current search and filters, even across pages.
 
-The bulk action bar appears at the bottom when users are selected, with options to manage secondary emails or change primary emails.
+The bulk action bar appears at the bottom when users are selected:
+
+- **Add Secondary Email** and **Change Primary Email**: See [bulk email operations](email-management.md#bulk-email-operations)
+- **Add to Group**: See [Membership Management](../groups/membership-management.md#adding-members)
+- **Deactivate** and **Reactivate**: See [bulk deactivation and reactivation](user-lifecycle.md#bulk-deactivation-and-reactivation)
+
+Each bulk action shows a preview of eligible and skipped users, then runs as a background job.

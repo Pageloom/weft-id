@@ -10,6 +10,7 @@ rendered back into any template.
 """
 
 import logging
+import re
 from typing import Annotated
 from urllib.parse import quote
 
@@ -23,7 +24,12 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import has_page_access
 from pydantic import ValidationError as PydanticValidationError
-from schemas.oidc_upstream import OIDCConnectionCreate, OIDCConnectionUpdate
+from schemas.oidc_upstream import (
+    MAX_APPLE_PRIVATE_KEY_LENGTH,
+    PROVIDER_TYPES,
+    OIDCConnectionCreate,
+    OIDCConnectionUpdate,
+)
 from services import oidc_upstream as oidc_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.redirects import safe_redirect
@@ -53,11 +59,16 @@ def _load_connection_common(request: Request, tenant_id: str, user: dict, connec
     return connection, requesting_user
 
 
+def _parse_org_list(value: str) -> list[str]:
+    """Split a free-text organization list (commas, spaces or new lines)."""
+    return [org for org in re.split(r"[\s,]+", value) if org]
+
+
 def _preset_defaults() -> dict[str, dict]:
     """Return the preset defaults for the form's vendor picker."""
     return {
         provider_type: oidc_service.get_preset_defaults(provider_type)
-        for provider_type in ("generic", "google", "entra")
+        for provider_type in PROVIDER_TYPES
     }
 
 
@@ -150,6 +161,11 @@ def create_connection(
     require_platform_mfa: Annotated[bool, Form()] = False,
     jit_provisioning: Annotated[bool, Form()] = False,
     allow_email_linking: Annotated[bool, Form()] = False,
+    show_on_login: Annotated[bool, Form()] = False,
+    github_allowed_orgs: Annotated[str, Form(max_length=4100)] = "",
+    apple_team_id: Annotated[str, Form(max_length=50)] = "",
+    apple_key_id: Annotated[str, Form(max_length=50)] = "",
+    apple_private_key: Annotated[str, Form(max_length=MAX_APPLE_PRIVATE_KEY_LENGTH)] = "",
 ):
     """Create a new OIDC upstream connection from the admin form."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -179,6 +195,11 @@ def create_connection(
             require_platform_mfa=require_platform_mfa,
             jit_provisioning=jit_provisioning,
             allow_email_linking=allow_email_linking,
+            show_on_login=show_on_login,
+            github_allowed_orgs=_parse_org_list(github_allowed_orgs) or None,
+            apple_team_id=apple_team_id.strip() or None,
+            apple_key_id=apple_key_id.strip() or None,
+            apple_private_key=apple_private_key.strip() or None,
         )
     except PydanticValidationError:
         # A malformed form value (bad provider type, empty issuer, over-length
@@ -546,6 +567,61 @@ def edit_connection_endpoints(
 
 
 @router.post(
+    "/identity-providers/oidc/{connection_id}/edit-credentials",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_connection_credentials(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+    client_id: Annotated[str, Form(max_length=255)] = "",
+    client_secret: Annotated[str, Form(max_length=3000)] = "",
+    scopes: Annotated[str, Form(max_length=500)] = "",
+    issuer: Annotated[str, Form(max_length=2048)] = "",
+    discovery_url: Annotated[str, Form(max_length=2048)] = "",
+    correlation_claim: Annotated[str, Form(max_length=50)] = "",
+    entra_tenant_id: Annotated[str, Form(max_length=100)] = "",
+    hosted_domain: Annotated[str, Form(max_length=253)] = "",
+):
+    """Update the credentials and identity settings set at creation.
+
+    Mirrors ``PATCH /api/v1/oidc-upstream/connections/{id}``: a blank field
+    leaves the stored value untouched, so the write-only client secret is
+    kept unless a new one is typed. Hosted domain is the exception: it is an
+    optional restriction, so blank clears it (a no-op for providers other
+    than Google, which have none).
+    """
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    data = OIDCConnectionUpdate(
+        client_id=client_id.strip() or None,
+        client_secret=client_secret.strip() or None,
+        scopes=" ".join(scopes.split()) or None,
+        issuer=issuer.strip() or None,
+        discovery_url=discovery_url.strip() or None,
+        correlation_claim=correlation_claim.strip() or None,
+        entra_tenant_id=entra_tenant_id.strip() or None,
+        hosted_domain=hosted_domain.strip(),
+    )
+
+    try:
+        oidc_service.update_connection(
+            requesting_user, connection_id, data, tenant_base_url(request)
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as e:
+        return safe_redirect(
+            f"{CONNECTION_LIST_URL}/{connection_id}/details?error={quote(e.message)}"
+        )
+
+    return safe_redirect(
+        f"{CONNECTION_LIST_URL}/{connection_id}/details?success=credentials_updated"
+    )
+
+
+@router.post(
     "/identity-providers/oidc/{connection_id}/edit-settings",
     dependencies=[Depends(require_super_admin)],
 )
@@ -560,8 +636,10 @@ def edit_connection_settings(
     jit_provisioning: Annotated[bool, Form()] = False,
     allow_email_linking: Annotated[bool, Form()] = False,
     sign_out_at_idp: Annotated[bool, Form()] = False,
+    show_on_login: Annotated[bool, Form()] = False,
 ):
-    """Update connection settings (enabled, default, MFA, JIT, email linking, sign-out)."""
+    """Update connection settings (enabled, default, MFA, JIT, email linking,
+    sign-out, login page button)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
     base_url = tenant_base_url(request)
 
@@ -575,6 +653,8 @@ def edit_connection_settings(
 
         if is_default and not connection.is_default:
             oidc_service.set_connection_default(requesting_user, connection_id, base_url)
+        elif not is_default and connection.is_default:
+            oidc_service.clear_connection_default(requesting_user, connection_id, base_url)
 
         oidc_service.update_connection(
             requesting_user,
@@ -584,6 +664,7 @@ def edit_connection_settings(
                 jit_provisioning=jit_provisioning,
                 allow_email_linking=allow_email_linking,
                 sign_out_at_idp=sign_out_at_idp,
+                show_on_login=show_on_login,
             ),
             base_url,
         )
@@ -593,6 +674,81 @@ def edit_connection_settings(
         return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={str(e)}")
 
     return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?success=settings_updated")
+
+
+@router.post(
+    "/identity-providers/oidc/{connection_id}/edit-apple-key",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_apple_key(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+    apple_team_id: Annotated[str, Form(max_length=50)] = "",
+    apple_key_id: Annotated[str, Form(max_length=50)] = "",
+    apple_private_key: Annotated[str, Form(max_length=MAX_APPLE_PRIVATE_KEY_LENGTH)] = "",
+):
+    """Set the Apple team ID, key ID and private key (blank leaves a value as is)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        data = OIDCConnectionUpdate(
+            apple_team_id=apple_team_id.strip() or None,
+            apple_key_id=apple_key_id.strip() or None,
+            apple_private_key=apple_private_key.strip() or None,
+        )
+    except PydanticValidationError:
+        message = quote("Team ID and key ID are 10 upper-case letters and digits.")
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={message}")
+
+    try:
+        oidc_service.update_connection(
+            requesting_user, connection_id, data, tenant_base_url(request)
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as e:
+        return safe_redirect(
+            f"{CONNECTION_LIST_URL}/{connection_id}/details?error={quote(e.message)}"
+        )
+
+    return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?success=apple_key_updated")
+
+
+@router.post(
+    "/identity-providers/oidc/{connection_id}/edit-github-orgs",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_github_allowed_orgs(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    connection_id: str,
+    github_allowed_orgs: Annotated[str, Form(max_length=4100)] = "",
+):
+    """Set the GitHub organizations a user must belong to (blank clears it)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        data = OIDCConnectionUpdate(github_allowed_orgs=_parse_org_list(github_allowed_orgs))
+    except PydanticValidationError:
+        message = quote(
+            "Organization names may hold only letters, digits and hyphens (up to 39 "
+            "characters), and at most 100 organizations."
+        )
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={message}")
+
+    try:
+        oidc_service.update_connection(
+            requesting_user, connection_id, data, tenant_base_url(request)
+        )
+    except NotFoundError:
+        return safe_redirect(f"{CONNECTION_LIST_URL}?error=not_found")
+    except ServiceError as e:
+        return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?error={str(e)}")
+
+    return safe_redirect(f"{CONNECTION_LIST_URL}/{connection_id}/details?success=orgs_updated")
 
 
 @router.post(

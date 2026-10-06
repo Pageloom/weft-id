@@ -54,6 +54,26 @@
                 Identity provider disabled. Contact your administrator.
                 {% elif error == 'invalid_email' %}
                 Enter a valid email address.
+                {% elif error == 'sso_required' %}
+                This account signs in through your organization's single sign-on. Enter your email address to continue.
+                {% elif error == 'account_already_linked' %}
+                Your account here is already linked to a different account at this provider. Sign in with that one, or contact your administrator.
+                {% elif error == 'github_org_not_allowed' %}
+                Your GitHub account is not a member of an organization that can sign in here. Contact your administrator.
+                {% elif error == 'session_expired' %}
+                Your sign-in expired. Start again.
+                {% elif error == 'too_many_requests' %}
+                Too many attempts. Wait a few minutes and try again.
+                {% elif error == 'auth_failed' %}
+                Sign-in didn't complete. Try again.
+                {% elif error == 'configuration_error' %}
+                This sign-in option isn't set up correctly. Contact your administrator.
+                {% elif error == 'idp_not_found' %}
+                Sign-in option not found.
+                {% elif error == 'oidc_user_not_found' %}
+                No account found for this sign-in. Contact your administrator.
+                {% elif error == 'account_unconfirmed' %}
+                An account with this email address hasn't been confirmed yet. Contact your administrator.
                 {% else %}
                 {{ error }}
                 {% endif %}
@@ -121,6 +141,25 @@
                 </div>
             </form>
             {% else %}
+            {% if login_buttons %}
+            {# Social sign-in: one button per connection an admin put on the login page #}
+            <div class="space-y-3" id="login-buttons">
+                {% for button in login_buttons %}
+                {# Apple's guidelines allow only a white (outlined) or black button: black in dark mode. #}
+                <a href="/auth/oidc/{{ button.connection_id }}/login?via=login_button"
+                   class="w-full flex items-center justify-center gap-3 px-4 py-2 border rounded-md font-medium transition duration-150 {% if button.logo == 'apple' %}border-black dark:border-black bg-white dark:bg-black hover:bg-gray-50 dark:hover:bg-gray-900 text-black dark:text-white{% else %}border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100{% endif %}">
+                    {{ provider_logo(button.logo, class="w-5 h-5 shrink-0") }}
+                    <span>Continue with {{ button.label }}</span>
+                </a>
+                {% endfor %}
+            </div>
+            <div class="flex items-center my-6" aria-hidden="true">
+                <div class="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
+                <span class="px-3 text-sm text-gray-500 dark:text-gray-400">or</span>
+                <div class="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
+            </div>
+            {% endif %}
+
             {# Step 1: Email entry form (email-first flow with verification) #}
             <form method="post" action="/login/send-code" id="emailForm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -416,6 +416,10 @@ class TestCSRFExemptionsMatchAuthentication:
         protocol_prefixes = ("/saml/", "/oauth2/token", "/oauth2/introspect", "/oauth2/revoke")
         protocol_paths = {
             "/auth/oidc/{connection_id}/backchannel-logout",
+            # A provider's form_post callback (Apple): it only records the
+            # posted fields against a stored sign-in found by its ``state``;
+            # the session-bound GET callback finishes the sign-in.
+            "/auth/oidc/{connection_id}/callback",
             # Client-authenticated like the token endpoint (RFC 8628, RFC 9126).
             "/oauth2/device_authorization",
             "/oauth2/par",

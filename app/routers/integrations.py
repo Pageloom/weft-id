@@ -135,7 +135,7 @@ def apps_create(
     user: Annotated[dict, Depends(get_current_user)],
     name: str = Form("", max_length=255),
     redirect_uris: str = Form("", max_length=20000),
-    description: str = Form("", max_length=2000),
+    description: str = Form("", max_length=500),
     is_public: str = Form("", max_length=10),
 ):
     """Create a new normal OAuth2 client (App). A public client (device
@@ -218,7 +218,7 @@ def b2b_create(
     user: Annotated[dict, Depends(get_current_user)],
     name: str = Form("", max_length=255),
     role: str = Form("", max_length=50),
-    description: str = Form("", max_length=2000),
+    description: str = Form("", max_length=500),
 ):
     """Create a new B2B OAuth2 client (Service Account)."""
     if not has_page_access("/applications/service-accounts", user.get("role")):
@@ -318,6 +318,27 @@ def app_detail(
     return templates.TemplateResponse(request, "integrations_app_detail.html", context)
 
 
+# Error codes from update_client shown as their own message on the App page.
+_APP_UPDATE_ERRORS = frozenset(
+    {
+        "invalid_post_logout_redirect_uri",
+        "invalid_frontchannel_logout_uri",
+        "invalid_backchannel_logout_uri",
+        "invalid_initiate_login_uri",
+    }
+)
+
+
+def _app_update_error(exc: ServiceError, redirect_url: str) -> RedirectResponse:
+    """Map an update_client failure to the App page's error banner."""
+    if exc.code in _APP_UPDATE_ERRORS:
+        return safe_redirect(f"{redirect_url}?error={exc.code}")
+    if exc.code == subject_service.INVALID_SECTOR_IDENTIFIER_URI:
+        return safe_redirect(f"{redirect_url}?error=pairwise_redirect_uris")
+    logger.warning("Failed to update OAuth2 app: %s", exc)
+    return safe_redirect(f"{redirect_url}?error=update_failed")
+
+
 @apps_router.post("/{client_id}/edit", response_class=HTMLResponse)
 def app_edit(
     request: Request,
@@ -326,17 +347,14 @@ def app_edit(
     client_id: str,
     name: str = Form("", max_length=255),
     redirect_uris: str = Form("", max_length=20000),
-    description: str = Form("", max_length=2000),
-    post_logout_redirect_uris: str = Form("", max_length=20000),
-    frontchannel_logout_uri: str = Form("", max_length=2048),
-    frontchannel_logout_session_required: str = Form("", max_length=10),
-    backchannel_logout_uri: str = Form("", max_length=2048),
-    backchannel_logout_session_required: str = Form("", max_length=10),
-    initiate_login_uri: str = Form("", max_length=2048),
+    description: str = Form("", max_length=500),
     device_grant_enabled: str = Form("", max_length=10),
     require_pushed_authorization_requests: str = Form("", max_length=10),
 ):
-    """Update a normal OAuth2 client (App)."""
+    """Update the General settings of a normal OAuth2 client (App).
+
+    Sign-in and sign-out URIs are saved separately (``/oidc/uris``).
+    """
     if not has_page_access("/applications/oauth", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
@@ -357,16 +375,14 @@ def app_edit(
 
     try:
         if existing.get("is_public"):
-            # A public client's form has no redirect, front-channel or login
-            # initiation fields, and its device grant is always on.
+            # A public client's form has no redirect URIs, and its device
+            # grant is always on.
             client = oauth2_service.update_client(
                 tenant_id=tenant_id,
                 client_id=client_id,
                 actor_user_id=str(user["id"]),
                 name=name.strip(),
                 description=description.strip() or None,
-                backchannel_logout_uri=backchannel_logout_uri.strip(),
-                backchannel_logout_session_required=backchannel_logout_session_required == "true",
             )
         else:
             client = oauth2_service.update_client(
@@ -376,12 +392,6 @@ def app_edit(
                 name=name.strip(),
                 description=description.strip() or None,
                 redirect_uris=uri_list,
-                post_logout_redirect_uris=post_logout_redirect_uris.splitlines(),
-                frontchannel_logout_uri=frontchannel_logout_uri.strip(),
-                frontchannel_logout_session_required=frontchannel_logout_session_required == "true",
-                backchannel_logout_uri=backchannel_logout_uri.strip(),
-                backchannel_logout_session_required=backchannel_logout_session_required == "true",
-                initiate_login_uri=initiate_login_uri.strip(),
                 device_grant_enabled=device_grant_enabled == "true",
                 require_pushed_authorization_requests=(
                     require_pushed_authorization_requests == "true"
@@ -393,18 +403,65 @@ def app_edit(
 
         return safe_redirect(f"{redirect_url}?success=updated")
     except ServiceError as exc:
-        if exc.code == "invalid_post_logout_redirect_uri":
-            return safe_redirect(f"{redirect_url}?error=invalid_post_logout_redirect_uri")
-        if exc.code == "invalid_frontchannel_logout_uri":
-            return safe_redirect(f"{redirect_url}?error=invalid_frontchannel_logout_uri")
-        if exc.code == "invalid_backchannel_logout_uri":
-            return safe_redirect(f"{redirect_url}?error=invalid_backchannel_logout_uri")
-        if exc.code == "invalid_initiate_login_uri":
-            return safe_redirect(f"{redirect_url}?error=invalid_initiate_login_uri")
-        if exc.code == subject_service.INVALID_SECTOR_IDENTIFIER_URI:
-            return safe_redirect(f"{redirect_url}?error=pairwise_redirect_uris")
-        logger.warning("Failed to update OAuth2 app: %s", exc)
-        return safe_redirect(f"{redirect_url}?error=update_failed")
+        return _app_update_error(exc, redirect_url)
+
+
+@apps_router.post("/{client_id}/oidc/uris", response_class=HTMLResponse)
+def app_edit_oidc_uris(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    client_id: str,
+    post_logout_redirect_uris: str = Form("", max_length=20000),
+    frontchannel_logout_uri: str = Form("", max_length=2048),
+    frontchannel_logout_session_required: str = Form("", max_length=10),
+    backchannel_logout_uri: str = Form("", max_length=2048),
+    backchannel_logout_session_required: str = Form("", max_length=10),
+    initiate_login_uri: str = Form("", max_length=2048),
+):
+    """Update an App's OpenID Connect sign-in and sign-out URIs.
+
+    Blank fields and unchecked boxes clear their setting.
+    """
+    if not has_page_access("/applications/oauth", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    redirect_url = f"/applications/oauth/{client_id}"
+
+    existing = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+    if not existing or existing["client_type"] != "normal":
+        return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
+
+    try:
+        if existing.get("is_public"):
+            # A public client has no browser redirects: only back-channel
+            # logout applies.
+            client = oauth2_service.update_client(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                actor_user_id=str(user["id"]),
+                backchannel_logout_uri=backchannel_logout_uri.strip(),
+                backchannel_logout_session_required=backchannel_logout_session_required == "true",
+            )
+        else:
+            client = oauth2_service.update_client(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                actor_user_id=str(user["id"]),
+                post_logout_redirect_uris=post_logout_redirect_uris.splitlines(),
+                frontchannel_logout_uri=frontchannel_logout_uri.strip(),
+                frontchannel_logout_session_required=frontchannel_logout_session_required == "true",
+                backchannel_logout_uri=backchannel_logout_uri.strip(),
+                backchannel_logout_session_required=backchannel_logout_session_required == "true",
+                initiate_login_uri=initiate_login_uri.strip(),
+            )
+
+        if not client:
+            return RedirectResponse(url="/applications/oauth?error=not_found", status_code=303)
+
+        return safe_redirect(f"{redirect_url}?success=oidc_updated")
+    except ServiceError as exc:
+        return _app_update_error(exc, redirect_url)
 
 
 def _set_introspection(
@@ -877,7 +934,7 @@ def b2b_edit(
     user: Annotated[dict, Depends(get_current_user)],
     client_id: str,
     name: str = Form("", max_length=255),
-    description: str = Form("", max_length=2000),
+    description: str = Form("", max_length=500),
 ):
     """Update a B2B OAuth2 client name/description."""
     if not has_page_access("/applications/service-accounts", user.get("role")):

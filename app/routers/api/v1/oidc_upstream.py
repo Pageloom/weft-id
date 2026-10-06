@@ -55,7 +55,8 @@ def list_connections(
     Requires super_admin role.
 
     Returns a list of connections with basic info (id, name, provider_type,
-    enabled/default status).
+    provider_label, enabled/default status). provider_label is the
+    provider's display name (e.g. "LinkedIn").
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
@@ -82,14 +83,26 @@ def create_connection(
 
     Request body:
     - name: Display name for the connection (<=120 chars)
-    - provider_type: One of generic, google, entra
-    - issuer: The IdP issuer URL (<=2048 chars)
-    - discovery_url: Optional discovery document URL (<=2048 chars)
+    - provider_type: One of generic, google, entra, microsoft (personal
+      Microsoft accounts), linkedin, gitlab, github, discord, facebook,
+      apple.
+      github, discord and facebook are OAuth2 with fixed endpoints:
+      discovery_url, the manual endpoints, hosted_domain and entra_tenant_id
+      must be omitted, and issuer / correlation_claim must be omitted or
+      equal the preset values (https://github.com, https://discord.com or
+      https://www.facebook.com; sub); otherwise 400 oidc_setting_not_supported
+    - issuer: The IdP issuer URL (<=2048 chars). Filled from the preset when
+      omitted (required for generic; composed from entra_tenant_id for
+      entra). For gitlab, set it to a self-managed instance's URL
+    - discovery_url: Optional discovery document URL (<=2048 chars). Filled
+      from the preset only when the issuer is the preset's issuer
     - authorization_endpoint / token_endpoint / userinfo_endpoint / jwks_uri /
       end_session_endpoint: Optional manual endpoint overrides (<=2048 chars
       each; discovery fills them when the provider publishes a document)
     - client_id: OAuth2 client id (<=255 chars)
-    - client_secret: OAuth2 client secret (write-only, encrypted at rest)
+    - client_secret: OAuth2 client secret (write-only, encrypted at rest).
+      Rejected (400 oidc_setting_not_supported) for apple, whose client
+      secret WeftID signs with apple_private_key
     - scopes: Space-separated scopes (<=500 chars)
     - claim_mapping: OIDC claim name -> WeftID attribute key mapping
     - correlation_claim: Claim used to correlate users (default 'sub')
@@ -99,14 +112,38 @@ def create_connection(
     - group_claim_name_key: Key holding the group name when the claim is a
       list of objects (<=100 chars, default 'name')
     - hosted_domain: Google `hd` restriction (<=253 chars)
-    - entra_tenant_id: Entra tenant id for authority composition (<=100 chars)
+    - entra_tenant_id: Entra tenant id for authority composition (<=100 chars):
+      a directory GUID or verified domain. common, organizations and consumers
+      (or an issuer built on them) are rejected (400)
     - is_enabled / is_default / require_platform_mfa / jit_provisioning /
-      allow_email_linking: Behavior flags
+      allow_email_linking: Behavior flags. allow_email_linking is rejected
+      (400) for providers without a trusted verified-email claim (microsoft,
+      facebook). For those providers, a user created by jit_provisioning
+      must confirm their email address with a code before the sign-in
+      completes
     - sign_out_at_idp: On WeftID sign-out, send the browser to the provider's
       end_session_endpoint so the provider session ends too (default false).
       Register the returned post_logout_redirect_uri at the provider first
+    - show_on_login: Put a "Continue with <provider>" button for this
+      connection on the sign-in page (default false). Shown only while the
+      connection is enabled
+    - github_allowed_orgs: github only. GitHub organization logins (each
+      <=39 chars of letters, digits and hyphens; at most 100). A user must
+      belong to at least one; omit for any GitHub account. Stored
+      lower-cased. Rejected (400) on other provider types
+    - apple_team_id / apple_key_id: apple only. The Apple Developer team id
+      and the Sign in with Apple key id (each 10 upper-case letters and
+      digits; 422 otherwise)
+    - apple_private_key: apple only. The Sign in with Apple .p8 key in PEM
+      form (<=2000 chars; write-only, encrypted at rest). Must be an EC P-256
+      private key (400 oidc_apple_private_key_invalid otherwise). The three
+      apple_* fields are rejected (400 oidc_setting_not_supported) on other
+      provider types
 
     Returns the created connection. The client secret is never returned.
+    The response's uses_discovery is false for a provider with fixed
+    endpoints (github, discord, facebook). For apple the response carries
+    apple_team_id, apple_key_id and apple_private_key_set (never the key).
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     base_url = _get_base_url(request)
@@ -164,9 +201,21 @@ def update_connection(
       client_secret, scopes, claim_mapping, correlation_claim,
       group_claim_source, group_claim_name_key, hosted_domain,
       entra_tenant_id, require_platform_mfa, jit_provisioning,
-      allow_email_linking, sign_out_at_idp.
-      An empty string for group_claim_source or group_claim_name_key clears
-      the setting
+      allow_email_linking, sign_out_at_idp, show_on_login,
+      github_allowed_orgs, apple_team_id, apple_key_id, apple_private_key.
+      An empty string for group_claim_source, group_claim_name_key,
+      hosted_domain or discovery_url clears the setting. For entra, a new
+      entra_tenant_id recomposes the issuer and discovery URL unless an issuer
+      is given. For gitlab, a new issuer resets discovery_url to follow it. A
+      changed issuer or discovery URL on a discovered connection drops the
+      discovered endpoints, so the next sign-in discovers again.
+      allow_email_linking=true is rejected (400) for providers
+      without a trusted verified-email claim (microsoft, facebook). For github,
+      github_allowed_orgs replaces the list (an empty list removes the
+      restriction). For github, discord and facebook the discovery/endpoint
+      fields are rejected as on create. For apple, each apple_* field given
+      replaces the stored value (the key is validated as on create) and an
+      omitted one is kept; client_secret is rejected
 
     Returns the updated connection. The client secret is never returned.
     """
@@ -266,11 +315,20 @@ def test_connection(
     connection_id: str,
 ):
     """
-    Test an OIDC upstream connection: run discovery and fetch the signing keys.
+    Test an OIDC upstream connection against its provider.
 
-    Fetches the IdP's discovery document (ignoring the refresh interval),
-    checks its issuer and endpoints, stores the discovered endpoints, and
-    fetches the JWKS from the discovered ``jwks_uri``.
+    For an OIDC provider: fetches the IdP's discovery document (ignoring the
+    refresh interval), checks its issuer and endpoints, stores the
+    discovered endpoints, and fetches the JWKS from the discovered
+    ``jwks_uri``. For github and discord: presents the client id, client
+    secret and callback URL to the provider's token endpoint with a made-up
+    code and reports whether the provider accepts the credentials (GitHub
+    also reports a callback URL mismatch). For facebook: requests an app
+    access token with the app id and secret (the callback URL is not
+    checked). For apple: runs the OIDC checks above, then presents a client
+    secret signed with the stored key to Apple's token endpoint with a
+    made-up code and reports whether Apple accepts it (the return URL is not
+    checked).
 
     Requires super_admin role.
 
@@ -278,8 +336,7 @@ def test_connection(
     - connection_id: UUID of the connection
 
     Returns the updated connection. Fails with 400 (``oidc_connection_test_failed``)
-    and the reason when discovery or the key set fetch fails; with 404 for an
-    unknown connection.
+    and the reason when the check fails; with 404 for an unknown connection.
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
@@ -530,10 +587,12 @@ def unlink_user_from_connection(
 
     Requires super_admin role.
 
-    Removes the user's ``(idp_id, sub)`` link, scrubs canonical attributes
-    still matching the connection's last-mirrored snapshot, drops the mirror
-    rows, and inactivates the user + unverifies their emails (mirroring SAML
-    disconnect semantics).
+    Removes the user's link to the connection, scrubs canonical attributes
+    still matching the connection's last-mirrored snapshot, and drops the
+    mirror rows. When it was the user's last OIDC link, the user is also
+    deactivated, their emails unverified and their tokens revoked (mirroring
+    SAML disconnect semantics). A user with other links keeps signing in
+    through them.
 
     Path parameters:
     - connection_id: UUID of the connection
@@ -573,6 +632,38 @@ def set_default_connection(
     base_url = _get_base_url(request)
     try:
         return oidc_upstream_service.set_connection_default(
+            requesting_user, connection_id, base_url
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/connections/{connection_id}/clear-default", response_model=OIDCConnectionConfig)
+def clear_default_connection(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    connection_id: str,
+):
+    """
+    Stop an OIDC upstream connection being the default.
+
+    Requires super_admin role.
+
+    The tenant is left with no default connection, so an unrecognized email
+    address with no domain binding is no longer sent to an OIDC connection to
+    sign up. Calling this on a connection that is not the default changes
+    nothing.
+
+    Path parameters:
+    - connection_id: UUID of the connection
+
+    Returns the updated connection.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    base_url = _get_base_url(request)
+    try:
+        return oidc_upstream_service.clear_connection_default(
             requesting_user, connection_id, base_url
         )
     except ServiceError as exc:

@@ -64,12 +64,12 @@ def handle_bulk_inactivate_users(task: dict) -> dict[str, Any]:
                             "user_id": user_id,
                             "name": name,
                             "status": "skipped",
-                            "reason": "Cannot inactivate yourself",
+                            "reason": "Cannot deactivate yourself",
                         }
                     )
                     continue
 
-                # Already inactivated
+                # Already deactivated
                 if user.get("is_inactivated"):
                     skipped += 1
                     details.append(
@@ -77,7 +77,7 @@ def handle_bulk_inactivate_users(task: dict) -> dict[str, Any]:
                             "user_id": user_id,
                             "name": name,
                             "status": "skipped",
-                            "reason": "Already inactivated",
+                            "reason": "Already deactivated",
                         }
                     )
                     continue
@@ -130,7 +130,7 @@ def handle_bulk_inactivate_users(task: dict) -> dict[str, Any]:
                         "user_id": user_id,
                         "name": name,
                         "status": "inactivated",
-                        "reason": "Inactivated and tokens revoked",
+                        "reason": "Deactivated and tokens revoked",
                     }
                 )
 

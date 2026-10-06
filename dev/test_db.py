@@ -63,8 +63,12 @@ def main() -> None:
     ensure_database()
     migrate()
     # Owned by appowner like appdb, after the baseline ran (it creates the role).
+    # The same database privileges as appdb too, so appuser gets no TEMP here
+    # either and a test that needs more than production allows fails locally.
     with psycopg.connect(dbname="postgres", autocommit=True, **SUPERUSER) as conn:
         conn.execute(f'ALTER DATABASE "{TEST_DB}" OWNER TO appowner')
+        conn.execute(f'REVOKE ALL ON DATABASE "{TEST_DB}" FROM PUBLIC')
+        conn.execute(f'GRANT CONNECT ON DATABASE "{TEST_DB}" TO migrator, appuser')
 
 
 if __name__ == "__main__":

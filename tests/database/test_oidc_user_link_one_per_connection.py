@@ -2,8 +2,8 @@
 
 The UNIQUE (idp_id, user_id) constraint is covered against the real table in
 ``tests/services/test_oidc_upstream_multi_link.py``. Duplicates can no longer
-be inserted there, so the migration's clean-up statement runs here against a
-temporary copy of the table.
+be inserted there, so the clean-up's ranking runs here over inline rows. The
+test role has no TEMP privilege (as in production), so no scratch table.
 """
 
 import re
@@ -20,11 +20,19 @@ _MIGRATION = (
 )
 
 
-def _dedupe_statement(table: str) -> str:
+# Typed VALUES list standing in for the table inside the ranking subquery.
+_ROWS_SOURCE = """(
+    SELECT id, idp_id, user_id, created_at::timestamptz, last_used_at::timestamptz
+    FROM (VALUES {values}) AS v(id, idp_id, user_id, created_at, last_used_at)
+) AS rows"""
+
+
+def _ranking_subquery() -> str:
+    """The migration's ``USING (...) ranked`` subquery, verbatim."""
     sql = _MIGRATION.read_text()
-    delete = re.search(r"DELETE FROM .*?;", sql, re.DOTALL)
-    assert delete is not None
-    return delete.group(0).replace("public.oidc_idp_user_links", table)
+    ranked = re.search(r"USING \((.*?)\) ranked", sql, re.DOTALL)
+    assert ranked is not None
+    return ranked.group(1)
 
 
 def test_dedupe_keeps_most_recently_used_then_newest():
@@ -41,23 +49,15 @@ def test_dedupe_keeps_most_recently_used_then_newest():
         ("a2-only", conn_a, user_2, "2026-01-01", None),
     ]
 
-    with database.session(tenant_id=database.UNSCOPED) as cur:
-        cur.execute(
-            """
-            create temp table links_copy (
-                id text primary key,
-                idp_id text not null,
-                user_id text not null,
-                created_at timestamptz not null,
-                last_used_at timestamptz
-            ) on commit drop
-            """
-        )
-        for row in rows:
-            cur.execute("insert into links_copy values (%s, %s, %s, %s, %s)", row)
+    values = ", ".join(["(%s, %s, %s, %s, %s)"] * len(rows))
+    ranked = _ranking_subquery().replace(
+        "public.oidc_idp_user_links", _ROWS_SOURCE.format(values=values)
+    )
+    params = [field for row in rows for field in row]
 
-        cur.execute(_dedupe_statement("links_copy"))
-        cur.execute("select id from links_copy order by id")
+    # The migration deletes every row ranked above 1; keep the rest.
+    with database.session(tenant_id=database.UNSCOPED) as cur:
+        cur.execute(f"select id from ({ranked}) ranked where rn = 1 order by id", params)
         survivors = [r["id"] for r in cur.fetchall()]
 
     assert survivors == ["a1-used", "a2-only", "b1-new"]
